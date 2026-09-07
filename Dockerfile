@@ -24,7 +24,15 @@ RUN pnpm fetch
 # Copy source and build
 COPY . .
 # install with dev deps (needed to build)
-RUN pnpm install --offline --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
+
+# coverfo: Supabase / Toss keys for Vite build-time inlining
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ARG VITE_TOSS_CLIENT_KEY
+ENV VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+ENV VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+ENV VITE_TOSS_CLIENT_KEY=${VITE_TOSS_CLIENT_KEY}
 
 # Build the Remix app (SSR + client)
 RUN NODE_OPTIONS=--max-old-space-size=4096 pnpm run build
@@ -82,22 +90,3 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=5 \
 
 # Start using dockerstart script with Wrangler
 CMD ["pnpm", "run", "dockerstart"]
-
-
-# ---- development stage ----
-FROM build AS development
-
-# Non-sensitive development arguments
-ARG VITE_LOG_LEVEL=debug
-ARG DEFAULT_NUM_CTX
-
-# Set non-sensitive environment variables for development
-ENV VITE_LOG_LEVEL=${VITE_LOG_LEVEL} \
-    DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX} \
-    RUNNING_IN_DOCKER=true
-
-# Note: API keys should be provided at runtime via docker run -e or docker-compose
-# Example: docker run -e OPENAI_API_KEY=your_key_here ...
-
-RUN mkdir -p /app/run
-CMD ["pnpm", "run", "dev", "--host"]
