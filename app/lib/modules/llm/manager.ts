@@ -201,6 +201,12 @@ export class LLMManager {
   }
 
   getDefaultProvider(): BaseProvider {
+    const preferredProvider = this.getAllProviders().find((p) => p.name.toLowerCase() === 'anthropic');
+
+    if (preferredProvider) {
+      return preferredProvider;
+    }
+
     const firstProvider = this._providers.values().next().value;
 
     if (!firstProvider) {
