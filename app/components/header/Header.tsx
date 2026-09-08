@@ -4,6 +4,7 @@ import { chatStore } from '~/lib/stores/chat';
 import { classNames } from '~/utils/classNames';
 import { HeaderActionButtons } from './HeaderActionButtons.client';
 import { ChatDescription } from '~/lib/persistence/ChatDescription.client';
+import { CoverfoAuth } from '~/lib/CoverfoAuth';
 
 export function Header() {
   const chat = useStore(chatStore);
@@ -37,6 +38,9 @@ export function Header() {
           </ClientOnly>
         </>
       )}
+      <div className="ml-auto pl-4 flex items-center">
+        <ClientOnly>{() => <CoverfoAuth />}</ClientOnly>
+      </div>
     </header>
   );
 }
