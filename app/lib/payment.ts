@@ -24,7 +24,7 @@ export async function createStripeCheckout(plan: 'starter' | 'pro') {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ plan })
   })
-  const { url } = await res.json()
+  const { url } = await res.json() as { url: string }
   window.location.href = url // Stripe Checkout으로 이동
 }
 
