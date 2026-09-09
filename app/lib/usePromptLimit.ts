@@ -30,7 +30,7 @@ export function usePromptLimit() {
 
     if (!p.byok_enabled && p.prompt_count >= p.prompt_limit) {
       if (p.plan === 'free') {
-        alert(`무료 5회 다 썼어요! coverfo.com/pricing 에서 9900원 플랜으로 업그레이드 하세요. 또는 설정에서 본인 API키를 넣으면 무제한 무료!`)
+        alert(`무료 2회 다 썼어요! coverfo.com/pricing 에서 9900원 플랜으로 업그레이드 하세요. 또는 설정에서 본인 API키를 넣으면 무제한 무료!`)
       } else {
         alert('사용량 초과! API키를 직접 입력해주세요.')
       }
