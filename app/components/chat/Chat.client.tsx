@@ -28,6 +28,7 @@ import type { ElementInfo } from '~/components/workbench/Inspector';
 import type { TextUIPart, FileUIPart, Attachment } from '@ai-sdk/ui-utils';
 import { useMCPStore } from '~/lib/stores/mcp';
 import type { LlmErrorAlertType } from '~/types/actions';
+import { usePromptLimit } from '~/lib/usePromptLimit';
 
 const logger = createScopedLogger('Chat');
 
@@ -116,6 +117,7 @@ export const ChatImpl = memo(
     const [chatMode, setChatMode] = useState<'discuss' | 'build'>('build');
     const [selectedElement, setSelectedElement] = useState<ElementInfo | null>(null);
     const mcpSettings = useMCPStore((state) => state.settings);
+    const { checkAndIncrement } = usePromptLimit();
 
     const {
       messages,
@@ -395,6 +397,12 @@ export const ChatImpl = memo(
 
       if (isLoading) {
         abort();
+        return;
+      }
+
+      const allowedToSend = await checkAndIncrement();
+
+      if (!allowedToSend) {
         return;
       }
 
