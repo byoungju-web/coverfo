@@ -1,7 +1,8 @@
 // src/hooks/usePromptLimit.ts
 // 프롬프트 보내기 전에 체크하는 훅
 import { useState, useEffect } from 'react'
-import { supabase, Profile } from '~/lib/supabaseClient'
+import { supabase } from '~/lib/supabaseClient'
+import type { Profile } from '~/lib/supabaseClient'
 
 export function usePromptLimit() {
   const [profile, setProfile] = useState<Profile | null>(null)
