@@ -39,9 +39,9 @@ export function CoverfoAuth() {
 
   if (user) {
     return (
-      <div className="flex items-center gap-2 text-sm">
-        <span className="opacity-70">{user.email}</span>
-        <button onClick={signOut} className="px-3 py-1 rounded bg-zinc-800 text-white">
+      <div className="flex items-center gap-2 text-sm max-w-full">
+        <span className="opacity-70 truncate max-w-[40vw]">{user.email}</span>
+        <button onClick={signOut} className="px-3 py-1 rounded bg-zinc-800 text-white shrink-0 whitespace-nowrap">
           로그아웃
         </button>
       </div>
@@ -49,14 +49,17 @@ export function CoverfoAuth() {
   }
 
   return (
-    <div className="flex gap-2">
+    <div className="flex items-center gap-2 max-w-full">
       <input
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="email@coverfo.com"
-        className="px-3 py-1 rounded bg-white text-black placeholder-zinc-400 border border-zinc-300"
+        className="px-3 py-1 rounded bg-white text-black placeholder-zinc-400 border border-zinc-300 w-32 sm:w-56 min-w-0 text-sm"
       />
-      <button onClick={signIn} className="px-4 py-1 rounded bg-white text-black font-medium">
+      <button
+        onClick={signIn}
+        className="px-3 py-1 rounded bg-white text-black font-medium shrink-0 whitespace-nowrap text-sm"
+      >
         로그인 / 가입
       </button>
     </div>
