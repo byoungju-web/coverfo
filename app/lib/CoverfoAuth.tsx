@@ -54,7 +54,7 @@ export function CoverfoAuth() {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="email@coverfo.com"
-        className="px-3 py-1 rounded bg-zinc-900 border border-zinc-700"
+        className="px-3 py-1 rounded bg-white text-black placeholder-zinc-400 border border-zinc-300"
       />
       <button onClick={signIn} className="px-4 py-1 rounded bg-white text-black font-medium">
         로그인 / 가입
