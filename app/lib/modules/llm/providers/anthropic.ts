@@ -69,6 +69,11 @@ export default class AnthropicProvider extends BaseProvider {
     });
 
     const res = (await response.json()) as any;
+
+    if (!response.ok || !res?.data) {
+      throw new Error(`Anthropic models API ${response.status}: ${JSON.stringify(res).slice(0, 300)}`);
+    }
+
     const staticModelIds = this.staticModels.map((m) => m.name);
 
     const data = res.data.filter((model: any) => model.type === 'model' && !staticModelIds.includes(model.id));
