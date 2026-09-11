@@ -10,6 +10,7 @@ import { toast } from 'react-toastify';
 import { Button } from '~/components/ui/Button';
 import { classNames } from '~/utils/classNames';
 import { createBookingChatMessages, getFacilityError } from '~/lib/agents/bookingProject';
+import { extractFacility, routePrompt } from '~/lib/agiRouter';
 
 interface BookingTemplateButtonProps {
   className?: string;
@@ -31,7 +32,17 @@ export const BookingTemplateButton: React.FC<BookingTemplateButtonProps> = ({ cl
       return;
     }
 
-    const facility = input.trim();
+    const raw = input.trim();
+
+    // 문장으로 입력한 경우(예: "미용실 예약 페이지 만들어줘") 시설 이름만 뽑아서 사용
+    const extracted = extractFacility(raw);
+
+    if (!extracted && routePrompt(raw).domain === 'booking') {
+      toast.error('시설 이름을 함께 입력해 주세요. (예: 미용실)');
+      return;
+    }
+
+    const facility = extracted ?? raw;
     const facilityError = getFacilityError(facility);
 
     if (facilityError) {
