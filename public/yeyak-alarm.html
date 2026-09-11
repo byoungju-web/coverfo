@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2B5C8A">
+<title>예약 오픈 알림</title>
+<style>
+  :root {
+    --court: #2B5C8A;
+    --grass: #3F7D5A;
+    --line: #FFFFFF;
+    --ink: #1C2430;
+    --paper: #F3F6F2;
+    --ball: #D9E23A;
+    --muted: #56616F;
+    --rule: #D3DBD2;
+    --warn: #B3261E;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 12px 16px 56px; }
+  .top { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 2px 14px; }
+  .top h1 { margin: 0; font-size: 18px; font-weight: 700; }
+  .clock { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+
+  /* 다음 오픈: 하드코트 */
+  .court {
+    position: relative;
+    background: var(--court);
+    color: var(--line);
+    border: 10px solid var(--grass);
+    padding: 20px 20px 22px;
+  }
+  .court::before {
+    content: "";
+    position: absolute;
+    inset: 8px;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    pointer-events: none;
+  }
+  .court > * { position: relative; }
+  .court .facility { margin: 4px 0 0; font-size: 15px; }
+  .court .count {
+    margin: 6px 0 2px;
+    font-size: clamp(42px, 14vw, 62px);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .court .when { margin: 0; font-size: 15px; }
+  .court .net { border: 0; border-top: 2px dashed rgba(255, 255, 255, 0.8); margin: 16px -4px; }
+  .court.is-empty .count { font-size: 22px; font-weight: 700; }
+  .court.is-open { background: #22507A; }
+  .open-link {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    border-radius: 999px;
+    background: var(--ball);
+    color: var(--ink);
+    font-size: 17px;
+    font-weight: 800;
+    text-align: center;
+    text-decoration: none;
+  }
+  .court.is-open .open-link { box-shadow: 0 0 0 4px rgba(217, 226, 58, 0.45); }
+
+  .alert {
+    margin: 0 0 12px;
+    padding: 12px 14px;
+    border-left: 6px solid var(--ball);
+    background: var(--ink);
+    color: #fff;
+    font-weight: 700;
+  }
+  .alert a { color: var(--ball); }
+
+  .hint { margin: 10px 2px 0; color: var(--muted); font-size: 14px; }
+  .notify { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 12px 2px 0; }
+  .notify-state { color: var(--muted); font-size: 14px; }
+
+  h2 { margin: 30px 2px 8px; font-size: 16px; }
+  .list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+  .list li { padding: 14px 2px; border-bottom: 1px solid var(--rule); }
+  .item-name { font-weight: 700; }
+  .item-rule, .item-next { color: var(--muted); font-size: 14px; }
+  .item-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .empty { color: var(--muted); margin: 10px 2px; }
+
+  button, .btn {
+    font: inherit;
+    font-size: 14px;
+    padding: 8px 12px;
+    border: 1px solid #B6C1B6;
+    border-radius: 6px;
+    background: #fff;
+    color: var(--ink);
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .btn-danger { color: var(--warn); }
+  .btn-primary { width: 100%; padding: 13px; border: 0; background: var(--court); color: #fff; font-size: 16px; font-weight: 700; }
+
+  form { border-top: 1px solid var(--rule); padding-top: 6px; }
+  label.field { display: block; margin-top: 14px; font-weight: 600; font-size: 15px; }
+  input[type="text"], input[type="url"], input[type="date"], input[type="time"], select {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 10px;
+    border: 1px solid #B6C1B6;
+    border-radius: 6px;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+  }
+  fieldset { border: 0; margin: 16px 0 0; padding: 0; }
+  legend { font-weight: 600; font-size: 15px; padding: 0; }
+  .choices { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
+  .choices label { display: flex; gap: 6px; align-items: center; }
+  .form-error { color: var(--warn); min-height: 1.55em; margin: 12px 2px 8px; }
+
+  .foot { margin-top: 32px; color: var(--muted); font-size: 13px; }
+
+  :focus-visible { outline: 3px solid var(--ball); outline-offset: 2px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .alert { animation: drop 0.25s ease-out; }
+    @keyframes drop { from { transform: translateY(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>예약 오픈 알림</h1>
+    <span class="clock" id="clock">서울 --:--:--</span>
+  </header>
+
+  <div class="alert" id="alert" role="alert" hidden></div>
+
+  <section class="court is-empty" id="next" aria-live="polite">
+    <p class="facility">저장한 알림이 없어요</p>
+    <p class="count">아래에서 알림을 추가하세요</p>
+  </section>
+
+  <p class="hint">페이지를 열어 둔 동안 오픈 시각에 맞춰 알려줍니다. 페이지를 닫아도 알림을 받으려면 목록에서 <b>캘린더에 추가</b>를 누르세요.</p>
+  <div class="notify">
+    <button type="button" id="notifyBtn">소리·알림 켜기</button>
+    <span class="notify-state" id="notifyState"></span>
+  </div>
+
+  <h2>내 알림</h2>
+  <ul class="list" id="list"></ul>
+  <p class="empty" id="emptyList">아직 저장한 알림이 없어요.</p>
+
+  <h2>알림 추가</h2>
+  <form id="form" novalidate>
+    <label class="field">시설 이름
+      <input type="text" name="name" maxlength="40" placeholder="예: 보라매공원 테니스장" autocomplete="off">
+    </label>
+    <label class="field">공식 예약 페이지 주소
+      <input type="url" name="url" inputmode="url" placeholder="https://yeyak.seoul.go.kr/..." autocomplete="off">
+    </label>
+
+    <fieldset>
+      <legend>예약이 열리는 때 (공식 페이지 안내를 보고 입력)</legend>
+      <div class="choices">
+        <label><input type="radio" name="kind" value="monthly" checked> 매월</label>
+        <label><input type="radio" name="kind" value="weekly"> 매주</label>
+        <label><input type="radio" name="kind" value="once"> 한 번</label>
+      </div>
+      <label class="field" data-kind="monthly">날짜
+        <select name="day"></select>
+      </label>
+      <label class="field" data-kind="weekly" hidden>요일
+        <select name="dow">
+          <option value="1">월요일</option><option value="2">화요일</option><option value="3">수요일</option>
+          <option value="4">목요일</option><option value="5">금요일</option><option value="6">토요일</option>
+          <option value="0">일요일</option>
+        </select>
+      </label>
+      <label class="field" data-kind="once" hidden>날짜
+        <input type="date" name="date">
+      </label>
+      <label class="field">오픈 시각 (서울)
+        <input type="time" name="time" value="10:00">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>미리 알림</legend>
+      <div class="choices">
+        <label><input type="checkbox" name="lead" value="30"> 30분 전</label>
+        <label><input type="checkbox" name="lead" value="10" checked> 10분 전</label>
+        <label><input type="checkbox" name="lead" value="1" checked> 1분 전</label>
+        <label><input type="checkbox" name="lead" value="0" checked> 정각</label>
+      </div>
+    </fieldset>
+
+    <p class="form-error" id="formError" role="alert"></p>
+    <button type="submit" class="btn-primary">알림 저장</button>
+  </form>
+
+  <p class="foot">이 도우미는 알림과 공식 페이지 링크만 제공합니다. 예약은 공식 페이지에서 직접 진행하세요. 휴대폰의 자동 시간 설정이 켜져 있어야 시각이 정확합니다. 알림은 이 기기의 브라우저에만 저장됩니다.</p>
+</div>
+
+<script>
+'use strict';
+
+/* ===== 시간 계산 (항상 서울 시각 기준, 기기 시간대와 무관) ===== */
+var KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+var MINUTE = 60 * 1000;
+var DAY = 24 * 60 * MINUTE;
+var DOW_LABEL = ['일', '월', '화', '수', '목', '금', '토'];
+var ICS_DOW = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+var LEAD_CHOICES = [30, 10, 1, 0];
+var OPEN_GRACE_MS = 10 * MINUTE;   // 오픈 후 10분 동안은 "지금 열렸어요"로 표시
+var FIRE_WINDOW_MS = 3 * MINUTE;   // 알림 시각이 지나도 3분 안이면 울림 (백그라운드 지연 대비)
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function kstParts(ms) {
+  var d = new Date(ms + KST_OFFSET_MS);
+  return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate(), h: d.getUTCHours(), min: d.getUTCMinutes(), s: d.getUTCSeconds(), dow: d.getUTCDay() };
+}
+
+function kstToMs(y, m, d, h, min) { return Date.UTC(y, m - 1, d, h, min) - KST_OFFSET_MS; }
+
+function daysInMonth(y, m) { return new Date(Date.UTC(y, m, 0)).getUTCDate(); }
+
+function parseTime(t) {
+  var match = /^([01][0-9]|2[0-3]):([0-5][0-9])$/.exec(t || '');
+  return match ? { h: Number(match[1]), min: Number(match[2]) } : null;
+}
+
+/** fromMs 이후(같은 시각 포함) 첫 오픈 시각(ms). 없으면 null */
+function nextOpen(a, fromMs) {
+  var t = parseTime(a.time);
+  if (!t) return null;
+
+  if (a.kind === 'once') {
+    var parts = a.date.split('-').map(Number);
+    var once = kstToMs(parts[0], parts[1], parts[2], t.h, t.min);
+    return once >= fromMs ? once : null;
+  }
+
+  var p = kstParts(fromMs);
+
+  if (a.kind === 'monthly') {
+    for (var i = 0; i < 48; i++) {
+      var y = p.y + Math.floor((p.m - 1 + i) / 12);
+      var m = ((p.m - 1 + i) % 12) + 1;
+      if (a.day > daysInMonth(y, m)) continue;   // 31일이 없는 달은 건너뜀 (캘린더 규칙과 같음)
+      var monthly = kstToMs(y, m, a.day, t.h, t.min);
+      if (monthly >= fromMs) return monthly;
+    }
+    return null;
+  }
+
+  if (a.kind === 'weekly') {
+    var todayAt = kstToMs(p.y, p.m, p.d, t.h, t.min);
+    for (var j = 0; j < 8; j++) {
+      var weekly = todayAt + j * DAY;
+      if (kstParts(weekly).dow === a.dow && weekly >= fromMs) return weekly;
+    }
+    return null;
+  }
+
+  return null;
+}
+
+function listOpens(a, fromMs, count) {
+  var result = [];
+  var cursor = fromMs;
+  while (result.length < count) {
+    var next = nextOpen(a, cursor);
+    if (next === null) break;
+    result.push(next);
+    cursor = next + MINUTE;
+  }
+  return result;
+}
+
+function describeRule(a) {
+  if (a.kind === 'monthly') return '매월 ' + a.day + '일 ' + a.time;
+  if (a.kind === 'weekly') return '매주 ' + DOW_LABEL[a.dow] + '요일 ' + a.time;
+  return a.date + ' ' + a.time + ' (한 번)';
+}
+
+function formatKst(ms) {
+  var p = kstParts(ms);
+  return p.m + '월 ' + p.d + '일 (' + DOW_LABEL[p.dow] + ') ' + pad2(p.h) + ':' + pad2(p.min);
+}
+
+function formatCountdown(diffMs) {
+  var total = Math.max(0, Math.ceil(diffMs / 1000));
+  var days = Math.floor(total / 86400);
+  var h = Math.floor((total % 86400) / 3600);
+  var m = Math.floor((total % 3600) / 60);
+  var s = total % 60;
+  var hms = pad2(h) + ':' + pad2(m) + ':' + pad2(s);
+  return days > 0 ? days + '일 ' + hms : hms;
+}
+
+/* ===== 입력 검사 ===== */
+function safeUrl(value) {
+  try {
+    var u = new URL(String(value || '').trim());
+    return (u.protocol === 'https:' || u.protocol === 'http:') ? u.href : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function validateAlarm(a, nowMs) {
+  if (!a.name || !a.name.trim()) return '시설 이름을 입력하세요.';
+  if (a.name.trim().length > 40) return '시설 이름은 40자 이내로 입력하세요.';
+  if (!safeUrl(a.url)) return '공식 예약 페이지 주소를 https:// 로 시작하게 입력하세요.';
+  if (!parseTime(a.time)) return '오픈 시각을 입력하세요.';
+  if (a.kind === 'monthly') {
+    if (!Number.isInteger(a.day) || a.day < 1 || a.day > 31) return '매월 몇 일인지 선택하세요.';
+  } else if (a.kind === 'weekly') {
+    if (!Number.isInteger(a.dow) || a.dow < 0 || a.dow > 6) return '요일을 선택하세요.';
+  } else if (a.kind === 'once') {
+    if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(a.date || '')) return '날짜를 선택하세요.';
+    if (nextOpen(a, nowMs) === null) return '이미 지난 시각이에요. 날짜와 시각을 확인하세요.';
+  } else {
+    return '예약이 열리는 때를 선택하세요.';
+  }
+  if (!Array.isArray(a.leads) || a.leads.length === 0) return '미리 알림을 하나 이상 선택하세요.';
+  for (var i = 0; i < a.leads.length; i++) {
+    if (LEAD_CHOICES.indexOf(a.leads[i]) === -1) return '미리 알림을 다시 선택하세요.';
+  }
+  return null;
+}
+
+/* ===== 캘린더 파일 (.ics) ===== */
+function icsEscape(text) {
+  return String(text).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+}
+
+/** 한 줄 75바이트 제한에 맞춰 접기 (한글이 중간에서 잘리지 않게) */
+function foldLine(line) {
+  var encoder = new TextEncoder();
+  var out = [];
+  var current = '';
+  var bytes = 0;
+  for (var ch of line) {
+    var size = encoder.encode(ch).length;
+    if (bytes + size > 75) {
+      out.push(current);
+      current = ' ' + ch;
+      bytes = 1 + size;
+    } else {
+      current += ch;
+      bytes += size;
+    }
+  }
+  out.push(current);
+  return out.join('\r\n');
+}
+
+function icsLocal(ms) {
+  var p = kstParts(ms);
+  return p.y + pad2(p.m) + pad2(p.d) + 'T' + pad2(p.h) + pad2(p.min) + '00';
+}
+
+function buildIcs(a, nowMs) {
+  var start = nextOpen(a, nowMs);
+  if (start === null) return null;
+  var url = safeUrl(a.url);
+  var stamp = new Date(nowMs).toISOString().replace(/[-:]/g, '').replace(/\.[0-9]{3}/, '');
+  var lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//coverfo.com//yeyak-alarm//KO',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VTIMEZONE',
+    'TZID:Asia/Seoul',
+    'BEGIN:STANDARD',
+    'DTSTART:19700101T000000',
+    'TZOFFSETFROM:+0900',
+    'TZOFFSETTO:+0900',
+    'TZNAME:KST',
+    'END:STANDARD',
+    'END:VTIMEZONE',
+    'BEGIN:VEVENT',
+    'UID:' + a.id + '@coverfo.com',
+    'DTSTAMP:' + stamp,
+    'DTSTART;TZID=Asia/Seoul:' + icsLocal(start),
+    'DTEND;TZID=Asia/Seoul:' + icsLocal(start + 10 * MINUTE)
+  ];
+  if (a.kind === 'monthly') lines.push('RRULE:FREQ=MONTHLY;BYMONTHDAY=' + a.day);
+  if (a.kind === 'weekly') lines.push('RRULE:FREQ=WEEKLY;BYDAY=' + ICS_DOW[a.dow]);
+  lines.push(
+    'SUMMARY:' + icsEscape(a.name.trim() + ' 예약 오픈'),
+    'DESCRIPTION:' + icsEscape('공식 예약 페이지: ' + url + '\n예약은 공식 페이지에서 직접 진행하세요.'),
+    'URL:' + url
+  );
+  a.leads.slice().sort(function (x, y) { return y - x; }).forEach(function (lead) {
+    lines.push(
+      'BEGIN:VALARM',
+      'ACTION:DISPLAY',
+      'DESCRIPTION:' + icsEscape(a.name.trim() + (lead === 0 ? ' 예약 오픈' : ' 예약 오픈 ' + lead + '분 전')),
+      'TRIGGER:' + (lead === 0 ? 'PT0M' : '-PT' + lead + 'M'),
+      'END:VALARM'
+    );
+  });
+  lines.push('END:VEVENT', 'END:VCALENDAR');
+  return lines.map(foldLine).join('\r\n') + '\r\n';
+}
+
+/* ===== 저장 ===== */
+var STORAGE_KEY = 'yeyak-alarm:v1';
+var FIRED_KEY = 'yeyak-alarm:fired:v1';
+
+function loadJson(key, fallback) {
+  try {
+    var raw = localStorage.getItem(key);
+    var parsed = raw ? JSON.parse(raw) : fallback;
+    return parsed === null || typeof parsed !== 'object' ? fallback : parsed;
+  } catch (e) {
+    return fallback;
+  }
+}
+
+function saveJson(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function loadAlarms() {
+  var list = loadJson(STORAGE_KEY, []);
+  return Array.isArray(list) ? list.filter(function (a) { return a && validateAlarm(a, -Infinity) === null; }) : [];
+}
+
+/* ===== 화면 ===== */
+var alarms = [];
+var fired = {};
+var audioCtx = null;
+
+function $(id) { return document.getElementById(id); }
+
+function makeId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+function upcoming(nowMs) {
+  var best = null;
+  alarms.forEach(function (a) {
+    var at = nextOpen(a, nowMs - OPEN_GRACE_MS);
+    if (at !== null && (best === null || at < best.at)) best = { alarm: a, at: at };
+  });
+  return best;
+}
+
+function renderNext(nowMs) {
+  var box = $('next');
+  var next = upcoming(nowMs);
+  box.textContent = '';
+  box.classList.toggle('is-empty', !next);
+  box.classList.toggle('is-open', !!next && next.at <= nowMs);
+
+  if (!next) {
+    addText(box, 'p', 'facility', alarms.length ? '다가오는 오픈 일정이 없어요' : '저장한 알림이 없어요');
+    addText(box, 'p', 'count', '아래에서 알림을 추가하세요');
+    return;
+  }
+
+  var isOpen = next.at <= nowMs;
+  addText(box, 'p', 'facility', next.alarm.name);
+  addText(box, 'p', 'count', isOpen ? '지금 열렸어요' : formatCountdown(next.at - nowMs));
+  addText(box, 'p', 'when', formatKst(next.at) + ' 오픈');
+  var net = document.createElement('hr');
+  net.className = 'net';
+  box.appendChild(net);
+  var link = document.createElement('a');
+  link.className = 'open-link';
+  link.href = safeUrl(next.alarm.url);
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = '공식 예약 페이지 열기';
+  box.appendChild(link);
+}
+
+function addText(parent, tag, className, text) {
+  var el = document.createElement(tag);
+  if (className) el.className = className;
+  el.textContent = text;
+  parent.appendChild(el);
+  return el;
+}
+
+function renderList(nowMs) {
+  var list = $('list');
+  list.textContent = '';
+  $('emptyList').hidden = alarms.length > 0;
+
+  alarms.forEach(function (a) {
+    var li = document.createElement('li');
+    var at = nextOpen(a, nowMs - OPEN_GRACE_MS);
+    addText(li, 'div', 'item-name', a.name);
+    addText(li, 'div', 'item-rule', describeRule(a) + ', 미리 알림 ' + a.leads.slice().sort(function (x, y) { return y - x; }).map(function (l) { return l === 0 ? '정각' : l + '분 전'; }).join(', '));
+    addText(li, 'div', 'item-next', at === null ? '지난 일정' : '다음 오픈 ' + formatKst(at));
+
+    var actions = document.createElement('div');
+    actions.className = 'item-actions';
+
+    var open = document.createElement('a');
+    open.className = 'btn';
+    open.href = safeUrl(a.url);
+    open.target = '_blank';
+    open.rel = 'noopener noreferrer';
+    open.textContent = '공식 페이지';
+    actions.appendChild(open);
+
+    if (at !== null) {
+      var cal = document.createElement('button');
+      cal.type = 'button';
+      cal.textContent = '캘린더에 추가';
+      cal.addEventListener('click', function () { downloadIcs(a); });
+      actions.appendChild(cal);
+    }
+
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'btn-danger';
+    del.textContent = '삭제';
+    del.addEventListener('click', function () {
+      if (!window.confirm('"' + a.name + '" 알림을 삭제할까요?')) return;
+      alarms = alarms.filter(function (x) { return x.id !== a.id; });
+      saveJson(STORAGE_KEY, alarms);
+      renderAll();
+    });
+    actions.appendChild(del);
+
+    li.appendChild(actions);
+    list.appendChild(li);
+  });
+}
+
+function downloadIcs(a) {
+  var text = buildIcs(a, Date.now());
+  if (!text) return;
+  var blob = new Blob([text], { type: 'text/calendar;charset=utf-8' });
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'yeyak-alarm.ics';
+  document.body.appendChild(link);
+  link.click();
+  setTimeout(function () { URL.revokeObjectURL(link.href); link.remove(); }, 1000);
+}
+
+function renderClock(nowMs) {
+  var p = kstParts(nowMs);
+  $('clock').textContent = '서울 ' + pad2(p.h) + ':' + pad2(p.min) + ':' + pad2(p.s);
+}
+
+function renderAll() {
+  var now = Date.now();
+  renderClock(now);
+  renderNext(now);
+  renderList(now);
+}
+
+/* ===== 알림 울리기 (페이지가 열려 있는 동안) ===== */
+function dueAlerts(list, nowMs, firedMap) {
+  var due = [];
+  list.forEach(function (a) {
+    var at = nextOpen(a, nowMs - FIRE_WINDOW_MS);
+    if (at === null) return;
+    a.leads.forEach(function (lead) {
+      var triggerAt = at - lead * MINUTE;
+      var key = a.id + ':' + at + ':' + lead;
+      if (nowMs >= triggerAt && nowMs - triggerAt < FIRE_WINDOW_MS && !firedMap[key]) {
+        due.push({ alarm: a, at: at, lead: lead, key: key });
+      }
+    });
+  });
+  return due;
+}
+
+function fire(item) {
+  var a = item.alarm;
+  var title = a.name + (item.lead === 0 ? ' 예약이 열렸어요' : ' 예약 오픈 ' + item.lead + '분 전');
+  var box = $('alert');
+  box.textContent = '';
+  addText(box, 'div', '', title);
+  var link = document.createElement('a');
+  link.href = safeUrl(a.url);
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = '공식 예약 페이지 열기';
+  box.appendChild(link);
+  box.hidden = false;
+
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  beep(item.lead === 0 ? 3 : 1);
+
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      var n = new Notification(title, { body: formatKst(item.at) + ' 오픈. 누르면 공식 페이지가 열려요.', tag: item.key });
+      n.onclick = function () { window.focus(); window.open(safeUrl(a.url), '_blank', 'noopener'); };
+    } catch (e) {
+      // 일부 휴대폰 브라우저는 이 방식의 알림을 지원하지 않음 → 화면 안내·진동·소리만 사용
+    }
+  }
+}
+
+function beep(times) {
+  if (!audioCtx || audioCtx.state !== 'running') return;
+  for (var i = 0; i < times; i++) {
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    var startAt = audioCtx.currentTime + i * 0.35;
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.25, startAt);
+    gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.25);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(startAt);
+    osc.stop(startAt + 0.3);
+  }
+}
+
+function checkAlerts() {
+  var now = Date.now();
+  var due = dueAlerts(alarms, now, fired);
+  if (!due.length) return;
+  due.forEach(function (item) { fired[item.key] = now; });
+  // 오래된 기록 정리 (2일)
+  Object.keys(fired).forEach(function (k) { if (now - fired[k] > 2 * DAY) delete fired[k]; });
+  saveJson(FIRED_KEY, fired);
+  // 동시에 여러 개면 오픈에 가장 가까운 알림 하나만 보여줌
+  fire(due.reduce(function (best, item) { return item.lead < best.lead ? item : best; }));
+}
+
+function updateNotifyState() {
+  var parts = [];
+  parts.push(audioCtx && audioCtx.state === 'running' ? '소리 켜짐' : '소리 꺼짐');
+  if (!('Notification' in window)) parts.push('이 브라우저는 알림 창을 지원하지 않아요');
+  else if (Notification.permission === 'granted') parts.push('알림 창 허용됨');
+  else if (Notification.permission === 'denied') parts.push('알림 창이 차단됨 (브라우저 설정에서 허용)');
+  $('notifyState').textContent = parts.join(', ');
+}
+
+/* ===== 입력 폼 ===== */
+function readForm(form) {
+  var kind = form.querySelector('input[name="kind"]:checked').value;
+  var leads = Array.prototype.map.call(form.querySelectorAll('input[name="lead"]:checked'), function (el) { return Number(el.value); });
+  return {
+    id: makeId(),
+    name: form.elements.name.value.trim(),
+    url: form.elements.url.value.trim(),
+    kind: kind,
+    day: Number(form.elements.day.value),
+    dow: Number(form.elements.dow.value),
+    date: form.elements.date.value,
+    time: form.elements.time.value,
+    leads: leads
+  };
+}
+
+function syncKindFields(form) {
+  var kind = form.querySelector('input[name="kind"]:checked').value;
+  form.querySelectorAll('[data-kind]').forEach(function (el) { el.hidden = el.getAttribute('data-kind') !== kind; });
+}
+
+function init() {
+  var form = $('form');
+  var daySelect = form.elements.day;
+  for (var d = 1; d <= 31; d++) {
+    var option = document.createElement('option');
+    option.value = String(d);
+    option.textContent = d + '일';
+    daySelect.appendChild(option);
+  }
+
+  alarms = loadAlarms();
+  fired = loadJson(FIRED_KEY, {});
+
+  form.addEventListener('change', function (e) {
+    if (e.target && e.target.name === 'kind') syncKindFields(form);
+  });
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var alarm = readForm(form);
+    var error = validateAlarm(alarm, Date.now());
+    $('formError').textContent = error || '';
+    if (error) return;
+    alarm.url = safeUrl(alarm.url);
+    if (alarm.kind !== 'monthly') delete alarm.day;
+    if (alarm.kind !== 'weekly') delete alarm.dow;
+    if (alarm.kind !== 'once') delete alarm.date;
+    alarms.push(alarm);
+    if (!saveJson(STORAGE_KEY, alarms)) {
+      $('formError').textContent = '이 브라우저에 저장하지 못했어요. 사생활 보호 모드라면 일반 창에서 여세요.';
+    }
+    form.elements.name.value = '';
+    form.elements.url.value = '';
+    renderAll();
+  });
+
+  $('notifyBtn').addEventListener('click', function () {
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if (Ctx) {
+      if (!audioCtx) audioCtx = new Ctx();
+      if (audioCtx.state !== 'running' && audioCtx.resume) {
+        audioCtx.resume().then(function () { beep(1); updateNotifyState(); });
+      } else {
+        beep(1);
+      }
+    }
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then(updateNotifyState);
+    }
+    updateNotifyState();
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) { renderAll(); checkAlerts(); }
+  });
+
+  syncKindFields(form);
+  updateNotifyState();
+  renderAll();
+  checkAlerts();
+  setInterval(function () {
+    var now = Date.now();
+    renderClock(now);
+    renderNext(now);
+    checkAlerts();
+  }, 1000);
+  setInterval(function () { renderList(Date.now()); }, 30 * 1000);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+</script>
+</body>
+</html>
