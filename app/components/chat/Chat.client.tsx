@@ -29,6 +29,7 @@ import type { TextUIPart, FileUIPart, Attachment } from '@ai-sdk/ui-utils';
 import { useMCPStore } from '~/lib/stores/mcp';
 import type { LlmErrorAlertType } from '~/types/actions';
 import { usePromptLimit } from '~/lib/usePromptLimit';
+import { tryTemplateRoute } from '~/lib/agents/templateRoute';
 
 const logger = createScopedLogger('Chat');
 
@@ -398,6 +399,15 @@ export const ChatImpl = memo(
       if (isLoading) {
         abort();
         return;
+      }
+
+      // coverfo: 첫 메시지가 템플릿이 있는 요청(예: 예약 페이지)이면 AI 대신 템플릿으로 바로 만들지 물어봄
+      if (!chatStarted && chatMode === 'build' && uploadedFiles.length === 0 && imageDataList.length === 0) {
+        const handledByTemplate = await tryTemplateRoute(messageContent, importChat);
+
+        if (handledByTemplate) {
+          return;
+        }
       }
 
       const allowedToSend = await checkAndIncrement();
