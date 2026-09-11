@@ -8,7 +8,7 @@ import type { Message } from 'ai';
 import { bookingUI, universalBookingTemplate } from './universalBookingAgent';
 import type { BookingTemplateOptions } from './universalBookingAgent';
 import { generateId } from '~/utils/fileUtils';
-import { createCommandsMessage, detectProjectCommands, escapeBoltTags } from '~/utils/projectCommands';
+import { createCommandsMessage, escapeBoltTags } from '~/utils/projectCommands';
 
 export interface BookingProjectFile {
   path: string;
@@ -16,6 +16,17 @@ export interface BookingProjectFile {
 }
 
 export const MAX_FACILITY_LENGTH = 30;
+
+/*
+ * 설치·실행 명령
+ * bolt 기본(detectProjectCommands)은 "npx update-browserslist-db@latest && npm install" 인데,
+ * 새 프로젝트에는 lockfile 이 없어 update-browserslist-db 가 "No lockfile found" 로 실패하고
+ * && 때문에 npm install 이 실행되지 않습니다. (그 결과 "command not found: vite")
+ * 그래서 이 프로젝트는 npm install 만 실행합니다.
+ */
+export const BOOKING_SETUP_COMMAND =
+  'export CI=true DEBIAN_FRONTEND=noninteractive FORCE_COLOR=0 && npm install --yes --no-audit --no-fund --silent';
+export const BOOKING_START_COMMAND = 'npm run dev';
 
 function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -200,7 +211,12 @@ ${fileActions}
 
   const messages: Message[] = [userMessage, filesMessage];
 
-  const commandsMessage = createCommandsMessage(await detectProjectCommands(files));
+  const commandsMessage = createCommandsMessage({
+    type: 'Node.js',
+    setupCommand: BOOKING_SETUP_COMMAND,
+    startCommand: BOOKING_START_COMMAND,
+    followupMessage: '패키지를 설치(npm install)한 뒤 미리보기를 실행(npm run dev)합니다.',
+  });
 
   if (commandsMessage) {
     messages.push({
