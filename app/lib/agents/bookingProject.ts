@@ -5,7 +5,15 @@
  * © bj Lee - coverfo.com - Uncovering the fog
  */
 import type { Message } from 'ai';
-import { bookingUI, universalBookingTemplate } from './universalBookingAgent';
+import {
+  bookingEnvExample,
+  bookingReadme,
+  bookingSchemaSql,
+  bookingSupabaseStore,
+  bookingUI,
+  bookingViteEnvDts,
+  universalBookingTemplate,
+} from './universalBookingAgent';
 import type { BookingTemplateOptions } from './universalBookingAgent';
 import { generateId } from '~/utils/fileUtils';
 import { createCommandsMessage, escapeBoltTags } from '~/utils/projectCommands';
@@ -76,6 +84,7 @@ const PACKAGE_JSON = {
     preview: 'vite preview',
   },
   dependencies: {
+    '@supabase/supabase-js': '^2.116.0',
     react: '^18.3.1',
     'react-dom': '^18.3.1',
   },
@@ -104,10 +113,15 @@ createRoot(document.getElementById('root')!).render(
 );
 `;
 
-const APP_TSX = `// 미리보기용: 손님 화면과 사장님 화면을 버튼으로 오가며 확인합니다.
-// 실제 운영에서는 두 화면을 다른 주소로 나누고, 사장님 화면은 로그인으로 보호하세요.
-import { useState } from 'react';
+const APP_TSX = `// 손님 화면: 주소 그대로 / 사장님 화면: 주소 끝에 #admin
+// .env 에 Supabase 값이 있으면 운영 모드(서버 저장), 없으면 데모 모드(브라우저 저장)입니다. (README.md 참고)
+import { useEffect, useState } from 'react';
+import { LocalBookingStore } from './booking/bookingCore';
+import type { BookingStore } from './booking/bookingCore';
+import { createStoreFromEnv } from './booking/supabaseStore';
 import { BookingAdmin, BookingPage } from './booking/BookingUI';
+
+const store: BookingStore = createStoreFromEnv() ?? new LocalBookingStore();
 
 function tabStyle(active: boolean) {
   return {
@@ -122,19 +136,30 @@ function tabStyle(active: boolean) {
 }
 
 export default function App() {
-  const [view, setView] = useState<'customer' | 'admin'>('customer');
+  const [hash, setHash] = useState(window.location.hash);
+
+  useEffect(() => {
+    const onChange = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', onChange);
+
+    return () => window.removeEventListener('hashchange', onChange);
+  }, []);
+
+  const isAdmin = hash === '#admin';
 
   return (
     <div>
-      <div style={{ display: 'flex', maxWidth: 480, margin: '0 auto', borderBottom: '1px solid #eee' }}>
-        <button type="button" style={tabStyle(view === 'customer')} onClick={() => setView('customer')}>
-          손님 화면
-        </button>
-        <button type="button" style={tabStyle(view === 'admin')} onClick={() => setView('admin')}>
-          사장님 화면
-        </button>
-      </div>
-      {view === 'customer' ? <BookingPage /> : <BookingAdmin />}
+      {store.mode === 'demo' && (
+        <div style={{ display: 'flex', maxWidth: 480, margin: '0 auto', borderBottom: '1px solid #eee' }}>
+          <button type="button" style={tabStyle(!isAdmin)} onClick={() => (window.location.hash = '')}>
+            손님 화면
+          </button>
+          <button type="button" style={tabStyle(isAdmin)} onClick={() => (window.location.hash = 'admin')}>
+            사장님 화면
+          </button>
+        </div>
+      )}
+      {isAdmin ? <BookingAdmin store={store} /> : <BookingPage store={store} />}
     </div>
   );
 }
@@ -169,8 +194,13 @@ export function createBookingProjectFiles(
     { path: 'vite.config.js', content: VITE_CONFIG },
     { path: 'src/main.tsx', content: MAIN_TSX },
     { path: 'src/App.tsx', content: APP_TSX },
+    { path: 'src/vite-env.d.ts', content: bookingViteEnvDts },
     { path: 'src/booking/bookingCore.ts', content: universalBookingTemplate(name, options) },
+    { path: 'src/booking/supabaseStore.ts', content: bookingSupabaseStore },
     { path: 'src/booking/BookingUI.tsx', content: bookingUI },
+    { path: 'supabase/schema.sql', content: bookingSchemaSql(name, options) },
+    { path: '.env.example', content: bookingEnvExample },
+    { path: 'README.md', content: bookingReadme(name) },
   ];
 }
 
@@ -202,7 +232,7 @@ export async function createBookingChatMessages(
     role: 'assistant',
     id: generateId(),
     content: `${name} 예약 페이지를 만들었어요. 미리보기에서 "손님 화면"으로 예약을 신청하고 "사장님 화면"에서 확인해 보세요.
-데모 모드라서 예약은 이 미리보기 브라우저에만 저장됩니다.${chatText.note ? `\n\n${chatText.note}` : ''}
+지금은 데모 모드라 예약이 이 미리보기 브라우저에만 저장됩니다. 실제 운영하려면 README.md 대로 Supabase 를 연결하세요.${chatText.note ? `\n\n${chatText.note}` : ''}
 
 <boltArtifact id="booking-page" title="${artifactTitle}" type="bundled">
 ${fileActions}
