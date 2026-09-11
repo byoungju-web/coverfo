@@ -181,6 +181,7 @@ export function createBookingProjectFiles(
 export async function createBookingChatMessages(
   facility: string,
   options: BookingTemplateOptions = {},
+  chatText: { userMessage?: string; note?: string } = {},
 ): Promise<Message[]> {
   const name = normalizeFacility(facility);
   const files = createBookingProjectFiles(name, options);
@@ -193,7 +194,7 @@ export async function createBookingChatMessages(
   const userMessage: Message = {
     role: 'user',
     id: generateId(),
-    content: `${name} 예약 페이지 만들기`,
+    content: chatText.userMessage?.trim() || `${name} 예약 페이지 만들기`,
     createdAt: new Date(),
   };
 
@@ -201,7 +202,7 @@ export async function createBookingChatMessages(
     role: 'assistant',
     id: generateId(),
     content: `${name} 예약 페이지를 만들었어요. 미리보기에서 "손님 화면"으로 예약을 신청하고 "사장님 화면"에서 확인해 보세요.
-데모 모드라서 예약은 이 미리보기 브라우저에만 저장됩니다.
+데모 모드라서 예약은 이 미리보기 브라우저에만 저장됩니다.${chatText.note ? `\n\n${chatText.note}` : ''}
 
 <boltArtifact id="booking-page" title="${artifactTitle}" type="bundled">
 ${fileActions}
