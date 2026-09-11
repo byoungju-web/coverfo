@@ -19,13 +19,13 @@ export const MAX_FACILITY_LENGTH = 30;
 
 /*
  * 설치·실행 명령
- * bolt 기본(detectProjectCommands)은 "npx update-browserslist-db@latest && npm install" 인데,
- * 새 프로젝트에는 lockfile 이 없어 update-browserslist-db 가 "No lockfile found" 로 실패하고
- * && 때문에 npm install 이 실행되지 않습니다. (그 결과 "command not found: vite")
- * 그래서 이 프로젝트는 npm install 만 실행합니다.
+ * coverfo 실제 화면에서 확인한 결과:
+ * - bolt 기본 명령(export ... && npx update-browserslist-db@latest && npm install) → "command not found: vite"
+ * - export ... && npm install --yes --no-audit --no-fund --silent → 설치 ✓ 표시였지만 "command not found: vite"
+ * - 터미널에 직접 "npm install" → "npm run dev" 입력 → 미리보기 정상
+ * 그래서 직접 입력해서 성공한 명령과 똑같이 맞춥니다.
  */
-export const BOOKING_SETUP_COMMAND =
-  'export CI=true DEBIAN_FRONTEND=noninteractive FORCE_COLOR=0 && npm install --yes --no-audit --no-fund --silent';
+export const BOOKING_SETUP_COMMAND = 'npm install';
 export const BOOKING_START_COMMAND = 'npm run dev';
 
 function escapeHtml(text: string): string {
