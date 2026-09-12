@@ -18,6 +18,7 @@ import { ImportButtons } from '~/components/chat/chatExportAndImport/ImportButto
 import { ExamplePrompts } from '~/components/chat/ExamplePrompts';
 import GitCloneButton from './GitCloneButton';
 import { BookingTemplateButton } from './BookingTemplateButton';
+import { GameTemplateButton } from './GameTemplateButton';
 import type { ProviderInfo } from '~/types/model';
 import StarterTemplates from './StarterTemplates';
 import type { ActionAlert, SupabaseAlert, DeployAlert, LlmErrorAlertType } from '~/types/actions';
@@ -478,6 +479,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   {ImportButtons(importChat)}
                   <GitCloneButton importChat={importChat} />
                   <BookingTemplateButton importChat={importChat} />
+                  <GameTemplateButton importChat={importChat} />
                 </div>
               )}
               <div className="flex flex-col gap-5">

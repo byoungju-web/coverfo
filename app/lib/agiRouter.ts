@@ -35,7 +35,7 @@ export interface RouteResult {
 export const DOMAIN_TEMPLATES: Record<AgiDomain, { template: string; available: boolean }> = {
   booking: { template: 'universalBookingAgent', available: true }, // app/lib/agents/universalBookingAgent.ts
   document: { template: 'contractDraft', available: false },
-  game: { template: 'universalGameBuilder', available: false },
+  game: { template: 'universalGameBuilder', available: true }, // app/lib/agents/universalGameBuilder.ts
   research: { template: 'discovery', available: false },
   automation: { template: 'jobHunt', available: false },
   custom: { template: 'universal', available: false },
