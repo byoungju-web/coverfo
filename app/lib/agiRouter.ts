@@ -4,17 +4,18 @@
  * © 2026 bj Lee. All Rights Reserved.
  *
  * 분류 순서 (먼저 걸리는 것이 결과):
- * 1. document  - 계약서·제안서 같은 "만들 문서 종류"가 명확한 단어
- * 2. game      - "게임"·레이싱·슈팅·메타버스
- * 3. booking   - 예약·예매·부킹 같은 단어가 있을 때만 (시설 이름만으로는 예약으로 보지 않음)
- * 4. research  - 신약·논문·분석·경쟁사·주식 등
- * 5. game      - 3D·시뮬 (게임 단어 없이 3D만 있을 때, 리서치 단어가 없을 때)
- * 6. automation - 구직·이메일 분류·견적서·쇼츠·자동화
- * 7. custom    - 그 외 전부
+ * 1. quote     - 견적서·견적
+ * 2. document  - 계약서·제안서 같은 "만들 문서 종류"가 명확한 단어
+ * 3. game      - "게임"·레이싱·슈팅·메타버스
+ * 4. booking   - 예약·예매·부킹 같은 단어가 있을 때만 (시설 이름만으로는 예약으로 보지 않음)
+ * 5. research  - 신약·논문·분석·경쟁사·주식 등
+ * 6. game      - 3D·시뮬 (게임 단어 없이 3D만 있을 때, 리서치 단어가 없을 때)
+ * 7. automation - 구직·이메일 분류·쇼츠·자동화
+ * 8. custom    - 그 외 전부
  */
 import { getFacilityError } from '~/lib/agents/bookingProject';
 
-export type AgiDomain = 'booking' | 'document' | 'game' | 'research' | 'automation' | 'custom';
+export type AgiDomain = 'booking' | 'quote' | 'document' | 'game' | 'research' | 'automation' | 'custom';
 
 export interface RouteResult {
   domain: AgiDomain;
@@ -34,6 +35,7 @@ export interface RouteResult {
  */
 export const DOMAIN_TEMPLATES: Record<AgiDomain, { template: string; available: boolean }> = {
   booking: { template: 'universalBookingAgent', available: true }, // app/lib/agents/universalBookingAgent.ts
+  quote: { template: 'universalQuoteBuilder', available: true }, // app/lib/agents/universalQuoteBuilder.ts
   document: { template: 'contractDraft', available: false },
   game: { template: 'universalGameBuilder', available: true }, // app/lib/agents/universalGameBuilder.ts
   research: { template: 'discovery', available: false },
@@ -41,12 +43,13 @@ export const DOMAIN_TEMPLATES: Record<AgiDomain, { template: string; available: 
   custom: { template: 'universal', available: false },
 };
 
+const QUOTE_PATTERN = /(견적서|견적)/;
 const DOCUMENT_PATTERN = /(계약서|근로계약|임대차|\bnda\b|제안서|사업계획서|이력서|내용증명|소송장)/i;
 const GAME_PATTERN = /(게임|레이싱|슈팅|메타버스)/i;
 const BOOKING_PATTERN = /(예약|예매|부킹|booking|reservation)/i;
 const RESEARCH_PATTERN = /(신약|신소재|논문|리서치|분석|경쟁사|주식|pubchem)/i;
 const GAME_3D_PATTERN = /(3d|시뮬)/i;
-const AUTOMATION_PATTERN = /(구직|이메일.*분류|견적서|쇼츠|자동화|3분컷)/i;
+const AUTOMATION_PATTERN = /(구직|이메일.*분류|쇼츠|자동화|3분컷)/i;
 
 // 시설 이름을 뽑을 때 버리는 단어
 const FILLER_WORDS = new Set([
@@ -106,6 +109,10 @@ function result(domain: AgiDomain, facility?: string): RouteResult {
 }
 
 export function routePrompt(prompt: string): RouteResult {
+  if (QUOTE_PATTERN.test(prompt)) {
+    return result('quote');
+  }
+
   if (DOCUMENT_PATTERN.test(prompt)) {
     return result('document');
   }
