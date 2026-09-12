@@ -182,7 +182,7 @@ export async function createGameChatMessages(
     {
       role: 'assistant',
       id: generateId(),
-      content: `${name} 게임을 만들었어요. 미리보기에서 시작을 누르고 60초 동안 보석을 모아 보세요. PC는 WASD·스페이스, 휴대폰은 조이스틱·점프 버튼으로 조작합니다.${chatText.note ? `\n\n${chatText.note}` : ''}
+      content: `${name} 게임을 만들었어요. 미리보기에서 시작을 누르고 3분 동안 보석을 모아 보세요. PC는 WASD·스페이스, 휴대폰은 조이스틱·점프 버튼으로 조작합니다.${chatText.note ? `\n\n${chatText.note}` : ''}
 
 <boltArtifact id="3d-game" title="${artifactTitle}" type="bundled">
 ${fileActions}

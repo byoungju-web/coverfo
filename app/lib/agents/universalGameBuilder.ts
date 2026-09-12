@@ -1,6 +1,6 @@
 /*
  * app/lib/agents/universalGameBuilder.ts
- * 범용 3D 게임 템플릿 - 60초 동안 보석을 모으는 3D 게임 (PC 키보드 + 휴대폰 조이스틱·점프)
+ * 범용 3D 게임 템플릿 - 3분 동안 보석을 모으는 3D 게임 (PC 키보드 + 휴대폰 조이스틱·점프)
  * 캐릭터 모양은 게임 제목에 따라 사람·말·자동차 중에서 고름
  * 원작 표시: 게임 화면 오른쪽 위 작은 "coverfo로 만듦" 링크 + 파일 맨 위 주석 + generator 메타 태그
  * © bj Lee - coverfo.com - Uncovering the fog
@@ -23,14 +23,14 @@ export const gameLogicJs = `// src/gameLogic.js - 게임 규칙 (coverfo.com 3D 
 
 export const ARENA_HALF = 18; // 이동할 수 있는 범위 (가운데에서 끝까지)
 export const MOVE_SPEED = 8; // 1초에 움직이는 거리
-export const JUMP_SPEED = 8; // 점프 힘
+export const JUMP_SPEED = 11; // 점프 힘
 export const GRAVITY = 20; // 떨어지는 힘
-export const ROUND_SECONDS = 60; // 한 판 시간
+export const ROUND_SECONDS = 180; // 한 판 시간 (3분)
 export const ITEM_COUNT = 10; // 한 번에 보이는 보석 수
 export const HIGH_ITEM_RATIO = 0.3; // 공중 보석 비율
 export const PICK_RADIUS = 1.2; // 보석을 먹는 거리
 export const GROUND_ITEM_Y = 0.8; // 바닥 보석 높이
-export const HIGH_ITEM_Y = 2.6; // 공중 보석 높이 (점프해야 닿음)
+export const HIGH_ITEM_Y = 3.2; // 공중 보석 높이 (점프해야 닿음)
 export const PLAYER_CENTER = 1; // 캐릭터 몸 중심 높이
 
 const REACH = 1.2;
@@ -198,6 +198,11 @@ const BEST_KEY = 'coverfo-game-best:' + GAME_TITLE;
 
 function byId(id) {
   return document.getElementById(id);
+}
+
+function formatClock(seconds) {
+  const total = Math.ceil(seconds);
+  return Math.floor(total / 60) + ':' + String(total % 60).padStart(2, '0');
 }
 
 function box(width, height, depth, color) {
@@ -405,7 +410,7 @@ function setupGame() {
 
   function updateHud() {
     byId('score').textContent = String(round ? round.score : 0);
-    byId('time').textContent = String(Math.ceil(round ? round.timeLeft : ROUND_SECONDS));
+    byId('time').textContent = formatClock(round ? round.timeLeft : ROUND_SECONDS);
     byId('best').textContent = String(best);
   }
 
@@ -661,7 +666,7 @@ export const gameIndexHtml = (title: string) => `<!doctype html>
       <div id="title" class="hud-title"></div>
       <div class="hud-stats">
         <span>점수 <b id="score">0</b></span>
-        <span>남은 시간 <b id="time">60</b>초</span>
+        <span>남은 시간 <b id="time">3:00</b></span>
         <span>최고 <b id="best">0</b></span>
       </div>
     </div>
@@ -674,7 +679,7 @@ export const gameIndexHtml = (title: string) => `<!doctype html>
     <div id="startOverlay" class="overlay">
       <div class="panel">
         <h1 id="startTitle"></h1>
-        <p>60초 동안 보석을 모으세요. 노란 보석은 1점, 공중에 뜬 파란 보석은 점프해야 닿고 3점이에요.</p>
+        <p>3분 동안 보석을 모으세요. 노란 보석은 1점, 공중에 뜬 파란 보석은 점프해야 닿고 3점이에요.</p>
         <p class="keys">PC: WASD 또는 방향키로 이동, 스페이스로 점프<br />휴대폰: 왼쪽 조이스틱으로 이동, 오른쪽 버튼으로 점프</p>
         <button id="startButton" type="button">시작</button>
         <p id="startHint" class="hint"></p>
@@ -697,7 +702,7 @@ export const gameIndexHtml = (title: string) => `<!doctype html>
 /** README.md */
 export const gameReadme = (title: string) => `# ${oneLine(title)}
 
-60초 동안 보석을 모으는 3D 게임입니다.
+3분 동안 보석을 모으는 3D 게임입니다.
 
 - 노란 보석: 1점 (바닥)
 - 파란 보석: 3점 (공중, 점프해야 닿음)
