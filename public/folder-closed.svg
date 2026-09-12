@@ -1,0 +1,20 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="fogCoverGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.55"/>
+    </linearGradient>
+  </defs>
+  <!-- Closed folder base -->
+  <path d="M64 140 Q64 108 96 108 H180 Q200 108 212 124 L236 156 H416 Q448 156 448 188 V400 Q448 432 416 432 H96 Q64 432 64 400 Z" fill="#0a0a0a"/>
+  <path d="M64 180 Q64 148 96 148 H416 Q448 148 448 180 V400 Q448 432 416 432 H96 Q64 432 64 400 Z" fill="#1a1a1a"/>
+  <!-- Fog still covering the contents -->
+  <rect x="88" y="200" width="336" height="160" rx="12" fill="#ffffff" opacity="0.14"/>
+  <rect x="88" y="200" width="336" height="160" rx="12" fill="url(#fogCoverGrad)" opacity="0.5"/>
+  <!-- 3 fading lines: the coverfo mark -->
+  <rect x="120" y="232" width="150" height="12" rx="6" fill="#ffffff" opacity="0.55"/>
+  <rect x="120" y="260" width="110" height="12" rx="6" fill="#ffffff" opacity="0.28"/>
+  <rect x="120" y="288" width="70" height="12" rx="6" fill="#ffffff" opacity="0.12"/>
+  <circle cx="380" cy="360" r="14" fill="#7C3AED" opacity="0.55"/>
+</svg>

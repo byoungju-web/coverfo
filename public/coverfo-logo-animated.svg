@@ -1,0 +1,43 @@
+<svg width="600" height="120" viewBox="0 0 600 120" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="fogFadeAnimSimple" gradientUnits="userSpaceOnUse" x1="90" y1="0" x2="335" y2="0">
+      <stop offset="0%" stop-color="#111" stop-opacity="1"/>
+      <stop offset="62%" stop-color="#111" stop-opacity="1">
+        <animate attributeName="stop-opacity" values="1;1;0.2" dur="3s" repeatCount="indefinite"/>
+      </stop>
+      <stop offset="78%" stop-color="#111" stop-opacity="0.35">
+        <animate attributeName="stop-opacity" values="0.35;0.15;0.04" dur="3s" repeatCount="indefinite"/>
+      </stop>
+      <stop offset="100%" stop-color="#111" stop-opacity="0.06">
+        <animate attributeName="stop-opacity" values="0.06;0.02;0.02" dur="3s" repeatCount="indefinite"/>
+      </stop>
+    </linearGradient>
+    <clipPath id="revealSimple">
+      <rect x="0" y="0" width="0" height="120">
+        <animate attributeName="width" from="0" to="600" dur="1.8s" fill="freeze" calcMode="spline" keySplines="0.16 1 0.3 1"/>
+      </rect>
+    </clipPath>
+  </defs>
+  <g transform="translate(0, 28)">
+    <rect x="0" y="0" width="56" height="6" rx="3" fill="#111" opacity="0.9">
+      <animate attributeName="x" from="-56" to="0" dur="0.7s" fill="freeze"/>
+      <animate attributeName="opacity" from="0" to="0.9" dur="0.7s" fill="freeze"/>
+    </rect>
+    <rect x="0" y="14" width="44" height="6" rx="3" fill="#111">
+      <animate attributeName="x" from="-44" to="0" dur="0.8s" begin="0.1s" fill="freeze"/>
+      <animate attributeName="opacity" values="0;0.42;0" dur="2s" begin="0.7s" fill="freeze"/>
+      <animate attributeName="width" from="44" to="8" dur="2s" begin="0.7s" fill="freeze"/>
+    </rect>
+    <rect x="0" y="28" width="28" height="6" rx="3" fill="#111">
+      <animate attributeName="x" from="-28" to="0" dur="0.9s" begin="0.2s" fill="freeze"/>
+      <animate attributeName="opacity" values="0;0.14;0" dur="2s" begin="0.7s" fill="freeze"/>
+      <animate attributeName="width" from="28" to="4" dur="2s" begin="0.7s" fill="freeze"/>
+    </rect>
+    <circle cx="66" cy="16" r="0" fill="#7C3AED">
+      <animate attributeName="r" from="0" to="4.5" dur="0.4s" begin="1s" fill="freeze"/>
+    </circle>
+  </g>
+  <g clip-path="url(#revealSimple)" font-family="Inter, Helvetica, sans-serif" font-weight="800" letter-spacing="-0.03em">
+    <text x="90" y="62" font-size="54" fill="url(#fogFadeAnimSimple)">coverfo</text>
+  </g>
+</svg>

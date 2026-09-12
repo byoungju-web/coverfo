@@ -1,0 +1,20 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="fogClearGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.7"/>
+    </linearGradient>
+  </defs>
+  <!-- Open folder base -->
+  <path d="M64 140 Q64 108 96 108 H180 Q200 108 212 124 L236 156 H416 Q448 156 448 188 V400 Q448 432 416 432 H96 Q64 432 64 400 Z" fill="#0a0a0a"/>
+  <path d="M64 180 Q64 148 96 148 H416 Q448 148 448 180 V380 Q448 412 416 412 H96 Q64 412 64 380 Z" fill="#1a1a1a"/>
+  <!-- Inside bright - uncovered -->
+  <rect x="88" y="200" width="336" height="160" rx="12" fill="#ffffff" opacity="0.95"/>
+  <!-- Fog only on right edge, almost gone -->
+  <rect x="360" y="180" width="88" height="120" rx="8" fill="url(#fogClearGrad)" opacity="0.5"/>
+  <!-- Content icons hint -->
+  <rect x="120" y="230" width="80" height="10" rx="5" fill="#7C3AED" opacity="0.8"/>
+  <rect x="120" y="250" width="120" height="8" rx="4" fill="#111" opacity="0.2"/>
+  <circle cx="380" cy="360" r="14" fill="#7C3AED"/>
+</svg>

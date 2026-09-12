@@ -607,6 +607,13 @@ function Folder({ folder, collapsed, selected = false, onCopyPath, onCopyRelativ
         onClick={onClick}
       >
         <div className="flex items-center w-full">
+          {/* coverfo: 닫힌 폴더는 안개에 덮인 모양, 열면 안개가 걷힘 */}
+          <img
+            src={collapsed ? '/folder-closed.svg' : '/folder-open.svg'}
+            alt=""
+            aria-hidden="true"
+            className="w-4 h-4 mr-1.5 shrink-0"
+          />
           <div className="flex-1 truncate pr-2">{folder.name}</div>
           {isLocked && (
             <span

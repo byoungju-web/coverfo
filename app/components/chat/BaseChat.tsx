@@ -354,12 +354,25 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         <div className="flex flex-col lg:flex-row overflow-y-auto w-full h-full">
           <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full')}>
             {!chatStarted && (
-              <div id="intro" className="mt-[16vh] max-w-2xl mx-auto text-center px-4 lg:px-0">
-                <h1 className="text-3xl lg:text-6xl font-bold text-bolt-elements-textPrimary mb-4 animate-fade-in">
-                  Where ideas begin
+              <div id="intro" className="mt-[14vh] max-w-2xl mx-auto text-center px-4 lg:px-0">
+                <img
+                  src="/coverfo-logo-animated.svg"
+                  alt="coverfo"
+                  className="w-[240px] lg:w-[300px] mx-auto mb-6 animate-fade-in dark:hidden"
+                />
+                <img
+                  src="/coverfo-logo-animated-dark.svg"
+                  alt="coverfo"
+                  className="w-[240px] lg:w-[300px] mx-auto mb-6 animate-fade-in hidden dark:block"
+                />
+                <h1 className="text-2xl lg:text-4xl font-bold text-bolt-elements-textPrimary mb-4 animate-fade-in">
+                  누르면 바로 만들어집니다
                 </h1>
-                <p className="text-md lg:text-xl mb-8 text-bolt-elements-textSecondary animate-fade-in animation-delay-200">
-                  Bring ideas to life in seconds or get help on existing projects.
+                <p className="text-md lg:text-xl mb-4 text-bolt-elements-textSecondary animate-fade-in animation-delay-200">
+                  예약 페이지, 견적서, 3D 게임을 버튼 하나로. 만들고 싶은 것을 한 줄로 적어도 됩니다.
+                </p>
+                <p className="text-sm mb-6 text-bolt-elements-textTertiary animate-fade-in animation-delay-200">
+                  안개를 걷어내고 아이디어를 드러냅니다 · coverfo
                 </p>
               </div>
             )}
