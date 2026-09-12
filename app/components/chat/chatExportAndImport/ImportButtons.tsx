@@ -1,6 +1,5 @@
 import type { Message } from 'ai';
 import { toast } from 'react-toastify';
-import { ImportFolderButton } from '~/components/chat/ImportFolderButton';
 import { Button } from '~/components/ui/Button';
 import { classNames } from '~/utils/classNames';
 
@@ -78,17 +77,6 @@ export function ImportButtons(importChat: ((description: string, messages: Messa
             <span className="i-ph:upload-simple w-4 h-4" />
             Import Chat
           </Button>
-          <ImportFolderButton
-            importChat={importChat}
-            className={classNames(
-              'gap-2 bg-bolt-elements-background-depth-1',
-              'text-bolt-elements-textPrimary',
-              'hover:bg-bolt-elements-background-depth-2',
-              'border border-[rgba(0,0,0,0.08)] dark:border-[rgba(255,255,255,0.08)]',
-              'h-10 px-4 py-2 min-w-[120px] justify-center',
-              'transition-all duration-200 ease-in-out rounded-lg',
-            )}
-          />
         </div>
       </div>
     </div>

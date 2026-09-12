@@ -9,9 +9,9 @@
   </defs>
   <!-- Symbol -->
   <g transform="translate(0, 28)">
-    <rect x="0" y="0" width="56" height="6" rx="3" fill="#ffffff" opacity="0.9"/>
-    <rect x="0" y="14" width="44" height="6" rx="3" fill="#ffffff" opacity="0.42"/>
-    <rect x="0" y="28" width="28" height="6" rx="3" fill="#ffffff" opacity="0.14"/>
+    <rect x="0" y="0" width="56" height="6" rx="3" fill="#ffffff" opacity="0.95"/>
+    <rect x="0" y="14" width="44" height="6" rx="3" fill="#7C3AED" opacity="0.9"/>
+    <rect x="0" y="28" width="28" height="6" rx="3" fill="#A78BFA" opacity="0.85"/>
     <circle cx="66" cy="16" r="4.5" fill="#7C3AED"/>
   </g>
   <g font-family="Inter, Helvetica, sans-serif" font-weight="800" letter-spacing="-0.03em">

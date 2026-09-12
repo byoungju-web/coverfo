@@ -12,8 +12,8 @@
   <!-- Minimal mark: 3 lines fading -->
   <g transform="translate(320, 440)">
     <rect x="0" y="0" width="280" height="24" rx="12" fill="white" opacity="0.95"/>
-    <rect x="0" y="48" width="200" height="24" rx="12" fill="white" opacity="0.45"/>
-    <rect x="0" y="96" width="120" height="24" rx="12" fill="white" opacity="0.18"/>
+    <rect x="0" y="48" width="200" height="24" rx="12" fill="#A78BFA" opacity="0.95"/>
+    <rect x="0" y="96" width="120" height="24" rx="12" fill="#7C3AED" opacity="0.95"/>
     <circle cx="340" cy="36" r="22" fill="#7C3AED"/>
   </g>
 </svg>

@@ -15,13 +15,10 @@ import Cookies from 'js-cookie';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import styles from './BaseChat.module.scss';
 import { ImportButtons } from '~/components/chat/chatExportAndImport/ImportButtons';
-import { ExamplePrompts } from '~/components/chat/ExamplePrompts';
-import GitCloneButton from './GitCloneButton';
 import { BookingTemplateButton } from './BookingTemplateButton';
 import { GameTemplateButton } from './GameTemplateButton';
 import { QuoteTemplateButton } from './QuoteTemplateButton';
 import type { ProviderInfo } from '~/types/model';
-import StarterTemplates from './StarterTemplates';
 import type { ActionAlert, SupabaseAlert, DeployAlert, LlmErrorAlertType } from '~/types/actions';
 import DeployChatAlert from '~/components/deploy/DeployAlert';
 import ChatAlert from './ChatAlert';
@@ -372,7 +369,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   예약 페이지, 견적서, 3D 게임을 버튼 하나로. 만들고 싶은 것을 한 줄로 적어도 됩니다.
                 </p>
                 <p className="text-sm mb-6 text-bolt-elements-textTertiary animate-fade-in animation-delay-200">
-                  안개를 걷어내고 아이디어를 드러냅니다 · coverfo
+                  안개를 걷어내고 모양을 드러냅니다 · coverfo
                 </p>
               </div>
             )}
@@ -491,24 +488,16 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               {!chatStarted && (
                 <div className="flex flex-wrap justify-center gap-2">
                   {ImportButtons(importChat)}
-                  <GitCloneButton importChat={importChat} />
                   <BookingTemplateButton importChat={importChat} />
                   <GameTemplateButton importChat={importChat} />
                   <QuoteTemplateButton importChat={importChat} />
                 </div>
               )}
-              <div className="flex flex-col gap-5">
-                {!chatStarted &&
-                  ExamplePrompts((event, messageInput) => {
-                    if (isStreaming) {
-                      handleStop?.();
-                      return;
-                    }
-
-                    handleSendMessage?.(event, messageInput);
-                  })}
-                {!chatStarted && <StarterTemplates />}
-              </div>
+              {!chatStarted && (
+                <p className="mt-10 mb-4 text-center text-xs text-bolt-elements-textTertiary">
+                  Copyright © 2026 coverfo.com All Rights Reserved
+                </p>
+              )}
             </div>
           </div>
           <ClientOnly>

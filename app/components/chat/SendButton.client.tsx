@@ -30,7 +30,11 @@ export const SendButton = ({ show, isStreaming, disabled, onClick }: SendButtonP
           }}
         >
           <div className="text-lg">
-            {!isStreaming ? <div className="i-ph:arrow-right"></div> : <div className="i-ph:stop-circle-bold"></div>}
+            {!isStreaming ? (
+              <div className="i-ph:paper-plane-right"></div>
+            ) : (
+              <div className="i-ph:stop-circle-bold"></div>
+            )}
           </div>
         </motion.button>
       ) : null}
