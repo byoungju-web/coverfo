@@ -4,6 +4,12 @@ import type { LanguageModelV1 } from 'ai';
 import type { IProviderSetting } from '~/types/model';
 import { createAnthropic } from '@ai-sdk/anthropic';
 
+/*
+ * Cloudflare AI Gateway endpoint.
+ * Calls are routed through the gateway so they do not depend on which Cloudflare colo handles the request.
+ */
+const ANTHROPIC_GATEWAY_URL = 'https://gateway.ai.cloudflare.com/v1/8e3361d320715cc98e7b66cb3127ca76/coverfo/anthropic';
+
 export default class AnthropicProvider extends BaseProvider {
   name = 'Anthropic';
   getApiKeyLink = 'https://console.anthropic.com/settings/keys';
@@ -70,7 +76,7 @@ export default class AnthropicProvider extends BaseProvider {
       throw `Missing Api Key configuration for ${this.name} provider`;
     }
 
-    const response = await fetch(`https://api.anthropic.com/v1/models`, {
+    const response = await fetch(`${ANTHROPIC_GATEWAY_URL}/v1/models`, {
       headers: {
         'x-api-key': `${apiKey}`,
         'anthropic-version': '2023-06-01',
@@ -141,6 +147,7 @@ export default class AnthropicProvider extends BaseProvider {
     });
     const anthropic = createAnthropic({
       apiKey,
+      baseURL: ANTHROPIC_GATEWAY_URL,
       headers: { 'anthropic-beta': 'output-128k-2025-02-19' },
     });
 
