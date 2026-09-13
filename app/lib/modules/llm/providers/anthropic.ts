@@ -150,7 +150,7 @@ export default class AnthropicProvider extends BaseProvider {
     });
     const anthropic = createAnthropic({
       apiKey,
-      baseURL: ANTHROPIC_GATEWAY_URL,
+      baseURL: `${ANTHROPIC_GATEWAY_URL}/v1`,
       headers: { 'anthropic-beta': 'output-128k-2025-02-19', 'x-region': RELAY_REGION },
     });
 
