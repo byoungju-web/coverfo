@@ -5,10 +5,12 @@ import type { IProviderSetting } from '~/types/model';
 import { createAnthropic } from '@ai-sdk/anthropic';
 
 /*
- * Cloudflare AI Gateway endpoint.
- * Calls are routed through the gateway so they do not depend on which Cloudflare colo handles the request.
+ * Supabase Edge Function relay.
+ * Anthropic blocks requests from some Cloudflare locations, so calls go through this relay instead.
+ * The x-region header pins the relay to a US region.
  */
-const ANTHROPIC_GATEWAY_URL = 'https://gateway.ai.cloudflare.com/v1/8e3361d320715cc98e7b66cb3127ca76/coverfo/anthropic';
+const ANTHROPIC_GATEWAY_URL = 'https://pevmgpmpupenubrqwmyl.supabase.co/functions/v1/anthropic-relay';
+const RELAY_REGION = 'us-east-1';
 
 export default class AnthropicProvider extends BaseProvider {
   name = 'Anthropic';
@@ -80,6 +82,7 @@ export default class AnthropicProvider extends BaseProvider {
       headers: {
         'x-api-key': `${apiKey}`,
         'anthropic-version': '2023-06-01',
+        'x-region': RELAY_REGION,
       },
     });
 
@@ -148,7 +151,7 @@ export default class AnthropicProvider extends BaseProvider {
     const anthropic = createAnthropic({
       apiKey,
       baseURL: ANTHROPIC_GATEWAY_URL,
-      headers: { 'anthropic-beta': 'output-128k-2025-02-19' },
+      headers: { 'anthropic-beta': 'output-128k-2025-02-19', 'x-region': RELAY_REGION },
     });
 
     return anthropic(model);
