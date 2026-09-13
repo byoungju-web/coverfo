@@ -253,3 +253,13 @@
   --bolt-elements-terminal-color-brightCyan: var(--bolt-terminal-brightCyan);
   --bolt-elements-terminal-color-brightWhite: var(--bolt-terminal-brightWhite);
 }
+
+/* 좁은 화면(태블릿·휴대폰)에서는 채팅과 작업 화면이 전체 폭을 쓰도록 한다 */
+@media (max-width: 1023px) {
+  :root {
+    --chat-min-width: 100%;
+    --workbench-width: 100%;
+    --workbench-inner-width: 100%;
+    --workbench-left: 0;
+  }
+}
