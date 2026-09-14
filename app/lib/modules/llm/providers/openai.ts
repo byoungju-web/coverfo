@@ -5,24 +5,46 @@ import type { LanguageModelV1 } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 
 /*
- * @ai-sdk/openai 1.1.2 는 max_tokens -> max_completion_tokens 변환을
- * o1 / o3 계열 모델에만 적용한다. gpt-5.x / gpt-6 계열은 그 조건에 걸리지 않아
+ * @ai-sdk/openai 1.1.2 는 추론형 모델 전용 처리(max_tokens 변환, 미지원 파라미터 제거)를
+ * o1 / o3 계열에만 적용한다. gpt-5.x / gpt-6 계열은 그 조건에 걸리지 않아
  * 옛 파라미터가 그대로 전송되고 OpenAI 서버가 400 오류를 낸다.
- * 아래 fetch 래퍼가 전송 직전에 파라미터 이름만 바꿔준다.
+ * 아래 fetch 래퍼가 전송 직전에 SDK와 동일한 처리를 대신 해준다.
  */
-const needsCompletionTokens = (modelId: string) => /^gpt-(5|6)/.test(modelId);
+const needsReasoningParams = (modelId: string) => /^gpt-(5|6)/.test(modelId);
+
+// SDK가 추론형 모델에서 제거하는 파라미터 목록과 동일
+const UNSUPPORTED_PARAMS = [
+  'temperature',
+  'top_p',
+  'frequency_penalty',
+  'presence_penalty',
+  'logit_bias',
+  'logprobs',
+  'top_logprobs',
+];
 
 const patchedFetch: typeof fetch = async (input, init) => {
   if (init?.body && typeof init.body === 'string') {
     try {
       const body = JSON.parse(init.body);
 
-      if (typeof body.model === 'string' && needsCompletionTokens(body.model) && body.max_tokens != null) {
-        if (body.max_completion_tokens == null) {
-          body.max_completion_tokens = body.max_tokens;
+      if (typeof body.model === 'string' && needsReasoningParams(body.model)) {
+        // max_tokens -> max_completion_tokens
+        if (body.max_tokens != null) {
+          if (body.max_completion_tokens == null) {
+            body.max_completion_tokens = body.max_tokens;
+          }
+
+          delete body.max_tokens;
         }
 
-        delete body.max_tokens;
+        // 이 모델이 지원하지 않는 파라미터 제거
+        for (const key of UNSUPPORTED_PARAMS) {
+          if (key in body) {
+            delete body[key];
+          }
+        }
+
         init = { ...init, body: JSON.stringify(body) };
       }
     } catch {
