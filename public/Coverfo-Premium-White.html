@@ -40,5 +40,60 @@ Error generating stack: `+i.message+`
 </script>
   <script>(function(){function m(a){var h=a.getAttribute("href");if(!h)return;try{var u=new URL(h,document.baseURI);if((u.protocol==="http:"||u.protocol==="https:")&&u.host!==location.host){a.target="_blank";a.rel="noopener noreferrer";}}catch(e){}}function s(){document.querySelectorAll("a[href]").forEach(m);}if(document.readyState!=="loading"){s();}else{document.addEventListener("DOMContentLoaded",s);}document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[href]");if(a){m(a);}},true);})();</script>
   
+
+<script>
+/* coverfo: 홈화면 입력 -> 실제 채팅(/?prompt=) 연결 */
+(function () {
+  var CHAT_URL = "/";
+  var PROMPTS = {
+    "\uC608\uC57D \uC2DC\uC2A4\uD15C": "\uAC15\uB0A8 \uBBF8\uC6A9\uC2E4 \uC608\uC57D \uC2DC\uC2A4\uD15C \uB9CC\uB4E4\uC5B4\uC918, \uCE98\uB9B0\uB354\uB791 \uB514\uC790\uC774\uB108 \uC120\uD0DD \uAE30\uB2A5 \uD3EC\uD568",
+    "3D \uAC8C\uC784": "3D \uD050\uBE0C \uD53C\uD558\uAE30 \uAC8C\uC784 \uB9CC\uB4E4\uC5B4\uC918, \uB9C8\uC6B0\uC2A4\uB85C \uC870\uC791\uD558\uACE0 \uD30C\uD2F0\uD074 \uD6A8\uACFC \uB123\uC5B4",
+    "\uACAC\uC801 \uACC4\uC0B0\uAE30": "\uC778\uD14C\uB9AC\uC5B4 \uACAC\uC801 \uACC4\uC0B0\uAE30 \uB9CC\uB4E4\uC5B4\uC918, \uD3C9\uC218\uBCC4\uB85C \uC2E4\uC2DC\uAC04 \uACC4\uC0B0\uB418\uB294",
+    "\uC1FC\uD551\uBAB0": "\uBBF8\uB2C8\uBA40 \uD328\uC158 \uC1FC\uD551\uBAB0 \uADF8\uB9AC\uB4DC \uB9CC\uB4E4\uC5B4\uC918, \uD544\uD130\uB791 \uC7A5\uBC14\uAD6C\uB2C8 \uAE30\uB2A5",
+    "\uB300\uC2DC\uBCF4\uB4DC": "\uB9E4\uCD9C \uBD84\uC11D \uB300\uC2DC\uBCF4\uB4DC \uB9CC\uB4E4\uC5B4\uC918, \uCC28\uD2B8\uB791 KPI \uCE74\uB4DC \uC788\uB294",
+    "\uB79C\uB529 \uD398\uC774\uC9C0": "AI \uC2A4\uD0C0\uD2B8\uC5C5 \uB79C\uB529 \uD398\uC774\uC9C0 \uB9CC\uB4E4\uC5B4\uC918, \uD504\uB9AC\uBBF8\uC5C4 \uD654\uC774\uD2B8 \uC2A4\uD0C0\uC77C\uB85C"
+  };
+  var SUBMIT_LABEL = "\uC0DD\uC131\uD558\uAE30";
+
+  function go(text) {
+    text = (text || "").trim();
+    if (!text) return;
+    window.location.href = CHAT_URL + "?prompt=" + encodeURIComponent(text);
+  }
+  function getInput() {
+    return document.querySelector('input[placeholder*="\uC2DC\uCF1C\uB9CC"]');
+  }
+
+  document.addEventListener("click", function (e) {
+    var btn = e.target && e.target.closest ? e.target.closest("button") : null;
+    if (!btn) return;
+    var label = (btn.textContent || "").trim();
+
+    for (var key in PROMPTS) {
+      if (label.indexOf(key) === 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        go(PROMPTS[key]);
+        return;
+      }
+    }
+    if (label.indexOf(SUBMIT_LABEL) === 0) {
+      e.preventDefault();
+      e.stopPropagation();
+      var el = getInput();
+      go(el ? el.value : "");
+    }
+  }, true);
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Enter") return;
+    var el = getInput();
+    if (!el || e.target !== el) return;
+    e.preventDefault();
+    e.stopPropagation();
+    go(el.value);
+  }, true);
+})();
+</script>
 </body>
 </html>
