@@ -4,6 +4,35 @@ import type { IProviderSetting } from '~/types/model';
 import type { LanguageModelV1 } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 
+/*
+ * @ai-sdk/openai 1.1.2 는 max_tokens -> max_completion_tokens 변환을
+ * o1 / o3 계열 모델에만 적용한다. gpt-5.x / gpt-6 계열은 그 조건에 걸리지 않아
+ * 옛 파라미터가 그대로 전송되고 OpenAI 서버가 400 오류를 낸다.
+ * 아래 fetch 래퍼가 전송 직전에 파라미터 이름만 바꿔준다.
+ */
+const needsCompletionTokens = (modelId: string) => /^gpt-(5|6)/.test(modelId);
+
+const patchedFetch: typeof fetch = async (input, init) => {
+  if (init?.body && typeof init.body === 'string') {
+    try {
+      const body = JSON.parse(init.body);
+
+      if (typeof body.model === 'string' && needsCompletionTokens(body.model) && body.max_tokens != null) {
+        if (body.max_completion_tokens == null) {
+          body.max_completion_tokens = body.max_tokens;
+        }
+
+        delete body.max_tokens;
+        init = { ...init, body: JSON.stringify(body) };
+      }
+    } catch {
+      // JSON 이 아니면 그대로 통과
+    }
+  }
+
+  return fetch(input, init);
+};
+
 export default class OpenAIProvider extends BaseProvider {
   name = 'OpenAI';
   getApiKeyLink = 'https://platform.openai.com/api-keys';
@@ -151,6 +180,7 @@ export default class OpenAIProvider extends BaseProvider {
 
     const openai = createOpenAI({
       apiKey,
+      fetch: patchedFetch,
     });
 
     return openai(model);
