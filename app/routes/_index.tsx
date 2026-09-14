@@ -1,26 +1,15 @@
-import { json, type MetaFunction } from '@remix-run/cloudflare';
-import { ClientOnly } from 'remix-utils/client-only';
-import { BaseChat } from '~/components/chat/BaseChat';
-import { Chat } from '~/components/chat/Chat.client';
-import { Header } from '~/components/header/Header';
-
-export const meta: MetaFunction = () => {
-  return [{ title: 'coverfo' }, { name: 'description', content: '누르면 바로 만들어집니다 · coverfo' }];
-};
-
-export const loader = () => json({});
-
-/**
- * Landing page component for Bolt
- * Note: Settings functionality should ONLY be accessed through the sidebar menu.
- * Do not add settings button/panel to this landing page as it was intentionally removed
- * to keep the UI clean and consistent with the design system.
+/*
+ * coverfo 홈화면 (/)
+ * 기본 export 가 없으므로 Remix 는 이 파일을 "리소스 라우트"로 처리하고
+ * loader 가 돌려주는 응답을 그대로 브라우저에 보낸다.
+ * 채팅 화면은 /chat 으로 옮겨졌다 (app/routes/chat._index.tsx).
  */
-export default function Index() {
-  return (
-    <div className="flex flex-col h-full w-full bg-bolt-elements-background-depth-1">
-      <Header />
-      <ClientOnly fallback={<BaseChat />}>{() => <Chat />}</ClientOnly>
-    </div>
-  );
-}
+import landingHtml from '~/landing-html';
+
+export const loader = () =>
+  new Response(landingHtml, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-cache',
+    },
+  });
