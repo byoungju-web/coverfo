@@ -13,41 +13,41 @@ export default class OpenAIProvider extends BaseProvider {
   };
 
   staticModels: ModelInfo[] = [
-    /*
-     * Essential fallback models - only the most stable/reliable ones
-     * GPT-4o: 128k context, 4k standard output (64k with long output mode)
-     */
-    { name: 'gpt-4o', label: 'GPT-4o', provider: 'OpenAI', maxTokenAllowed: 128000, maxCompletionTokens: 4096 },
-
-    // GPT-4o Mini: 128k context, cost-effective alternative
+    // GPT-6 Astra: 2026-09-03 출시, 최신 플래그십
     {
-      name: 'gpt-4o-mini',
-      label: 'GPT-4o Mini',
+      name: 'gpt-6-astra',
+      label: 'GPT-6 Astra (최신)',
       provider: 'OpenAI',
       maxTokenAllowed: 128000,
-      maxCompletionTokens: 4096,
+      maxCompletionTokens: 16384,
     },
 
-    // GPT-3.5-turbo: 16k context, fast and cost-effective
+    // GPT-5.6 Sol: 2026-07-09 출시, 범용 고성능
     {
-      name: 'gpt-3.5-turbo',
-      label: 'GPT-3.5 Turbo',
-      provider: 'OpenAI',
-      maxTokenAllowed: 16000,
-      maxCompletionTokens: 4096,
-    },
-
-    // o1-preview: 128k context, 32k output limit (reasoning model)
-    {
-      name: 'o1-preview',
-      label: 'o1-preview',
+      name: 'gpt-5.6-sol',
+      label: 'GPT-5.6 Sol',
       provider: 'OpenAI',
       maxTokenAllowed: 128000,
-      maxCompletionTokens: 32000,
+      maxCompletionTokens: 16384,
     },
 
-    // o1-mini: 128k context, 65k output limit (reasoning model)
-    { name: 'o1-mini', label: 'o1-mini', provider: 'OpenAI', maxTokenAllowed: 128000, maxCompletionTokens: 65000 },
+    // GPT-5.6 Terra: 2026-07-09 출시, 중간 등급
+    {
+      name: 'gpt-5.6-terra',
+      label: 'GPT-5.6 Terra',
+      provider: 'OpenAI',
+      maxTokenAllowed: 128000,
+      maxCompletionTokens: 16384,
+    },
+
+    // GPT-5.6 Luna: 2026-07-09 출시, 경량·저비용
+    {
+      name: 'gpt-5.6-luna',
+      label: 'GPT-5.6 Luna (저비용)',
+      provider: 'OpenAI',
+      maxTokenAllowed: 128000,
+      maxCompletionTokens: 16384,
+    },
   ];
 
   async getDynamicModels(
