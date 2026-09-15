@@ -1,0 +1,44 @@
+COVERFO PREMIUM WHITE TEMPLATES - COMMERCIAL LICENSE
+Copyright (c) 2026 coverfo.com All Rights Reserved.
+
+1. Ownership
+All 21 template files, marketplace home, detail/payment, and my page/download center
+were originally generated for coverfo.com and are 100% owned by coverfo.com.
+No third-party copyrighted assets are included. All code is original.
+
+2. What Buyer Gets (Personal License - KRW 49,000~99,000)
+- Use for 1 personal project / portfolio
+- Lifetime updates of purchased template
+- Commercial use NOT allowed
+- Resale, redistribution, sharing PROHIBITED
+
+3. Commercial License (KRW 149,000~199,000)
+- Use for unlimited client projects (buyer's agency)
+- Use for 1 SaaS / product (end product) with revenue
+- Resale of TEMPLATE ITSELF as template/starter kit is STILL prohibited
+- You may not create a competing template marketplace using these files
+
+4. What coverfo.com Retains
+- All Rights Reserved
+- Right to sell same templates to other buyers
+- Right to update pricing, features
+- Copyright notice must remain in source comments:
+  "Copyright (c) 2026 coverfo.com All Rights Reserved."
+
+5. Third-party Open Source
+- Tailwind CSS CDN: MIT License - commercial use allowed
+- Chart.js: MIT License - commercial use allowed
+- canvas-confetti: ISC License - commercial use allowed
+No attribution required, but retained in code comments for transparency.
+
+6. Refund
+30-day money-back guarantee. After download, refund at owner's discretion.
+Abuse of refund will result in license revocation.
+
+7. Warranty Disclaimer
+Templates provided "AS IS" without warranty. coverfo.com is not liable for
+any damages arising from use.
+
+Owner: coverfo.com
+Contact: support@coverfo.com
+Effective: 2026-01-01

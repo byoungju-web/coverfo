@@ -1,0 +1,17 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shopping Mall Premium White - coverfo</title><script src="https://cdn.tailwindcss.com"></script>
+<style>body{background:#fcfcfc}</style></head>
+<body class="bg-[#fcfcfc] text-[#111]"><div class="text-center text-[10px] text-gray-400 py-2">Copyright © 2026 coverfo.com All Rights Reserved.</div>
+<header class="max-w-[1280px] mx-auto px-6 py-4 flex justify-between"><div class="font-bold">coverfo.com</div><div class="flex gap-2"><div class="bg-white rounded-full px-4 py-2 shadow text-sm">검색</div><button id="cartBtn" class="bg-black text-white rounded-full px-5 py-2 text-sm">장바구니 <span id="cnt" class="bg-amber-300 text-black rounded-full px-1 text-xs ml-1">0</span></button></div></header>
+<div class="max-w-[1280px] mx-auto px-6 py-8"><h1 class="text-[48px] font-bold">New Collection 2026</h1>
+<div class="mt-6 grid grid-cols-2 md:grid-cols-3 gap-4" id="grid"></div></div>
+<div id="drawer" class="fixed right-0 top-0 w-[380px] h-full bg-white shadow-2xl rounded-l-[24px] translate-x-full transition p-6 z-30"><div class="flex justify-between"><b>장바구니</b><button onclick="toggle()">✕</button></div><div id="items" class="mt-4"></div><div class="mt-4 font-bold" id="total">₩0</div><button class="w-full bg-black text-white rounded-full py-3 mt-4">결제하기</button></div>
+<script>
+const prods=[{n:"Premium Hoodie",p:89000,o:129000},{n:"Wide Denim",p:79000,o:99000},{n:"Wool Coat",p:189000,o:249000},{n:"Cotton Tee",p:29000,o:39000},{n:"Knit Sweater",p:69000,o:89000},{n:"Cargo Pants",p:85000,o:110000}];
+let cart=[]; 
+function render(){document.getElementById('grid').innerHTML=prods.map((x,i)=>`<div class="bg-white rounded-[20px] p-3 shadow-sm"><div class="h-[160px] bg-[#f5f1eb] rounded-[16px] mb-2 flex items-center justify-center text-xs text-gray-400">IMAGE</div><div class="font-medium text-sm">${x.n}</div><div class="flex gap-2 items-center mt-1"><span class="font-bold">₩${x.p.toLocaleString()}</span><span class="line-through text-xs text-gray-400">₩${x.o.toLocaleString()}</span></div><button onclick="add(${i})" class="w-full bg-black text-white rounded-full py-2 text-sm mt-2">담기</button></div>`).join('')}
+function add(i){cart.push(prods[i]);upd()}
+function upd(){document.getElementById('cnt').innerText=cart.length;document.getElementById('total').innerText='₩'+cart.reduce((s,x)=>s+x.p,0).toLocaleString();document.getElementById('items').innerHTML=cart.map((x,i)=>`<div class="flex justify-between text-sm bg-[#fafafa] rounded-xl p-2 mb-2"><span>${x.n}</span><span>₩${x.p.toLocaleString()} <button onclick="cart.splice(${i},1);upd()" class="text-gray-400">✕</button></span></div>`).join('')||'비어있음'}
+function toggle(){document.getElementById('drawer').classList.toggle('translate-x-full')}
+document.getElementById('cartBtn').onclick=toggle; render();
+</script><!-- Copyright (c) 2026 coverfo.com All Rights Reserved. --></body></html>
