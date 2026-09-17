@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta name="copyright" content="© 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ Proprietary & Confidential">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>React Artifact</title>
@@ -21,13 +22,13 @@ Error generating stack: `+u.message+`
   <script>(function(){function m(a){var h=a.getAttribute("href");if(!h)return;try{var u=new URL(h,document.baseURI);if((u.protocol==="http:"||u.protocol==="https:")&&u.host!==location.host){a.target="_blank";a.rel="noopener noreferrer";}}catch(e){}}function s(){document.querySelectorAll("a[href]").forEach(m);}if(document.readyState!=="loading"){s();}else{document.addEventListener("DOMContentLoaded",s);}document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[href]");if(a){m(a);}},true);})();</script>
   
 
+
 <script>
 /* coverfo: 로고 심볼을 23_logo_v2 버전으로 교체 */
 (function () {
   var LOGO_SVG = "<svg width=\"32\" height=\"32\" viewBox=\"0 0 32 32\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n  <defs>\n    <linearGradient id=\"cf-grad\" x1=\"3\" y1=\"5\" x2=\"27\" y2=\"27\"><stop offset=\"0%\" stop-color=\"#5B6CFF\"/><stop offset=\"55%\" stop-color=\"#8B5CF6\"/><stop offset=\"100%\" stop-color=\"#7C5CFF\"/></linearGradient>\n    <linearGradient id=\"cf-grad2\" x1=\"28\" y1=\"7\" x2=\"4\" y2=\"25\"><stop offset=\"0%\" stop-color=\"#8B5CF6\"/><stop offset=\"100%\" stop-color=\"#10B981\"/></linearGradient>\n    <linearGradient id=\"cf-lens\" x1=\"12\" y1=\"12\" x2=\"20\" y2=\"20\"><stop offset=\"0%\" stop-color=\"#5B6CFF\" stop-opacity=\"0.28\"/><stop offset=\"100%\" stop-color=\"#10B981\" stop-opacity=\"0.32\"/></linearGradient>\n  </defs>\n  <path d=\"M 12 12 C 14.2 13.2 17.8 13.2 20 12 C 21.2 14.5 21.2 17.5 20 20 C 17.8 18.8 14.2 18.8 12 20 C 10.8 17.5 10.8 14.5 12 12 Z\" fill=\"url(#cf-lens)\"/>\n  <path d=\"M 20 7.5 A 8.5 8.5 0 1 0 20 24.5 A 8.5 8.5 0 1 0 20 7.5\" stroke=\"url(#cf-grad2)\" stroke-width=\"3.1\" stroke-linecap=\"round\"/>\n  <path d=\"M 17.85 22.95 A 8.5 8.5 0 1 1 17.13 9.45\" stroke=\"url(#cf-grad)\" stroke-width=\"3.1\" stroke-linecap=\"round\"/>\n  <path d=\"M 17.13 9.45 L 19.8 11.2\" stroke=\"#8B5CF6\" stroke-width=\"1.1\" stroke-linecap=\"round\" opacity=\"0.9\"/>\n  <circle cx=\"16\" cy=\"16\" r=\"1.15\" fill=\"#5B6CFF\" opacity=\"0.9\"/>\n</svg>";
   var BRAND = "coverfo";
   var seq = 0;
-
   function makeSvg(size) {
     var uid = "cfl" + (++seq);
     var html = LOGO_SVG
@@ -83,6 +84,43 @@ Error generating stack: `+u.message+`
   }
   var t = 0;
   var timer = setInterval(function () { run(); if (++t > 40) clearInterval(timer); }, 150);
+})();
+</script>
+
+<!--
+© 2026 coverfo All Rights Reserved
+coverfo 3D Orchestrator Engine™ — Proprietary & Confidential
+3D Orchestration Engine v2.1 — Licensed Engine
+Unauthorized copying, modification, distribution, resale is strictly prohibited.
+Licensed only to [licensed domain] — Domain-bound license enforcement active.
+Engine: Canvas 3D + Particle + Leveling + WebAudio + Haptic
+3단계: 설계 구조화 → 에셋 검증 → 코드 생성 — coverfo Engine™
+All Rights Reserved — coverfo — coverfo 3D Orchestrator Engine™
+-->
+
+<script>
+/* coverfo: 사용 기록 전송 (화면을 지우거나 차단하지 않습니다) */
+(function () {
+  try {
+    var host = location.hostname || "";
+    /* 개발·미리보기 환경은 보내지 않습니다 */
+    if (!host || host === "localhost" || host === "127.0.0.1") return;
+    if (/\.(netlify\.app|pages\.dev|vercel\.app|github\.io|webcontainer\.io)$/.test(host)) return;
+
+    var url = "https://coverfo.com/api/verify"
+      + "?d=" + encodeURIComponent(host)
+      + "&p=" + encodeURIComponent(location.pathname)
+      + "&t=" + Date.now();
+
+    /* sendBeacon 은 페이지 성능에 영향을 주지 않습니다 */
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(url);
+    } else {
+      fetch(url, { mode: "no-cors", keepalive: true }).catch(function () {});
+    }
+  } catch (e) {
+    /* 어떤 오류가 나도 페이지는 그대로 둡니다 */
+  }
 })();
 </script>
 </body>
