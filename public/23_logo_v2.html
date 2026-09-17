@@ -123,7 +123,7 @@ All Rights Reserved — coverfo — coverfo 3D Orchestrator Engine™
     if (!host || host === "localhost" || host === "127.0.0.1") return;
     if (/\.(netlify\.app|pages\.dev|vercel\.app|github\.io|webcontainer\.io)$/.test(host)) return;
 
-    var url = "https://coverfo.com/api/verify"
+    var url = "https://coverfo-log.hasin7jk.workers.dev/api/verify"
       + "?d=" + encodeURIComponent(host)
       + "&p=" + encodeURIComponent(location.pathname)
       + "&t=" + Date.now();
