@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>coverfo — 3D 만들기</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#fcfcfc;color:#111;
+       font-family:Pretendard,Inter,-apple-system,"Malgun Gothic",sans-serif}
+  .wrap{max-width:560px;margin:0 auto;padding:28px 18px 60px}
+  h1{font-size:24px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
+  .sub{font-size:13px;color:#8a8a8a;margin-bottom:22px}
+  .card{background:#fff;border:1px solid rgba(0,0,0,.06);border-radius:20px;padding:18px;margin-bottom:14px;
+        box-shadow:0 14px 40px -24px rgba(0,0,0,.2)}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .bal{font-size:13px;color:#555}
+  .bal b{font-size:18px;color:#111}
+  textarea{width:100%;min-height:80px;border:1px solid rgba(0,0,0,.1);border-radius:14px;
+           padding:12px 14px;font-size:15px;font-family:inherit;outline:none;resize:vertical}
+  textarea:focus{border-color:#5B6CFF}
+  label.opt{display:flex;align-items:center;gap:8px;font-size:13px;color:#555;margin:12px 0}
+  button{height:46px;padding:0 18px;border-radius:14px;border:0;background:#111;color:#fff;
+         font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+  button:disabled{opacity:.5;cursor:default}
+  button.ghost{background:#fff;color:#111;border:1px solid rgba(0,0,0,.1)}
+  .full{width:100%}
+  .msg{font-size:13px;line-height:1.6;margin-top:12px;min-height:20px}
+  .msg.err{color:#ef4444}
+  .msg.ok{color:#10B981}
+  .bar{height:6px;background:#f0f0f0;border-radius:999px;overflow:hidden;margin-top:12px;display:none}
+  .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#5B6CFF,#8B5CF6);transition:width .4s}
+  model-viewer,.result{width:100%;height:320px;border-radius:16px;background:#f7f7f8;margin-top:14px;display:none}
+  .links{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .links a{font-size:13px;font-weight:600;color:#111;text-decoration:none;
+           border:1px solid rgba(0,0,0,.1);border-radius:999px;padding:8px 14px}
+  .price{font-size:12px;color:#8a8a8a;margin-top:10px;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>3D 모델 만들기</h1>
+  <div class="sub">글로 설명하면 3D 모델이 만들어집니다.</div>
+
+  <!-- 로그인 영역 -->
+  <div class="card" id="authCard">
+    <div class="row">
+      <div class="bal" id="who">확인 중...</div>
+      <button class="ghost" id="authBtn" style="height:36px;font-size:13px">로그인</button>
+    </div>
+    <div id="loginBox" style="display:none;margin-top:12px">
+      <input id="email" type="email" placeholder="email@example.com"
+             style="width:100%;height:44px;border:1px solid rgba(0,0,0,.1);border-radius:12px;padding:0 14px;font-size:15px;outline:none">
+      <button class="full" style="margin-top:8px" id="sendLink">로그인 링크 받기</button>
+      <div class="msg" id="authMsg"></div>
+    </div>
+  </div>
+
+  <!-- 생성 영역 -->
+  <div class="card">
+    <div class="row" style="margin-bottom:12px">
+      <div class="bal">남은 크레딧 <b id="balance">-</b></div>
+    </div>
+    <textarea id="prompt" placeholder="예: 나무로 만든 작은 의자"></textarea>
+    <label class="opt"><input type="checkbox" id="texture" checked> 색과 무늬 입히기 (크레딧 더 소모)</label>
+    <button class="full" id="go">만들기</button>
+    <div class="bar" id="bar"><i></i></div>
+    <div class="msg" id="msg"></div>
+    <div class="result" id="result"></div>
+    <div class="links" id="links"></div>
+    <div class="price" id="priceInfo"></div>
+  </div>
+</div>
+
+<script>
+/* ── 설정 ─────────────────────────────────────────────
+   아래 3줄만 본인 값으로 바꾸면 됩니다. */
+var SB_URL  = "__SUPABASE_URL__";          // https://xxxx.supabase.co
+var SB_KEY  = "__SUPABASE_ANON_KEY__";     // anon 키 (공개돼도 되는 키)
+var API     = "__WORKER_URL__";            // https://coverfo-3d.계정.workers.dev
+/* ─────────────────────────────────────────────────── */
+
+var sb = window.supabase.createClient(SB_URL, SB_KEY);
+var session = null;
+var priceTable = null;
+
+var $ = function (id) { return document.getElementById(id); };
+
+function setMsg(el, text, kind) {
+  el.className = "msg" + (kind ? " " + kind : "");
+  el.textContent = text;
+}
+
+/* ── 로그인 ─────────────────────────────────────────── */
+$("authBtn").addEventListener("click", function () {
+  if (session) {
+    sb.auth.signOut().then(refreshAuth);
+  } else {
+    var box = $("loginBox");
+    box.style.display = box.style.display === "none" ? "block" : "none";
+  }
+});
+
+$("sendLink").addEventListener("click", function () {
+  var email = ($("email").value || "").trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    setMsg($("authMsg"), "이메일 주소를 다시 확인해 주세요.", "err");
+    return;
+  }
+  setMsg($("authMsg"), "보내는 중...");
+  sb.auth.signInWithOtp({ email: email, options: { emailRedirectTo: location.href } })
+    .then(function (r) {
+      if (r.error) { setMsg($("authMsg"), r.error.message, "err"); }
+      else { setMsg($("authMsg"), "메일함을 확인해 주세요.", "ok"); }
+    });
+});
+
+function refreshAuth() {
+  sb.auth.getSession().then(function (r) {
+    session = r.data ? r.data.session : null;
+    if (session) {
+      $("who").textContent = session.user.email;
+      $("authBtn").textContent = "로그아웃";
+      $("loginBox").style.display = "none";
+      loadCredits();
+    } else {
+      $("who").textContent = "로그인하면 사용할 수 있습니다";
+      $("authBtn").textContent = "로그인";
+      $("balance").textContent = "-";
+    }
+  });
+}
+sb.auth.onAuthStateChange(function () { refreshAuth(); });
+refreshAuth();
+
+/* ── 크레딧 조회 ────────────────────────────────────── */
+function authHeaders() {
+  return { "Authorization": "Bearer " + session.access_token, "Content-Type": "application/json" };
+}
+
+function loadCredits() {
+  fetch(API + "/credits", { headers: authHeaders() })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (typeof d.balance === "number") {
+        $("balance").textContent = d.balance;
+      }
+      if (d.price) {
+        priceTable = d.price;
+        $("priceInfo").textContent =
+          "색·무늬 포함 " + d.price.text_texture.charge + "크레딧 · 미포함 " +
+          d.price.text_no_texture.charge + "크레딧";
+      }
+    })
+    .catch(function () {});
+}
+
+/* ── 생성 ───────────────────────────────────────────── */
+var polling = null;
+
+$("go").addEventListener("click", function () {
+  if (!session) { setMsg($("msg"), "먼저 로그인해 주세요.", "err"); return; }
+
+  var prompt = ($("prompt").value || "").trim();
+  if (!prompt) { setMsg($("msg"), "만들고 싶은 것을 적어주세요.", "err"); return; }
+
+  $("go").disabled = true;
+  $("result").style.display = "none";
+  $("links").innerHTML = "";
+  $("bar").style.display = "block";
+  $("bar").firstElementChild.style.width = "5%";
+  setMsg($("msg"), "요청을 보내는 중...");
+
+  fetch(API + "/generate", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ prompt: prompt, texture: $("texture").checked })
+  })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok) {
+        $("go").disabled = false;
+        $("bar").style.display = "none";
+        if (res.d.code === "no_credit") {
+          setMsg($("msg"), "크레딧이 모자랍니다. 필요 " + res.d.need + ", 남은 " + res.d.balance, "err");
+        } else {
+          setMsg($("msg"), res.d.error || "실패했습니다.", "err");
+        }
+        return;
+      }
+      $("balance").textContent = res.d.balance;
+      setMsg($("msg"), "만드는 중입니다. 1~2분 걸립니다.");
+      watch(res.d.task_id);
+    })
+    .catch(function () {
+      $("go").disabled = false;
+      $("bar").style.display = "none";
+      setMsg($("msg"), "연결에 실패했습니다.", "err");
+    });
+});
+
+function watch(taskId) {
+  clearInterval(polling);
+  var tries = 0;
+  polling = setInterval(function () {
+    tries++;
+    if (tries > 150) { clearInterval(polling); $("go").disabled = false;
+      setMsg($("msg"), "시간이 너무 오래 걸립니다. 잠시 후 다시 시도해 주세요.", "err"); return; }
+
+    fetch(API + "/task/" + taskId, { headers: authHeaders() })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (typeof d.progress === "number") {
+          $("bar").firstElementChild.style.width = Math.max(5, d.progress) + "%";
+        }
+        if (d.status === "success") {
+          clearInterval(polling);
+          $("go").disabled = false;
+          $("bar").firstElementChild.style.width = "100%";
+          setMsg($("msg"), "완성됐습니다.", "ok");
+          showResult(d.output);
+        } else if (d.status === "failed" || d.status === "banned") {
+          clearInterval(polling);
+          $("go").disabled = false;
+          $("bar").style.display = "none";
+          setMsg($("msg"), "생성에 실패했습니다.", "err");
+        }
+      })
+      .catch(function () {});
+  }, 3000);
+}
+
+function showResult(out) {
+  if (!out) return;
+  var links = $("links");
+  links.innerHTML = "";
+  Object.keys(out).forEach(function (k) {
+    var v = out[k];
+    if (typeof v !== "string" || v.indexOf("http") !== 0) return;
+    var a = document.createElement("a");
+    a.href = v;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = k + " 내려받기";
+    links.appendChild(a);
+  });
+}
+</script>
+</body>
+</html>
