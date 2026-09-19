@@ -57,8 +57,10 @@ function stripHiddenSpec(content: any) {
   return out.trimEnd();
 }
 
-/* 추천 문구 버튼이 문자열이 아닌 값을 보내면 서버에서
-   'text.replace is not a function' 오류가 납니다. 보내기 전에 문자열로 맞춥니다. */
+/*
+ * 추천 문구 버튼이 문자열이 아닌 값을 보내면 서버에서
+ * 'text.replace is not a function' 오류가 납니다. 보내기 전에 문자열로 맞춥니다.
+ */
 function toPlainText(value: any): string {
   if (typeof value === 'string') {
     return value;
