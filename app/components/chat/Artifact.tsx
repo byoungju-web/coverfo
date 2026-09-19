@@ -93,9 +93,7 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
                 {/* Use the dynamic title here */}
                 {dynamicTitle}
               </div>
-              <div className="w-full text-bolt-elements-textSecondary text-xs mt-0.5">
-                눌러서 만드는 과정 보기
-              </div>
+              <div className="w-full text-bolt-elements-textSecondary text-xs mt-0.5">눌러서 만드는 과정 보기</div>
             </div>
           </button>
           {artifact.type !== 'bundled' && <div className="bg-bolt-elements-artifacts-borderColor w-[1px]" />}
