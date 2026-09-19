@@ -60,6 +60,43 @@ interface ChatBoxProps {
   setSelectedElement?: ((element: ElementInfo | null) => void) | undefined;
 }
 
+/* 요청 종류를 판별해 '시킨 것만' 만들도록 지시문을 붙입니다. 화면에는 보이지 않습니다. */
+const CF_HIDE_MARKER = '<<coverfo-spec>>';
+
+function buildSpec(text: string) {
+  const low = text.toLowerCase();
+  const has = (...keys: string[]) => keys.some((k) => text.includes(k) || low.includes(k));
+
+  let scope = '요청한 내용만 정확히 만들어 주세요.';
+
+  if (has('게임', 'game', '플레이', '점수', '레벨')) {
+    scope = '요청한 것은 게임입니다. 조작 방법, 점수, 시작/재시작 기능을 포함한 플레이 가능한 게임으로 만들어 주세요.';
+  } else if (has('영상', '동영상', '비디오', '애니메이션', 'video')) {
+    scope = '요청한 것은 움직이는 영상(애니메이션)입니다. 자동 재생 화면만 만들고 게임 기능이나 점수는 넣지 마세요.';
+  } else if (has('이미지', '그림', '포스터', '일러스트', 'image')) {
+    scope =
+      '요청한 것은 한 장의 이미지(그림) 화면입니다. 보기만 하는 화면으로 만들고 게임이나 조작 기능은 넣지 마세요.';
+  } else if (has('3d', '입체')) {
+    scope =
+      '요청한 것은 3D 화면입니다. 요청한 사물과 주변 배경만 3D로 보여 주고 마우스로 돌려보는 정도만 가능하게 하세요. 게임 기능(점수, 레벨, 미션)은 넣지 마세요.';
+  } else if (has('페이지', '사이트', '홈페이지', '랜딩', 'page')) {
+    scope = '요청한 것은 웹페이지입니다. 요청한 내용의 페이지만 만들고 요청에 없는 기능은 넣지 마세요.';
+  }
+
+  return (
+    text +
+    '\n\n' +
+    CF_HIDE_MARKER +
+    '\n[제작 지시]\n' +
+    scope +
+    '\n\n공통 규칙:\n' +
+    '1) 사용자가 말하지 않은 기능은 임의로 추가하지 마세요.\n' +
+    '2) 화면 코드는 index.html 한 파일에 HTML·CSS·자바스크립트를 모두 넣어 주세요.\n' +
+    '3) package.json 에 vite 를 개발 의존성으로 넣고, npm install 이 끝난 뒤 npm run dev 를 실행해 주세요.\n' +
+    '4) 미리보기 화면에 결과가 반드시 보이게 해주세요.'
+  );
+}
+
 export const ChatBox: React.FC<ChatBoxProps> = (props) => {
   return (
     <div
@@ -267,23 +304,48 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
               onStop={props.stopListening}
               disabled={props.isStreaming}
             />
-            {props.chatStarted && (
-              <IconButton
-                title="Discuss"
-                className={classNames(
-                  'transition-all flex items-center gap-1 px-1.5',
-                  props.chatMode === 'discuss'
-                    ? '!bg-bolt-elements-item-backgroundAccent !text-bolt-elements-item-contentAccent'
-                    : 'bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault',
-                )}
-                onClick={() => {
-                  props.setChatMode?.(props.chatMode === 'discuss' ? 'build' : 'discuss');
-                }}
-              >
-                <div className={`i-ph:chats text-xl`} />
-                {props.chatMode === 'discuss' ? <span>Discuss</span> : <span />}
-              </IconButton>
-            )}
+            {/* 대화 모드 토글 — 처음부터 보이게 */}
+            <IconButton
+              title={props.chatMode === 'discuss' ? '대화 모드 (파일 안 만듦)' : '대화 모드로 바꾸기'}
+              className={classNames(
+                'transition-all flex items-center gap-1 px-1.5',
+                props.chatMode === 'discuss'
+                  ? '!bg-bolt-elements-item-backgroundAccent !text-bolt-elements-item-contentAccent'
+                  : 'bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault',
+              )}
+              onClick={() => {
+                props.setChatMode?.(props.chatMode === 'discuss' ? 'build' : 'discuss');
+              }}
+            >
+              <div className={`i-ph:chats text-xl`} />
+              {props.chatMode === 'discuss' ? <span className="text-xs">대화</span> : <span />}
+            </IconButton>
+
+            {/* 앱 생성하기 — 채팅 화면에서 바로 실행 */}
+            <button
+              type="button"
+              title="지금 적은 내용으로 앱을 만듭니다"
+              disabled={props.input.trim().length === 0 || props.isStreaming}
+              className={classNames(
+                'ml-1 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-semibold transition',
+                props.input.trim().length === 0 || props.isStreaming
+                  ? 'opacity-40 cursor-not-allowed bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault'
+                  : 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent hover:opacity-90',
+              )}
+              onClick={(event) => {
+                const raw = props.input.trim();
+
+                if (!raw || props.isStreaming) {
+                  return;
+                }
+
+                props.setChatMode?.('build');
+                props.handleSendMessage?.(event, buildSpec(raw));
+              }}
+            >
+              <div className="i-ph:rocket-launch text-base" />앱 생성
+              <span className="px-1.5 py-px rounded-full bg-white/25 text-[9px] tracking-wide">AUTO</span>
+            </button>
             <IconButton
               title="Model Settings"
               className={classNames('transition-all flex items-center gap-1', {

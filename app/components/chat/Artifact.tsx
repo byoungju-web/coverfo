@@ -2,24 +2,11 @@ import { useStore } from '@nanostores/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { computed } from 'nanostores';
 import { memo, useEffect, useRef, useState } from 'react';
-import { createHighlighter, type BundledLanguage, type BundledTheme, type HighlighterGeneric } from 'shiki';
 import type { ActionState } from '~/lib/runtime/action-runner';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { classNames } from '~/utils/classNames';
 import { cubicEasingFn } from '~/utils/easings';
 import { WORK_DIR } from '~/utils/constants';
-
-const highlighterOptions = {
-  langs: ['shell'],
-  themes: ['light-plus', 'dark-plus'],
-};
-
-const shellHighlighter: HighlighterGeneric<BundledLanguage, BundledTheme> =
-  import.meta.hot?.data.shellHighlighter ?? (await createHighlighter(highlighterOptions));
-
-if (import.meta.hot) {
-  import.meta.hot.data.shellHighlighter = shellHighlighter;
-}
 
 interface ArtifactProps {
   messageId: string;
@@ -170,25 +157,6 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
   );
 });
 
-interface ShellCodeBlockProps {
-  classsName?: string;
-  code: string;
-}
-
-function ShellCodeBlock({ classsName, code }: ShellCodeBlockProps) {
-  return (
-    <div
-      className={classNames('text-xs', classsName)}
-      dangerouslySetInnerHTML={{
-        __html: shellHighlighter.codeToHtml(code, {
-          lang: 'shell',
-          theme: 'dark-plus',
-        }),
-      }}
-    ></div>
-  );
-}
-
 interface ActionListProps {
   actions: ActionState[];
 }
@@ -243,10 +211,23 @@ function friendlyLabel(action: ActionState): { icon: string; title: string; desc
   }
 
   if (type === 'start') {
+    if (action.status === 'running') {
+      return { icon: '🚀', title: '앱이 켜졌어요', desc: '옆에 보이는 화면이 완성된 결과입니다' };
+    }
+
     return { icon: '🚀', title: '앱 켜는 중', desc: '거의 다 됐어요. 곧 화면이 나타납니다' };
   }
 
   return { icon: '•', title: '작업 중', desc: '' };
+}
+
+/* dev 서버는 계속 켜져 있으므로 'start' 가 running 이면 실제로는 '실행됨' 입니다 */
+function effectiveStatus(action: ActionState): ActionState['status'] {
+  if (action.type === 'start' && action.status === 'running') {
+    return 'complete';
+  }
+
+  return action.status;
 }
 
 function statusText(status: ActionState['status']) {
@@ -267,12 +248,27 @@ function statusText(status: ActionState['status']) {
 }
 
 const ActionList = memo(({ actions }: ActionListProps) => {
-  const [showCode, setShowCode] = useState(false);
+  const [stuckSeconds, setStuckSeconds] = useState(0);
 
   const total = actions.length;
-  const doneCount = actions.filter((a) => a.status === 'complete').length;
+  const doneCount = actions.filter((a) => effectiveStatus(a) === 'complete').length;
   const failed = actions.some((a) => a.status === 'failed' || a.status === 'aborted');
   const percent = total === 0 ? 0 : Math.round((doneCount / total) * 100);
+  const stillWorking = doneCount < total && !failed;
+
+  /* 같은 단계에서 오래 멈춰 있으면 안내 문구를 띄웁니다 */
+  useEffect(() => {
+    if (!stillWorking) {
+      setStuckSeconds(0);
+      return undefined;
+    }
+
+    const t = setInterval(() => {
+      setStuckSeconds((v) => v + 5);
+    }, 5000);
+
+    return () => clearInterval(t);
+  }, [stillWorking, doneCount]);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
@@ -299,7 +295,8 @@ const ActionList = memo(({ actions }: ActionListProps) => {
       {/* 단계별 설명 */}
       <ul className="list-none space-y-2">
         {actions.map((action, index) => {
-          const { status, type, content } = action;
+          const { type } = action;
+          const status = effectiveStatus(action);
           const info = friendlyLabel(action);
           const isRunning = status === 'running';
           const isDone = status === 'complete';
@@ -374,9 +371,6 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                       {(action as any).filePath}
                     </code>
                   )}
-                  {showCode && (type === 'shell' || type === 'start') && (
-                    <ShellCodeBlock classsName="mt-2 rounded overflow-hidden" code={content} />
-                  )}
                 </div>
               </div>
             </motion.li>
@@ -384,8 +378,27 @@ const ActionList = memo(({ actions }: ActionListProps) => {
         })}
       </ul>
 
-      {/* 완료 안내 + 코드 보기 토글 */}
-      <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+      {/* 오래 걸릴 때 안내 */}
+      {stuckSeconds >= 60 && stillWorking && (
+        <div className="mt-3 rounded-lg border border-amber-300/50 bg-amber-50/60 dark:bg-amber-500/10 px-3.5 py-3">
+          <div className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+            {stuckSeconds >= 150 ? '⚠️ 생각보다 오래 걸리고 있어요' : '⏳ 조금 더 걸리고 있어요'}
+          </div>
+          <div className="text-xs text-amber-700/80 dark:text-amber-300/80 mt-1 leading-relaxed">
+            {stuckSeconds >= 150 ? (
+              <>
+                이 단계에서 멈춘 것 같습니다. 아래 입력칸에 <b>&ldquo;다시 해줘&rdquo;</b> 라고 적어 보내면 처음부터
+                다시 시도합니다. 그래도 안 되면 요청을 조금 더 간단하게 적어 주세요.
+              </>
+            ) : (
+              <>부품을 받아오는 중입니다. 보통 1~2분 정도 걸려요. 화면을 닫지 말고 기다려 주세요.</>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 완료 안내 */}
+      <div className="mt-4 flex items-center gap-2 flex-wrap">
         {doneCount === total && total > 0 && !failed ? (
           <button
             className="text-sm font-medium px-3.5 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition"
@@ -396,15 +409,22 @@ const ActionList = memo(({ actions }: ActionListProps) => {
           >
             👀 결과 화면 보기
           </button>
+        ) : failed ? (
+          <span className="text-xs text-red-500">
+            문제가 생겼어요. 아래 입력칸에 &ldquo;다시 해줘&rdquo; 라고 보내 주세요.
+          </span>
         ) : (
           <span className="text-xs text-bolt-elements-textTertiary">완료되면 결과 화면이 나타납니다</span>
         )}
 
+        {/* 코드·화면 패널 열기 (언제든지) */}
         <button
-          className="text-xs text-bolt-elements-textTertiary hover:text-bolt-elements-textSecondary underline"
-          onClick={() => setShowCode(!showCode)}
+          className="text-sm font-medium px-3 py-2 rounded-lg border border-bolt-elements-borderColor text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-3 transition"
+          onClick={() => {
+            workbenchStore.showWorkbench.set(true);
+          }}
         >
-          {showCode ? '코드 숨기기' : '전문가용 코드 보기'}
+          🖥️ 코드·화면 패널 열기
         </button>
       </div>
     </motion.div>
