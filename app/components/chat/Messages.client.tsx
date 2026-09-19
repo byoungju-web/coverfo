@@ -24,6 +24,19 @@ interface MessagesProps {
   addToolResult: ({ toolCallId, result }: { toolCallId: string; result: any }) => void;
 }
 
+/* 홈화면 버튼이 자동으로 덧붙인 지시문은 화면에 보이지 않게 잘라냅니다 */
+const CF_HIDE_MARKER = '<<coverfo-spec>>';
+
+function stripHiddenSpec(content: any) {
+  if (typeof content !== 'string') {
+    return content;
+  }
+
+  const i = content.indexOf(CF_HIDE_MARKER);
+
+  return i === -1 ? content : content.slice(0, i).trimEnd();
+}
+
 export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
   (props: MessagesProps, ref: ForwardedRef<HTMLDivElement> | undefined) => {
     const { id, isStreaming = false, messages = [] } = props;
@@ -71,7 +84,7 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
                 >
                   <div className="grid grid-col-1 w-full">
                     {isUserMessage ? (
-                      <UserMessage content={content} parts={parts} />
+                      <UserMessage content={stripHiddenSpec(content)} parts={parts} />
                     ) : (
                       <AssistantMessage
                         content={content}
