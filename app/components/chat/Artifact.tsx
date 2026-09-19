@@ -49,6 +49,21 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
     setShowActions(!showActions);
   };
 
+  /* 모바일에서는 코드 화면이 자동으로 덮지 않게 하고, 쉬운 진행 화면을 먼저 보여줍니다 */
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const isMobile = window.innerWidth < 1024;
+
+    if (isMobile && actions.length > 0) {
+      workbenchStore.showWorkbench.set(false);
+    }
+
+    workbenchStore.currentView.set('preview');
+  }, [actions.length]);
+
   useEffect(() => {
     if (actions.length && !showActions && !userToggledActions.current) {
       setShowActions(true);
@@ -374,7 +389,10 @@ const ActionList = memo(({ actions }: ActionListProps) => {
         {doneCount === total && total > 0 && !failed ? (
           <button
             className="text-sm font-medium px-3.5 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition"
-            onClick={() => workbenchStore.currentView.set('preview')}
+            onClick={() => {
+              workbenchStore.currentView.set('preview');
+              workbenchStore.showWorkbench.set(true);
+            }}
           >
             👀 결과 화면 보기
           </button>

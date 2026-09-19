@@ -115,7 +115,18 @@ export const ChatImpl = memo(
     const { showChat } = useStore(chatStore);
     const [animationScope, animate] = useAnimate();
     const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
-    const [chatMode, setChatMode] = useState<'discuss' | 'build'>('build');
+    const [chatMode, setChatMode] = useState<'discuss' | 'build'>(() => {
+      // 홈화면 '무엇이든 물어보기' 버튼은 ?mode=discuss 로 들어옵니다 (파일 생성 없이 대화만)
+      if (typeof window !== 'undefined') {
+        const m = new URLSearchParams(window.location.search).get('mode');
+
+        if (m === 'discuss') {
+          return 'discuss';
+        }
+      }
+
+      return 'build';
+    });
     const [selectedElement, setSelectedElement] = useState<ElementInfo | null>(null);
     const mcpSettings = useMCPStore((state) => state.settings);
     const { checkAndIncrement } = usePromptLimit();
@@ -185,7 +196,13 @@ export const ChatImpl = memo(
       // console.log(prompt, searchParams, model, provider);
 
       if (prompt) {
-        setSearchParams({});
+        const m = searchParams.get('mode');
+
+        if (m === 'discuss' || m === 'build') {
+          setChatMode(m);
+        }
+
+        setSearchParams({}, { replace: true });
         runAnimation();
         append({
           role: 'user',
