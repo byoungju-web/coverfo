@@ -70,11 +70,11 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
     artifact?.type === 'bundled'
       ? allActionFinished
         ? artifact.id === 'restored-project-setup'
-          ? 'Project Restored' // Title when restore is complete
-          : 'Project Created' // Title when initial creation is complete
+          ? '복구 완료' // Title when restore is complete
+          : '앱을 다 만들었어요 🎉' // Title when initial creation is complete
         : artifact.id === 'restored-project-setup'
-          ? 'Restoring Project...' // Title during restore
-          : 'Creating Project...' // Title during initial creation
+          ? '복구하는 중...' // Title during restore
+          : '앱을 만들고 있어요...' // Title during initial creation
       : artifact?.title; // Fallback to original title for non-bundled or if artifact is missing
 
   return (
@@ -93,8 +93,8 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
                 {/* Use the dynamic title here */}
                 {dynamicTitle}
               </div>
-              <div className="w-full w-full text-bolt-elements-textSecondary text-xs mt-0.5">
-                Click to open Workbench
+              <div className="w-full text-bolt-elements-textSecondary text-xs mt-0.5">
+                눌러서 만드는 과정 보기
               </div>
             </div>
           </button>
@@ -129,9 +129,9 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
               {/* This status text remains the same */}
               {allActionFinished
                 ? artifact.id === 'restored-project-setup'
-                  ? 'Restore files from snapshot'
-                  : 'Initial files created'
-                : 'Creating initial files'}
+                  ? '저장된 파일을 되돌렸어요'
+                  : '기본 파일을 다 만들었어요'
+                : '기본 파일을 만드는 중이에요'}
             </div>
           </div>
         )}
@@ -193,13 +193,104 @@ export function openArtifactInWorkbench(filePath: any) {
   workbenchStore.setSelectedFile(`${WORK_DIR}/${filePath}`);
 }
 
+/* 초보자용: 기술 용어를 한국어 설명으로 바꿔주는 표 */
+function friendlyLabel(action: ActionState): { icon: string; title: string; desc: string } {
+  const type = action.type;
+  const content = (action as any).content || '';
+  const filePath = (action as any).filePath || '';
+
+  if (type === 'file') {
+    const f = String(filePath).toLowerCase();
+
+    if (f.endsWith('package.json')) {
+      return { icon: '📦', title: '프로젝트 설정 만드는 중', desc: '앱에 필요한 준비물 목록을 적고 있어요' };
+    }
+
+    if (f.endsWith('index.html')) {
+      return { icon: '📄', title: '화면 뼈대 만드는 중', desc: '사람들이 보게 될 페이지를 만들고 있어요' };
+    }
+
+    if (f.endsWith('.css')) {
+      return { icon: '🎨', title: '디자인 입히는 중', desc: '색상과 모양을 예쁘게 꾸미고 있어요' };
+    }
+
+    if (f.endsWith('.js') || f.endsWith('.jsx') || f.endsWith('.ts') || f.endsWith('.tsx')) {
+      return { icon: '⚙️', title: '기능 만드는 중', desc: '버튼이 눌리고 화면이 움직이게 하고 있어요' };
+    }
+
+    return { icon: '📝', title: '파일 만드는 중', desc: String(filePath) };
+  }
+
+  if (type === 'shell') {
+    if (content.includes('install')) {
+      return { icon: '📥', title: '필요한 부품 받는 중', desc: '조금 오래 걸릴 수 있어요. 잠시만 기다려 주세요' };
+    }
+
+    return { icon: '🔧', title: '준비 작업 중', desc: '앱이 돌아갈 수 있게 설정하고 있어요' };
+  }
+
+  if (type === 'start') {
+    return { icon: '🚀', title: '앱 켜는 중', desc: '거의 다 됐어요. 곧 화면이 나타납니다' };
+  }
+
+  return { icon: '•', title: '작업 중', desc: '' };
+}
+
+function statusText(status: ActionState['status']) {
+  switch (status) {
+    case 'pending':
+      return '대기 중';
+    case 'running':
+      return '진행 중';
+    case 'complete':
+      return '완료';
+    case 'failed':
+      return '실패';
+    case 'aborted':
+      return '중단됨';
+    default:
+      return '';
+  }
+}
+
 const ActionList = memo(({ actions }: ActionListProps) => {
+  const [showCode, setShowCode] = useState(false);
+
+  const total = actions.length;
+  const doneCount = actions.filter((a) => a.status === 'complete').length;
+  const failed = actions.some((a) => a.status === 'failed' || a.status === 'aborted');
+  const percent = total === 0 ? 0 : Math.round((doneCount / total) * 100);
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-      <ul className="list-none space-y-2.5">
+      {/* 진행률 막대 */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-sm font-semibold text-bolt-elements-textPrimary">
+            {failed ? '문제가 생겼어요' : doneCount === total ? '다 만들었어요! 🎉' : '만드는 중이에요...'}
+          </span>
+          <span className="text-xs text-bolt-elements-textSecondary tabular-nums">
+            {doneCount} / {total} 단계
+          </span>
+        </div>
+        <div className="w-full h-2 rounded-full bg-bolt-elements-background-depth-3 overflow-hidden">
+          <motion.div
+            className={classNames('h-full rounded-full', failed ? 'bg-red-400' : 'bg-green-400')}
+            initial={{ width: 0 }}
+            animate={{ width: percent + '%' }}
+            transition={{ duration: 0.4, ease: cubicEasingFn }}
+          />
+        </div>
+      </div>
+
+      {/* 단계별 설명 */}
+      <ul className="list-none space-y-2">
         {actions.map((action, index) => {
           const { status, type, content } = action;
-          const isLast = index === actions.length - 1;
+          const info = friendlyLabel(action);
+          const isRunning = status === 'running';
+          const isDone = status === 'complete';
+          const isBad = status === 'failed' || status === 'aborted';
 
           return (
             <motion.li
@@ -207,67 +298,99 @@ const ActionList = memo(({ actions }: ActionListProps) => {
               variants={actionVariants}
               initial="hidden"
               animate="visible"
-              transition={{
-                duration: 0.2,
-                ease: cubicEasingFn,
-              }}
+              transition={{ duration: 0.2, ease: cubicEasingFn }}
             >
-              <div className="flex items-center gap-1.5 text-sm">
-                <div className={classNames('text-lg', getIconColor(action.status))}>
-                  {status === 'running' ? (
-                    <>
-                      {type !== 'start' ? (
-                        <div className="i-svg-spinners:90-ring-with-bg"></div>
-                      ) : (
-                        <div className="i-ph:terminal-window-duotone"></div>
-                      )}
-                    </>
-                  ) : status === 'pending' ? (
-                    <div className="i-ph:circle-duotone"></div>
-                  ) : status === 'complete' ? (
-                    <div className="i-ph:check"></div>
-                  ) : status === 'failed' || status === 'aborted' ? (
-                    <div className="i-ph:x"></div>
-                  ) : null}
+              <div
+                className={classNames(
+                  'flex items-start gap-3 rounded-lg px-3 py-2.5 transition',
+                  isRunning ? 'bg-bolt-elements-background-depth-3' : 'bg-transparent',
+                )}
+              >
+                {/* 왼쪽 상태 아이콘 */}
+                <div className="mt-0.5 shrink-0 w-6 h-6 grid place-items-center">
+                  {isRunning ? (
+                    <div className="i-svg-spinners:90-ring-with-bg text-lg text-bolt-elements-loader-progress" />
+                  ) : isDone ? (
+                    <div className="w-5 h-5 rounded-full bg-green-400/20 grid place-items-center">
+                      <div className="i-ph:check-bold text-xs text-green-500" />
+                    </div>
+                  ) : isBad ? (
+                    <div className="w-5 h-5 rounded-full bg-red-400/20 grid place-items-center">
+                      <div className="i-ph:x-bold text-xs text-red-500" />
+                    </div>
+                  ) : (
+                    <div className="w-5 h-5 rounded-full border-2 border-bolt-elements-borderColor" />
+                  )}
                 </div>
-                {type === 'file' ? (
-                  <div>
-                    Create{' '}
-                    <code
-                      className="bg-bolt-elements-artifacts-inlineCode-background text-bolt-elements-artifacts-inlineCode-text px-1.5 py-1 rounded-md text-bolt-elements-item-contentAccent hover:underline cursor-pointer"
-                      onClick={() => openArtifactInWorkbench(action.filePath)}
+
+                {/* 본문 */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-base leading-none">{info.icon}</span>
+                    <span
+                      className={classNames(
+                        'text-sm font-medium',
+                        isDone ? 'text-bolt-elements-textSecondary' : 'text-bolt-elements-textPrimary',
+                      )}
                     >
-                      {action.filePath}
+                      {info.title}
+                    </span>
+                    <span
+                      className={classNames(
+                        'text-[10px] px-1.5 py-0.5 rounded-full shrink-0',
+                        isRunning
+                          ? 'bg-blue-400/15 text-blue-500'
+                          : isDone
+                            ? 'bg-green-400/15 text-green-600'
+                            : isBad
+                              ? 'bg-red-400/15 text-red-500'
+                              : 'bg-bolt-elements-background-depth-3 text-bolt-elements-textTertiary',
+                      )}
+                    >
+                      {statusText(status)}
+                    </span>
+                  </div>
+                  {info.desc && (
+                    <div className="text-xs text-bolt-elements-textSecondary mt-0.5 break-words">{info.desc}</div>
+                  )}
+                  {type === 'file' && (action as any).filePath && (
+                    <code
+                      className="inline-block mt-1 text-[11px] text-bolt-elements-textTertiary hover:underline cursor-pointer break-all"
+                      onClick={() => openArtifactInWorkbench((action as any).filePath)}
+                    >
+                      {(action as any).filePath}
                     </code>
-                  </div>
-                ) : type === 'shell' ? (
-                  <div className="flex items-center w-full min-h-[28px]">
-                    <span className="flex-1">Run command</span>
-                  </div>
-                ) : type === 'start' ? (
-                  <a
-                    onClick={(e) => {
-                      e.preventDefault();
-                      workbenchStore.currentView.set('preview');
-                    }}
-                    className="flex items-center w-full min-h-[28px]"
-                  >
-                    <span className="flex-1">Start Application</span>
-                  </a>
-                ) : null}
+                  )}
+                  {showCode && (type === 'shell' || type === 'start') && (
+                    <ShellCodeBlock classsName="mt-2 rounded overflow-hidden" code={content} />
+                  )}
+                </div>
               </div>
-              {(type === 'shell' || type === 'start') && (
-                <ShellCodeBlock
-                  classsName={classNames('mt-1', {
-                    'mb-3.5': !isLast,
-                  })}
-                  code={content}
-                />
-              )}
             </motion.li>
           );
         })}
       </ul>
+
+      {/* 완료 안내 + 코드 보기 토글 */}
+      <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+        {doneCount === total && total > 0 && !failed ? (
+          <button
+            className="text-sm font-medium px-3.5 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition"
+            onClick={() => workbenchStore.currentView.set('preview')}
+          >
+            👀 결과 화면 보기
+          </button>
+        ) : (
+          <span className="text-xs text-bolt-elements-textTertiary">완료되면 결과 화면이 나타납니다</span>
+        )}
+
+        <button
+          className="text-xs text-bolt-elements-textTertiary hover:text-bolt-elements-textSecondary underline"
+          onClick={() => setShowCode(!showCode)}
+        >
+          {showCode ? '코드 숨기기' : '전문가용 코드 보기'}
+        </button>
+      </div>
     </motion.div>
   );
 });
