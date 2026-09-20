@@ -37,7 +37,9 @@ const menuVariants = {
 } satisfies Variants;
 
 type DialogContent =
-  { type: 'delete'; item: ChatHistoryItem } | { type: 'bulkDelete'; items: ChatHistoryItem[] } | null;
+  | { type: 'delete'; item: ChatHistoryItem }
+  | { type: 'bulkDelete'; items: ChatHistoryItem[] }
+  | null;
 
 function CurrentDateTime() {
   const [dateTime, setDateTime] = useState(new Date());
@@ -314,7 +316,6 @@ export const Menu = () => {
 
     if (params.get('menu') === '1') {
       setOpen(true);
-
       params.delete('menu');
 
       const rest = params.toString();
