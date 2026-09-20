@@ -1,7 +1,6 @@
 import { useStore } from '@nanostores/react';
 import { memo, useMemo } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import * as Tabs from '@radix-ui/react-tabs';
 import {
   CodeMirrorEditor,
   type EditorDocument,
@@ -22,9 +21,7 @@ import { FileBreadcrumb } from './FileBreadcrumb';
 import { FileTree } from './FileTree';
 import { DEFAULT_TERMINAL_SIZE, TerminalTabs } from './terminal/TerminalTabs';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { Search } from './Search'; // <-- Ensure Search is imported
 import { classNames } from '~/utils/classNames'; // <-- Import classNames if not already present
-import { LockManager } from './LockManager'; // <-- Import LockManager
 
 interface EditorPanelProps {
   files?: FileMap;
@@ -84,61 +81,23 @@ export const EditorPanel = memo(
       <PanelGroup direction="vertical">
         <Panel defaultSize={showTerminal ? DEFAULT_EDITOR_SIZE : 100} minSize={20}>
           <PanelGroup direction="horizontal">
-            <Panel defaultSize={20} minSize={15} collapsible className="border-r border-bolt-elements-borderColor">
-              <div className="h-full">
-                <Tabs.Root defaultValue="files" className="flex flex-col h-full">
-                  <PanelHeader className="w-full text-sm font-medium text-bolt-elements-textSecondary px-1">
-                    <div className="h-full flex-shrink-0 flex items-center justify-between w-full">
-                      <Tabs.List className="h-full flex-shrink-0 flex items-center">
-                        <Tabs.Trigger
-                          value="files"
-                          className={classNames(
-                            'h-full bg-transparent hover:bg-bolt-elements-background-depth-3 py-0.5 px-2 rounded-lg text-sm font-medium text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary data-[state=active]:text-bolt-elements-textPrimary',
-                          )}
-                        >
-                          Files
-                        </Tabs.Trigger>
-                        <Tabs.Trigger
-                          value="search"
-                          className={classNames(
-                            'h-full bg-transparent hover:bg-bolt-elements-background-depth-3 py-0.5 px-2 rounded-lg text-sm font-medium text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary data-[state=active]:text-bolt-elements-textPrimary',
-                          )}
-                        >
-                          Search
-                        </Tabs.Trigger>
-                        <Tabs.Trigger
-                          value="locks"
-                          className={classNames(
-                            'h-full bg-transparent hover:bg-bolt-elements-background-depth-3 py-0.5 px-2 rounded-lg text-sm font-medium text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary data-[state=active]:text-bolt-elements-textPrimary',
-                          )}
-                        >
-                          Locks
-                        </Tabs.Trigger>
-                      </Tabs.List>
-                    </div>
-                  </PanelHeader>
-
-                  <Tabs.Content value="files" className="flex-grow overflow-auto focus-visible:outline-none">
-                    <FileTree
-                      className="h-full"
-                      files={files}
-                      hideRoot
-                      unsavedFiles={unsavedFiles}
-                      fileHistory={fileHistory}
-                      rootFolder={WORK_DIR}
-                      selectedFile={selectedFile}
-                      onFileSelect={onFileSelect}
-                    />
-                  </Tabs.Content>
-
-                  <Tabs.Content value="search" className="flex-grow overflow-auto focus-visible:outline-none">
-                    <Search />
-                  </Tabs.Content>
-
-                  <Tabs.Content value="locks" className="flex-grow overflow-auto focus-visible:outline-none">
-                    <LockManager />
-                  </Tabs.Content>
-                </Tabs.Root>
+            <Panel defaultSize={26} minSize={18} collapsible className="border-r border-bolt-elements-borderColor">
+              <div className="h-full flex flex-col">
+                <PanelHeader className="w-full text-sm font-medium text-bolt-elements-textSecondary px-3">
+                  <span className="text-bolt-elements-textPrimary">만든 파일</span>
+                </PanelHeader>
+                <div className="flex-grow overflow-auto">
+                  <FileTree
+                    className="h-full"
+                    files={files}
+                    hideRoot
+                    unsavedFiles={unsavedFiles}
+                    fileHistory={fileHistory}
+                    rootFolder={WORK_DIR}
+                    selectedFile={selectedFile}
+                    onFileSelect={onFileSelect}
+                  />
+                </div>
               </div>
             </Panel>
 
@@ -152,18 +111,29 @@ export const EditorPanel = memo(
                       <div className="flex gap-1 ml-auto -mr-1.5">
                         <PanelHeaderButton onClick={onFileSave}>
                           <div className="i-ph:floppy-disk-duotone" />
-                          Save
+                          저장
                         </PanelHeaderButton>
                         <PanelHeaderButton onClick={onFileReset}>
                           <div className="i-ph:clock-counter-clockwise-duotone" />
-                          Reset
+                          되돌리기
                         </PanelHeaderButton>
                       </div>
                     )}
                   </div>
                 )}
               </PanelHeader>
-              <div className="h-full flex-1 overflow-hidden modern-scrollbar">
+              {!editorDocument && (
+                <div className="flex-1 flex items-center justify-center px-6 text-center">
+                  <div className="text-sm text-bolt-elements-textTertiary leading-relaxed">
+                    왼쪽에서 파일을 누르면 내용이 보입니다.
+                    <br />
+                    결과 화면은 위쪽 <b>Preview</b> 를 눌러 확인하세요.
+                  </div>
+                </div>
+              )}
+              <div
+                className={classNames('h-full flex-1 overflow-hidden modern-scrollbar', { hidden: !editorDocument })}
+              >
                 <CodeMirrorEditor
                   theme={theme}
                   editable={!isStreaming && editorDocument !== undefined}
