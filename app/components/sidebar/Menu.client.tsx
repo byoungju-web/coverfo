@@ -37,9 +37,7 @@ const menuVariants = {
 } satisfies Variants;
 
 type DialogContent =
-  | { type: 'delete'; item: ChatHistoryItem }
-  | { type: 'bulkDelete'; items: ChatHistoryItem[] }
-  | null;
+  { type: 'delete'; item: ChatHistoryItem } | { type: 'bulkDelete'; items: ChatHistoryItem[] } | null;
 
 function CurrentDateTime() {
   const [dateTime, setDateTime] = useState(new Date());
@@ -302,6 +300,50 @@ export const Menu = () => {
       window.removeEventListener('mousemove', onMouseMove);
     };
   }, [isSettingsOpen]);
+
+  /*
+   * 마우스를 왼쪽 끝에 대는 방법 외에 버튼으로도 열 수 있게 합니다.
+   * 홈화면 메뉴 버튼은 /chat?menu=1 로 들어오고, 화면 안에서는 coverfo:toggle-sidebar 이벤트로 엽니다.
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.get('menu') === '1') {
+      setOpen(true);
+
+      params.delete('menu');
+
+      const rest = params.toString();
+      const next = window.location.pathname + (rest ? `?${rest}` : '');
+      window.history.replaceState({}, '', next);
+    }
+
+    function onToggle() {
+      setOpen((v) => !v);
+    }
+
+    function onOpen() {
+      setOpen(true);
+    }
+
+    function onClose() {
+      setOpen(false);
+    }
+
+    window.addEventListener('coverfo:toggle-sidebar', onToggle);
+    window.addEventListener('coverfo:open-sidebar', onOpen);
+    window.addEventListener('coverfo:close-sidebar', onClose);
+
+    return () => {
+      window.removeEventListener('coverfo:toggle-sidebar', onToggle);
+      window.removeEventListener('coverfo:open-sidebar', onOpen);
+      window.removeEventListener('coverfo:close-sidebar', onClose);
+    };
+  }, []);
 
   const handleDuplicate = async (id: string) => {
     await duplicateCurrentChat(id);
