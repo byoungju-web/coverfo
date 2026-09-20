@@ -246,6 +246,10 @@ const ActionList = memo(({ actions }: ActionListProps) => {
   const percent = total === 0 ? 0 : Math.round((doneCount / total) * 100);
   const stillWorking = doneCount < total && !failed;
 
+  /* 대기 중인 단계는 맨 앞 하나만 보여 줍니다 */
+  const firstPending = actions.findIndex((a) => effectiveStatus(a) === 'pending');
+  const visibleActions = firstPending === -1 ? actions : actions.slice(0, firstPending);
+
   /* 같은 단계에서 오래 멈춰 있으면 안내 문구를 띄웁니다 */
   useEffect(() => {
     if (!stillWorking) {
@@ -282,9 +286,9 @@ const ActionList = memo(({ actions }: ActionListProps) => {
         </div>
       </div>
 
-      {/* 단계별 설명 */}
+      {/* 단계별 설명 — 아직 시작 안 한 단계는 숨겨서 하나씩 차례로 나타나게 합니다 */}
       <ul className="list-none space-y-2">
-        {actions.map((action, index) => {
+        {visibleActions.map((action, index) => {
           const { type } = action;
           const rawStatus = effectiveStatus(action);
           const timedOut = rawStatus === 'running' && stuckSeconds >= 180;

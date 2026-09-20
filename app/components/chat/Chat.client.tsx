@@ -418,6 +418,14 @@ export const ChatImpl = memo(
         return;
       }
 
+      /*
+       * 새로 요청을 보내면 이전 오류 안내는 지웁니다.
+       * 다시 만들었는데도 빨간 오류가 남아 있으면 사용자가 실패한 줄 알게 됩니다.
+       */
+      workbenchStore.clearAlert();
+      workbenchStore.clearSupabaseAlert();
+      workbenchStore.clearDeployAlert();
+
       // coverfo: 첫 메시지가 템플릿이 있는 요청(예: 예약 페이지)이면 AI 대신 템플릿으로 바로 만들지 물어봄
       if (!chatStarted && chatMode === 'build' && uploadedFiles.length === 0 && imageDataList.length === 0) {
         const handledByTemplate = await tryTemplateRoute(messageContent, importChat);

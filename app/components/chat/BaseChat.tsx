@@ -14,10 +14,6 @@ import { getApiKeysFromCookies } from './APIKeyManager';
 import Cookies from 'js-cookie';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import styles from './BaseChat.module.scss';
-import { ImportButtons } from '~/components/chat/chatExportAndImport/ImportButtons';
-import { BookingTemplateButton } from './BookingTemplateButton';
-import { GameTemplateButton } from './GameTemplateButton';
-import { QuoteTemplateButton } from './QuoteTemplateButton';
 import type { ProviderInfo } from '~/types/model';
 import type { ActionAlert, SupabaseAlert, DeployAlert, LlmErrorAlertType } from '~/types/actions';
 import DeployChatAlert from '~/components/deploy/DeployAlert';
@@ -104,7 +100,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       enhancePrompt,
       sendMessage,
       handleStop,
-      importChat,
       exportChat,
       uploadedFiles = [],
       setUploadedFiles,
@@ -356,24 +351,61 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           >
             {!chatStarted && (
               <div id="intro" className="mt-[14vh] max-w-2xl mx-auto text-center px-4 lg:px-0">
-                <img
-                  src="/coverfo-logo-animated.svg"
-                  alt="coverfo"
-                  className="w-[240px] lg:w-[300px] mx-auto mb-6 animate-fade-in dark:hidden"
-                />
-                <img
-                  src="/coverfo-logo-animated-dark.svg"
-                  alt="coverfo"
-                  className="w-[240px] lg:w-[300px] mx-auto mb-6 animate-fade-in hidden dark:block"
-                />
+                {/* 홈화면과 같은 로고 */}
+                <div className="flex items-center justify-center gap-3 mb-6 animate-fade-in">
+                  <svg width="44" height="44" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <linearGradient id="cf-grad" x1="3" y1="5" x2="27" y2="27">
+                        <stop offset="0%" stopColor="#5B6CFF" />
+                        <stop offset="55%" stopColor="#8B5CF6" />
+                        <stop offset="100%" stopColor="#7C5CFF" />
+                      </linearGradient>
+                      <linearGradient id="cf-grad2" x1="28" y1="7" x2="4" y2="25">
+                        <stop offset="0%" stopColor="#8B5CF6" />
+                        <stop offset="100%" stopColor="#10B981" />
+                      </linearGradient>
+                      <linearGradient id="cf-lens" x1="12" y1="12" x2="20" y2="20">
+                        <stop offset="0%" stopColor="#5B6CFF" stopOpacity="0.28" />
+                        <stop offset="100%" stopColor="#10B981" stopOpacity="0.32" />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      d="M 12 12 C 14.2 13.2 17.8 13.2 20 12 C 21.2 14.5 21.2 17.5 20 20 C 17.8 18.8 14.2 18.8 12 20 C 10.8 17.5 10.8 14.5 12 12 Z"
+                      fill="url(#cf-lens)"
+                    />
+                    <path
+                      d="M 20 7.5 A 8.5 8.5 0 1 0 20 24.5 A 8.5 8.5 0 1 0 20 7.5"
+                      stroke="url(#cf-grad2)"
+                      strokeWidth="3.1"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M 17.85 22.95 A 8.5 8.5 0 1 1 17.13 9.45"
+                      stroke="url(#cf-grad)"
+                      strokeWidth="3.1"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M 17.13 9.45 L 19.8 11.2"
+                      stroke="#8B5CF6"
+                      strokeWidth="1.1"
+                      strokeLinecap="round"
+                      opacity="0.9"
+                    />
+                    <circle cx="16" cy="16" r="1.15" fill="#5B6CFF" opacity="0.9" />
+                  </svg>
+                  <span className="text-3xl lg:text-4xl font-bold tracking-tight text-bolt-elements-textPrimary">
+                    coverfo
+                  </span>
+                </div>
                 <h1 className="text-2xl lg:text-4xl font-bold text-bolt-elements-textPrimary mb-4 animate-fade-in">
-                  누르면 바로 만들어집니다
+                  원하는 대로 바로 만들어 드립니다
                 </h1>
                 <p className="text-md lg:text-xl mb-4 text-bolt-elements-textSecondary animate-fade-in animation-delay-200">
-                  예약 페이지, 견적서, 3D 게임을 버튼 하나로. 만들고 싶은 것을 한 줄로 적어도 됩니다.
+                  예약 페이지, 견적서, 3D 게임, 앱 등을 버튼 하나로. 만들고 싶은 것을 상세히 말해 주세요.
                 </p>
                 <p className="text-sm mb-6 text-bolt-elements-textTertiary animate-fade-in animation-delay-200">
-                  안개를 걷어내고 모양을 드러냅니다 · coverfo
+                  일반 질문은 <b>대화</b>, 앱·3D 만들기는 <b>앱 생성 AUTO</b> 를 눌러 주세요
                 </p>
               </div>
             )}
@@ -489,14 +521,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               </div>
             </StickToBottom>
             <div className="flex flex-col justify-center">
-              {!chatStarted && (
-                <div className="flex flex-wrap justify-center gap-2">
-                  {ImportButtons(importChat)}
-                  <BookingTemplateButton importChat={importChat} />
-                  <GameTemplateButton importChat={importChat} />
-                  <QuoteTemplateButton importChat={importChat} />
-                </div>
-              )}
               {!chatStarted && (
                 <p className="mt-10 mb-4 text-center text-xs text-bolt-elements-textTertiary">
                   Copyright © 2026 coverfo.com All Rights Reserved
