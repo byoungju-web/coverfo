@@ -87,6 +87,11 @@ export const EditorPanel = memo(
                   <span className="text-bolt-elements-textPrimary">만든 파일</span>
                 </PanelHeader>
                 <div className="flex-grow overflow-auto">
+                  {(!files || Object.keys(files).length === 0) && (
+                    <div className="px-3 py-6 text-xs text-bolt-elements-textTertiary leading-relaxed">
+                      아직 만든 파일이 없습니다.
+                    </div>
+                  )}
                   <FileTree
                     className="h-full"
                     files={files}
@@ -103,8 +108,8 @@ export const EditorPanel = memo(
 
             <PanelResizeHandle />
             <Panel className="flex flex-col" defaultSize={80} minSize={20}>
-              <PanelHeader className="overflow-x-auto">
-                {activeFileSegments?.length && (
+              <PanelHeader className="overflow-x-auto shrink-0">
+                {activeFileSegments?.length ? (
                   <div className="flex items-center flex-1 text-sm">
                     <FileBreadcrumb pathSegments={activeFileSegments} files={files} onFileSelect={onFileSelect} />
                     {activeFileUnsaved && (
@@ -120,6 +125,8 @@ export const EditorPanel = memo(
                       </div>
                     )}
                   </div>
+                ) : (
+                  <span className="text-xs text-bolt-elements-textTertiary px-1">파일을 선택하세요</span>
                 )}
               </PanelHeader>
               {!editorDocument && (
