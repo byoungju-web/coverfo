@@ -193,6 +193,10 @@ function friendlyLabel(action: ActionState): { icon: string; title: string; desc
       return { icon: '📥', title: '필요한 부품 받는 중', desc: '조금 오래 걸릴 수 있어요. 잠시만 기다려 주세요' };
     }
 
+    if (content.includes('node ') || content.includes('serve')) {
+      return { icon: '🚀', title: '화면 띄우는 중', desc: '곧 오른쪽에 결과가 나타납니다' };
+    }
+
     return { icon: '🔧', title: '준비 작업 중', desc: '앱이 돌아갈 수 있게 설정하고 있어요' };
   }
 
@@ -375,8 +379,8 @@ const ActionList = memo(({ actions }: ActionListProps) => {
           <div className="text-xs text-amber-700/80 dark:text-amber-300/80 mt-1 leading-relaxed">
             {stuckSeconds >= 150 ? (
               <>
-                이 단계에서 멈춘 것 같습니다. 아래 입력칸에 <b>&ldquo;다시 해줘&rdquo;</b> 라고 적어 보내면 처음부터
-                다시 시도합니다. 그래도 안 되면 요청을 조금 더 간단하게 적어 주세요.
+                이 단계에서 멈춘 것 같습니다. 아래 입력칸에{' '}
+                <b>&ldquo;설치 없이 index.html 한 파일로만 다시 만들어줘&rdquo;</b> 라고 적어 보내 주세요.
               </>
             ) : (
               <>부품을 받아오는 중입니다. 보통 1~2분 정도 걸려요. 화면을 닫지 말고 기다려 주세요.</>

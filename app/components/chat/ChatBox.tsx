@@ -63,6 +63,32 @@ interface ChatBoxProps {
 /* 요청 종류를 판별해 '시킨 것만' 만들도록 지시문을 붙입니다. 화면에는 보이지 않습니다. */
 const CF_HIDE_MARKER = '<<coverfo-spec>>';
 
+/* 설치 없이 바로 뜨는 정적 서버. Node 기본 기능만 사용합니다. */
+const SERVER_JS = [
+  '',
+  '```js',
+  '// server.js',
+  "const http = require('http');",
+  "const fs = require('fs');",
+  "const path = require('path');",
+  "const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',",
+  "  '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml',",
+  "  '.png': 'image/png', '.jpg': 'image/jpeg', '.gif': 'image/gif', '.ico': 'image/x-icon' };",
+  'http',
+  '  .createServer((req, res) => {',
+  "    let p = decodeURIComponent((req.url || '/').split('?')[0]);",
+  "    if (p === '/') p = '/index.html';",
+  '    const file = path.join(process.cwd(), p);',
+  '    fs.readFile(file, (err, data) => {',
+  "      if (err) { res.writeHead(404); res.end('Not found'); return; }",
+  "      res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });",
+  '      res.end(data);',
+  '    });',
+  '  })',
+  "  .listen(3000, '0.0.0.0', () => console.log('server on 3000'));",
+  '```',
+].join('\n');
+
 function buildSpec(text: string) {
   const low = text.toLowerCase();
   const has = (...keys: string[]) => keys.some((k) => text.includes(k) || low.includes(k));
@@ -89,12 +115,14 @@ function buildSpec(text: string) {
     CF_HIDE_MARKER +
     '\n[제작 지시]\n' +
     scope +
-    '\n\n공통 규칙:\n' +
+    '\n\n반드시 지킬 규칙:\n' +
     '1) 사용자가 말하지 않은 기능은 절대 추가하지 마세요. 버튼, 조작, 점수, 메뉴, 설정 패널을 요청하지 않았다면 넣지 마세요.\n' +
-    '2) 화면 코드는 index.html 한 파일에 HTML·CSS·자바스크립트를 모두 넣어 주세요. src 폴더로 파일을 나누지 마세요.\n' +
-    '3) package.json 에 vite 를 개발 의존성으로 넣어 주세요.\n' +
-    '4) 마지막에 반드시 npm install 을 실행한 뒤, 이어서 npm run dev 를 실행하는 단계를 포함해 주세요. 이 단계가 빠지면 미리보기가 나오지 않습니다.\n' +
-    '5) 설명은 두 문장 이내로 짧게 해주세요.'
+    '2) 화면은 index.html 한 파일에 HTML·CSS·자바스크립트를 모두 넣어 만들어 주세요. 파일을 여러 개로 나누지 마세요.\n' +
+    '3) npm install, npm run dev, vite, package.json 을 절대 사용하지 마세요. 설치가 실패해서 화면이 안 나옵니다.\n' +
+    '4) 외부 라이브러리가 필요하면 index.html 안에서 CDN script 태그로만 불러오세요.\n' +
+    '5) 미리보기가 뜨도록 아래 server.js 파일을 내용 그대로 만들고, 마지막 단계에서 `node server.js` 를 실행해 주세요. 설치가 필요 없는 방식입니다.\n' +
+    SERVER_JS +
+    '\n6) 자바스크립트 문법 오류가 없는지 확인하고, 설명은 두 문장 이내로 짧게 해주세요.'
   );
 }
 
