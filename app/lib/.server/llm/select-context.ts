@@ -115,7 +115,9 @@ export async function selectContext(props: {
   const lastUserMessage = processedMessages.filter((x) => x.role == 'user').pop();
 
   if (!lastUserMessage) {
-    throw new Error('No user message found');
+    logger.warn('No user message found. Keeping current context.');
+
+    return contextFiles;
   }
 
   // select files from the list of code file from the project that might be useful for the current request from the user
@@ -180,7 +182,17 @@ export async function selectContext(props: {
   const updateContextBuffer = response.match(/<updateContextBuffer>([\s\S]*?)<\/updateContextBuffer>/);
 
   if (!updateContextBuffer) {
-    throw new Error('Invalid response. Please follow the response format');
+    /*
+     * 모델이 형식을 지키지 않는 경우가 있습니다.
+     * 이때 대화를 중단시키지 말고 지금 열려 있는 파일을 그대로 사용합니다.
+     */
+    logger.warn('Context selection response did not follow the format. Keeping current context.');
+
+    if (onFinish) {
+      onFinish(resp);
+    }
+
+    return contextFiles;
   }
 
   const includeFiles =
@@ -225,7 +237,13 @@ export async function selectContext(props: {
   logger.info(`Total files: ${totalFiles}`);
 
   if (totalFiles == 0) {
-    throw new Error(`Bolt failed to select files`);
+    /*
+     * "잘 만들었네" 같은 일반 대화에는 새로 열 파일이 없습니다.
+     * 이 경우 오류로 끝내지 말고 지금 열려 있는 파일을 그대로 씁니다.
+     */
+    logger.info('No new files selected. Keeping current context.');
+
+    return contextFiles;
   }
 
   return filteredFiles;
