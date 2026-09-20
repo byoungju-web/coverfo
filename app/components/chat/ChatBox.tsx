@@ -90,10 +90,11 @@ function buildSpec(text: string) {
     '\n[제작 지시]\n' +
     scope +
     '\n\n공통 규칙:\n' +
-    '1) 사용자가 말하지 않은 기능은 임의로 추가하지 마세요.\n' +
-    '2) 화면 코드는 index.html 한 파일에 HTML·CSS·자바스크립트를 모두 넣어 주세요.\n' +
-    '3) package.json 에 vite 를 개발 의존성으로 넣고, npm install 이 끝난 뒤 npm run dev 를 실행해 주세요.\n' +
-    '4) 미리보기 화면에 결과가 반드시 보이게 해주세요.'
+    '1) 사용자가 말하지 않은 기능은 절대 추가하지 마세요. 버튼, 조작, 점수, 메뉴, 설정 패널을 요청하지 않았다면 넣지 마세요.\n' +
+    '2) 화면 코드는 index.html 한 파일에 HTML·CSS·자바스크립트를 모두 넣어 주세요. src 폴더로 파일을 나누지 마세요.\n' +
+    '3) package.json 에 vite 를 개발 의존성으로 넣어 주세요.\n' +
+    '4) 마지막에 반드시 npm install 을 실행한 뒤, 이어서 npm run dev 를 실행하는 단계를 포함해 주세요. 이 단계가 빠지면 미리보기가 나오지 않습니다.\n' +
+    '5) 설명은 두 문장 이내로 짧게 해주세요.'
   );
 }
 
@@ -258,7 +259,10 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
                 return;
               }
 
-              props.handleSendMessage?.(event);
+              props.handleSendMessage?.(
+                event,
+                props.chatMode === 'build' ? buildSpec(props.input.trim()) : props.input.trim(),
+              );
             }
           }}
           value={props.input}
@@ -276,7 +280,7 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
         <ClientOnly>
           {() => (
             <SendButton
-              show={props.input.length > 0 || props.isStreaming || props.uploadedFiles.length > 0}
+              show={props.isStreaming}
               isStreaming={props.isStreaming}
               disabled={!props.providerList || props.providerList.length === 0}
               onClick={(event) => {
@@ -304,22 +308,31 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
               onStop={props.stopListening}
               disabled={props.isStreaming}
             />
-            {/* 대화 모드 토글 — 처음부터 보이게 */}
-            <IconButton
-              title={props.chatMode === 'discuss' ? '대화 모드 (파일 안 만듦)' : '대화 모드로 바꾸기'}
+            {/* 대화 — 파일 없이 글로만 답변 */}
+            <button
+              type="button"
+              title="파일을 만들지 않고 글로만 답합니다"
+              disabled={props.input.trim().length === 0 || props.isStreaming}
               className={classNames(
-                'transition-all flex items-center gap-1 px-1.5',
-                props.chatMode === 'discuss'
-                  ? '!bg-bolt-elements-item-backgroundAccent !text-bolt-elements-item-contentAccent'
-                  : 'bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault',
+                'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-semibold transition',
+                props.input.trim().length === 0 || props.isStreaming
+                  ? 'opacity-40 cursor-not-allowed bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault'
+                  : 'bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault hover:bg-bolt-elements-item-backgroundActive',
               )}
-              onClick={() => {
-                props.setChatMode?.(props.chatMode === 'discuss' ? 'build' : 'discuss');
+              onClick={(event) => {
+                const raw = props.input.trim();
+
+                if (!raw || props.isStreaming) {
+                  return;
+                }
+
+                props.setChatMode?.('discuss');
+                props.handleSendMessage?.(event, raw);
               }}
             >
-              <div className={`i-ph:chats text-xl`} />
-              {props.chatMode === 'discuss' ? <span className="text-xs">대화</span> : <span />}
-            </IconButton>
+              <div className="i-ph:chats text-base" />
+              대화
+            </button>
 
             {/* 앱 생성하기 — 채팅 화면에서 바로 실행 */}
             <button

@@ -31,11 +31,6 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
     }),
   );
 
-  const toggleActions = () => {
-    userToggledActions.current = true;
-    setShowActions(!showActions);
-  };
-
   /* 모바일에서는 코드 화면이 자동으로 덮지 않게 하고, 쉬운 진행 화면을 먼저 보여줍니다 */
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -98,23 +93,6 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
               <div className="w-full text-bolt-elements-textSecondary text-xs mt-0.5">눌러서 만드는 과정 보기</div>
             </div>
           </button>
-          {artifact.type !== 'bundled' && <div className="bg-bolt-elements-artifacts-borderColor w-[1px]" />}
-          <AnimatePresence>
-            {actions.length && artifact.type !== 'bundled' && (
-              <motion.button
-                initial={{ width: 0 }}
-                animate={{ width: 'auto' }}
-                exit={{ width: 0 }}
-                transition={{ duration: 0.15, ease: cubicEasingFn }}
-                className="bg-bolt-elements-artifacts-background hover:bg-bolt-elements-artifacts-backgroundHover"
-                onClick={toggleActions}
-              >
-                <div className="p-4">
-                  <div className={showActions ? 'i-ph:caret-up-bold' : 'i-ph:caret-down-bold'}></div>
-                </div>
-              </motion.button>
-            )}
-          </AnimatePresence>
         </div>
         {artifact.type === 'bundled' && (
           <div className="flex items-center gap-1.5 p-5 bg-bolt-elements-actions-background border-t border-bolt-elements-artifacts-borderColor">
@@ -196,7 +174,15 @@ function friendlyLabel(action: ActionState): { icon: string; title: string; desc
     }
 
     if (f.endsWith('.js') || f.endsWith('.jsx') || f.endsWith('.ts') || f.endsWith('.tsx')) {
-      return { icon: '⚙️', title: '기능 만드는 중', desc: '버튼이 눌리고 화면이 움직이게 하고 있어요' };
+      if (f.includes('scene') || f.includes('three') || f.includes('sculpture') || f.includes('model')) {
+        return { icon: '🧊', title: '3D 화면 만드는 중', desc: '모양과 빛을 화면에 배치하고 있어요' };
+      }
+
+      if (f.includes('main') || f.includes('index') || f.includes('app')) {
+        return { icon: '🔗', title: '전체 연결하는 중', desc: '만든 조각들을 하나로 이어 붙이고 있어요' };
+      }
+
+      return { icon: '⚙️', title: '동작 코드 만드는 중', desc: '화면이 제대로 작동하도록 코드를 쓰고 있어요' };
     }
 
     return { icon: '📝', title: '파일 만드는 중', desc: String(filePath) };
@@ -241,7 +227,7 @@ function statusText(status: ActionState['status']) {
     case 'failed':
       return '실패';
     case 'aborted':
-      return '중단됨';
+      return '멈춤';
     default:
       return '';
   }
@@ -296,7 +282,9 @@ const ActionList = memo(({ actions }: ActionListProps) => {
       <ul className="list-none space-y-2">
         {actions.map((action, index) => {
           const { type } = action;
-          const status = effectiveStatus(action);
+          const rawStatus = effectiveStatus(action);
+          const timedOut = rawStatus === 'running' && stuckSeconds >= 180;
+          const status = timedOut ? 'aborted' : rawStatus;
           const info = friendlyLabel(action);
           const isRunning = status === 'running';
           const isDone = status === 'complete';
@@ -422,9 +410,10 @@ const ActionList = memo(({ actions }: ActionListProps) => {
           className="text-sm font-medium px-3 py-2 rounded-lg border border-bolt-elements-borderColor text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-3 transition"
           onClick={() => {
             workbenchStore.showWorkbench.set(true);
+            workbenchStore.currentView.set('code');
           }}
         >
-          🖥️ 코드·화면 패널 열기
+          🖥️ 코드 보기
         </button>
       </div>
     </motion.div>
