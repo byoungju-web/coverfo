@@ -22,18 +22,18 @@ export function Header() {
           type="button"
           title="내 대화 목록"
           aria-label="내 대화 목록"
-          className="i-ph:sidebar-simple-duotone text-xl cursor-pointer hover:opacity-70 transition"
+          className="i-ph:list-bold text-2xl cursor-pointer hover:opacity-70 transition"
           onClick={() => {
             window.dispatchEvent(new Event('coverfo:toggle-sidebar'));
           }}
         />
         {/* 눌러서 홈화면으로 */}
         <a href="/" title="홈으로" className="text-2xl font-semibold text-accent flex items-center cursor-pointer">
-          <img src="/coverfo-logo.svg" alt="coverfo" className="w-[110px] sm:w-[160px] inline-block dark:hidden" />
+          <img src="/coverfo-logo.svg" alt="coverfo" className="w-[150px] sm:w-[200px] inline-block dark:hidden" />
           <img
             src="/coverfo-logo-dark.svg"
             alt="coverfo"
-            className="w-[110px] sm:w-[160px] inline-block hidden dark:block"
+            className="w-[150px] sm:w-[200px] inline-block hidden dark:block"
           />
         </a>
       </div>
