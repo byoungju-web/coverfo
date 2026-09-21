@@ -43,10 +43,6 @@ const sliderOptions: SliderOptions<WorkbenchViewType> = {
     value: 'code',
     text: 'Code',
   },
-  middle: {
-    value: 'diff',
-    text: 'Diff',
-  },
   right: {
     value: 'preview',
     text: 'Preview',
@@ -363,23 +359,25 @@ export const Workbench = memo(
         return;
       }
 
-      targets.forEach((p) => {
-        const f = all[p];
+      targets.forEach((p, index) => {
+        setTimeout(() => {
+          const f = all[p];
 
-        if (f?.type !== 'file') {
-          return;
-        }
+          if (f?.type !== 'file') {
+            return;
+          }
 
-        const name = p.split('/').pop() || 'file.txt';
-        const blob = new Blob([f.content], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+          const name = p.split('/').pop() || 'file.txt';
+          const blob = new Blob([f.content], { type: 'text/plain;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = name;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, index * 400);
       });
 
       toast.success(`${targets.length}개 파일을 내려받았습니다`);
@@ -437,9 +435,6 @@ export const Workbench = memo(
                     </div>
                   )}
 
-                  {selectedView === 'diff' && (
-                    <FileModifiedDropdown fileHistory={fileHistory} onSelectFile={handleSelectFile} />
-                  )}
                   <IconButton
                     icon="i-ph:x-circle"
                     className="-mr-1"
