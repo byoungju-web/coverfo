@@ -307,8 +307,12 @@ ${value.content}
 
       takeSnapshot(messages[messages.length - 1].id, workbenchStore.files.get(), _urlId, chatSummary);
 
-      if (!description.get() && firstArtifact?.title) {
-        description.set(firstArtifact?.title);
+      if (!description.get()) {
+        const fallbackTitle = firstArtifact?.title || extractTitleFromFirstUserMessage(messages);
+
+        if (fallbackTitle) {
+          description.set(fallbackTitle);
+        }
       }
 
       // Ensure chatId.get() is used here as well
@@ -396,6 +400,41 @@ ${value.content}
       URL.revokeObjectURL(url);
     },
   };
+}
+
+function extractTitleFromFirstUserMessage(messages: Message[]): string | undefined {
+  const firstUserMessage = messages.find((m) => m.role === 'user');
+
+  if (!firstUserMessage) {
+    return undefined;
+  }
+
+  let text = '';
+
+  if (typeof firstUserMessage.content === 'string') {
+    text = firstUserMessage.content;
+  } else if (Array.isArray(firstUserMessage.content)) {
+    const textPart = (firstUserMessage.content as any[]).find((part) => part?.type === 'text');
+    text = textPart?.text || '';
+  }
+
+  // 채팅에는 안 보이는 "[Model: ...] [Provider: ...]" 안내문을 뗍니다
+  text = text.replace(/^\[Model:[^\]]*\]\s*\n*\[Provider:[^\]]*\]\s*\n*/i, '');
+
+  // 앱 생성 시 뒤에 붙는, 화면에는 안 보이는 제작 지시문을 뗍니다
+  const specIdx = text.indexOf('<<coverfo-spec>>');
+
+  if (specIdx !== -1) {
+    text = text.slice(0, specIdx);
+  }
+
+  text = text.trim();
+
+  if (!text) {
+    return undefined;
+  }
+
+  return text.length > 60 ? `${text.slice(0, 60)}...` : text;
 }
 
 function navigateChat(nextId: string) {
