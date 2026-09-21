@@ -37,9 +37,7 @@ const menuVariants = {
 } satisfies Variants;
 
 type DialogContent =
-  | { type: 'delete'; item: ChatHistoryItem }
-  | { type: 'bulkDelete'; items: ChatHistoryItem[] }
-  | null;
+  { type: 'delete'; item: ChatHistoryItem } | { type: 'bulkDelete'; items: ChatHistoryItem[] } | null;
 
 function CurrentDateTime() {
   const [dateTime, setDateTime] = useState(new Date());
@@ -73,6 +71,8 @@ export const Menu = () => {
   const profile = useStore(profileStore);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  // 데스크탑(1024px 이상)에서는 사이드바를 항상 펼쳐 둡니다
+  const [isDesktop, setIsDesktop] = useState(false);
 
   const { filteredItems: filteredList, handleSearchChange } = useSearchFilter({
     items: list,
@@ -279,11 +279,29 @@ export const Menu = () => {
   }, [open, selectionMode]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const updateIsDesktop = () => setIsDesktop(window.innerWidth >= 1024);
+    updateIsDesktop();
+    window.addEventListener('resize', updateIsDesktop);
+
+    return () => window.removeEventListener('resize', updateIsDesktop);
+  }, []);
+
+  useEffect(() => {
+    if (isDesktop) {
+      setOpen(true);
+    }
+  }, [isDesktop]);
+
+  useEffect(() => {
     const enterThreshold = 20;
     const exitThreshold = 20;
 
     function onMouseMove(event: MouseEvent) {
-      if (isSettingsOpen) {
+      if (isSettingsOpen || isDesktop) {
         return;
       }
 
@@ -301,7 +319,7 @@ export const Menu = () => {
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
     };
-  }, [isSettingsOpen]);
+  }, [isSettingsOpen, isDesktop]);
 
   /*
    * 마우스를 왼쪽 끝에 대는 방법 외에 버튼으로도 열 수 있게 합니다.
@@ -358,6 +376,10 @@ export const Menu = () => {
 
   const handleSettingsClose = () => {
     setIsSettingsOpen(false);
+
+    if (isDesktop) {
+      setOpen(true);
+    }
   };
 
   const setDialogContentWithLogging = useCallback((content: DialogContent) => {
