@@ -353,11 +353,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               <div id="intro" className="mt-[14vh] max-w-2xl mx-auto text-center px-4 lg:px-0">
                 {/* 홈화면과 같은 로고 (Full 버전 이미지 사용) */}
                 <div className="flex items-center justify-center mb-6 animate-fade-in">
-                  <img
-                    src="/coverfo-logo.svg"
-                    alt="coverfo"
-                    className="h-10 lg:h-12 w-auto inline-block dark:hidden"
-                  />
+                  <img src="/coverfo-logo.svg" alt="coverfo" className="h-10 lg:h-12 w-auto inline-block dark:hidden" />
                   <img
                     src="/coverfo-logo-dark.svg"
                     alt="coverfo"
