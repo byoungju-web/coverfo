@@ -29,6 +29,39 @@ export const DeployButton = ({ onNetlifyDeploy, onGitHubDeploy }: DeployButtonPr
   const [githubDeploymentFiles, setGithubDeploymentFiles] = useState<Record<string, string> | null>(null);
   const [githubProjectName, setGithubProjectName] = useState('');
 
+  /*
+   * 계정 없이 배포: 만든 파일을 내려받고 netlify.com/drop 을 새 탭으로 엽니다.
+   * 내려받은 파일을 그 화면에 끌어다 놓으면 바로 인터넷에 올라갑니다.
+   */
+  const handleDropDeploy = () => {
+    const all = workbenchStore.files.get();
+    const targets = Object.keys(all).filter((p) => {
+      const f = all[p];
+      return f?.type === 'file' && !p.endsWith('server.js') && !p.endsWith('package.json');
+    });
+
+    targets.forEach((p) => {
+      const f = all[p];
+
+      if (f?.type !== 'file') {
+        return;
+      }
+
+      const name = p.split('/').pop() || 'index.html';
+      const blob = new Blob([f.content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
+    window.open('https://app.netlify.com/drop', '_blank', 'noopener');
+  };
+
   const handleNetlifyDeployClick = async () => {
     setIsDeploying(true);
     setDeployingTo('netlify');
@@ -90,6 +123,28 @@ export const DeployButton = ({ onNetlifyDeploy, onGitHubDeploy }: DeployButtonPr
             sideOffset={5}
             align="end"
           >
+            {/* 계정 없이 바로 배포 — 초보자용 */}
+            <DropdownMenu.Item
+              className={classNames(
+                'cursor-pointer flex items-center w-full px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive gap-2 rounded-md group relative',
+                {
+                  'opacity-60 cursor-not-allowed': !activePreview,
+                },
+              )}
+              disabled={!activePreview}
+              onClick={handleDropDeploy}
+            >
+              <img
+                className="w-5 h-5"
+                height="24"
+                width="24"
+                crossOrigin="anonymous"
+                src="https://cdn.simpleicons.org/netlify"
+                alt="netlify drop"
+              />
+              <span className="mx-auto">계정 없이 바로 배포 (netlify.com/drop)</span>
+            </DropdownMenu.Item>
+
             <DropdownMenu.Item
               className={classNames(
                 'cursor-pointer flex items-center w-full px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive gap-2 rounded-md group relative',
