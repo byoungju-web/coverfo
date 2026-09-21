@@ -78,21 +78,14 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
     <>
       <div className="artifact border border-bolt-elements-borderColor flex flex-col overflow-hidden rounded-lg w-full transition-border duration-150">
         <div className="flex">
-          <button
-            className="flex items-stretch bg-bolt-elements-artifacts-background hover:bg-bolt-elements-artifacts-backgroundHover w-full overflow-hidden"
-            onClick={() => {
-              const showWorkbench = workbenchStore.showWorkbench.get();
-              workbenchStore.showWorkbench.set(!showWorkbench);
-            }}
-          >
+          <div className="flex items-stretch bg-bolt-elements-artifacts-background w-full overflow-hidden">
             <div className="px-5 p-3.5 w-full text-left">
               <div className="w-full text-bolt-elements-textPrimary font-medium leading-5 text-sm">
                 {/* Use the dynamic title here */}
                 {dynamicTitle}
               </div>
-              <div className="w-full text-bolt-elements-textSecondary text-xs mt-0.5">눌러서 만드는 과정 보기</div>
             </div>
-          </button>
+          </div>
         </div>
         {artifact.type === 'bundled' && (
           <div className="flex items-center gap-1.5 p-5 bg-bolt-elements-actions-background border-t border-bolt-elements-artifacts-borderColor">
@@ -237,18 +230,40 @@ function statusText(status: ActionState['status']) {
   }
 }
 
+const REVEAL_INTERVAL_MS = 700;
+
 const ActionList = memo(({ actions }: ActionListProps) => {
   const [stuckSeconds, setStuckSeconds] = useState(0);
 
+  /* 단계를 한 번에 다 보여 주지 않고, 일정 간격으로 하나씩 차례대로 보여 줍니다 */
+  const [revealedCount, setRevealedCount] = useState(1);
+
   const total = actions.length;
-  const doneCount = actions.filter((a) => effectiveStatus(a) === 'complete').length;
+  const realDoneCount = actions.filter((a) => effectiveStatus(a) === 'complete').length;
   const failed = actions.some((a) => a.status === 'failed' || a.status === 'aborted');
-  const percent = total === 0 ? 0 : Math.round((doneCount / total) * 100);
-  const stillWorking = doneCount < total && !failed;
+  const stillWorking = realDoneCount < total && !failed;
 
   /* 대기 중인 단계는 맨 앞 하나만 보여 줍니다 */
   const firstPending = actions.findIndex((a) => effectiveStatus(a) === 'pending');
-  const visibleActions = firstPending === -1 ? actions : actions.slice(0, firstPending);
+  const startedActions = firstPending === -1 ? actions : actions.slice(0, firstPending);
+  const visibleActions = startedActions.slice(0, revealedCount);
+  const allRevealed = visibleActions.length >= total;
+
+  /* 화면에 나타난 단계까지만 완료로 셉니다 (진행률·완료 문구가 순서대로 올라가게) */
+  const doneCount = visibleActions.filter((a) => effectiveStatus(a) === 'complete').length;
+  const percent = total === 0 ? 0 : Math.round((doneCount / total) * 100);
+
+  useEffect(() => {
+    if (revealedCount >= startedActions.length) {
+      return undefined;
+    }
+
+    const t = setTimeout(() => {
+      setRevealedCount((v) => v + 1);
+    }, REVEAL_INTERVAL_MS);
+
+    return () => clearTimeout(t);
+  }, [revealedCount, startedActions.length]);
 
   /* 같은 단계에서 오래 멈춰 있으면 안내 문구를 띄웁니다 */
   useEffect(() => {
@@ -270,7 +285,7 @@ const ActionList = memo(({ actions }: ActionListProps) => {
       <div className="mb-4">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-sm font-semibold text-bolt-elements-textPrimary">
-            {failed ? '문제가 생겼어요' : doneCount === total ? '다 만들었어요!' : '만드는 중이에요...'}
+            {failed ? '문제가 생겼어요' : allRevealed && doneCount === total ? '다 만들었어요!' : '만드는 중이에요...'}
           </span>
           <span className="text-xs text-bolt-elements-textSecondary tabular-nums">
             {doneCount} / {total} 단계
@@ -304,7 +319,7 @@ const ActionList = memo(({ actions }: ActionListProps) => {
               variants={actionVariants}
               initial="hidden"
               animate="visible"
-              transition={{ duration: 0.3, ease: cubicEasingFn, delay: index * 0.25 }}
+              transition={{ duration: 0.3, ease: cubicEasingFn }}
             >
               <div
                 className={classNames(
@@ -395,7 +410,7 @@ const ActionList = memo(({ actions }: ActionListProps) => {
 
       {/* 완료 안내 */}
       <div className="mt-4 flex items-center gap-2 flex-wrap">
-        {doneCount === total && total > 0 && !failed ? (
+        {allRevealed && doneCount === total && total > 0 && !failed ? (
           <button
             className="text-sm font-medium px-3.5 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition"
             onClick={() => {

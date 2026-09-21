@@ -3,10 +3,6 @@ import { Fragment } from 'react';
 import { classNames } from '~/utils/classNames';
 import { AssistantMessage } from './AssistantMessage';
 import { UserMessage } from './UserMessage';
-import { useLocation } from '@remix-run/react';
-import { db, chatId } from '~/lib/persistence/useChatHistory';
-import { forkChat } from '~/lib/persistence/db';
-import { toast } from 'react-toastify';
 import { forwardRef } from 'react';
 import type { ForwardedRef } from 'react';
 import type { ProviderInfo } from '~/types/model';
@@ -87,7 +83,6 @@ function toPlainText(value: any): string {
 export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
   (props: MessagesProps, ref: ForwardedRef<HTMLDivElement> | undefined) => {
     const { id, isStreaming = false, messages = [] } = props;
-    const location = useLocation();
 
     const safeAppend = props.append
       ? (message: Message) => {
@@ -97,34 +92,16 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
             return;
           }
 
+          /* 일반 전송과 같은 형태(parts 포함)로 보냅니다 */
           props.append?.({
             ...message,
             id: message?.id || `msg-${Date.now()}`,
             role: message?.role || 'user',
             content: text,
+            parts: [{ type: 'text', text }],
           });
         }
       : undefined;
-
-    const handleRewind = (messageId: string) => {
-      const searchParams = new URLSearchParams(location.search);
-      searchParams.set('rewindTo', messageId);
-      window.location.search = searchParams.toString();
-    };
-
-    const handleFork = async (messageId: string) => {
-      try {
-        if (!db || !chatId.get()) {
-          toast.error('Chat persistence is not available');
-          return;
-        }
-
-        const urlId = await forkChat(db, chatId.get()!, messageId);
-        window.location.href = `/chat/${urlId}`;
-      } catch (error) {
-        toast.error('Failed to fork chat: ' + (error as Error).message);
-      }
-    };
 
     return (
       <div id={id} className={props.className} ref={ref}>
@@ -154,8 +131,6 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
                         content={content}
                         annotations={message.annotations}
                         messageId={messageId}
-                        onRewind={handleRewind}
-                        onFork={handleFork}
                         append={safeAppend}
                         chatMode={props.chatMode}
                         setChatMode={props.setChatMode}

@@ -27,6 +27,7 @@ export const Markdown = memo(
   ({ children, html = false, limitedMarkdown = false, append, setChatMode, model, provider }: MarkdownProps) => {
     logger.trace('Render');
 
+    /* 추천 버튼이 처음 화면의 값에 묶이지 않고 항상 최신 전송 기능·모델을 쓰도록 합니다 */
     const components = useMemo(() => {
       return {
         div: ({ className, children, node, ...props }) => {
@@ -191,7 +192,7 @@ export const Markdown = memo(
           return <button {...props}>{children}</button>;
         },
       } satisfies Components;
-    }, []);
+    }, [append, setChatMode, model, provider]);
 
     return (
       <ReactMarkdown

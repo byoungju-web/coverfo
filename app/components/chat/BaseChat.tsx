@@ -306,6 +306,45 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       input.click();
     };
 
+    /* 글·코드 파일 첨부: 파일 내용을 읽어서 입력칸에 붙여 넣습니다 */
+    const handleTextFileUpload = () => {
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept =
+        '.txt,.md,.csv,.json,.html,.htm,.css,.js,.jsx,.ts,.tsx,.py,.xml,.yml,.yaml,.sql,.log,text/*,application/json';
+
+      fileInput.onchange = (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+
+        if (!file) {
+          return;
+        }
+
+        if (file.size > 200 * 1024) {
+          alert('200KB 이하의 글·코드 파일만 첨부할 수 있어요.');
+          return;
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = (ev) => {
+          const text = (ev.target?.result as string) || '';
+          const prefix = input ? `${input}\n\n` : '';
+          const value = `${prefix}[첨부 파일: ${file.name}]\n\`\`\`\n${text}\n\`\`\`\n`;
+
+          if (handleInputChange) {
+            const syntheticEvent = {
+              target: { value },
+            } as React.ChangeEvent<HTMLTextAreaElement>;
+            handleInputChange(syntheticEvent);
+          }
+        };
+        reader.readAsText(file);
+      };
+
+      fileInput.click();
+    };
+
     const handlePaste = async (e: React.ClipboardEvent) => {
       const items = e.clipboardData?.items;
 
@@ -342,7 +381,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         data-chat-visible={showChat}
       >
         <ClientOnly>{() => <Menu />}</ClientOnly>
-        <div className="flex flex-col lg:flex-row overflow-y-auto w-full h-full lg:pl-[340px]">
+        <div className="flex flex-col lg:flex-row overflow-y-auto overflow-x-hidden w-full h-full lg:pl-[340px]">
           <div
             className={classNames(
               styles.Chat,
@@ -472,6 +511,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   qrModalOpen={qrModalOpen}
                   setQrModalOpen={setQrModalOpen}
                   handleFileUpload={handleFileUpload}
+                  handleTextFileUpload={handleTextFileUpload}
                   chatMode={chatMode}
                   setChatMode={setChatMode}
                   designScheme={designScheme}
