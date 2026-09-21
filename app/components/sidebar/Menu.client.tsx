@@ -37,7 +37,9 @@ const menuVariants = {
 } satisfies Variants;
 
 type DialogContent =
-  { type: 'delete'; item: ChatHistoryItem } | { type: 'bulkDelete'; items: ChatHistoryItem[] } | null;
+  | { type: 'delete'; item: ChatHistoryItem }
+  | { type: 'bulkDelete'; items: ChatHistoryItem[] }
+  | null;
 
 function CurrentDateTime() {
   const [dateTime, setDateTime] = useState(new Date());
@@ -71,6 +73,7 @@ export const Menu = () => {
   const profile = useStore(profileStore);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+
   // 데스크탑(1024px 이상)에서는 사이드바를 항상 펼쳐 둡니다
   const [isDesktop, setIsDesktop] = useState(false);
 
