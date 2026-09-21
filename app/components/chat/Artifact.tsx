@@ -4,6 +4,7 @@ import { computed } from 'nanostores';
 import { memo, useEffect, useRef, useState } from 'react';
 import type { ActionState } from '~/lib/runtime/action-runner';
 import { workbenchStore } from '~/lib/stores/workbench';
+import { streamingState } from '~/lib/stores/streaming';
 import { classNames } from '~/utils/classNames';
 import { cubicEasingFn } from '~/utils/easings';
 import { WORK_DIR } from '~/utils/constants';
@@ -31,20 +32,23 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
     }),
   );
 
-  /* 모바일에서는 코드 화면이 자동으로 덮지 않게 하고, 쉬운 진행 화면을 먼저 보여줍니다 */
+  const isStreaming = useStore(streamingState);
+
+  /*
+   * 만드는 중에는 (휴대폰·데스크탑 모두) 코드 창이 자동으로 열려서 파일이 왔다갔다 하지 않게 닫아 두고,
+   * 채팅 쪽의 단계별 진행 화면을 보여 줍니다. 다 만든 뒤 "결과 화면 보기 / 코드 보기" 로 열 수 있습니다.
+   */
   useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
 
-    const isMobile = window.innerWidth < 1024;
-
-    if (isMobile && actions.length > 0) {
+    if (isStreaming) {
       workbenchStore.showWorkbench.set(false);
     }
 
     workbenchStore.currentView.set('preview');
-  }, [actions.length]);
+  }, [actions.length, isStreaming]);
 
   useEffect(() => {
     if (actions.length && !showActions && !userToggledActions.current) {
@@ -104,6 +108,12 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
                   : '기본 파일을 다 만들었어요'
                 : '기본 파일을 만드는 중이에요'}
             </div>
+          </div>
+        )}
+        {artifact.type !== 'bundled' && actions.length === 0 && (
+          <div className="flex items-center gap-2 px-5 py-4 border-t border-bolt-elements-artifacts-borderColor bg-bolt-elements-actions-background text-sm text-bolt-elements-textSecondary">
+            <div className="i-svg-spinners:90-ring-with-bg text-lg text-bolt-elements-loader-progress" />
+            만들 준비를 하고 있어요...
           </div>
         )}
         <AnimatePresence>
@@ -230,7 +240,7 @@ function statusText(status: ActionState['status']) {
   }
 }
 
-const REVEAL_INTERVAL_MS = 700;
+const REVEAL_INTERVAL_MS = 1500;
 
 const ActionList = memo(({ actions }: ActionListProps) => {
   const [stuckSeconds, setStuckSeconds] = useState(0);
@@ -243,9 +253,9 @@ const ActionList = memo(({ actions }: ActionListProps) => {
   const failed = actions.some((a) => a.status === 'failed' || a.status === 'aborted');
   const stillWorking = realDoneCount < total && !failed;
 
-  /* 대기 중인 단계는 맨 앞 하나만 보여 줍니다 */
+  /* 대기 중인 단계는 맨 앞 하나(지금 만들고 있는 단계)까지만 보여 줍니다 */
   const firstPending = actions.findIndex((a) => effectiveStatus(a) === 'pending');
-  const startedActions = firstPending === -1 ? actions : actions.slice(0, firstPending);
+  const startedActions = firstPending === -1 ? actions : actions.slice(0, firstPending + 1);
   const visibleActions = startedActions.slice(0, revealedCount);
   const allRevealed = visibleActions.length >= total;
 
@@ -307,7 +317,10 @@ const ActionList = memo(({ actions }: ActionListProps) => {
           const { type } = action;
           const rawStatus = effectiveStatus(action);
           const timedOut = rawStatus === 'running' && stuckSeconds >= 180;
-          const status = timedOut ? 'aborted' : rawStatus;
+
+          /* 화면에 보이는 대기 단계는 지금 만들고 있는 단계이므로 '진행 중' 으로 보여 줍니다 */
+          const shownStatus = rawStatus === 'pending' ? 'running' : rawStatus;
+          const status = timedOut ? 'aborted' : shownStatus;
           const info = friendlyLabel(action);
           const isRunning = status === 'running';
           const isDone = status === 'complete';

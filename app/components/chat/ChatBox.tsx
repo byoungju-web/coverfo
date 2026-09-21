@@ -325,8 +325,8 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
             />
           )}
         </ClientOnly>
-        <div className="flex flex-wrap justify-between items-center gap-2 text-sm px-3 pb-1.5 pt-1">
-          <div className="flex gap-1 items-center min-w-0">
+        <div className="flex flex-nowrap justify-between items-center gap-2 text-sm px-3 pb-1.5 pt-1">
+          <div className="flex gap-0.5 sm:gap-1 items-center min-w-0 flex-1 overflow-hidden">
             <IconButton title="사진 첨부" className="transition-all" onClick={() => props.handleFileUpload()}>
               <div className="i-ph:image-square text-xl"></div>
             </IconButton>
@@ -357,20 +357,20 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
             >
               <div className={`i-ph:caret-${props.isModelSettingsCollapsed ? 'right' : 'down'} text-lg`} />
               {props.isModelSettingsCollapsed ? (
-                <span className="text-xs max-w-[5.5rem] sm:max-w-none truncate">{props.model}</span>
+                <span className="text-xs max-w-[3.5rem] sm:max-w-none truncate">{props.model}</span>
               ) : (
                 <span />
               )}
             </IconButton>
           </div>
-          <div className="flex gap-1.5 items-center shrink-0 ml-auto">
+          <div className="flex gap-1.5 items-center shrink-0">
             {/* 대화 — 파일 없이 글로만 답변 */}
             <button
               type="button"
               title="파일을 만들지 않고 글로만 답합니다"
               disabled={props.input.trim().length === 0 || props.isStreaming}
               className={classNames(
-                'inline-flex items-center justify-center gap-1.5 h-7 px-5 min-w-[4.5rem] rounded-full text-xs font-semibold transition',
+                'inline-flex items-center justify-center gap-1.5 h-7 px-6 min-w-[5.5rem] rounded-full text-xs font-semibold transition',
                 props.input.trim().length === 0 || props.isStreaming
                   ? 'opacity-40 cursor-not-allowed bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent'
                   : 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent hover:opacity-90',
@@ -395,7 +395,7 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
               title="지금 적은 내용으로 앱을 만듭니다"
               disabled={props.input.trim().length === 0 || props.isStreaming}
               className={classNames(
-                'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-semibold transition',
+                'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-semibold whitespace-nowrap transition',
                 props.input.trim().length === 0 || props.isStreaming
                   ? 'opacity-40 cursor-not-allowed bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent'
                   : 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent hover:opacity-90',
@@ -411,7 +411,7 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
                 props.handleSendMessage?.(event, buildSpec(raw));
               }}
             >
-              앱생성 3D AUTO
+              앱생성 3D<span className="hidden sm:inline"> AUTO</span>
             </button>
           </div>
           <ExpoQrModal open={props.qrModalOpen} onClose={() => props.setQrModalOpen(false)} />
