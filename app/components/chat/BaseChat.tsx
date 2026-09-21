@@ -342,7 +342,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         data-chat-visible={showChat}
       >
         <ClientOnly>{() => <Menu />}</ClientOnly>
-        <div className="flex flex-col lg:flex-row overflow-y-auto w-full h-full">
+        <div className="flex flex-col lg:flex-row overflow-y-auto w-full h-full lg:pl-[340px]">
           <div
             className={classNames(
               styles.Chat,
@@ -351,52 +351,18 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           >
             {!chatStarted && (
               <div id="intro" className="mt-[14vh] max-w-2xl mx-auto text-center px-4 lg:px-0">
-                {/* 홈화면과 같은 로고 */}
-                <div className="flex items-center justify-center gap-3 mb-6 animate-fade-in">
-                  <svg width="44" height="44" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                      <linearGradient id="cf-grad" x1="3" y1="5" x2="27" y2="27">
-                        <stop offset="0%" stopColor="#5B6CFF" />
-                        <stop offset="55%" stopColor="#8B5CF6" />
-                        <stop offset="100%" stopColor="#7C5CFF" />
-                      </linearGradient>
-                      <linearGradient id="cf-grad2" x1="28" y1="7" x2="4" y2="25">
-                        <stop offset="0%" stopColor="#8B5CF6" />
-                        <stop offset="100%" stopColor="#10B981" />
-                      </linearGradient>
-                      <linearGradient id="cf-lens" x1="12" y1="12" x2="20" y2="20">
-                        <stop offset="0%" stopColor="#5B6CFF" stopOpacity="0.28" />
-                        <stop offset="100%" stopColor="#10B981" stopOpacity="0.32" />
-                      </linearGradient>
-                    </defs>
-                    <path
-                      d="M 12 12 C 14.2 13.2 17.8 13.2 20 12 C 21.2 14.5 21.2 17.5 20 20 C 17.8 18.8 14.2 18.8 12 20 C 10.8 17.5 10.8 14.5 12 12 Z"
-                      fill="url(#cf-lens)"
-                    />
-                    <path
-                      d="M 20 7.5 A 8.5 8.5 0 1 0 20 24.5 A 8.5 8.5 0 1 0 20 7.5"
-                      stroke="url(#cf-grad2)"
-                      strokeWidth="3.1"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="M 17.85 22.95 A 8.5 8.5 0 1 1 17.13 9.45"
-                      stroke="url(#cf-grad)"
-                      strokeWidth="3.1"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="M 17.13 9.45 L 19.8 11.2"
-                      stroke="#8B5CF6"
-                      strokeWidth="1.1"
-                      strokeLinecap="round"
-                      opacity="0.9"
-                    />
-                    <circle cx="16" cy="16" r="1.15" fill="#5B6CFF" opacity="0.9" />
-                  </svg>
-                  <span className="text-3xl lg:text-4xl font-bold tracking-tight text-bolt-elements-textPrimary">
-                    coverfo
-                  </span>
+                {/* 홈화면과 같은 로고 (Full 버전 이미지 사용) */}
+                <div className="flex items-center justify-center mb-6 animate-fade-in">
+                  <img
+                    src="/coverfo-logo.svg"
+                    alt="coverfo"
+                    className="h-10 lg:h-12 w-auto inline-block dark:hidden"
+                  />
+                  <img
+                    src="/coverfo-logo-dark.svg"
+                    alt="coverfo"
+                    className="h-10 lg:h-12 w-auto hidden dark:inline-block"
+                  />
                 </div>
                 <h1 className="text-2xl lg:text-4xl font-bold text-bolt-elements-textPrimary mb-4 animate-fade-in">
                   원하는 대로 바로 만들어 드립니다

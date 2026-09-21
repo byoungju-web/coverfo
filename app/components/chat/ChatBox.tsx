@@ -344,8 +344,8 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
               className={classNames(
                 'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-semibold transition',
                 props.input.trim().length === 0 || props.isStreaming
-                  ? 'opacity-40 cursor-not-allowed bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault'
-                  : 'bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault hover:bg-bolt-elements-item-backgroundActive',
+                  ? 'opacity-40 cursor-not-allowed bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent'
+                  : 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent hover:opacity-90',
               )}
               onClick={(event) => {
                 const raw = props.input.trim();
@@ -358,8 +358,7 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
                 props.handleSendMessage?.(event, raw);
               }}
             >
-              <div className="i-ph:chats text-base" />
-              대화
+              chat
             </button>
 
             {/* 앱 생성하기 — 채팅 화면에서 바로 실행 */}
@@ -370,7 +369,7 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
               className={classNames(
                 'ml-1 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-semibold transition',
                 props.input.trim().length === 0 || props.isStreaming
-                  ? 'opacity-40 cursor-not-allowed bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault'
+                  ? 'opacity-40 cursor-not-allowed bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent'
                   : 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent hover:opacity-90',
               )}
               onClick={(event) => {
@@ -384,8 +383,7 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
                 props.handleSendMessage?.(event, buildSpec(raw));
               }}
             >
-              <div className="i-ph:rocket-launch text-base" />앱 생성
-              <span className="px-1.5 py-px rounded-full bg-white/25 text-[9px] tracking-wide">AUTO</span>
+              앱생성 3D AUTO
             </button>
             <IconButton
               title="Model Settings"

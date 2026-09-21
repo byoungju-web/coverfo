@@ -270,7 +270,7 @@ const ActionList = memo(({ actions }: ActionListProps) => {
       <div className="mb-4">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-sm font-semibold text-bolt-elements-textPrimary">
-            {failed ? '문제가 생겼어요' : doneCount === total ? '다 만들었어요! 🎉' : '만드는 중이에요...'}
+            {failed ? '문제가 생겼어요' : doneCount === total ? '다 만들었어요!' : '만드는 중이에요...'}
           </span>
           <span className="text-xs text-bolt-elements-textSecondary tabular-nums">
             {doneCount} / {total} 단계
@@ -304,7 +304,7 @@ const ActionList = memo(({ actions }: ActionListProps) => {
               variants={actionVariants}
               initial="hidden"
               animate="visible"
-              transition={{ duration: 0.2, ease: cubicEasingFn }}
+              transition={{ duration: 0.3, ease: cubicEasingFn, delay: index * 0.25 }}
             >
               <div
                 className={classNames(
