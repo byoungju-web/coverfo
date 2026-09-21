@@ -59,6 +59,7 @@ export const EditorPanel = memo(
 
     const theme = useStore(themeStore);
     const showTerminal = useStore(workbenchStore.showTerminal);
+
     // 만든 파일 목록 패널: 기본은 숨겨서 화면을 꽉 차게 쓰고, 필요할 때만 눌러서 펼칩니다
     const [showFileList, setShowFileList] = useState(false);
 
@@ -85,12 +86,7 @@ export const EditorPanel = memo(
           <PanelGroup direction="horizontal">
             {showFileList && (
               <>
-                <Panel
-                  defaultSize={26}
-                  minSize={18}
-                  collapsible
-                  className="border-r border-bolt-elements-borderColor"
-                >
+                <Panel defaultSize={26} minSize={18} collapsible className="border-r border-bolt-elements-borderColor">
                   <div className="h-full flex flex-col">
                     <PanelHeader className="w-full text-sm font-medium text-bolt-elements-textSecondary px-3">
                       <span className="text-bolt-elements-textPrimary">만든 파일</span>
