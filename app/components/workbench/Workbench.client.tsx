@@ -54,13 +54,18 @@ const workbenchVariants = {
       ease: cubicEasingFn,
     },
   },
-  open: {
-    width: 'var(--workbench-width)',
+
+  /*
+   * 데스크탑에서 왼쪽 대화 목록(340px)이 항상 열려 있을 때는
+   * 채팅칸이 가려지지 않도록 작업 화면 폭을 채팅칸 오른쪽 나머지로 맞춥니다.
+   */
+  open: (withFixedSidebar: boolean) => ({
+    width: withFixedSidebar ? 'calc(100% - var(--chat-min-width))' : 'var(--workbench-width)',
     transition: {
       duration: 0.2,
       ease: cubicEasingFn,
     },
-  },
+  }),
 } satisfies Variants;
 
 export const Workbench = memo(
@@ -88,6 +93,9 @@ export const Workbench = memo(
     const canHideChat = showWorkbench || !showChat;
 
     const isSmallViewport = useViewport(1024);
+
+    // 데스크탑에서 대화 목록(사이드바)이 고정으로 열려 있고 채팅칸이 보이는 상태
+    const withFixedSidebar = !isSmallViewport && showChat;
 
     const setSelectedView = (view: WorkbenchViewType) => {
       workbenchStore.currentView.set(view);
@@ -180,18 +188,30 @@ export const Workbench = memo(
           initial="closed"
           animate={showWorkbench ? 'open' : 'closed'}
           variants={workbenchVariants}
+          custom={withFixedSidebar}
           className="z-workbench"
         >
           <div
             className={classNames(
-              'fixed top-[calc(var(--header-height)+1.2rem)] bottom-6 w-[var(--workbench-inner-width)] z-0 transition-[left,width] duration-200 bolt-ease-cubic-bezier',
+              'fixed w-[var(--workbench-inner-width)] z-0 transition-[left,width] duration-200 bolt-ease-cubic-bezier',
               {
+                /* 휴대폰: 헤더 바로 아래부터 화면 끝까지 덮어서 뒤의 채팅 내용이 안 보이게 합니다 */
+                'top-[var(--header-height)] bottom-0 bg-bolt-elements-background-depth-1': isSmallViewport,
+                'top-[calc(var(--header-height)+1.2rem)] bottom-6': !isSmallViewport,
                 'w-full': isSmallViewport,
                 'left-0': showWorkbench && isSmallViewport,
-                'left-[var(--workbench-left)]': showWorkbench,
+                'left-[var(--workbench-left)]': showWorkbench && !withFixedSidebar,
                 'left-[100%]': !showWorkbench,
               },
             )}
+            style={
+              showWorkbench && withFixedSidebar
+                ? {
+                    left: 'calc(340px + var(--chat-min-width))',
+                    width: 'calc(100% - 340px - var(--chat-min-width))',
+                  }
+                : undefined
+            }
           >
             <div className="absolute inset-0 px-2 lg:px-4">
               <div className="h-full flex flex-col bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor shadow-sm rounded-lg overflow-hidden">
