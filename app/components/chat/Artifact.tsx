@@ -516,6 +516,16 @@ const ActionList = memo(({ actions }: ActionListProps) => {
           onClick={() => {
             workbenchStore.showWorkbench.set(true);
             workbenchStore.currentView.set('code');
+
+            /* 코드 화면은 index.html 을 먼저 보여 줍니다 (없으면 지금 선택된 파일 그대로) */
+            const allFiles = workbenchStore.files.get();
+            const indexPath = Object.keys(allFiles)
+              .filter((p) => allFiles[p]?.type === 'file' && p.endsWith('/index.html'))
+              .sort((x, y) => x.length - y.length)[0];
+
+            if (indexPath) {
+              workbenchStore.setSelectedFile(indexPath);
+            }
           }}
         >
           🖥️ 코드 보기
