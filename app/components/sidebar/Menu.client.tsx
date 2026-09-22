@@ -4,7 +4,6 @@ import { toast } from 'react-toastify';
 import { Dialog, DialogButton, DialogDescription, DialogRoot, DialogTitle } from '~/components/ui/Dialog';
 import { ThemeSwitch } from '~/components/ui/ThemeSwitch';
 import { ControlPanel } from '~/components/@settings/core/ControlPanel';
-import { SettingsButton } from '~/components/ui/SettingsButton';
 import { Button } from '~/components/ui/Button';
 import { db, deleteById, getAll, chatId, type ChatHistoryItem, useChatHistory } from '~/lib/persistence';
 import { cubicEasingFn } from '~/utils/easings';
@@ -33,6 +32,17 @@ const menuVariants = {
     },
   },
 } satisfies Variants;
+
+/* 사이드바 '답변 언어' 선택지 (값은 Chat.client 의 ANSWER_LANG_NAMES 와 같아야 합니다) */
+const ANSWER_LANG_KEY = 'cf-answer-lang';
+const ANSWER_LANGS = [
+  { value: 'auto', label: '자동 (질문 언어)' },
+  { value: 'ko', label: '한국어' },
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: '日本語' },
+  { value: 'zh', label: '中文' },
+  { value: 'th', label: 'ไทย' },
+];
 
 type DialogContent =
   | { type: 'delete'; item: ChatHistoryItem }
@@ -73,6 +83,28 @@ export const Menu = () => {
 
   // 데스크탑(1024px 이상)에서는 사이드바를 항상 펼쳐 둡니다
   const [isDesktop, setIsDesktop] = useState(false);
+
+  // 사이드바 하단 '답변 언어' — AI 가 어떤 언어로 답할지 (채팅 전송 시 Chat.client 가 읽습니다)
+  const [answerLang, setAnswerLang] = useState<string>(() => {
+    try {
+      return (typeof window !== 'undefined' && window.localStorage.getItem(ANSWER_LANG_KEY)) || 'auto';
+    } catch {
+      return 'auto';
+    }
+  });
+
+  const handleAnswerLangChange = (value: string) => {
+    setAnswerLang(value);
+
+    try {
+      window.localStorage.setItem(ANSWER_LANG_KEY, value);
+    } catch {
+      // 저장이 안 되는 브라우저(사생활 보호 모드 등)에서는 이번 화면에서만 적용됩니다
+    }
+
+    const label = ANSWER_LANGS.find((l) => l.value === value)?.label || value;
+    toast.success(`답변 언어: ${label}`);
+  };
 
   const { filteredItems: filteredList, handleSearchChange } = useSearchFilter({
     items: list,
@@ -627,11 +659,40 @@ export const Menu = () => {
               </Dialog>
             </DialogRoot>
           </div>
-          <div className="flex items-center justify-between border-t border-gray-200 dark:border-gray-800 px-4 py-3">
-            <div className="flex items-center gap-3">
-              <SettingsButton onClick={handleSettingsClick} />
+          {/* 사이드바 하단 메뉴: 설정 · 답변 언어 · 화면 모드 */}
+          <div className="border-t border-gray-200 dark:border-gray-800 px-3 py-2 space-y-0.5 text-sm text-gray-700 dark:text-gray-300">
+            <button
+              type="button"
+              onClick={handleSettingsClick}
+              className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              <span className="i-ph:gear-six h-4 w-4 shrink-0" />
+              <span>설정</span>
+              <span className="ml-auto text-xs text-gray-400">API 키 · 모델</span>
+            </button>
+            <label className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer">
+              <span className="i-ph:globe h-4 w-4 shrink-0" />
+              <span>답변 언어</span>
+              <select
+                value={answerLang}
+                onChange={(event) => handleAnswerLangChange(event.target.value)}
+                className="ml-auto bg-transparent text-xs text-gray-600 dark:text-gray-300 focus:outline-none cursor-pointer"
+                aria-label="답변 언어"
+              >
+                {ANSWER_LANGS.map((l) => (
+                  <option key={l.value} value={l.value}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2">
+              <span className="i-ph:moon h-4 w-4 shrink-0" />
+              <span>화면 모드</span>
+              <div className="ml-auto">
+                <ThemeSwitch />
+              </div>
             </div>
-            <ThemeSwitch />
           </div>
         </div>
       </motion.div>
