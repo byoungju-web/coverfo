@@ -1,4 +1,4 @@
-import type { Message } from 'ai';
+import type { ChatRequestOptions, Message } from 'ai';
 import { Fragment } from 'react';
 import { classNames } from '~/utils/classNames';
 import { AssistantMessage } from './AssistantMessage';
@@ -12,7 +12,7 @@ interface MessagesProps {
   className?: string;
   isStreaming?: boolean;
   messages?: Message[];
-  append?: (message: Message) => void;
+  append?: (message: Message, options?: ChatRequestOptions) => void;
   chatMode?: 'discuss' | 'build';
   setChatMode?: (mode: 'discuss' | 'build') => void;
   model?: string;
@@ -85,7 +85,7 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
     const { id, isStreaming = false, messages = [] } = props;
 
     const safeAppend = props.append
-      ? (message: Message) => {
+      ? (message: Message, options?: ChatRequestOptions) => {
           const text = toPlainText((message as any)?.content);
 
           if (!text.trim()) {
@@ -93,13 +93,16 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
           }
 
           /* 일반 전송과 같은 형태(parts 포함)로 보냅니다 */
-          props.append?.({
-            ...message,
-            id: message?.id || `msg-${Date.now()}`,
-            role: message?.role || 'user',
-            content: text,
-            parts: [{ type: 'text', text }],
-          });
+          props.append?.(
+            {
+              ...message,
+              id: message?.id || `msg-${Date.now()}`,
+              role: message?.role || 'user',
+              content: text,
+              parts: [{ type: 'text', text }],
+            },
+            options,
+          );
         }
       : undefined;
 

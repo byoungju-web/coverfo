@@ -1,11 +1,11 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useRef } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import type { BundledLanguage } from 'shiki';
 import { createScopedLogger } from '~/utils/logger';
 import { rehypePlugins, remarkPlugins, allowedHTMLElements } from '~/utils/markdown';
 import { Artifact, openArtifactInWorkbench } from './Artifact';
 import { CodeBlock } from './CodeBlock';
-import type { Message } from 'ai';
+import type { ChatRequestOptions, Message } from 'ai';
 import styles from './Markdown.module.scss';
 import ThoughtBox from './ThoughtBox';
 import type { ProviderInfo } from '~/types/model';
@@ -16,7 +16,7 @@ interface MarkdownProps {
   children: string;
   html?: boolean;
   limitedMarkdown?: boolean;
-  append?: (message: Message) => void;
+  append?: (message: Message, options?: ChatRequestOptions) => void;
   chatMode?: 'discuss' | 'build';
   setChatMode?: (mode: 'discuss' | 'build') => void;
   model?: string;
@@ -27,7 +27,20 @@ export const Markdown = memo(
   ({ children, html = false, limitedMarkdown = false, append, setChatMode, model, provider }: MarkdownProps) => {
     logger.trace('Render');
 
-    /* 추천 버튼이 처음 화면의 값에 묶이지 않고 항상 최신 전송 기능·모델을 쓰도록 합니다 */
+    /*
+     * 화면 부품 목록(components)은 한 번만 만들고 계속 같은 것을 씁니다.
+     * 이 목록이 새로 만들어지면 만드는 과정 카드가 글자가 올 때마다 통째로 다시 그려져 화면이 떨립니다.
+     * 추천 버튼은 아래 ref 로 항상 최신 전송 기능·모델 값을 읽습니다.
+     */
+    const appendRef = useRef(append);
+    const setChatModeRef = useRef(setChatMode);
+    const modelRef = useRef(model);
+    const providerRef = useRef(provider);
+    appendRef.current = append;
+    setChatModeRef.current = setChatMode;
+    modelRef.current = model;
+    providerRef.current = provider;
+
     const components = useMemo(() => {
       return {
         div: ({ className, children, node, ...props }) => {
@@ -147,32 +160,45 @@ export const Markdown = memo(
                 data-path={path}
                 data-href={href}
                 onClick={() => {
+                  const curAppend = appendRef.current;
+                  const curSetChatMode = setChatModeRef.current;
+                  const curModel = modelRef.current;
+                  const curProvider = providerRef.current;
+
                   if (type === 'file') {
                     openArtifactInWorkbench(path);
-                  } else if (type === 'message' && append) {
-                    append({
-                      id: `quick-action-message-${Date.now()}`,
-                      content: [
-                        {
-                          type: 'text',
-                          text: `[Model: ${model}]\n\n[Provider: ${provider?.name}]\n\n${message}`,
-                        },
-                      ] as any,
-                      role: 'user',
-                    });
+                  } else if (type === 'message' && curAppend) {
+                    /* 추천 질문은 앱 생성이 아니라 chat(설명) 으로 보냅니다 */
+                    curSetChatMode?.('discuss');
+                    curAppend(
+                      {
+                        id: `quick-action-message-${Date.now()}`,
+                        content: [
+                          {
+                            type: 'text',
+                            text: `[Model: ${curModel}]\n\n[Provider: ${curProvider?.name}]\n\n${message}`,
+                          },
+                        ] as any,
+                        role: 'user',
+                      },
+                      { body: { chatMode: 'discuss' } },
+                    );
                     console.log('Message appended:', message);
-                  } else if (type === 'implement' && append && setChatMode) {
-                    setChatMode('build');
-                    append({
-                      id: `quick-action-implement-${Date.now()}`,
-                      content: [
-                        {
-                          type: 'text',
-                          text: `[Model: ${model}]\n\n[Provider: ${provider?.name}]\n\n${message}`,
-                        },
-                      ] as any,
-                      role: 'user',
-                    });
+                  } else if (type === 'implement' && curAppend && curSetChatMode) {
+                    curSetChatMode('build');
+                    curAppend(
+                      {
+                        id: `quick-action-implement-${Date.now()}`,
+                        content: [
+                          {
+                            type: 'text',
+                            text: `[Model: ${curModel}]\n\n[Provider: ${curProvider?.name}]\n\n${message}`,
+                          },
+                        ] as any,
+                        role: 'user',
+                      },
+                      { body: { chatMode: 'build' } },
+                    );
                   } else if (type === 'link' && typeof href === 'string') {
                     try {
                       const url = new URL(href, window.location.origin);
@@ -192,7 +218,7 @@ export const Markdown = memo(
           return <button {...props}>{children}</button>;
         },
       } satisfies Components;
-    }, [append, setChatMode, model, provider]);
+    }, []);
 
     return (
       <ReactMarkdown
