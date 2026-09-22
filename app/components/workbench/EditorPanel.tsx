@@ -86,7 +86,13 @@ export const EditorPanel = memo(
           <PanelGroup direction="horizontal">
             {showFileList && (
               <>
-                <Panel defaultSize={26} minSize={18} collapsible className="border-r border-bolt-elements-borderColor">
+                <Panel
+                  id="cf-file-list"
+                  order={1}
+                  defaultSize={30}
+                  minSize={18}
+                  className="border-r border-bolt-elements-borderColor"
+                >
                   <div className="h-full flex flex-col">
                     <PanelHeader className="w-full text-sm font-medium text-bolt-elements-textSecondary px-3">
                       <span className="text-bolt-elements-textPrimary">만든 파일</span>
@@ -119,7 +125,17 @@ export const EditorPanel = memo(
                 <PanelResizeHandle />
               </>
             )}
-            <Panel className="flex flex-col" defaultSize={showFileList ? 80 : 100} minSize={20}>
+            {/*
+             * 파일 목록 칸은 열고 닫을 때마다 새로 생겼다 사라집니다.
+             * 이렇게 칸이 생겼다 사라지는 경우 id·order 를 꼭 붙여야 폭이 0 으로 접히지 않습니다.
+             */}
+            <Panel
+              id="cf-editor"
+              order={2}
+              className="flex flex-col"
+              defaultSize={showFileList ? 70 : 100}
+              minSize={20}
+            >
               <PanelHeader className="overflow-x-auto shrink-0">
                 {!showFileList && (
                   <button

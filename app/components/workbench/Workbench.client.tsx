@@ -90,7 +90,6 @@ export const Workbench = memo(
     const files = useStore(workbenchStore.files);
     const selectedView = useStore(workbenchStore.currentView);
     const { showChat } = useStore(chatStore);
-    const canHideChat = showWorkbench || !showChat;
 
     const isSmallViewport = useViewport(1024);
 
@@ -216,12 +215,25 @@ export const Workbench = memo(
             <div className="absolute inset-0 px-2 lg:px-4">
               <div className="h-full flex flex-col bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor shadow-sm rounded-lg overflow-hidden">
                 <div className="flex items-center px-3 py-2 border-b border-bolt-elements-borderColor gap-1.5">
+                  {/*
+                   * 예전에는 이 버튼이 채팅칸을 숨겨서 코드 화면이 채팅을 가렸습니다.
+                   * 이제는 채팅은 그대로 두고, "코드 보기" 와 똑같이 코드 화면(index.html 먼저)을 엽니다.
+                   */}
                   <button
-                    className={`${showChat ? 'i-ph:sidebar-simple-fill' : 'i-ph:sidebar-simple'} text-lg text-bolt-elements-textSecondary mr-1`}
-                    disabled={!canHideChat || isSmallViewport}
+                    type="button"
+                    title="코드 보기"
+                    className="i-ph:code-bold text-lg text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary mr-1"
                     onClick={() => {
-                      if (canHideChat) {
-                        chatStore.setKey('showChat', !showChat);
+                      chatStore.setKey('showChat', true);
+                      workbenchStore.currentView.set('code');
+
+                      const allFiles = workbenchStore.files.get();
+                      const indexPath = Object.keys(allFiles)
+                        .filter((p) => allFiles[p]?.type === 'file' && p.endsWith('/index.html'))
+                        .sort((x, y) => x.length - y.length)[0];
+
+                      if (indexPath) {
+                        workbenchStore.setSelectedFile(indexPath);
                       }
                     }}
                   />
