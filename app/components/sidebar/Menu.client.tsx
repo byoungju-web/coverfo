@@ -93,6 +93,21 @@ export const Menu = () => {
     }
   });
 
+  // 홈화면 사이드바의 '설정' 은 /chat?settings=1 로 들어옵니다 → 설정 창을 바로 엽니다
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+
+      if (url.searchParams.get('settings') === '1') {
+        setIsSettingsOpen(true);
+        url.searchParams.delete('settings');
+        window.history.replaceState(window.history.state, '', url.toString());
+      }
+    } catch {
+      // 주소를 읽지 못하면 아무것도 하지 않습니다
+    }
+  }, []);
+
   const handleAnswerLangChange = (value: string) => {
     setAnswerLang(value);
 
@@ -460,7 +475,7 @@ export const Menu = () => {
         initial="closed"
         animate={open ? 'open' : 'closed'}
         variants={menuVariants}
-        style={{ width: '340px' }}
+        style={{ width: '340px', height: '100dvh' }}
         className={classNames(
           'flex selection-accent flex-col side-menu fixed top-0 h-full rounded-r-2xl',
           'bg-white dark:bg-gray-950 border-r border-bolt-elements-borderColor',
@@ -686,6 +701,14 @@ export const Menu = () => {
                 ))}
               </select>
             </label>
+            <a
+              href="/pricing"
+              className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              <span className="i-ph:credit-card h-4 w-4 shrink-0" />
+              <span>이용료 · 요금제</span>
+              <span className="ml-auto i-ph:caret-right h-3.5 w-3.5 text-gray-400" />
+            </a>
             <div className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2">
               <span className="i-ph:moon h-4 w-4 shrink-0" />
               <span>화면 모드</span>
