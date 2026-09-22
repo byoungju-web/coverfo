@@ -2,6 +2,7 @@ import type { Message } from 'ai';
 import { createScopedLogger } from '~/utils/logger';
 import type { ChatHistoryItem } from './useChatHistory';
 import type { Snapshot } from './types'; // Import Snapshot type
+import { markCloudDeleted, newCloudKey, scheduleCloudPush, type CloudChatRecord } from './cloudSync';
 
 export interface IChatMetadata {
   gitUrl: string;
@@ -80,17 +81,37 @@ export async function setMessages(
       return;
     }
 
-    const request = store.put({
-      id,
-      messages,
-      urlId,
-      description,
-      timestamp: timestamp ?? new Date().toISOString(),
-      metadata,
-    });
+    /*
+     * 기기 간 연동용 표시(cloudKey·cloudSyncedAt)는 저장할 때마다 그대로 이어받습니다.
+     * 처음 저장되는 대화에는 새 cloudKey 를 붙입니다.
+     */
+    const getRequest = store.get(id);
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+    getRequest.onsuccess = () => {
+      const existing = getRequest.result as CloudChatRecord | undefined;
+      const record: CloudChatRecord = {
+        id,
+        messages,
+        urlId,
+        description,
+        timestamp: timestamp ?? new Date().toISOString(),
+        metadata,
+        cloudKey: existing?.cloudKey || newCloudKey(),
+        cloudSyncedAt: existing?.cloudSyncedAt,
+      };
+
+      const request = store.put(record);
+
+      request.onsuccess = () => {
+        resolve();
+
+        // 로그인한 경우 Supabase 에도 올립니다 (3초 모아서 한 번)
+        scheduleCloudPush(db, record);
+      };
+      request.onerror = () => reject(request.error);
+    };
+
+    getRequest.onerror = () => reject(getRequest.error);
   });
 }
 
@@ -122,6 +143,20 @@ export async function getMessagesById(db: IDBDatabase, id: string): Promise<Chat
 }
 
 export async function deleteById(db: IDBDatabase, id: string): Promise<void> {
+  // 다른 기기에서도 지워지도록 지우기 전에 연동 표시(cloudKey)를 읽어 둡니다
+  let cloudKey: string | undefined;
+
+  try {
+    cloudKey = ((await getMessagesById(db, id)) as unknown as CloudChatRecord | undefined)?.cloudKey;
+  } catch {
+    cloudKey = undefined;
+  }
+
+  await deleteLocalChat(db, id);
+  markCloudDeleted(cloudKey);
+}
+
+async function deleteLocalChat(db: IDBDatabase, id: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(['chats', 'snapshots'], 'readwrite'); // Add snapshots store to transaction
     const chatStore = transaction.objectStore('chats');
