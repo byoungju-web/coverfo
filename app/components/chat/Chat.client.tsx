@@ -33,6 +33,27 @@ import { tryTemplateRoute } from '~/lib/agents/templateRoute';
 
 const logger = createScopedLogger('Chat');
 
+/* 사이드바 '답변 언어' (Menu.client 의 ANSWER_LANGS 와 같은 값) */
+const CF_SPEC_MARKER = '<<coverfo-spec>>';
+const ANSWER_LANG_NAMES: Record<string, string> = {
+  ko: '한국어',
+  en: 'English',
+  ja: '日本語',
+  zh: '中文(简体)',
+  th: 'ภาษาไทย',
+};
+
+function getAnswerLangInstruction(): string {
+  try {
+    const value = window.localStorage.getItem('cf-answer-lang') || 'auto';
+    const name = ANSWER_LANG_NAMES[value];
+
+    return name ? `[답변 언어] 설명과 답변은 반드시 ${name}(으)로 작성하세요.` : '';
+  } catch {
+    return '';
+  }
+}
+
 export function Chat() {
   renderLogger.trace('Chat');
 
@@ -448,6 +469,15 @@ export const ChatImpl = memo(
 
         const elementInfo = `<div class=\"__boltSelectedElement__\" data-element='${JSON.stringify(selectedElement)}'>${JSON.stringify(`${selectedElement.displayText}`)}</div>`;
         finalMessageContent = messageContent + elementInfo;
+      }
+
+      /* 사이드바 '답변 언어' 설정: 화면에 안 보이는 지시문 부분에 답변 언어를 붙입니다 */
+      const answerLangInstruction = getAnswerLangInstruction();
+
+      if (answerLangInstruction) {
+        finalMessageContent += finalMessageContent.includes(CF_SPEC_MARKER)
+          ? `\n${answerLangInstruction}`
+          : `\n\n${CF_SPEC_MARKER}\n${answerLangInstruction}`;
       }
 
       runAnimation();
