@@ -6,6 +6,7 @@ import { ThemeSwitch } from '~/components/ui/ThemeSwitch';
 import { ControlPanel } from '~/components/@settings/core/ControlPanel';
 import { Button } from '~/components/ui/Button';
 import { db, deleteById, getAll, chatId, type ChatHistoryItem, useChatHistory } from '~/lib/persistence';
+import { syncChatsFromCloud } from '~/lib/persistence/cloudSync';
 import { cubicEasingFn } from '~/utils/easings';
 import { HistoryItem } from './HistoryItem';
 import { binDates } from './date-binning';
@@ -312,6 +313,55 @@ export const Menu = () => {
     if (open) {
       loadEntries();
     }
+  }, [open, loadEntries]);
+
+  /*
+   * 기기 간 대화 목록 연동: 사이드바가 열릴 때, 그리고 이 화면으로 다시 돌아왔을 때(15초에 한 번까지)
+   * Supabase 에서 다른 기기의 대화를 받아와 목록을 새로 그립니다. 로그인하지 않았으면 아무 일도 하지 않습니다.
+   */
+  useEffect(() => {
+    const database = db;
+
+    if (!database || typeof window === 'undefined') {
+      return undefined;
+    }
+
+    let lastRun = 0;
+    let cancelled = false;
+
+    const runSync = () => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+
+      const now = Date.now();
+
+      if (now - lastRun < 15000) {
+        return;
+      }
+
+      lastRun = now;
+      syncChatsFromCloud(database)
+        .then((changed) => {
+          if (changed && !cancelled) {
+            loadEntries();
+          }
+        })
+        .catch(() => undefined);
+    };
+
+    if (open) {
+      runSync();
+    }
+
+    window.addEventListener('focus', runSync);
+    document.addEventListener('visibilitychange', runSync);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', runSync);
+      document.removeEventListener('visibilitychange', runSync);
+    };
   }, [open, loadEntries]);
 
   // Exit selection mode when sidebar is closed
