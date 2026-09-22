@@ -23,6 +23,7 @@ import type { ProgressAnnotation } from '~/types/context';
 import { SupabaseChatAlert } from '~/components/chat/SupabaseAlert';
 import { expoUrlAtom } from '~/lib/stores/qrCodeStore';
 import { useStore } from '@nanostores/react';
+import { workbenchStore } from '~/lib/stores/workbench';
 import { StickToBottom } from '~/lib/hooks';
 import { ChatBox } from './ChatBox';
 import type { DesignScheme } from '~/types/design-scheme';
@@ -139,6 +140,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [isModelLoading, setIsModelLoading] = useState<string | undefined>('all');
     const [, setProgressAnnotations] = useState<ProgressAnnotation[]>([]);
     const expoUrl = useStore(expoUrlAtom);
+
+    // 결과·코드 화면이 열려 있는지 (데스크탑에서 채팅칸 폭을 고정하는 데 씁니다)
+    const showWorkbench = useStore(workbenchStore.showWorkbench);
     const [qrModalOpen, setQrModalOpen] = useState(false);
 
     useEffect(() => {
@@ -386,6 +390,11 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             className={classNames(
               styles.Chat,
               'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] min-h-full lg:h-full',
+              {
+                /* 데스크탑: 결과·코드 화면이 열리면 채팅칸은 정해진 폭만 쓰고 나머지는 결과 화면에 줍니다 */
+                'lg:flex-none lg:w-[var(--chat-min-width)] lg:max-w-[var(--chat-min-width)]':
+                  showWorkbench && chatStarted,
+              },
             )}
           >
             {!chatStarted && (

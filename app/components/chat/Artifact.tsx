@@ -169,7 +169,7 @@ function friendlyLabel(action: ActionState): { icon: string; title: string; desc
     }
 
     if (f.endsWith('index.html')) {
-      return { icon: '📄', title: '화면 뼈대 만드는 중', desc: '사람들이 보게 될 페이지를 만들고 있어요' };
+      return { icon: '📄', title: '화면 만드는 중', desc: '사람들이 보게 될 페이지를 만들고 있어요' };
     }
 
     if (f.endsWith('.css')) {
@@ -242,8 +242,33 @@ function statusText(status: ActionState['status']) {
 
 const REVEAL_INTERVAL_MS = 1500;
 
+/*
+ * 한 단계(특히 첫 화면 파일)가 오래 걸릴 때 지루하지 않도록
+ * 지금 무엇을 하고 있는지 몇 초마다 바꿔 가며 보여 줍니다.
+ */
+const WORKING_MESSAGES = [
+  '화면의 전체 구성을 잡고 있어요',
+  '색상과 글꼴을 고르고 있어요',
+  '그림과 모양을 그리는 코드를 쓰고 있어요',
+  '빛과 그림자 같은 세부 효과를 넣고 있어요',
+  '움직임과 반응을 더하고 있어요',
+  '빠진 곳이 없는지 꼼꼼히 다듬고 있어요',
+];
+const WORKING_MESSAGE_INTERVAL_SEC = 5;
+
+function formatElapsed(sec: number) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 const ActionList = memo(({ actions }: ActionListProps) => {
   const [stuckSeconds, setStuckSeconds] = useState(0);
+  const isStreaming = useStore(streamingState);
+
+  /* 지금 단계를 시작한 뒤 흐른 시간(초) — 진행 중 안내 문구를 바꾸는 데 씁니다 */
+  const [stepSeconds, setStepSeconds] = useState(0);
 
   /* 단계를 한 번에 다 보여 주지 않고, 일정 간격으로 하나씩 차례대로 보여 줍니다 */
   const [revealedCount, setRevealedCount] = useState(1);
@@ -288,6 +313,26 @@ const ActionList = memo(({ actions }: ActionListProps) => {
 
     return () => clearInterval(t);
   }, [stillWorking, doneCount]);
+
+  useEffect(() => {
+    setStepSeconds(0);
+
+    if (!stillWorking) {
+      return undefined;
+    }
+
+    const t = setInterval(() => {
+      setStepSeconds((v) => v + 1);
+    }, 1000);
+
+    return () => clearInterval(t);
+  }, [stillWorking, realDoneCount]);
+
+  /* 파일을 쓰는 중(AI 가 아직 답을 보내는 중)에는 "멈춘 것 같다" 는 경고를 띄우지 않습니다 */
+  const showStuckWarning = stuckSeconds >= 150 && !isStreaming;
+
+  const workingMessage =
+    WORKING_MESSAGES[Math.floor(stepSeconds / WORKING_MESSAGE_INTERVAL_SEC) % WORKING_MESSAGES.length];
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
@@ -387,6 +432,30 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                   {info.desc && (
                     <div className="text-xs text-bolt-elements-textSecondary mt-0.5 break-words">{info.desc}</div>
                   )}
+                  {/* 진행 중인 파일 단계: 지금 하는 일을 몇 초마다 바꿔 보여 주고, 다음 단계도 미리 알려 줍니다 */}
+                  {isRunning && isStreaming && type === 'file' && (
+                    <div className="mt-2 rounded-md bg-bolt-elements-background-depth-2 px-2.5 py-2">
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <motion.span
+                          key={workingMessage}
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="text-bolt-elements-textPrimary"
+                        >
+                          ✍️ {workingMessage}
+                        </motion.span>
+                        <span className="shrink-0 tabular-nums text-bolt-elements-textTertiary">
+                          {formatElapsed(stepSeconds)}
+                        </span>
+                      </div>
+                      {index === visibleActions.length - 1 && visibleActions.length === total && (
+                        <div className="mt-1.5 text-[11px] text-bolt-elements-textTertiary leading-relaxed">
+                          보통 이어지는 단계: ⚙️ 동작 코드 만들기 → 🚀 화면 띄우기 → 🚀 앱 켜기
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {type === 'file' && (action as any).filePath && (
                     <code
                       className="inline-block mt-1 text-[11px] text-bolt-elements-textTertiary hover:underline cursor-pointer break-all"
@@ -406,16 +475,16 @@ const ActionList = memo(({ actions }: ActionListProps) => {
       {stuckSeconds >= 60 && stillWorking && (
         <div className="mt-3 rounded-lg border border-amber-300/50 bg-amber-50/60 dark:bg-amber-500/10 px-3.5 py-3">
           <div className="text-sm font-semibold text-amber-700 dark:text-amber-400">
-            {stuckSeconds >= 150 ? '⚠️ 생각보다 오래 걸리고 있어요' : '⏳ 조금 더 걸리고 있어요'}
+            {showStuckWarning ? '⚠️ 생각보다 오래 걸리고 있어요' : '⏳ 조금 더 걸리고 있어요'}
           </div>
           <div className="text-xs text-amber-700/80 dark:text-amber-300/80 mt-1 leading-relaxed">
-            {stuckSeconds >= 150 ? (
+            {showStuckWarning ? (
               <>
                 이 단계에서 멈춘 것 같습니다. 아래 입력칸에{' '}
                 <b>&ldquo;설치 없이 index.html 한 파일로만 다시 만들어줘&rdquo;</b> 라고 적어 보내 주세요.
               </>
             ) : (
-              <>부품을 받아오는 중입니다. 보통 1~2분 정도 걸려요. 화면을 닫지 말고 기다려 주세요.</>
+              <>파일을 생성하는 중입니다. 보통 1~2분 정도 걸려요. 화면을 닫지 말고 기다려 주세요.</>
             )}
           </div>
         </div>

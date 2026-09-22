@@ -370,10 +370,15 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
               title="파일을 만들지 않고 글로만 답합니다"
               disabled={props.input.trim().length === 0 || props.isStreaming}
               className={classNames(
-                'inline-flex items-center justify-center gap-1.5 h-7 px-6 min-w-[5.5rem] rounded-full text-xs font-semibold transition',
+                'inline-flex items-center justify-center h-7 px-5 min-w-[5.5rem] rounded-full text-xs font-semibold tracking-[0.35em] transition active:scale-95',
+
+                /* 지금 선택된 모드(chat)는 진한 색으로 보여서 무엇을 눌렀는지 알 수 있게 합니다 */
+                props.chatMode === 'discuss'
+                  ? 'bg-accent-500 text-white'
+                  : 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent',
                 props.input.trim().length === 0 || props.isStreaming
-                  ? 'opacity-40 cursor-not-allowed bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent'
-                  : 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent hover:opacity-90',
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'hover:opacity-90',
               )}
               onClick={(event) => {
                 const raw = props.input.trim();
@@ -395,10 +400,15 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
               title="지금 적은 내용으로 앱을 만듭니다"
               disabled={props.input.trim().length === 0 || props.isStreaming}
               className={classNames(
-                'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-semibold whitespace-nowrap transition',
+                'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-semibold whitespace-nowrap transition active:scale-95',
+
+                /* 지금 선택된 모드(앱생성)는 진한 색으로 보여서 무엇을 눌렀는지 알 수 있게 합니다 */
+                props.chatMode === 'build'
+                  ? 'bg-accent-500 text-white'
+                  : 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent',
                 props.input.trim().length === 0 || props.isStreaming
-                  ? 'opacity-40 cursor-not-allowed bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent'
-                  : 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent hover:opacity-90',
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'hover:opacity-90',
               )}
               onClick={(event) => {
                 const raw = props.input.trim();
