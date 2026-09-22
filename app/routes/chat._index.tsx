@@ -15,7 +15,8 @@ export const loader = () => json({});
  * - 화면이 좌우로 흔들리지 않게 페이지와 채팅 스크롤 영역의 가로 이동을 막습니다
  *   (채팅 스크롤 영역 = 첫 번째 칸만. 입력칸 묶음에는 적용하지 않아야 입력칸이 잘리지 않습니다)
  * - 채팅 스크롤 영역의 오르내리는 스크롤 막대를 숨깁니다 (스크롤 자체는 그대로 됩니다)
- * - 데스크탑에서 결과/코드 화면을 열면 채팅칸을 380px 로 줄여 결과 화면이 가장 크게 보이게 합니다
+ * - 데스크탑에서 결과/코드 화면을 열면 사이드바를 뺀 나머지를 채팅칸과 결과 화면이 반반씩 씁니다
+ * - 스크롤 막대는 배경색과 비슷한 옅은 색으로 보여 눈에 잘 띄지 않게 합니다
  */
 const CHAT_PAGE_CSS = `
 html, body { overflow-x: hidden; overscroll-behavior-x: none; max-width: 100%; }
@@ -27,7 +28,13 @@ html, body { overflow-x: hidden; overscroll-behavior-x: none; max-width: 100%; }
   *::-webkit-scrollbar { display: none; width: 0; height: 0; }
 }
 @media (min-width: 1024px) {
-  html:root:root { --chat-min-width: 380px; }
+  html:root:root { --chat-min-width: calc((100vw - 340px) / 2); }
+  html:root * { scrollbar-width: thin; scrollbar-color: rgba(0, 0, 0, 0.07) transparent !important; }
+  html:root *::-webkit-scrollbar { width: 8px; height: 8px; }
+  html:root *::-webkit-scrollbar-track { background: transparent !important; }
+  html:root *::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.07) !important; border-radius: 8px; }
+  html:root[data-theme='dark'] * { scrollbar-color: rgba(255, 255, 255, 0.08) transparent !important; }
+  html:root[data-theme='dark'] *::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08) !important; }
 }
 `;
 
