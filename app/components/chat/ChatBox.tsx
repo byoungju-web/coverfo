@@ -7,7 +7,6 @@ import { APIKeyManager } from './APIKeyManager';
 import { LOCAL_PROVIDERS } from '~/lib/stores/settings';
 import FilePreview from './FilePreview';
 import { ScreenshotStateManager } from './ScreenshotStateManager';
-import { SendButton } from './SendButton.client';
 import { IconButton } from '~/components/ui/IconButton';
 import { SpeechRecognitionButton } from '~/components/chat/SpeechRecognition';
 import { ExpoQrModal } from '~/components/workbench/ExpoQrModal';
@@ -306,25 +305,18 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
           placeholder={props.chatMode === 'build' ? '무엇이든 시켜만 주세요!!' : '무엇이든 물어보세요'}
           translate="no"
         />
-        <ClientOnly>
-          {() => (
-            <SendButton
-              show={props.isStreaming}
-              isStreaming={props.isStreaming}
-              disabled={!props.providerList || props.providerList.length === 0}
-              onClick={(event) => {
-                if (props.isStreaming) {
-                  props.handleStop?.();
-                  return;
-                }
-
-                if (props.input.length > 0 || props.uploadedFiles.length > 0) {
-                  props.handleSendMessage?.(event);
-                }
-              }}
-            />
-          )}
-        </ClientOnly>
+        {/* 만드는 중에만 보이는 '중지' 버튼 — 누르면 AI 작업을 멈춥니다 */}
+        {props.isStreaming && (
+          <button
+            type="button"
+            title="만드는 중인 작업을 멈춥니다"
+            className="absolute top-[18px] right-[22px] h-[34px] px-3 flex items-center gap-1 rounded-md bg-accent-500 text-white text-sm font-semibold hover:brightness-95 active:brightness-90 transition"
+            onClick={() => props.handleStop?.()}
+          >
+            <span className="i-ph:stop-circle-bold text-lg" />
+            중지
+          </button>
+        )}
         <div className="flex flex-nowrap justify-between items-center gap-2 text-sm px-3 pb-1.5 pt-1">
           <div className="flex gap-0.5 sm:gap-1 items-center min-w-0 flex-1 overflow-hidden">
             <IconButton title="사진 첨부" className="transition-all" onClick={() => props.handleFileUpload()}>
@@ -374,11 +366,9 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
 
                 /* 지금 선택된 모드(chat)는 진한 색으로 보여서 무엇을 눌렀는지 알 수 있게 합니다 */
                 props.chatMode === 'discuss'
-                  ? 'bg-accent-500 text-white'
-                  : 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent',
-                props.input.trim().length === 0 || props.isStreaming
-                  ? 'opacity-50 cursor-not-allowed'
-                  : 'hover:opacity-90',
+                  ? 'bg-accent-500 text-white border border-accent-500 shadow-sm'
+                  : 'bg-accent-100 text-accent-700 border border-accent-300 hover:bg-accent-200',
+                props.input.trim().length === 0 || props.isStreaming ? 'cursor-not-allowed' : 'active:brightness-90',
               )}
               onClick={(event) => {
                 const raw = props.input.trim();
@@ -404,11 +394,9 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
 
                 /* 지금 선택된 모드(앱생성)는 진한 색으로 보여서 무엇을 눌렀는지 알 수 있게 합니다 */
                 props.chatMode === 'build'
-                  ? 'bg-accent-500 text-white'
-                  : 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent',
-                props.input.trim().length === 0 || props.isStreaming
-                  ? 'opacity-50 cursor-not-allowed'
-                  : 'hover:opacity-90',
+                  ? 'bg-accent-500 text-white border border-accent-500 shadow-sm'
+                  : 'bg-accent-100 text-accent-700 border border-accent-300 hover:bg-accent-200',
+                props.input.trim().length === 0 || props.isStreaming ? 'cursor-not-allowed' : 'active:brightness-90',
               )}
               onClick={(event) => {
                 const raw = props.input.trim();

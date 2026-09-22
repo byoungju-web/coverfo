@@ -197,7 +197,7 @@ function friendlyLabel(action: ActionState): { icon: string; title: string; desc
     }
 
     if (content.includes('node ') || content.includes('serve')) {
-      return { icon: '🚀', title: '화면 띄우는 중', desc: '곧 오른쪽에 결과가 나타납니다' };
+      return { icon: '🖥️', title: '화면 띄우는 중', desc: '곧 오른쪽에 결과가 나타납니다' };
     }
 
     return { icon: '🔧', title: '준비 작업 중', desc: '앱이 돌아갈 수 있게 설정하고 있어요' };
@@ -451,7 +451,7 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                       </div>
                       {index === visibleActions.length - 1 && visibleActions.length === total && (
                         <div className="mt-1.5 text-[11px] text-bolt-elements-textTertiary leading-relaxed">
-                          보통 이어지는 단계: ⚙️ 동작 코드 만들기 → 🚀 화면 띄우기 → 🚀 앱 켜기
+                          보통 이어지는 단계: ⚙️ 동작 코드 만들기 → 🖥️ 화면 띄우기 → 🚀 앱 켜기
                         </div>
                       )}
                     </div>
