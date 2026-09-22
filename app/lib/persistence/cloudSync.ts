@@ -8,7 +8,7 @@
  * - 로그인하지 않았거나 인터넷 오류가 나면 조용히 넘어갑니다 (기존처럼 이 기기에서만 동작).
  */
 import type { Message } from 'ai';
-import { supabase } from '~/lib/supabaseClient';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAll, getNextId, getUrlId, type IChatMetadata } from './db';
 
 const TABLE = 'cf_chats';
@@ -49,9 +49,30 @@ export function newCloudKey(): string {
   return `ck-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/*
+ * Supabase 연결은 실제로 쓸 때 불러옵니다.
+ * 파일 맨 위에서 바로 불러오면, Supabase 주소가 없는 테스트 환경에서
+ * db.ts 를 불러오기만 해도 "supabaseUrl is required" 오류로 멈춥니다.
+ */
+async function getSupabase(): Promise<SupabaseClient | undefined> {
+  try {
+    const mod = await import('~/lib/supabaseClient');
+    return mod.supabase;
+  } catch {
+    return undefined;
+  }
+}
+
 async function getUserId(): Promise<string | undefined> {
   try {
+    const supabase = await getSupabase();
+
+    if (!supabase) {
+      return undefined;
+    }
+
     const { data } = await supabase.auth.getSession();
+
     return data.session?.user?.id;
   } catch {
     return undefined;
@@ -110,6 +131,12 @@ async function pushNow(key: string) {
   const userId = await getUserId();
 
   if (!userId) {
+    return;
+  }
+
+  const supabase = await getSupabase();
+
+  if (!supabase) {
     return;
   }
 
@@ -200,6 +227,12 @@ async function flushPendingDeletes(userId: string) {
     return;
   }
 
+  const supabase = await getSupabase();
+
+  if (!supabase) {
+    return;
+  }
+
   const now = new Date().toISOString();
   const { error } = await supabase.from(TABLE).upsert(
     keys.map((key) => ({
@@ -268,6 +301,12 @@ export async function syncChatsFromCloud(db: IDBDatabase): Promise<boolean> {
     }
 
     await flushPendingDeletes(userId);
+
+    const supabase = await getSupabase();
+
+    if (!supabase) {
+      return false;
+    }
 
     const { data, error } = await supabase
       .from(TABLE)
