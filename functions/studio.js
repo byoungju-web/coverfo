@@ -229,7 +229,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
         bv.addEventListener('click', function(){ setSource(it,'video'); });
         acts.appendChild(be); acts.appendChild(bv);
       } else if(it.kind==='video'){
-        var br=document.createElement('button'); br.type='button'; br.className='pri'; br.textContent='다시 만들기';
+        var br=document.createElement('button'); br.type='button'; br.className='pri'; br.textContent='다시';
         br.addEventListener('click', function(){ SRC=null; kind='video'; $('prompt').value=(it.prompt||'').replace(/^\[수정 #\d+\] /,''); renderKind(); window.scrollTo({top:0,behavior:'smooth'}); $('prompt').focus(); });
         acts.appendChild(br);
       }

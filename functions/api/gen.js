@@ -223,7 +223,7 @@ async function googleVideoStart(c, prompt, aspect, srcImage) {
   const inst = { prompt: prompt };
   const params = { aspectRatio: aspect === '9:16' ? '9:16' : '16:9', resolution: '1080p', durationSeconds: 8 };
   if (srcImage) {
-    inst.image = { inlineData: { mimeType: srcImage.mime, data: srcImage.b64 } };
+    inst.image = { bytesBase64Encoded: srcImage.b64, mimeType: srcImage.mime }; // Veo는 inlineData 대신 이 형식
     params.personGeneration = 'allow_adult'; // 이미지→영상은 구글이 이 값만 허용
   }
   const body = { instances: [inst], parameters: params };
