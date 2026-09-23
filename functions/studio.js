@@ -160,6 +160,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
         t.querySelector('small').textContent=(it.kind==='video'?'영상':'이미지')+' · '+it.cost+'크레딧'+(it.status==='failed'||it.status==='refunded'?' · 실패(환불)':'');
         a.appendChild(th); a.appendChild(t); h.appendChild(a);
         if(it.status==='running'&&it.kind==='video'){ a.addEventListener('click',function(e){ e.preventDefault(); pollVideo(it.id); }); }
+        if(it.status==='failed'||it.status==='refunded'){ a.title=it.error||''; a.addEventListener('click',function(e){ e.preventDefault(); show('err','실패 이유: '+(it.error||'(기록 없음)')); }); }
       });
     });
   }

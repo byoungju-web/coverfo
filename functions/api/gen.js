@@ -322,7 +322,7 @@ async function handlePost(context) {
     // 실패 → 환불
     await rpc(c, 'cf_refund', { p_job: jobId }).catch(() => {});
     await patchJob(c, jobId, { status: 'failed', error: String(e.message || e).slice(0, 500) });
-    return json({ error: String(e.message || e).slice(0, 500), refunded: true }, 502);
+    return json({ error: String(e.message || e).slice(0, 500), refunded: true }, 500);
   }
 }
 
