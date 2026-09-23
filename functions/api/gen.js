@@ -15,8 +15,10 @@
 //   GET  /api/gen?config=1          → { url, anonKey }  (studio 화면이 로그인 세션을 읽으려고 씀)
 //   GET  /api/gen?credits=1         → { free, paid }
 //   GET  /api/gen?list=1            → 최근 작업 20개
-//   POST /api/gen  {kind:'image'|'video', prompt, aspect}  → 작업 시작 (이미지는 바로 완료)
+//   POST /api/gen  {kind:'image'|'video', prompt, aspect, source_job?}  → 작업 시작 (이미지는 바로 완료)
+//        source_job: 목록의 이미지 작업 번호. 이미지면 그 이미지를 고쳐서 새로 만들고, 영상이면 첫 장면으로 씀
 //   GET  /api/gen?job=ID            → 진행 확인 (영상은 완료되면 파일을 받아 저장)
+//   DELETE /api/gen?job=ID         → 최근 만든 것에서 삭제 (파일 삭제)
 
 const GBASE = 'https://generativelanguage.googleapis.com/v1beta';
 const BUCKET = 'cf-media';
@@ -108,10 +110,18 @@ async function getJob(c, jobId, userId) {
 async function listJobs(c, userId) {
   const r = await fetch(
     c.sbUrl + '/rest/v1/cf_jobs?select=id,kind,prompt,cost,status,result_url,error,created_at&user_id=eq.' +
-      encodeURIComponent(userId) + '&kind=in.(image,video)&order=created_at.desc&limit=20',
+      encodeURIComponent(userId) + '&kind=in.(image,video)&status=neq.deleted&order=created_at.desc&limit=40',
     { headers: sbHeaders(c) },
   );
   return r.ok ? await r.json() : [];
+}
+
+async function deleteFromStorage(c, path) {
+  const r = await fetch(c.sbUrl + '/storage/v1/object/' + BUCKET + '/' + path, {
+    method: 'DELETE',
+    headers: sbHeaders(c),
+  });
+  return r.ok;
 }
 
 // filter: 예) 'status=eq.running' — 조건이 맞는 행만 바꾸고, 바뀐 행을 돌려줌
@@ -141,6 +151,24 @@ async function uploadToStorage(c, path, bytes, contentType) {
   return c.sbUrl + '/storage/v1/object/public/' + BUCKET + '/' + path;
 }
 
+function bytesToB64(bytes) {
+  let bin = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  return btoa(bin);
+}
+
+// 목록에 있는 이미지 작업을 원본으로 불러온다 (본인 것 + 완료된 이미지만)
+async function loadSourceImage(c, userId, srcJobId) {
+  const job = await getJob(c, srcJobId, userId);
+  if (!job || job.kind !== 'image' || job.status !== 'done' || !job.result_url) throw new Error('원본 이미지를 찾을 수 없습니다');
+  const r = await fetch(job.result_url);
+  if (!r.ok) throw new Error('원본 이미지를 읽지 못했습니다 (' + r.status + ')');
+  const mime = r.headers.get('content-type') || (job.result_url.indexOf('.jpg') >= 0 ? 'image/jpeg' : 'image/png');
+  const bytes = new Uint8Array(await r.arrayBuffer());
+  return { mime: mime.split(';')[0], b64: bytesToB64(bytes), job_id: job.id };
+}
+
 function b64ToBytes(b64) {
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);
@@ -164,9 +192,12 @@ function gfetch(c, urlOrPath, init) {
   return fetch(target, Object.assign({}, init, { headers: headers, redirect: 'follow' }));
 }
 
-async function googleImage(c, prompt, aspect) {
+async function googleImage(c, prompt, aspect, srcImage) {
+  const inParts = [];
+  if (srcImage) inParts.push({ inlineData: { mimeType: srcImage.mime, data: srcImage.b64 } });
+  inParts.push({ text: prompt });
   const body = {
-    contents: [{ parts: [{ text: prompt }] }],
+    contents: [{ parts: inParts }],
     generationConfig: {
       responseModalities: ['IMAGE'],
       imageConfig: { aspectRatio: aspect || '1:1', imageSize: '2K' },
@@ -188,11 +219,14 @@ async function googleImage(c, prompt, aspect) {
   return { mime: img.inlineData.mimeType || 'image/png', b64: img.inlineData.data };
 }
 
-async function googleVideoStart(c, prompt, aspect) {
-  const body = {
-    instances: [{ prompt: prompt }],
-    parameters: { aspectRatio: aspect === '9:16' ? '9:16' : '16:9', resolution: '1080p', durationSeconds: 8 },
-  };
+async function googleVideoStart(c, prompt, aspect, srcImage) {
+  const inst = { prompt: prompt };
+  const params = { aspectRatio: aspect === '9:16' ? '9:16' : '16:9', resolution: '1080p', durationSeconds: 8 };
+  if (srcImage) {
+    inst.image = { inlineData: { mimeType: srcImage.mime, data: srcImage.b64 } };
+    params.personGeneration = 'allow_adult'; // 이미지→영상은 구글이 이 값만 허용
+  }
+  const body = { instances: [inst], parameters: params };
   const r = await gfetch(c, '/models/' + c.videoModel + ':predictLongRunning', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -310,11 +344,22 @@ async function handlePost(context) {
   if (!prompt) return json({ error: '무엇을 만들지 적어 주세요' }, 400);
 
   const cost = kind === 'video' ? c.costVideo : c.costImage;
+  const srcJobId = body.source_job ? String(body.source_job) : '';
+
+  // 0) 원본 이미지(수정하기 / 이미지→영상)가 있으면 먼저 불러온다 — 실패하면 크레딧을 건드리지 않음
+  let srcImage = null;
+  if (srcJobId) {
+    try {
+      srcImage = await loadSourceImage(c, user.id, srcJobId);
+    } catch (e) {
+      return json({ error: String(e.message || e).slice(0, 300) }, 400);
+    }
+  }
 
   // 1) 크레딧 차감 (부족하면 여기서 끝)
   let spend;
   try {
-    spend = await rpc(c, 'cf_spend', { p_user: user.id, p_cost: cost, p_kind: kind, p_prompt: prompt });
+    spend = await rpc(c, 'cf_spend', { p_user: user.id, p_cost: cost, p_kind: kind, p_prompt: (srcImage ? '[수정 #' + srcImage.job_id + '] ' : '') + prompt });
   } catch (e) {
     return json({ error: '크레딧 처리 실패: ' + String(e.message || e).slice(0, 200) }, 500);
   }
@@ -326,15 +371,16 @@ async function handlePost(context) {
   // 2) 구글 호출
   try {
     if (kind === 'image') {
-      const img = await googleImage(c, prompt, aspect);
+      if (srcImage) await patchJob(c, jobId, { meta: { source_job: srcImage.job_id } });
+      const img = await googleImage(c, prompt, aspect, srcImage);
       const ext = img.mime.indexOf('jpeg') >= 0 ? 'jpg' : img.mime.indexOf('webp') >= 0 ? 'webp' : 'png';
       const path = user.id + '/' + jobId + '.' + ext;
       const resultUrl = await uploadToStorage(c, path, b64ToBytes(img.b64), img.mime);
       await patchJob(c, jobId, { status: 'done', result_url: resultUrl });
       return json({ job_id: jobId, status: 'done', kind: 'image', result_url: resultUrl, free: spend.free, paid: spend.paid });
     }
-    const opName = await googleVideoStart(c, prompt, aspect);
-    await patchJob(c, jobId, { op_name: opName, task_id: opName });
+    const opName = await googleVideoStart(c, prompt, aspect, srcImage);
+    await patchJob(c, jobId, Object.assign({ op_name: opName, task_id: opName }, srcImage ? { meta: { source_job: srcImage.job_id } } : {}));
     return json({ job_id: jobId, status: 'running', kind: 'video', free: spend.free, paid: spend.paid });
   } catch (e) {
     // 실패 → 환불
@@ -342,6 +388,29 @@ async function handlePost(context) {
     await patchJob(c, jobId, { status: 'failed', error: String(e.message || e).slice(0, 500) });
     return json({ error: String(e.message || e).slice(0, 500), refunded: true }, 500);
   }
+}
+
+/* ── DELETE: 최근 만든 것에서 삭제 (파일 삭제 + 상태 deleted, 크레딧 기록은 유지) ── */
+async function handleDelete(context) {
+  const { request, env } = context;
+  const c = cfg(env);
+  const miss = missing(c);
+  if (miss.length) return json({ error: 'Secret 미등록: ' + miss.join(', ') }, 500);
+  const user = await getUser(c, request);
+  if (!user) return json({ error: 'login' }, 401);
+  const url = new URL(request.url);
+  const jobId = url.searchParams.get('job');
+  if (!jobId) return json({ error: 'job 없음' }, 400);
+  const job = await getJob(c, jobId, user.id);
+  if (!job) return json({ error: '작업을 찾을 수 없습니다' }, 404);
+  if (job.status === 'running' || job.status === 'finalizing') return json({ error: '아직 만드는 중이라 삭제할 수 없습니다' }, 409);
+  if (job.result_url) {
+    const marker = '/storage/v1/object/public/' + BUCKET + '/';
+    const i = job.result_url.indexOf(marker);
+    if (i >= 0) await deleteFromStorage(c, job.result_url.slice(i + marker.length)).catch(() => false);
+  }
+  await patchJob(c, job.id, { status: 'deleted', result_url: null });
+  return json({ ok: true, job_id: job.id });
 }
 
 function safe(fn) {
@@ -355,12 +424,13 @@ function safe(fn) {
 }
 export const onRequestGet = safe(handleGet);
 export const onRequestPost = safe(handlePost);
+export const onRequestDelete = safe(handleDelete);
 
 export async function onRequestOptions() {
   return new Response(null, {
     headers: {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   });

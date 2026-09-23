@@ -46,11 +46,23 @@ textarea:focus{border-color:#5B6CFF}
 .dl{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 14px;border-radius:999px;background:#fff;border:1px solid rgba(0,0,0,.1);font-size:13px;font-weight:600;color:#111;text-decoration:none;margin-top:10px}
 h3{font-size:14px;margin:18px 4px 8px;color:#333}
 .hist{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.hist a{display:block;border-radius:12px;overflow:hidden;background:#f2f2f4;border:1px solid rgba(0,0,0,.05);text-decoration:none;color:#333;font-size:11px}
 .hist .th{aspect-ratio:1/1;background:#e9e9ee;display:grid;place-items:center;font-size:22px;overflow:hidden}
 .hist .th img,.hist .th video{width:100%;height:100%;object-fit:cover;display:block}
 .hist .t{padding:6px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hist .t small{color:#999;display:block}
+.src{display:none;align-items:center;gap:10px;margin-top:12px;padding:8px 10px;border-radius:14px;background:#f4f1fe;border:1px solid rgba(91,108,255,.18)}
+.src.on{display:flex}
+.src img{width:52px;height:52px;object-fit:cover;border-radius:10px;flex:none;background:#ddd}
+.src .txt{font-size:12.5px;color:#4b3fb0;line-height:1.45;min-width:0}
+.src .txt b{display:block;color:#111}
+.src button{margin-left:auto;flex:none;height:30px;padding:0 10px;border-radius:999px;border:1px solid rgba(0,0,0,.1);background:#fff;font-size:12px;cursor:pointer}
+.hist .acts{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:0 6px 7px}
+.hist .acts button{height:26px;border-radius:8px;border:1px solid rgba(0,0,0,.08);background:#fff;font-size:11px;font-weight:600;color:#333;cursor:pointer}
+.hist .acts button.del{color:#c0392b}
+.hist .acts button.pri{background:#111;color:#fff;border-color:#111}
+.hist .acts button:disabled{opacity:.5}
+.hist .it{display:block;border-radius:12px;overflow:hidden;background:#f2f2f4;border:1px solid rgba(0,0,0,.05);color:#333;font-size:11px}
+.hist .it .th{cursor:pointer}
 .login{margin-top:14px;text-align:center;padding:26px 14px}
 .login .btn{display:inline-block;margin-top:12px;height:42px;line-height:42px;padding:0 20px;border-radius:999px;background:#111;color:#fff;font-weight:700;text-decoration:none;font-size:14px}
 @media(min-width:640px){.hist{grid-template-columns:repeat(5,1fr)}}
@@ -68,6 +80,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
       <button type="button" id="tab-image" class="on">🎨 이미지 (2K)</button>
       <button type="button" id="tab-video">🎬 영상 8초 (1080p)</button>
     </div>
+    <div class="src" id="srcbox"><img id="srcimg" alt=""><div class="txt"><b id="srctitle">원본 이미지</b><span id="srcdesc"></span></div><button type="button" id="srcclear">원본 해제</button></div>
     <textarea id="prompt" placeholder="무엇을 만들까요? 예) 노을 지는 해변에서 뛰어노는 강아지, 실사 사진"></textarea>
     <div class="row" id="aspects"></div>
     <div class="row">
@@ -85,7 +98,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
     <a class="btn" href="/">홈으로 가서 로그인</a>
   </div>
 
-  <h3>최근 만든 것</h3>
+  <h3 id="histtitle">최근 만든 것</h3>
   <div class="hist" id="hist"><div class="hint" style="grid-column:1/-1">아직 없습니다.</div></div>
 </div>
 
@@ -93,6 +106,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
 <script>
 (function(){
   var kind = 'image', aspect = '1:1', costs = {image:2, video:25}, client = null, token = null, busy = false;
+  var SRC = null; // 원본 이미지 {id, url, prompt}
   var ASPECTS = { image:['1:1','16:9','9:16','4:3','3:4'], video:['16:9','9:16'] };
   var $ = function(id){ return document.getElementById(id); };
 
@@ -114,12 +128,33 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
       b.addEventListener('click', function(){ aspect=a; renderKind(); });
       box.appendChild(b);
     });
-    $('golabel').textContent = kind==='image' ? '이미지 만들기' : '영상 만들기';
+    if (SRC) {
+      $('golabel').textContent = kind==='image' ? '이미지 수정하기' : '이 이미지로 영상 만들기';
+      $('srctitle').textContent = kind==='image' ? '원본 이미지 — 바꿀 내용을 적어 주세요' : '첫 장면 이미지 — 어떻게 움직일지 적어 주세요';
+      $('srcdesc').textContent = '#'+SRC.id+' · '+(SRC.prompt||'').slice(0,60);
+      $('srcimg').src = SRC.url; $('srcbox').className='src on';
+    } else {
+      $('golabel').textContent = kind==='image' ? '이미지 만들기' : '영상 만들기';
+      $('srcbox').className='src';
+    }
+    $('histtitle').textContent = kind==='image' ? '최근 만든 이미지' : '최근 만든 영상';
     $('gocost').textContent = costs[kind] + ' 크레딧';
+    if (typeof renderHistory === 'function' && JOBS.length) renderHistory();
     $('costhint').textContent = kind==='image'
-      ? 'Gemini 3 Flash Image · 2K · 보통 10~20초'
-      : 'Veo 3.1 · 8초 · 소리 포함 · 보통 1~3분 · 충전 크레딧으로만 가능';
+      ? (SRC ? '원본을 기준으로 고쳐서 새 이미지를 만듭니다 · 2K' : 'Gemini 3 Flash Image · 2K · 보통 10~20초')
+      : (SRC ? '이미지를 첫 장면으로 8초 영상을 만듭니다 · 보통 1~3분' : 'Veo 3.1 · 8초 · 소리 포함 · 보통 1~3분 · 충전 크레딧으로만 가능');
   }
+  function setSource(it, toKind){
+    SRC = it ? { id: it.id, url: it.result_url, prompt: it.prompt||'' } : null;
+    if (toKind) kind = toKind;
+    if (it && toKind==='image' && !$('prompt').value.trim()) $('prompt').placeholder = '예) 모자를 씌워줘 / 배경을 밤으로 / 옷을 빨간색으로';
+    if (it && toKind==='video') $('prompt').value = (it.prompt||'');
+    renderKind();
+    $('result').className='result'; hideMsg();
+    window.scrollTo({top:0,behavior:'smooth'});
+    $('prompt').focus();
+  }
+  $('srcclear').addEventListener('click', function(){ setSource(null); });
   $('tab-image').addEventListener('click', function(){ kind='image'; renderKind(); });
   $('tab-video').addEventListener('click', function(){ kind='video'; renderKind(); });
 
@@ -142,26 +177,64 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
   }
   function loadCredits(){ return api('GET','?credits=1').then(function(j){ if(j.__status===200) renderCredits(j); return j; }); }
 
+  var JOBS = [];
   function loadHistory(){
-    return api('GET','?list=1').then(function(j){
-      var h=$('hist'); h.innerHTML='';
-      var jobs=(j && j.jobs)||[];
-      if(!jobs.length){ h.innerHTML='<div class="hint" style="grid-column:1/-1">아직 없습니다.</div>'; return; }
-      jobs.forEach(function(it){
-        var a=document.createElement('a'); a.href=it.result_url||'#'; a.target=it.result_url?'_blank':'';
-        var th=document.createElement('div'); th.className='th';
-        if(it.status==='done'&&it.result_url){
-          if(it.kind==='video'){ var v=document.createElement('video'); v.src=it.result_url; v.muted=true; v.playsInline=true; v.preload='metadata'; th.appendChild(v); }
-          else { var im=document.createElement('img'); im.src=it.result_url; im.loading='lazy'; th.appendChild(im); }
-        } else { th.textContent = it.status==='running'||it.status==='finalizing' ? '⏳' : '✕'; }
-        var t=document.createElement('div'); t.className='t';
-        t.innerHTML='<span></span><small></small>';
-        t.querySelector('span').textContent=(it.prompt||'').slice(0,40);
-        t.querySelector('small').textContent=(it.kind==='video'?'영상':'이미지')+' · '+it.cost+'크레딧'+(it.status==='failed'||it.status==='refunded'?' · 실패(환불)':'');
-        a.appendChild(th); a.appendChild(t); h.appendChild(a);
-        if(it.status==='running'&&it.kind==='video'){ a.addEventListener('click',function(e){ e.preventDefault(); pollVideo(it.id); }); }
-        if(it.status==='failed'||it.status==='refunded'){ a.title=it.error||''; a.addEventListener('click',function(e){ e.preventDefault(); show('err','실패 이유: '+(it.error||'(기록 없음)')); }); }
+    return api('GET','?list=1').then(function(j){ JOBS=(j && j.jobs)||[]; renderHistory(); });
+  }
+  function saveFile(url, name){
+    // 저장소가 다른 주소라 download 속성이 안 먹어서, 파일을 받아서 저장시킵니다
+    return fetch(url).then(function(r){ return r.blob(); }).then(function(b){
+      var o=URL.createObjectURL(b); var a=document.createElement('a'); a.href=o; a.download=name; document.body.appendChild(a); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(o); a.remove(); }, 2000);
+    }).catch(function(){ window.open(url,'_blank'); });
+  }
+  function renderHistory(){
+    var h=$('hist'); h.innerHTML='';
+    var jobs=JOBS.filter(function(it){ return it.kind===kind; });
+    if(!jobs.length){ h.innerHTML='<div class="hint" style="grid-column:1/-1">아직 없습니다.</div>'; return; }
+    jobs.forEach(function(it){
+      var card=document.createElement('div'); card.className='it';
+      var th=document.createElement('div'); th.className='th';
+      var done = it.status==='done'&&it.result_url;
+      if(done){
+        if(it.kind==='video'){ var v=document.createElement('video'); v.src=it.result_url; v.muted=true; v.playsInline=true; v.preload='metadata'; th.appendChild(v); }
+        else { var im=document.createElement('img'); im.src=it.result_url; im.loading='lazy'; th.appendChild(im); }
+        th.addEventListener('click', function(){ hideMsg(); showResult(it.kind, it.result_url); window.scrollTo({top:0,behavior:'smooth'}); });
+      } else if(it.status==='running'||it.status==='finalizing'){
+        th.textContent='⏳'; if(it.kind==='video'){ th.addEventListener('click',function(){ pollVideo(it.id); }); }
+      } else {
+        th.textContent='✕'; th.title=it.error||''; th.addEventListener('click',function(){ show('err','실패 이유: '+(it.error||'(기록 없음)')); });
+      }
+      var t=document.createElement('div'); t.className='t';
+      t.innerHTML='<span></span><small></small>';
+      t.querySelector('span').textContent=(it.prompt||'').slice(0,40);
+      t.querySelector('small').textContent=(it.kind==='video'?'영상':'이미지')+' · '+it.cost+'크레딧'+(it.status==='failed'||it.status==='refunded'?' · 실패(환불)':'');
+      var acts=document.createElement('div'); acts.className='acts';
+      var bs=document.createElement('button'); bs.type='button'; bs.textContent='저장'; bs.disabled=!done;
+      bs.addEventListener('click', function(){ saveFile(it.result_url, 'coverfo-'+it.id+(it.kind==='video'?'.mp4':'.png')); });
+      var bd=document.createElement('button'); bd.type='button'; bd.className='del'; bd.textContent='삭제';
+      bd.disabled=(it.status==='running'||it.status==='finalizing');
+      bd.addEventListener('click', function(){
+        if(!confirm('이 항목을 삭제할까요? 파일도 함께 지워집니다.')) return;
+        bd.disabled=true; bd.textContent='삭제 중';
+        api('DELETE','?job='+it.id).then(function(j){
+          if(j.__status!==200){ bd.disabled=false; bd.textContent='삭제'; show('err','삭제 실패: '+(j.error||'')); return; }
+          JOBS=JOBS.filter(function(x){ return x.id!==it.id; }); renderHistory();
+        });
       });
+      if(done && it.kind==='image'){
+        var be=document.createElement('button'); be.type='button'; be.className='pri'; be.textContent='수정';
+        be.addEventListener('click', function(){ $('prompt').value=''; setSource(it,'image'); });
+        var bv=document.createElement('button'); bv.type='button'; bv.textContent='영상으로';
+        bv.addEventListener('click', function(){ setSource(it,'video'); });
+        acts.appendChild(be); acts.appendChild(bv);
+      } else if(it.kind==='video'){
+        var br=document.createElement('button'); br.type='button'; br.className='pri'; br.textContent='다시 만들기';
+        br.addEventListener('click', function(){ SRC=null; kind='video'; $('prompt').value=(it.prompt||'').replace(/^\[수정 #\d+\] /,''); renderKind(); window.scrollTo({top:0,behavior:'smooth'}); $('prompt').focus(); });
+        acts.appendChild(br);
+      }
+      acts.appendChild(bs); acts.appendChild(bd);
+      card.appendChild(th); card.appendChild(t); card.appendChild(acts); h.appendChild(card);
     });
   }
 
@@ -204,7 +277,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
     if(!token){ show('err','로그인이 필요합니다. <a href="/">홈으로</a>'); return; }
     hideMsg(); $('result').className='result'; setBusy(true);
     show('info', kind==='image' ? '이미지를 만드는 중입니다… (10~20초)' : '영상 생성을 시작합니다…');
-    api('POST','',{kind:kind, prompt:p, aspect:aspect}).then(function(j){
+    api('POST','',{kind:kind, prompt:p, aspect:aspect, source_job: SRC ? SRC.id : undefined}).then(function(j){
       if(j.__status===402){ setBusy(false); show('err', insufficientMsg(j)); return; }
       if(j.__status===401){ setBusy(false); show('err','로그인이 풀렸습니다. <a href="/">홈에서 다시 로그인</a>'); return; }
       if(j.__status!==200){ setBusy(false); show('err','실패했습니다'+(j.refunded?' (크레딧 환불됨)':'')+'.<br>'+(j.error||'')); loadCredits(); return; }
