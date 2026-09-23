@@ -38,6 +38,9 @@ function cfg(env) {
     videoModel: env.VIDEO_MODEL || 'veo-3.1-fast-generate-preview',
     costImage: parseInt(env.COST_IMAGE || '2', 10),
     costVideo: parseInt(env.COST_VIDEO || '25', 10),
+    // 구글 호출 중계: 기본 켜짐. Secret GOOGLE_PROXY=off 로 끌 수 있음
+    proxy: (env.GOOGLE_PROXY || 'on') !== 'off',
+    proxyRegion: env.GOOGLE_PROXY_REGION || 'ap-northeast-2',
   };
 }
 
@@ -146,6 +149,21 @@ function b64ToBytes(b64) {
 }
 
 /* ── Google ──────────────────────────────────────────── */
+// 구글 API 호출. proxy 가 켜져 있으면 Supabase Edge Function(google-proxy, 서울 리전)을 거친다.
+// Cloudflare 함수가 홍콩 노드에서 돌면 구글이 "User location is not supported" 로 막기 때문.
+function gfetch(c, urlOrPath, init) {
+  init = init || {};
+  const headers = Object.assign({ 'x-goog-api-key': c.gkey }, init.headers || {});
+  let target = urlOrPath.indexOf('http') === 0 ? urlOrPath : GBASE + urlOrPath;
+  if (c.proxy && target.indexOf('https://generativelanguage.googleapis.com') === 0) {
+    target = c.sbUrl + '/functions/v1/google-proxy' + target.slice('https://generativelanguage.googleapis.com'.length);
+    headers['Authorization'] = 'Bearer ' + c.service;
+    headers['apikey'] = c.service;
+    headers['x-region'] = c.proxyRegion;
+  }
+  return fetch(target, Object.assign({}, init, { headers: headers, redirect: 'follow' }));
+}
+
 async function googleImage(c, prompt, aspect) {
   const body = {
     contents: [{ parts: [{ text: prompt }] }],
@@ -154,9 +172,9 @@ async function googleImage(c, prompt, aspect) {
       imageConfig: { aspectRatio: aspect || '1:1', imageSize: '2K' },
     },
   };
-  const r = await fetch(GBASE + '/models/' + c.imageModel + ':generateContent', {
+  const r = await gfetch(c, '/models/' + c.imageModel + ':generateContent', {
     method: 'POST',
-    headers: { 'x-goog-api-key': c.gkey, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   const d = await r.json().catch(() => ({}));
@@ -175,9 +193,9 @@ async function googleVideoStart(c, prompt, aspect) {
     instances: [{ prompt: prompt }],
     parameters: { aspectRatio: aspect === '9:16' ? '9:16' : '16:9', resolution: '1080p', durationSeconds: '8' },
   };
-  const r = await fetch(GBASE + '/models/' + c.videoModel + ':predictLongRunning', {
+  const r = await gfetch(c, '/models/' + c.videoModel + ':predictLongRunning', {
     method: 'POST',
-    headers: { 'x-goog-api-key': c.gkey, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   const d = await r.json().catch(() => ({}));
@@ -186,14 +204,14 @@ async function googleVideoStart(c, prompt, aspect) {
 }
 
 async function googleVideoStatus(c, opName) {
-  const r = await fetch(GBASE + '/' + opName, { headers: { 'x-goog-api-key': c.gkey } });
+  const r = await gfetch(c, '/' + opName, { method: 'GET' });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error('google op ' + r.status + ': ' + JSON.stringify(d).slice(0, 400));
   return d;
 }
 
 async function googleDownload(c, uri) {
-  const r = await fetch(uri, { headers: { 'x-goog-api-key': c.gkey }, redirect: 'follow' });
+  const r = await gfetch(c, uri, { method: 'GET' });
   if (!r.ok) throw new Error('google download ' + r.status);
   return new Uint8Array(await r.arrayBuffer());
 }
