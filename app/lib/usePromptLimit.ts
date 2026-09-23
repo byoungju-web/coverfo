@@ -1,13 +1,35 @@
 /*
- * src/hooks/usePromptLimit.ts
- * 프롬프트 보내기 전에 체크하는 훅
+ * app/lib/usePromptLimit.ts
+ * 프롬프트 보내기 전에 크레딧을 확인하고 1 크레딧을 차감하는 훅
+ * (무료 2회 방식 → 크레딧 차감 방식. 가입 시 무료 크레딧 20, 다 쓰면 충전 크레딧으로.)
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '~/lib/supabaseClient';
 import type { Profile } from '~/lib/supabaseClient';
 
+export interface Credits {
+  free: number;
+  paid: number;
+}
+
+const CHAT_COST = 1;
+
 export function usePromptLimit() {
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [credits, setCredits] = useState<Credits | null>(null);
+
+  const loadCredits = useCallback(async () => {
+    const { data, error } = await supabase.rpc('cf_my_credits');
+
+    if (error || !data) {
+      return null;
+    }
+
+    const c = { free: Number((data as any).free || 0), paid: Number((data as any).paid || 0) };
+    setCredits(c);
+
+    return c;
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -21,19 +43,16 @@ export function usePromptLimit() {
 
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
       setProfile(data as Profile);
+      await loadCredits();
     })();
-  }, []);
+  }, [loadCredits]);
 
   const canPrompt = () => {
-    if (!profile) {
+    if (!credits) {
       return false;
     } // 로그인 필요
 
-    if (profile.byok_enabled) {
-      return true;
-    } // 자기 키면 무제한
-
-    return profile.prompt_count < profile.prompt_limit;
+    return credits.free + credits.paid >= CHAT_COST;
   };
 
   const checkAndIncrement = async (): Promise<boolean> => {
@@ -46,31 +65,34 @@ export function usePromptLimit() {
       return false;
     }
 
-    const { data: p } = (await supabase.from('profiles').select('*').eq('id', user.id).single()) as any;
+    const { data, error } = await supabase.rpc('cf_spend_self', {
+      p_cost: CHAT_COST,
+      p_kind: 'chat',
+      p_prompt: '',
+    });
 
-    if (!p) {
+    if (error) {
+      alert('크레딧 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.\n' + error.message);
       return false;
     }
 
-    if (!p.byok_enabled && p.prompt_count >= p.prompt_limit) {
-      if (p.plan === 'free') {
-        alert(
-          `무료 2회 다 썼어요! coverfo.com/pricing 에서 9900원 플랜으로 업그레이드 하세요. 또는 설정에서 본인 API키를 넣으면 무제한 무료!`,
-        );
+    const r = (data || {}) as any;
+
+    if (!r.ok) {
+      if (r.reason === 'login') {
+        alert('coverfo.com 로그인 먼저!');
       } else {
-        alert('사용량 초과! API키를 직접 입력해주세요.');
+        const have = Number(r.free || 0) + Number(r.paid || 0);
+        alert(`크레딧이 부족합니다. (보유 ${have} · 필요 ${CHAT_COST})\ncoverfo.com/pricing 에서 크레딧을 충전해 주세요.`);
       }
 
       return false;
     }
 
-    // BYOK가 아니면 카운트 증가
-    if (!p.byok_enabled) {
-      await supabase.rpc('increment_prompt_count', { user_id: user.id });
-    }
+    setCredits({ free: Number(r.free || 0), paid: Number(r.paid || 0) });
 
     return true;
   };
 
-  return { profile, canPrompt, checkAndIncrement };
+  return { profile, credits, loadCredits, canPrompt, checkAndIncrement };
 }

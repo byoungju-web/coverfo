@@ -23,26 +23,26 @@ const PLANS: Plan[] = [
     name: '무료',
     price: '0원',
     period: '',
-    description: '먼저 써보고 결정하세요.',
-    features: ['무료 2회 생성', '예약 페이지 · 견적서 · 3D 게임 템플릿', '만든 결과물 그대로 사용'],
+    description: '가입하면 무료 크레딧 20이 한 번 지급됩니다.',
+    features: ['무료 크레딧 20 (가입 시 1회)', '앱 생성 · 대화 1크레딧, 이미지 2크레딧', '영상은 충전 크레딧으로만 가능', '다 쓰면 충전 후 계속 사용'],
     highlight: false,
   },
   {
     name: '스타터',
     price: '9,900원',
-    period: '/ 월',
-    description: '가게 하나 운영하시는 분께 맞춘 요금제입니다.',
-    features: ['월 100회 생성', '예약 페이지 · 견적서 · 문서 만들기', '만든 페이지 바로 배포', '이메일 문의 지원'],
+    period: '/ 100크레딧',
+    description: '충전한 크레딧으로 쓴 만큼만 차감됩니다. 기간 제한 없이 남은 크레딧은 그대로 남습니다.',
+    features: ['앱 생성 · 대화 1크레딧', 'Gemini 이미지 2K 생성 2크레딧', 'Veo 3.1 영상 8초 25크레딧', '예약 페이지 · 견적서 · 문서 · 3D 게임 템플릿', '이메일 문의 지원'],
     highlight: true,
   },
   {
-    name: '본인 API 키',
-    price: '0원',
+    name: '작동 방식',
+    price: '1크레딧 ≈ 99원',
     period: '',
-    description: '직접 발급받은 키를 넣으면 횟수 제한이 없습니다.',
-    features: ['생성 횟수 무제한', 'API 사용료는 직접 부담', '설정 화면에서 키 입력'],
+    description: 'coverfo가 보유한 AI(Claude · Gemini · Veo)로 실행하고 크레딧만 차감합니다. 본인 API 키는 필요 없습니다.',
+    features: ['API 키 발급 · 관리 불필요', '실패한 생성은 자동 환불', '만든 결과물은 그대로 사용'],
     highlight: false,
-    note: 'Anthropic 계정이 있으신 분께 적합합니다.',
+    note: '충전은 문의 후 계정에 바로 넣어 드립니다.',
   },
 ];
 
@@ -84,10 +84,10 @@ function PlanCard({ plan }: { plan: Plan }) {
       <div className="mt-6">
         {plan.highlight ? (
           <a
-            href="mailto:hasin7jk@gmail.com?subject=coverfo 스타터 요금제 문의"
+            href="mailto:hasin7jk@gmail.com?subject=coverfo 크레딧 충전 문의"
             className="block rounded-lg bg-accent-500 px-4 py-2.5 text-center text-sm font-medium text-white"
           >
-            문의하고 시작하기
+            문의하고 충전하기
           </a>
         ) : (
           <a
@@ -111,7 +111,7 @@ export default function Pricing() {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-bolt-elements-textPrimary sm:text-3xl">요금제</h1>
           <p className="mt-3 text-sm text-bolt-elements-textSecondary">
-            무료로 먼저 써보시고, 계속 쓰실 때 결정하시면 됩니다.
+            무료 크레딧으로 먼저 써보시고, 계속 쓰실 때 충전하시면 됩니다.
           </p>
         </div>
 
@@ -126,23 +126,24 @@ export default function Pricing() {
 
           <dl className="mt-4 flex flex-col gap-5">
             <div>
-              <dt className="text-sm font-medium text-bolt-elements-textPrimary">무료 2회는 어떻게 세나요?</dt>
+              <dt className="text-sm font-medium text-bolt-elements-textPrimary">무료 크레딧은 어떻게 쓰이나요?</dt>
               <dd className="mt-1 text-sm text-bolt-elements-textSecondary">
-                계정을 만들고 무엇인가를 만들어달라고 요청한 횟수로 셉니다. 만든 결과물을 보거나 수정하는 것은 횟수에
-                포함되지 않습니다.
+                계정을 만들면 무료 크레딧 20이 한 번 지급됩니다. 무엇인가를 만들어달라고 요청할 때마다 차감되고(앱 생성 1,
+                이미지 2), 만든 결과물을 보거나 수정하는 것은 차감되지 않습니다. 영상은 충전한 크레딧으로만 만들 수
+                있습니다.
               </dd>
             </div>
             <div>
               <dt className="text-sm font-medium text-bolt-elements-textPrimary">만든 페이지는 제 것인가요?</dt>
               <dd className="mt-1 text-sm text-bolt-elements-textSecondary">
-                네. 만들어진 코드와 페이지는 그대로 쓰시면 됩니다.
+                네. 만들어진 코드와 페이지, 이미지, 영상은 그대로 쓰시면 됩니다.
               </dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-bolt-elements-textPrimary">본인 API 키는 어디에 넣나요?</dt>
+              <dt className="text-sm font-medium text-bolt-elements-textPrimary">API 키를 따로 넣어야 하나요?</dt>
               <dd className="mt-1 text-sm text-bolt-elements-textSecondary">
-                홈 화면의 모델 선택 옆 연필 아이콘을 눌러 입력하시면 됩니다. 입력한 키는 사용하시는 브라우저에만
-                저장됩니다.
+                아니요. coverfo가 보유한 API로 실행하고 크레딧만 차감됩니다. 생성이 실패하면 그 크레딧은 자동으로
+                환불됩니다.
               </dd>
             </div>
           </dl>
