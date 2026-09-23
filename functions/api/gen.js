@@ -191,7 +191,7 @@ async function googleImage(c, prompt, aspect) {
 async function googleVideoStart(c, prompt, aspect) {
   const body = {
     instances: [{ prompt: prompt }],
-    parameters: { aspectRatio: aspect === '9:16' ? '9:16' : '16:9', resolution: '1080p', durationSeconds: '8' },
+    parameters: { aspectRatio: aspect === '9:16' ? '9:16' : '16:9', resolution: '1080p', durationSeconds: 8 },
   };
   const r = await gfetch(c, '/models/' + c.videoModel + ':predictLongRunning', {
     method: 'POST',
