@@ -128,7 +128,12 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
       method: method,
       headers: Object.assign({ 'Content-Type':'application/json' }, token ? { Authorization:'Bearer '+token } : {}),
       body: body ? JSON.stringify(body) : undefined
-    }).then(function(r){ return r.json().then(function(j){ j.__status=r.status; return j; }); });
+    }).then(function(r){
+      return r.text().then(function(t){
+        var j; try { j = JSON.parse(t); } catch(e) { j = { error: 'JSON 아님 (HTTP '+r.status+'): '+t.replace(/<[^>]+>/g,' ').replace(/\\s+/g,' ').slice(0,300) }; }
+        j.__status = r.status; return j;
+      });
+    });
   }
 
   function renderCredits(cr){

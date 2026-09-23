@@ -229,7 +229,7 @@ async function finalizeVideo(c, job) {
 }
 
 /* ── GET ─────────────────────────────────────────────── */
-export async function onRequestGet(context) {
+async function handleGet(context) {
   const { request, env } = context;
   const c = cfg(env);
   const url = new URL(request.url);
@@ -274,7 +274,7 @@ export async function onRequestGet(context) {
 }
 
 /* ── POST ────────────────────────────────────────────── */
-export async function onRequestPost(context) {
+async function handlePost(context) {
   const { request, env } = context;
   const c = cfg(env);
   const miss = missing(c);
@@ -325,6 +325,18 @@ export async function onRequestPost(context) {
     return json({ error: String(e.message || e).slice(0, 500), refunded: true }, 502);
   }
 }
+
+function safe(fn) {
+  return async function (context) {
+    try {
+      return await fn(context);
+    } catch (e) {
+      return json({ error: 'server: ' + String((e && e.message) || e).slice(0, 400), where: 'uncaught' }, 500);
+    }
+  };
+}
+export const onRequestGet = safe(handleGet);
+export const onRequestPost = safe(handlePost);
 
 export async function onRequestOptions() {
   return new Response(null, {
