@@ -65,23 +65,19 @@ export function usePromptLimit() {
       return false;
     }
 
-    // 차감은 서버(/api/chat)가 합니다. 여기서는 보내기 전에 잔액·이달 무료 한도만 미리 확인해 안내합니다.
-    const { data, error } = await supabase.rpc('cf_my_credits');
+    // 보내기 전에 브라우저에서 1크레딧 차감 (무료 한도·기간 규칙은 DB 함수 cf_spend 가 적용)
+    const { data, error } = await supabase.rpc('cf_spend_self', {
+      p_cost: CHAT_COST,
+      p_kind: 'chat',
+      p_prompt: '',
+    });
 
     if (error) {
       alert('크레딧 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.\n' + error.message);
       return false;
     }
 
-    const cr = (data || {}) as any;
-    const free = Number(cr.free || 0);
-    const paid = Number(cr.paid || 0);
-    const pool = cr.pool || {};
-    const freeUsable = free > 0 && pool.open !== false && Number(pool.remaining ?? 1) >= CHAT_COST;
-    const r: any =
-      paid >= CHAT_COST || freeUsable
-        ? { ok: true, free, paid }
-        : { ok: false, free, paid, reason: free > 0 && pool.open === false ? 'free_closed' : free > 0 ? 'pool_exhausted' : 'insufficient' };
+    const r = (data || {}) as any;
 
     if (!r.ok) {
       if (r.reason === 'login') {
@@ -100,7 +96,7 @@ export function usePromptLimit() {
 
     setCredits({ free: Number(r.free || 0), paid: Number(r.paid || 0) });
 
-    return true; // 실제 차감은 서버에서
+    return true;
   };
 
   return { profile, credits, loadCredits, canPrompt, checkAndIncrement };
