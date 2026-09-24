@@ -175,7 +175,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       const reason = spend?.reason || 'insufficient';
       const msg =
         reason === 'pool_exhausted'
-          ? '이번 달 무료 크레딧(전체 한도)이 모두 소진되었습니다. 다음 달 1일에 다시 열립니다. coverfo.com/pricing 에서 충전하시면 계속 쓸 수 있습니다.'
+          ? '이번 달 무료 이용 한도가 모두 소진되었습니다. 다음 달 1일에 다시 열립니다. coverfo.com/pricing 에서 충전하시면 계속 쓸 수 있습니다.'
           : reason === 'free_closed'
             ? '무료 크레딧 제공 기간이 끝났습니다. coverfo.com/pricing 에서 충전해 주세요.'
             : `크레딧이 부족합니다. (보유 ${Number(spend?.free || 0) + Number(spend?.paid || 0)} · 필요 ${CF_CHAT_COST}) coverfo.com/pricing 에서 충전해 주세요.`;

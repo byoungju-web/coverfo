@@ -15,7 +15,7 @@
 //
 // 요청:
 //   GET  /api/gen?config=1          → { url, anonKey }  (studio 화면이 로그인 세션을 읽으려고 씀)
-//   GET  /api/gen?credits=1         → { free, paid }
+//   GET  /api/gen?credits=1         → { free, paid, pool(운영자만) }   운영자 이메일: Secret ADMIN_EMAILS (쉼표 구분, 기본 hasin7jk@gmail.com)
 //   GET  /api/gen?list=1            → 최근 작업 20개
 //   POST /api/gen  {kind:'image'|'video', prompt, aspect, source_job?}  → 작업 시작 (이미지는 바로 완료)
 //        source_job: 목록의 이미지 작업 번호. 이미지면 그 이미지를 고쳐서 새로 만들고, 영상이면 첫 장면으로 씀
@@ -46,6 +46,7 @@ function cfg(env) {
     proxy: (env.GOOGLE_PROXY || 'on') !== 'off',
     proxyRegion: env.GOOGLE_PROXY_REGION || 'ap-northeast-2',
     media: env.MEDIA || null, // R2 바인딩 (wrangler.toml [[r2_buckets]] binding = "MEDIA")
+    admins: String(env.ADMIN_EMAILS || 'hasin7jk@gmail.com').toLowerCase().split(',').map((x) => x.trim()).filter(Boolean),
   };
 }
 
@@ -91,7 +92,13 @@ async function rpc(c, name, args) {
   return d;
 }
 
-async function getCredits(c, userId) {
+// 운영자 여부: 전체 무료 한도(이달 남음 n/500)는 운영자에게만 보여줍니다 (일반 가입자가 자기 한도로 착각하지 않도록)
+function isAdmin(c, user) {
+  const email = String((user && user.email) || '').toLowerCase();
+  return !!email && c.admins.indexOf(email) >= 0;
+}
+
+async function getCredits(c, userId, showPool) {
   const r = await fetch(
     c.sbUrl + '/rest/v1/cf_credits?select=balance,free_balance&user_id=eq.' + encodeURIComponent(userId),
     { headers: sbHeaders(c) },
@@ -99,7 +106,9 @@ async function getCredits(c, userId) {
   const rows = r.ok ? await r.json() : [];
   const row = rows && rows[0];
   let pool = null;
-  try { pool = await rpc(c, 'cf_free_pool_status', {}); } catch (e) { pool = null; } // 이달 무료 풀 (없으면 null)
+  if (showPool) {
+    try { pool = await rpc(c, 'cf_free_pool_status', {}); } catch (e) { pool = null; } // 이달 무료 풀 (운영자만)
+  }
   return { free: row ? Number(row.free_balance || 0) : 0, paid: row ? Number(row.balance || 0) : 0, pool: pool };
 }
 
@@ -326,7 +335,7 @@ async function handleGet(context) {
   if (!user) return json({ error: 'login' }, 401);
 
   if (url.searchParams.get('credits')) {
-    return json(await getCredits(c, user.id));
+    return json(await getCredits(c, user.id, isAdmin(c, user)));
   }
   if (url.searchParams.get('list')) {
     return json({ jobs: await listJobs(c, user.id) });
@@ -392,7 +401,7 @@ async function handlePost(context) {
     return json({ error: '크레딧 처리 실패: ' + String(e.message || e).slice(0, 200) }, 500);
   }
   if (!spend || !spend.ok) {
-    return json({ error: 'insufficient', reason: spend && spend.reason, free: spend && spend.free, paid: spend && spend.paid, need: cost, paid_only: !!(spend && spend.paid_only), pool: spend && spend.pool }, 402);
+    return json({ error: 'insufficient', reason: spend && spend.reason, free: spend && spend.free, paid: spend && spend.paid, need: cost, paid_only: !!(spend && spend.paid_only), pool: isAdmin(c, user) ? spend && spend.pool : null }, 402);
   }
   const jobId = spend.job_id;
 

@@ -87,7 +87,7 @@ export function usePromptLimit() {
       if (r.reason === 'login') {
         alert('coverfo.com 로그인 먼저!');
       } else if (r.reason === 'pool_exhausted') {
-        alert('이번 달 무료 크레딧(전체 한도)이 모두 소진되었습니다. 다음 달 1일에 다시 열립니다.\ncoverfo.com/pricing 에서 충전하시면 계속 쓸 수 있습니다.');
+        alert('이번 달 무료 이용 한도가 모두 소진되었습니다. 다음 달 1일에 다시 열립니다.\ncoverfo.com/pricing 에서 충전하시면 계속 쓸 수 있습니다.');
       } else if (r.reason === 'free_closed') {
         alert('무료 크레딧 제공 기간이 끝났습니다.\ncoverfo.com/pricing 에서 충전해 주세요.');
       } else {

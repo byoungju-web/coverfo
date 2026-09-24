@@ -298,7 +298,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
     var have=(j.free||0)+(j.paid||0);
     if(j.pool) POOL=j.pool;
     if(j.reason==='pool_exhausted'){
-      return '이번 달 무료 크레딧(전체 ' + ((j.pool&&j.pool.cap)||500) + ')이 모두 소진되었습니다. 다음 달 1일에 다시 열립니다. 충전 크레딧은 계속 쓸 수 있습니다. (필요 '+need+' · 충전 잔액 '+(j.paid||0)+')<br><a href="/pricing" target="_top">크레딧 충전 안내 →</a>';
+      return '이번 달 무료 이용 한도가 모두 소진되었습니다. 다음 달 1일에 다시 열립니다. 충전 크레딧은 계속 쓸 수 있습니다. (필요 '+need+' · 충전 잔액 '+(j.paid||0)+')<br><a href="/pricing" target="_top">크레딧 충전 안내 →</a>';
     }
     if(j.reason==='free_closed'){
       return '무료 크레딧 제공 기간이 끝났습니다. 충전 크레딧으로 이용해 주세요. (필요 '+need+' · 충전 잔액 '+(j.paid||0)+')<br><a href="/pricing" target="_top">크레딧 충전 안내 →</a>';
