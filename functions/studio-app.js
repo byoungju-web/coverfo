@@ -81,7 +81,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
       <button type="button" id="tab-image" class="on">🎨 이미지 (2K)</button>
       <button type="button" id="tab-video">🎬 영상 8초 (1080p)</button>
     </div>
-    <div class="src" id="srcbox"><img id="srcimg" alt=""><div class="txt"><b id="srctitle">원본 이미지</b><span id="srcdesc"></span></div><button type="button" id="srcclear">원본 해제</button></div>
+    <div class="src" id="srcbox"><img id="srcimg" alt="" crossorigin="anonymous"><div class="txt"><b id="srctitle">원본 이미지</b><span id="srcdesc"></span></div><button type="button" id="srcclear">원본 해제</button></div>
     <textarea id="prompt" placeholder="무엇을 만들까요? 예) 노을 지는 해변에서 뛰어노는 강아지, 실사 사진"></textarea>
     <div class="row" id="aspects"></div>
     <div class="row">
@@ -103,7 +103,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
   <div class="hist" id="hist"><div class="hint" style="grid-column:1/-1">아직 없습니다.</div></div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
 <script>
 (function(){
   var kind = 'image', aspect = '1:1', costs = {image:2, video:25}, client = null, token = null, busy = false;
@@ -212,8 +212,8 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
       var th=document.createElement('div'); th.className='th';
       var done = it.status==='done'&&it.result_url;
       if(done){
-        if(it.kind==='video'){ var v=document.createElement('video'); v.src=it.result_url; v.muted=true; v.playsInline=true; v.preload='metadata'; th.appendChild(v); }
-        else { var im=document.createElement('img'); im.src=it.result_url; im.loading='lazy'; th.appendChild(im); }
+        if(it.kind==='video'){ var v=document.createElement('video'); v.crossOrigin='anonymous'; v.src=it.result_url; v.muted=true; v.playsInline=true; v.preload='metadata'; th.appendChild(v); }
+        else { var im=document.createElement('img'); im.crossOrigin='anonymous'; im.src=it.result_url; im.loading='lazy'; th.appendChild(im); }
         th.addEventListener('click', function(){ hideMsg(); showResult(it.kind, it.result_url); window.scrollTo({top:0,behavior:'smooth'}); });
       } else if(it.status==='running'||it.status==='finalizing'){
         th.textContent='⏳'; if(it.kind==='video'){ th.addEventListener('click',function(){ pollVideo(it.id); }); }
@@ -255,8 +255,8 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
 
   function showResult(kind, url){
     var r=$('result'); r.innerHTML='';
-    if(kind==='video'){ var v=document.createElement('video'); v.src=url; v.controls=true; v.playsInline=true; v.autoplay=true; r.appendChild(v); }
-    else { var im=document.createElement('img'); im.src=url; r.appendChild(im); }
+    if(kind==='video'){ var v=document.createElement('video'); v.crossOrigin='anonymous'; v.src=url; v.controls=true; v.playsInline=true; v.autoplay=true; r.appendChild(v); }
+    else { var im=document.createElement('img'); im.crossOrigin='anonymous'; im.src=url; r.appendChild(im); }
     var d=document.createElement('a'); d.className='dl'; d.href=url; d.target='_blank'; d.download=''; d.textContent='⬇ 파일 열기 / 저장';
     r.appendChild(d); r.className='result on';
   }
@@ -329,6 +329,13 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
 
 export async function onRequestGet() {
   return new Response(HTML, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      // 채팅 앱(/studio 부모 창)이 Cross-Origin-Embedder-Policy 를 쓰기 때문에, 그 안에 들어가는 이 문서도 같은 정책을 내야 표시됩니다
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Resource-Policy': 'same-origin',
+    },
   });
 }
