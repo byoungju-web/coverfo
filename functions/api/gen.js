@@ -6,6 +6,8 @@
 //   SUPABASE_URL                   https://xxxx.supabase.co
 //   SUPABASE_ANON_KEY              Supabase anon(public) 키
 //   SUPABASE_SERVICE_ROLE_KEY      Supabase service_role 키 (절대 브라우저에 노출 금지)
+// 저장소: wrangler.toml 에 [[r2_buckets]] binding="MEDIA" 가 있으면 결과 파일을 R2 에 저장하고 /media/... 로 서비스.
+//        없으면 Supabase Storage(cf-media 버킷)에 저장.
 // 선택 (Text 변수로 넣으면 코드 수정 없이 바꿀 수 있음):
 //   IMAGE_MODEL  (기본 gemini-3.1-flash-image-preview)
 //   VIDEO_MODEL  (기본 veo-3.1-fast-generate-preview)
@@ -43,6 +45,7 @@ function cfg(env) {
     // 구글 호출 중계: 기본 켜짐. Secret GOOGLE_PROXY=off 로 끌 수 있음
     proxy: (env.GOOGLE_PROXY || 'on') !== 'off',
     proxyRegion: env.GOOGLE_PROXY_REGION || 'ap-northeast-2',
+    media: env.MEDIA || null, // R2 바인딩 (wrangler.toml [[r2_buckets]] binding = "MEDIA")
   };
 }
 
@@ -136,7 +139,13 @@ async function patchJob(c, jobId, patch, filter) {
   return rows && rows[0] ? rows[0] : null;
 }
 
+// 결과 파일 저장. R2 바인딩(MEDIA)이 있으면 R2 에 넣고 /media/<경로> 주소를 돌려준다(같은 도메인).
+// 바인딩이 없으면 예전처럼 Supabase Storage 에 넣는다 → wrangler.toml 에 바인딩을 넣기 전에도 동작.
 async function uploadToStorage(c, path, bytes, contentType) {
+  if (c.media) {
+    await c.media.put(path, bytes, { httpMetadata: { contentType: contentType } });
+    return '/media/' + path;
+  }
   const r = await fetch(c.sbUrl + '/storage/v1/object/' + BUCKET + '/' + path, {
     method: 'POST',
     headers: {
@@ -162,10 +171,20 @@ function bytesToB64(bytes) {
 async function loadSourceImage(c, userId, srcJobId) {
   const job = await getJob(c, srcJobId, userId);
   if (!job || job.kind !== 'image' || job.status !== 'done' || !job.result_url) throw new Error('원본 이미지를 찾을 수 없습니다');
-  const r = await fetch(job.result_url);
-  if (!r.ok) throw new Error('원본 이미지를 읽지 못했습니다 (' + r.status + ')');
-  const mime = r.headers.get('content-type') || (job.result_url.indexOf('.jpg') >= 0 ? 'image/jpeg' : 'image/png');
-  const bytes = new Uint8Array(await r.arrayBuffer());
+  let mime = job.result_url.indexOf('.jpg') >= 0 ? 'image/jpeg' : job.result_url.indexOf('.webp') >= 0 ? 'image/webp' : 'image/png';
+  let bytes;
+  if (job.result_url.indexOf('/media/') === 0) {
+    if (!c.media) throw new Error('R2 저장소 연결(MEDIA 바인딩)이 없습니다');
+    const obj = await c.media.get(job.result_url.slice('/media/'.length));
+    if (!obj) throw new Error('원본 이미지 파일이 없습니다');
+    if (obj.httpMetadata && obj.httpMetadata.contentType) mime = obj.httpMetadata.contentType;
+    bytes = new Uint8Array(await obj.arrayBuffer());
+  } else {
+    const r = await fetch(job.result_url);
+    if (!r.ok) throw new Error('원본 이미지를 읽지 못했습니다 (' + r.status + ')');
+    mime = r.headers.get('content-type') || mime;
+    bytes = new Uint8Array(await r.arrayBuffer());
+  }
   return { mime: mime.split(';')[0], b64: bytesToB64(bytes), job_id: job.id };
 }
 
@@ -412,9 +431,13 @@ async function handleDelete(context) {
   if (!job) return json({ error: '작업을 찾을 수 없습니다' }, 404);
   if (job.status === 'running' || job.status === 'finalizing') return json({ error: '아직 만드는 중이라 삭제할 수 없습니다' }, 409);
   if (job.result_url) {
-    const marker = '/storage/v1/object/public/' + BUCKET + '/';
-    const i = job.result_url.indexOf(marker);
-    if (i >= 0) await deleteFromStorage(c, job.result_url.slice(i + marker.length)).catch(() => false);
+    if (job.result_url.indexOf('/media/') === 0 && c.media) {
+      await c.media.delete(job.result_url.slice('/media/'.length)).catch(() => false);
+    } else {
+      const marker = '/storage/v1/object/public/' + BUCKET + '/';
+      const i = job.result_url.indexOf(marker);
+      if (i >= 0) await deleteFromStorage(c, job.result_url.slice(i + marker.length)).catch(() => false);
+    }
   }
   await patchJob(c, job.id, { status: 'deleted', result_url: null });
   return json({ ok: true, job_id: job.id });
