@@ -21,6 +21,46 @@ import type { ActionAlert, DeployAlert, SupabaseAlert } from '~/types/actions';
 
 const { saveAs } = fileSaver;
 
+/* coverfo: 생성이 멈췄을 때 결과 화면을 띄우기 위한 기본 파일 (설치 없이 node 로 바로 실행) */
+const CF_SERVER_JS = `// server.js
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg' };
+http.createServer((req, res) => {
+  let p = decodeURIComponent((req.url || '/').split('?')[0]);
+  if (p === '/') p = '/index.html';
+  const file = path.join(process.cwd(), p);
+  fs.readFile(file, (err, data) => {
+    if (err) { res.writeHead(404); res.end('Not found'); return; }
+    res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });
+    res.end(data);
+  });
+}).listen(3000, '0.0.0.0', () => console.log('server on 3000'));
+`;
+
+const CF_PLACEHOLDER_HTML = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>coverfo</title>
+<style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;background:#fcfcfd;color:#111}
+.box{text-align:center;padding:32px;max-width:420px}
+h1{font-size:20px;margin:0 0 10px}
+p{font-size:14px;color:#666;line-height:1.6;margin:0}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>아직 만들어진 화면이 없어요</h1>
+  <p>생성이 중간에 멈췄습니다.<br>왼쪽 입력칸에 "이어서 만들어줘" 라고 보내 주세요.</p>
+</div>
+</body>
+</html>
+`;
+
 export interface ArtifactState {
   id: string;
   title: string;
@@ -458,7 +498,100 @@ export class WorkbenchStore {
   }
 
   abortAllActions() {
-    // TODO: what do we wanna do and how do we wanna recover from this?
+    /*
+     * coverfo: 중지를 누르거나 생성이 끊겨도, 지금까지 만들어진 것을 저장하고
+     * server.js 를 띄워서 결과 화면을 반드시 보여 줍니다. (잘 됐든 아니든 그 화면에서 이어서 수정)
+     */
+    this.addToExecutionQueue(() => this.finishAndShowPreview({ openPreview: true }));
+  }
+
+  /**
+   * coverfo: 생성이 끝났거나 멈췄을 때 결과 화면이 뜨도록 마무리합니다.
+   * - 쓰다 만 파일은 받은 데까지 저장
+   * - index.html 이 하나도 없으면 안내용 index.html 생성
+   * - server.js 가 없으면 생성하고, 서버(start) 단계가 없으면 node server.js 실행
+   * - openPreview 가 true 이면 결과 화면을 바로 엽니다
+   */
+  async finishAndShowPreview(opts: { openPreview: boolean }) {
+    const artifacts = this.artifacts.get();
+    const ids = this.artifactIdList.filter((id) => artifacts[id]);
+
+    if (ids.length === 0) {
+      return;
+    }
+
+    const artifactId = ids[ids.length - 1];
+    const artifact = artifacts[artifactId];
+    const wc = await webcontainer;
+    const toFull = (p: string) => (p.startsWith(wc.workdir) ? p : path.join(wc.workdir, p));
+
+    // 1. 끝나지 않은 단계 정리 — 파일은 받은 데까지 저장, 나머지는 멈춤 표시
+    const actions = artifact.runner.actions.get();
+    let serverRunning = false;
+
+    for (const action of Object.values(actions)) {
+      if (action.type === 'start' && (action.status === 'running' || action.status === 'complete')) {
+        serverRunning = true;
+        continue;
+      }
+
+      if (action.status === 'complete') {
+        continue;
+      }
+
+      if (action.type === 'file' && (action as any).filePath) {
+        const fullPath = toFull((action as any).filePath);
+        const doc = this.#editorStore.documents.get()[fullPath];
+        const content = doc?.value ?? (action as any).content ?? '';
+
+        if (content) {
+          try {
+            await this.#filesStore.saveFile(fullPath, content);
+          } catch (e) {
+            console.error('coverfo: 쓰다 만 파일 저장 실패', e);
+          }
+        }
+      }
+
+      if (action.status === 'pending' || action.status === 'running') {
+        action.abort();
+      }
+    }
+
+    this.resetAllFileModifications();
+
+    // 2. index.html / server.js 가 없으면 만들어 줍니다
+    const files = this.files.get();
+    const hasIndex = Object.keys(files).some((p) => files[p]?.type === 'file' && p.endsWith('/index.html'));
+    const hasServer = Object.keys(files).some((p) => files[p]?.type === 'file' && p.endsWith('/server.js'));
+
+    if (!hasIndex) {
+      await this.#filesStore.createFile(path.join(wc.workdir, 'index.html'), CF_PLACEHOLDER_HTML);
+    }
+
+    if (!hasServer) {
+      await this.#filesStore.createFile(path.join(wc.workdir, 'server.js'), CF_SERVER_JS);
+    }
+
+    // 3. 서버가 안 켜져 있으면 node server.js 를 실행합니다
+    if (!serverRunning) {
+      const actionId = `cf-finish-${Date.now()}`;
+      const data = {
+        messageId: 'coverfo-finish',
+        artifactId,
+        actionId,
+        action: { type: 'start', content: 'node server.js' },
+      } as unknown as ActionCallbackData;
+
+      artifact.runner.addAction(data);
+      await artifact.runner.runAction(data);
+    }
+
+    // 4. 결과 화면 열기
+    if (opts.openPreview || !serverRunning) {
+      this.currentView.set('preview');
+      this.showWorkbench.set(true);
+    }
   }
 
   setReloadedMessages(messages: string[]) {

@@ -207,6 +207,14 @@ export const ChatImpl = memo(
         }
 
         logger.debug('Finished streaming');
+
+        /*
+         * coverfo: AI 가 server.js·실행 단계 없이 끝냈어도 결과 화면이 뜨게 마무리합니다.
+         * (마지막 단계 처리가 끝날 시간을 조금 준 뒤 실행)
+         */
+        if (chatMode === 'build') {
+          setTimeout(() => workbenchStore.finishAndShowPreview({ openPreview: false }), 1500);
+        }
       },
       initialMessages,
       initialInput: '', // 이전에 적었던 문구를 되살리지 않습니다 (쿠키 복원 끔)
@@ -290,6 +298,9 @@ export const ChatImpl = memo(
 
         stop();
         setFakeLoading(false);
+
+        // coverfo: 오류로 끊겨도 만들어진 데까지 결과 화면을 보여 줍니다
+        workbenchStore.abortAllActions();
 
         let errorInfo = {
           message: 'An unexpected error occurred',

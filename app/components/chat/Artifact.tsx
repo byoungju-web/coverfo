@@ -276,6 +276,7 @@ const ActionList = memo(({ actions }: ActionListProps) => {
   const total = actions.length;
   const realDoneCount = actions.filter((a) => effectiveStatus(a) === 'complete').length;
   const failed = actions.some((a) => a.status === 'failed' || a.status === 'aborted');
+  const stopped = actions.some((a) => a.status === 'aborted');
   const stillWorking = realDoneCount < total && !failed;
 
   /* 대기 중인 단계는 맨 앞 하나(지금 만들고 있는 단계)까지만 보여 줍니다 */
@@ -340,7 +341,13 @@ const ActionList = memo(({ actions }: ActionListProps) => {
       <div className="mb-4">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-sm font-semibold text-bolt-elements-textPrimary">
-            {failed ? '문제가 생겼어요' : allRevealed && doneCount === total ? '다 만들었어요!' : '만드는 중이에요...'}
+            {failed
+              ? stopped
+                ? '중간에 멈췄어요'
+                : '문제가 생겼어요'
+              : allRevealed && doneCount === total
+                ? '다 만들었어요!'
+                : '만드는 중이에요...'}
           </span>
           <span className="text-xs text-bolt-elements-textSecondary tabular-nums">
             {doneCount} / {total} 단계
@@ -492,7 +499,8 @@ const ActionList = memo(({ actions }: ActionListProps) => {
 
       {/* 완료 안내 */}
       <div className="mt-4 flex items-center gap-2 flex-wrap">
-        {allRevealed && doneCount === total && total > 0 && !failed ? (
+        {/* coverfo: 다 됐든, 멈췄든, 실패했든 결과 화면 버튼은 항상 보여 줍니다 */}
+        {allRevealed && !stillWorking && total > 0 ? (
           <button
             className="text-sm font-medium px-3.5 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition"
             onClick={() => {
@@ -502,10 +510,6 @@ const ActionList = memo(({ actions }: ActionListProps) => {
           >
             👀 결과 화면 보기
           </button>
-        ) : failed ? (
-          <span className="text-xs text-red-500">
-            문제가 생겼어요. 아래 입력칸에 &ldquo;다시 해줘&rdquo; 라고 보내 주세요.
-          </span>
         ) : (
           <span className="text-xs text-bolt-elements-textTertiary">완료되면 결과 화면이 나타납니다</span>
         )}
@@ -530,6 +534,13 @@ const ActionList = memo(({ actions }: ActionListProps) => {
         >
           🖥️ 코드 보기
         </button>
+
+        {failed && (
+          <span className="basis-full text-xs text-red-500 leading-relaxed">
+            {stopped ? '중간에 멈췄지만 만들어진 데까지 결과 화면에 보여 드려요.' : '문제가 생겼어요.'} 아래 입력칸에
+            고칠 점을 적어 보내면 이어서 만듭니다.
+          </span>
+        )}
       </div>
     </motion.div>
   );
