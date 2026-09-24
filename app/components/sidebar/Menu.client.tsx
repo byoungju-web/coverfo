@@ -12,6 +12,7 @@ import { HistoryItem } from './HistoryItem';
 import { binDates } from './date-binning';
 import { useSearchFilter } from '~/lib/hooks/useSearchFilter';
 import { classNames } from '~/utils/classNames';
+import { supabase } from '~/lib/supabaseClient';
 
 const menuVariants = {
   closed: {
@@ -33,6 +34,56 @@ const menuVariants = {
     },
   },
 } satisfies Variants;
+
+/* 사이드바 상단 '스튜디오' — 스튜디오(이미지·영상)에서 최근 만든 것을 썸네일로 보여 줍니다 */
+interface StudioItem {
+  id: number;
+  kind: 'image' | 'video';
+  prompt?: string;
+  status: string;
+  result_url?: string | null;
+}
+
+function useStudioRecent(limit = 6) {
+  const [items, setItems] = useState<StudioItem[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.access_token) {
+          return;
+        }
+
+        const r = await fetch('/api/gen?list=1', { headers: { Authorization: 'Bearer ' + session.access_token } });
+
+        if (!r.ok) {
+          return;
+        }
+
+        const j = (await r.json()) as { jobs?: StudioItem[] };
+        const done = (j.jobs || []).filter((it) => it.status === 'done' && it.result_url).slice(0, limit);
+
+        if (alive) {
+          setItems(done);
+        }
+      } catch {
+        /* 스튜디오 목록은 부가 정보라 실패해도 조용히 넘어갑니다 */
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [limit]);
+
+  return items;
+}
 
 /* 사이드바 '답변 언어' 선택지 (값은 Chat.client 의 ANSWER_LANG_NAMES 와 같아야 합니다) */
 const ANSWER_LANG_KEY = 'cf-answer-lang';
@@ -126,6 +177,7 @@ export const Menu = () => {
     items: list,
     searchFields: ['description'],
   });
+  const studioItems = useStudioRecent(6);
 
   const loadEntries = useCallback(() => {
     if (db) {
@@ -547,6 +599,14 @@ export const Menu = () => {
                 <span className="inline-block i-ph:plus-circle h-4 w-4" />
                 <span className="text-sm font-medium">Start new chat</span>
               </a>
+              <a
+                href="/studio"
+                title="이미지·영상 만들기"
+                className="flex gap-1.5 items-center bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 transition-colors"
+              >
+                <span className="i-ph:palette h-4 w-4" />
+                <span className="text-sm font-medium">스튜디오</span>
+              </a>
               <button
                 onClick={toggleSelectionMode}
                 className={classNames(
@@ -573,6 +633,35 @@ export const Menu = () => {
               />
             </div>
           </div>
+          {studioItems.length > 0 && (
+            <div className="px-4 pb-2">
+              <div className="flex items-center justify-between text-sm py-1">
+                <div className="font-medium text-gray-600 dark:text-gray-400">최근 이미지 · 영상</div>
+                <a href="/studio" className="text-xs text-purple-600 dark:text-purple-300 hover:underline">
+                  스튜디오 열기
+                </a>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {studioItems.map((it) => (
+                  <a
+                    key={it.id}
+                    href={`/studio?show=${it.id}`}
+                    title={it.prompt || ''}
+                    className="relative block aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                  >
+                    {it.kind === 'video' ? (
+                      <video src={it.result_url || ''} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                    ) : (
+                      <img src={it.result_url || ''} alt="" loading="lazy" className="w-full h-full object-cover" />
+                    )}
+                    <span className="absolute bottom-0.5 right-0.5 text-[10px] leading-none px-1 py-0.5 rounded bg-black/60 text-white">
+                      {it.kind === 'video' ? '영상' : '이미지'}
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between text-sm px-4 py-2">
             <div className="font-medium text-gray-600 dark:text-gray-400">Your Chats</div>
             {selectionMode && (

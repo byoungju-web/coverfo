@@ -178,8 +178,22 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
   function loadCredits(){ return api('GET','?credits=1').then(function(j){ if(j.__status===200) renderCredits(j); return j; }); }
 
   var JOBS = [];
+  var SHOW_ID = q.get('show') ? String(q.get('show')) : '';
   function loadHistory(){
-    return api('GET','?list=1').then(function(j){ JOBS=(j && j.jobs)||[]; renderHistory(); });
+    return api('GET','?list=1').then(function(j){
+      JOBS=(j && j.jobs)||[];
+      /* 사이드바 썸네일에서 넘어온 경우(show=번호): 그 항목의 탭으로 바꾸고 위에 크게 보여줌 */
+      if (SHOW_ID) {
+        var hit = JOBS.filter(function(x){ return String(x.id)===SHOW_ID; })[0];
+        SHOW_ID = '';
+        try { history.replaceState({}, '', '/studio'); } catch (e) {}
+        if (hit && hit.status==='done' && hit.result_url) {
+          kind = hit.kind; renderKind(); showResult(hit.kind, hit.result_url);
+          $('prompt').value = (hit.prompt||'').replace(/^\[수정 #\d+\] /,'');
+        }
+      }
+      renderHistory();
+    });
   }
   function saveFile(url, name){
     // 저장소가 다른 주소라 download 속성이 안 먹어서, 파일을 받아서 저장시킵니다
