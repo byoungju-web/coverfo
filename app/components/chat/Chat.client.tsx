@@ -30,6 +30,7 @@ import { useMCPStore } from '~/lib/stores/mcp';
 import type { LlmErrorAlertType } from '~/types/actions';
 import { usePromptLimit } from '~/lib/usePromptLimit';
 import { tryTemplateRoute } from '~/lib/agents/templateRoute';
+import { cfTrace } from '~/utils/cfTrace';
 
 const logger = createScopedLogger('Chat');
 
@@ -87,14 +88,34 @@ const processSampledMessages = createSampler(
     storeMessageHistory: (messages: Message[]) => Promise<void>;
   }) => {
     const { messages, initialMessages, isLoading, parseMessages, storeMessageHistory } = options;
+    const last = messages[messages.length - 1];
+    const size = typeof last?.content === 'string' ? last.content.length : 0;
+
+    cfTrace('parse:start', size);
     parseMessages(messages, isLoading);
+    cfTrace('parse:end', size);
 
     if (messages.length > initialMessages.length) {
-      storeMessageHistory(messages).catch((error) => toast.error(error.message));
+      /*
+       * coverfo: 답변이 오는 동안에는 대화 저장(브라우저 DB 에 대화 전체 + 파일 전체 스냅샷)을
+       * 50ms 마다가 아니라 2초에 한 번만 합니다. 답변이 끝나면(isLoading=false) 반드시 한 번 더 저장합니다.
+       */
+      const now = Date.now();
+
+      if (!isLoading || now - lastStoreAt >= STORE_INTERVAL_MS) {
+        lastStoreAt = now;
+        cfTrace('store:start', size);
+        storeMessageHistory(messages)
+          .then(() => cfTrace('store:end', size))
+          .catch((error) => toast.error(error.message));
+      }
     }
   },
   50,
 );
+
+const STORE_INTERVAL_MS = 2000;
+let lastStoreAt = 0;
 
 interface ChatProps {
   initialMessages: Message[];

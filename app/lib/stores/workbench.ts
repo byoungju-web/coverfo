@@ -13,6 +13,7 @@ import JSZip from 'jszip';
 import fileSaver from 'file-saver';
 import { Octokit, type RestEndpointMethodTypes } from '@octokit/rest';
 import { path } from '~/utils/path';
+import { cfTrace } from '~/utils/cfTrace';
 import { extractRelativePath } from '~/utils/diff';
 import { description } from '~/lib/persistence';
 import Cookies from 'js-cookie';
@@ -718,10 +719,13 @@ export class WorkbenchStore {
         await artifact.runner.runAction(data, isStreaming);
       }
 
+      cfTrace('editor:update', data.action.content?.length ?? 0);
       this.#editorStore.updateFile(fullPath, data.action.content);
 
       if (!isStreaming && data.action.content) {
+        cfTrace('file:save', data.action.content.length);
         await this.saveFile(fullPath);
+        cfTrace('file:saved', data.action.content.length);
       }
 
       if (!isStreaming) {
