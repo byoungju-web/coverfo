@@ -650,9 +650,9 @@ export const Menu = () => {
                     className="relative block aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
                   >
                     {it.kind === 'video' ? (
-                      <video src={it.result_url || ''} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                      <video src={it.result_url || ''} crossOrigin="anonymous" muted playsInline preload="metadata" className="w-full h-full object-cover" />
                     ) : (
-                      <img src={it.result_url || ''} alt="" loading="lazy" className="w-full h-full object-cover" />
+                      <img src={it.result_url || ''} crossOrigin="anonymous" alt="" loading="lazy" className="w-full h-full object-cover" />
                     )}
                     <span className="absolute bottom-0.5 right-0.5 text-[10px] leading-none px-1 py-0.5 rounded bg-black/60 text-white">
                       {it.kind === 'video' ? '영상' : '이미지'}
