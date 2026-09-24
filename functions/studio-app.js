@@ -108,6 +108,12 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
 (function(){
   var kind = 'image', aspect = '1:1', costs = {image:2, video:25}, client = null, token = null, busy = false;
   var SRC = null; // 원본 이미지 {id, url, prompt}
+  var DONE_PROMPT = false; // 생성이 끝난 직후면 true → 입력칸을 클릭할 때 이전 문구를 지움
+  function markDone(){ DONE_PROMPT = true; }
+  $('prompt').addEventListener('focus', function(){
+    if (DONE_PROMPT) { DONE_PROMPT = false; $('prompt').value = ''; }
+  });
+  $('prompt').addEventListener('input', function(){ DONE_PROMPT = false; });
   var ASPECTS = { image:['1:1','16:9','9:16','4:3','3:4'], video:['16:9','9:16'] };
   var $ = function(id){ return document.getElementById(id); };
 
@@ -117,6 +123,10 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
 
   function show(type, html){ var m=$('msg'); m.className='msg on '+type; m.innerHTML=html; }
   function hideMsg(){ $('msg').className='msg'; }
+  /* 틀(iframe) 안에서 열렸으면 바깥 창 주소도 /studio 로 정리 (같은 도메인이라 가능) */
+  function cleanTopUrl(){
+    try { if (window.top && window.top !== window && window.top.location.pathname === '/studio') window.top.history.replaceState({}, '', '/studio'); } catch (e) {}
+  }
   function setBusy(b){ busy=b; $('go').disabled=b; $('prog').className = b ? 'prog on' : 'prog'; }
 
   function renderKind(){
@@ -188,9 +198,10 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
         var hit = JOBS.filter(function(x){ return String(x.id)===SHOW_ID; })[0];
         SHOW_ID = '';
         try { history.replaceState({}, '', '/studio-app'); } catch (e) {}
+        cleanTopUrl();
         if (hit && hit.status==='done' && hit.result_url) {
           kind = hit.kind; renderKind(); showResult(hit.kind, hit.result_url);
-          $('prompt').value = (hit.prompt||'').replace(/^\[수정 #\d+\] /,'');
+          $('prompt').value = (hit.prompt||'').replace(/^\[수정 #\d+\] /,''); markDone();
         }
       }
       renderHistory();
@@ -268,7 +279,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
     var started=Date.now();
     (function tick(){
       api('GET','?job='+jobId).then(function(j){
-        if(j.status==='done'){ setBusy(false); show('ok','완성됐습니다.'); showResult('video', j.result_url); loadCredits(); loadHistory(); return; }
+        if(j.status==='done'){ setBusy(false); show('ok','완성됐습니다.'); showResult('video', j.result_url); loadCredits(); loadHistory(); markDone(); return; }
         if(j.status==='failed'){ setBusy(false); show('err','실패했습니다. 크레딧은 환불됐습니다.<br>'+(j.error||'')); loadCredits(); loadHistory(); return; }
         if(Date.now()-started > 12*60*1000){ setBusy(false); show('err','시간이 너무 오래 걸립니다. 잠시 후 "최근 만든 것"에서 확인해 주세요.'); return; }
         pollTimer=setTimeout(tick, 10000);
@@ -297,7 +308,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
       if(j.__status===401){ setBusy(false); show('err','로그인이 풀렸습니다. <a href="/" target="_top">홈에서 다시 로그인</a>'); return; }
       if(j.__status!==200){ setBusy(false); show('err','실패했습니다'+(j.refunded?' (크레딧 환불됨)':'')+'.<br>'+(j.error||'')); loadCredits(); return; }
       renderCredits({free:j.free, paid:j.paid});
-      if(j.status==='done'){ setBusy(false); show('ok','완성됐습니다.'); showResult('image', j.result_url); loadHistory(); return; }
+      if(j.status==='done'){ setBusy(false); show('ok','완성됐습니다.'); showResult('image', j.result_url); loadHistory(); markDone(); return; }
       loadHistory(); pollVideo(j.job_id);
     }).catch(function(e){ setBusy(false); show('err','네트워크 오류: '+e); });
   });
@@ -318,6 +329,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
       /* 홈 화면에서 넘어온 경우(auto=1): 클릭 없이 바로 만들기. 새로고침 때 또 만들지 않도록 주소에서 지움 */
       if (q.get('auto') === '1' && $('prompt').value.trim()) {
         try { history.replaceState({}, '', '/studio-app'); } catch (e) {}
+        cleanTopUrl();
         setTimeout(function(){ $('go').click(); }, 300);
       }
     });
