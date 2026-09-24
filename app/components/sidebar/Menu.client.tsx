@@ -130,6 +130,7 @@ export const Menu = () => {
   const [open, setOpen] = useState(false);
   const [dialogContent, setDialogContent] = useState<DialogContent>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [footOpen, setFootOpen] = useState(false); // 하단 '설정' 펼침 여부
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
 
@@ -588,8 +589,7 @@ export const Menu = () => {
         <div className="h-12 flex items-center justify-between px-4 border-b border-gray-100 dark:border-gray-800/50 bg-gray-50/50 dark:bg-gray-900/50 rounded-tr-2xl">
           <div className="text-gray-900 dark:text-white font-medium"></div>
         </div>
-        <CurrentDateTime />
-        <div className="flex-1 flex flex-col h-full w-full overflow-hidden">
+        <div className="flex-1 flex flex-col h-full w-full overflow-y-auto overflow-x-hidden modern-scrollbar">
           <div className="p-4 space-y-3">
             <div className="flex gap-2">
               <a
@@ -680,7 +680,7 @@ export const Menu = () => {
               </div>
             )}
           </div>
-          <div className="flex-1 overflow-auto px-3 pb-3">
+          <div className="px-3 pb-3">
             {filteredList.length === 0 && (
               <div className="px-4 text-gray-500 dark:text-gray-400 text-sm">
                 {list.length === 0 ? 'No previous conversations' : 'No matches found'}
@@ -813,48 +813,66 @@ export const Menu = () => {
               </Dialog>
             </DialogRoot>
           </div>
-          {/* 사이드바 하단 메뉴: 설정 · 답변 언어 · 화면 모드 */}
-          <div className="border-t border-gray-200 dark:border-gray-800 px-3 py-2 space-y-0.5 text-sm text-gray-700 dark:text-gray-300">
+          {/* 사이드바 하단 메뉴: '설정'을 누르면 API 키·모델 / 답변 언어 / 이용료·요금제 / 화면 모드가 펼쳐집니다 */}
+          <div className="border-t border-gray-200 dark:border-gray-800 px-3 py-2 space-y-0.5 text-sm text-gray-700 dark:text-gray-300 shrink-0">
             <button
               type="button"
-              onClick={handleSettingsClick}
+              onClick={() => setFootOpen((v) => !v)}
               className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              aria-expanded={footOpen}
             >
               <span className="i-ph:gear-six h-4 w-4 shrink-0" />
               <span>설정</span>
-              <span className="ml-auto text-xs text-gray-400">API 키 · 모델</span>
+              <span
+                className={classNames('ml-auto i-ph:caret-right h-3.5 w-3.5 text-gray-400 transition-transform', {
+                  'rotate-90': footOpen,
+                })}
+              />
             </button>
-            <label className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer">
-              <span className="i-ph:globe h-4 w-4 shrink-0" />
-              <span>답변 언어</span>
-              <select
-                value={answerLang}
-                onChange={(event) => handleAnswerLangChange(event.target.value)}
-                className="ml-auto bg-transparent text-xs text-gray-600 dark:text-gray-300 focus:outline-none cursor-pointer"
-                aria-label="답변 언어"
-              >
-                {ANSWER_LANGS.map((l) => (
-                  <option key={l.value} value={l.value}>
-                    {l.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <a
-              href="/pricing"
-              className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              <span className="i-ph:credit-card h-4 w-4 shrink-0" />
-              <span>이용료 · 요금제</span>
-              <span className="ml-auto i-ph:caret-right h-3.5 w-3.5 text-gray-400" />
-            </a>
-            <div className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2">
-              <span className="i-ph:moon h-4 w-4 shrink-0" />
-              <span>화면 모드</span>
-              <div className="ml-auto">
-                <ThemeSwitch />
+            {footOpen && (
+              <div className="pl-3 space-y-0.5">
+                <button
+                  type="button"
+                  onClick={handleSettingsClick}
+                  className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <span className="i-ph:key h-4 w-4 shrink-0" />
+                  <span>API 키 · 모델</span>
+                  <span className="ml-auto i-ph:caret-right h-3.5 w-3.5 text-gray-400" />
+                </button>
+                <label className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer">
+                  <span className="i-ph:globe h-4 w-4 shrink-0" />
+                  <span>답변 언어</span>
+                  <select
+                    value={answerLang}
+                    onChange={(event) => handleAnswerLangChange(event.target.value)}
+                    className="ml-auto bg-transparent text-xs text-gray-600 dark:text-gray-300 focus:outline-none cursor-pointer"
+                    aria-label="답변 언어"
+                  >
+                    {ANSWER_LANGS.map((l) => (
+                      <option key={l.value} value={l.value}>
+                        {l.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <a
+                  href="/pricing"
+                  className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <span className="i-ph:credit-card h-4 w-4 shrink-0" />
+                  <span>이용료 · 요금제</span>
+                  <span className="ml-auto i-ph:caret-right h-3.5 w-3.5 text-gray-400" />
+                </a>
+                <div className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2">
+                  <span className="i-ph:moon h-4 w-4 shrink-0" />
+                  <span>화면 모드</span>
+                  <div className="ml-auto">
+                    <ThemeSwitch />
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </motion.div>

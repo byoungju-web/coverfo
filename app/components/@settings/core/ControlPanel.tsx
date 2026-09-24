@@ -11,7 +11,6 @@ import { profileStore } from '~/lib/stores/profile';
 import type { TabType, Profile } from './types';
 import { TAB_LABELS, DEFAULT_TAB_CONFIG, TAB_DESCRIPTIONS } from './constants';
 import { DialogTitle } from '~/components/ui/Dialog';
-import { AvatarDropdown } from './AvatarDropdown';
 import BackgroundRays from '~/components/ui/BackgroundRays';
 
 // Import all tab components
@@ -266,10 +265,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                   </div>
 
                   <div className="flex items-center gap-6">
-                    {/* Avatar and Dropdown */}
-                    <div className="pl-6">
-                      <AvatarDropdown onSelectTab={handleTabClick} />
-                    </div>
+                    {/* Guest User 아바타 메뉴 삭제 (프로필·디버그 로그 등 bolt 기본 메뉴는 쓰지 않음) */}
 
                     {/* Close Button */}
                     <button

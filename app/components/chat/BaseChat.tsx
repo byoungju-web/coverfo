@@ -415,7 +415,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   예약 페이지, 견적서, 3D 게임, 앱 등을 버튼 하나로. 만들고 싶은 것을 상세히 말해 주세요.
                 </p>
                 <p className="text-sm mb-6 text-bolt-elements-textTertiary animate-fade-in animation-delay-200">
-                  일반 질문은 <b>대화</b>, 앱·3D 만들기는 <b>앱 생성 AUTO</b> 를 눌러 주세요
+                  일반 질문은 <b>chat</b>, 앱·3D·영상 만들기는 <b>앱생성 · 3D · 영상 AUTO</b> 를 눌러 주세요
                 </p>
               </div>
             )}
