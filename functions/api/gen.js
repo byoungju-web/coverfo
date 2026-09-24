@@ -266,7 +266,14 @@ async function finalizeVideo(c, job) {
     const uri = samples[0] && samples[0].video && samples[0].video.uri;
     if (!uri) {
       const filtered = resp.generateVideoResponse && resp.generateVideoResponse.raiMediaFilteredReasons;
-      throw new Error(filtered ? '안전 필터로 생성되지 않았습니다: ' + JSON.stringify(filtered).slice(0, 200) : '영상 결과가 없습니다');
+      if (filtered) {
+        const txt = JSON.stringify(filtered);
+        const hint = /real people|likeness|celebrity/i.test(txt)
+          ? '구글 안전 필터: 실제 인물(유명인 등)의 이름이나 얼굴로 보이는 영상은 만들 수 없습니다. 인물 이름을 빼고 묘사만 쓰거나, 얼굴이 화면을 꽉 채우지 않는 이미지로 다시 시도해 보세요.'
+          : '구글 안전 필터로 생성되지 않았습니다. 문구를 조금 바꿔서 다시 시도해 보세요.';
+        throw new Error(hint + ' (' + txt.slice(0, 160) + ')');
+      }
+      throw new Error('영상 결과가 없습니다');
     }
     const bytes = await googleDownload(c, uri);
     const path = job.user_id + '/' + job.id + '.mp4';
