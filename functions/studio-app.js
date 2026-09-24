@@ -182,9 +182,15 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
     });
   }
 
+  var POOL = null;
   function renderCredits(cr){
     if (!cr) return;
-    $('credit').innerHTML = '<i></i>무료 ' + (cr.free||0) + ' · 충전 ' + (cr.paid||0);
+    if (cr.pool) POOL = cr.pool;
+    var extra = '';
+    if (POOL) {
+      extra = POOL.open ? ' · 이달 무료 남음 ' + POOL.remaining + '/' + POOL.cap : ' · 무료 기간 종료';
+    }
+    $('credit').innerHTML = '<i' + (POOL && (!POOL.open || POOL.remaining <= 0) ? ' style="background:#f59e0b"' : '') + '></i>무료 ' + (cr.free||0) + ' · 충전 ' + (cr.paid||0) + extra;
   }
   function loadCredits(){ return api('GET','?credits=1').then(function(j){ if(j.__status===200) renderCredits(j); return j; }); }
 
@@ -290,6 +296,13 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
   function insufficientMsg(j){
     var need=j.need||costs[kind];
     var have=(j.free||0)+(j.paid||0);
+    if(j.pool) POOL=j.pool;
+    if(j.reason==='pool_exhausted'){
+      return '이번 달 무료 크레딧(전체 ' + ((j.pool&&j.pool.cap)||500) + ')이 모두 소진되었습니다. 다음 달 1일에 다시 열립니다. 충전 크레딧은 계속 쓸 수 있습니다. (필요 '+need+' · 충전 잔액 '+(j.paid||0)+')<br><a href="/pricing" target="_top">크레딧 충전 안내 →</a>';
+    }
+    if(j.reason==='free_closed'){
+      return '무료 크레딧 제공 기간이 끝났습니다. 충전 크레딧으로 이용해 주세요. (필요 '+need+' · 충전 잔액 '+(j.paid||0)+')<br><a href="/pricing" target="_top">크레딧 충전 안내 →</a>';
+    }
     if(j.paid_only){
       return '영상은 충전 크레딧으로만 만들 수 있습니다. (필요 '+need+' · 충전 잔액 '+(j.paid||0)+')<br><a href="/pricing" target="_top">크레딧 충전 안내 →</a>';
     }
@@ -307,7 +320,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
       if(j.__status===402){ setBusy(false); show('err', insufficientMsg(j)); return; }
       if(j.__status===401){ setBusy(false); show('err','로그인이 풀렸습니다. <a href="/" target="_top">홈에서 다시 로그인</a>'); return; }
       if(j.__status!==200){ setBusy(false); show('err','실패했습니다'+(j.refunded?' (크레딧 환불됨)':'')+'.<br>'+(j.error||'')); loadCredits(); return; }
-      renderCredits({free:j.free, paid:j.paid});
+      renderCredits({free:j.free, paid:j.paid}); loadCredits();
       if(j.status==='done'){ setBusy(false); show('ok','완성됐습니다.'); showResult('image', j.result_url); loadHistory(); markDone(); return; }
       loadHistory(); pollVideo(j.job_id);
     }).catch(function(e){ setBusy(false); show('err','네트워크 오류: '+e); });

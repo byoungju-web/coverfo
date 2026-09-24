@@ -21,6 +21,88 @@ export async function action(args: ActionFunctionArgs) {
 
 const logger = createScopedLogger('api.chat');
 
+/*
+ * coverfo 크레딧: 채팅(앱 생성 포함) 요청 1건 = 1크레딧. 브라우저가 아니라 여기(서버)에서 차감합니다.
+ * 브라우저는 Authorization: Bearer <Supabase 로그인 토큰> 을 실어 보내고, 서버가 토큰을 확인한 뒤 cf_spend 를 호출합니다.
+ */
+const CF_CHAT_COST = 1;
+
+async function cfVerifyUser(env: any, request: Request): Promise<{ id: string } | null> {
+  const auth = request.headers.get('Authorization') || '';
+  const token = auth.replace(/^Bearer\s+/i, '').trim();
+
+  if (!token) {
+    return null;
+  }
+
+  const r = await fetch(String(env.SUPABASE_URL).replace(/\/+$/, '') + '/auth/v1/user', {
+    headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: 'Bearer ' + token },
+  });
+
+  if (!r.ok) {
+    return null;
+  }
+
+  const u = (await r.json()) as { id?: string };
+
+  return u && u.id ? { id: u.id } : null;
+}
+
+async function cfRpc(env: any, name: string, args: Record<string, unknown>) {
+  const r = await fetch(String(env.SUPABASE_URL).replace(/\/+$/, '') + '/rest/v1/rpc/' + name, {
+    method: 'POST',
+    headers: {
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: 'Bearer ' + env.SUPABASE_SERVICE_ROLE_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(args),
+  });
+  const t = await r.text();
+
+  if (!r.ok) {
+    throw new Error('supabase rpc ' + name + ' ' + r.status + ': ' + t.slice(0, 200));
+  }
+
+  try {
+    return JSON.parse(t);
+  } catch {
+    return t;
+  }
+}
+
+function cfLastUserText(messages: Messages): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m: any = messages[i];
+
+    if (m.role !== 'user') {
+      continue;
+    }
+
+    let text = typeof m.content === 'string' ? m.content : '';
+
+    if (!text && Array.isArray(m.content)) {
+      const part = (m.content as any[]).find((x) => x?.type === 'text');
+      text = part?.text || '';
+    }
+
+    text = text.replace(/^\[Model:[^\]]*\]\s*\n*\[Provider:[^\]]*\]\s*\n*/i, '');
+
+    const idx = text.indexOf('<<coverfo-spec>>');
+
+    return (idx >= 0 ? text.slice(0, idx) : text).trim().slice(0, 500);
+  }
+
+  return '';
+}
+
+function cfCreditError(message: string, reason: string, status = 402) {
+  return new Response(
+    JSON.stringify({ error: true, message, statusCode: status, isRetryable: false, provider: 'coverfo', reason }),
+    { status, headers: { 'Content-Type': 'application/json' }, statusText: 'Payment Required' },
+  );
+}
+
 function parseCookies(cookieHeader: string): Record<string, string> {
   const cookies: Record<string, string> = {};
 
@@ -66,6 +148,57 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       };
       maxLLMSteps: number;
     }>();
+
+  /* ── coverfo 크레딧 확인·차감 (서버) ─────────────────────────── */
+  const cfEnv: any = context.cloudflare?.env || {};
+  let cfJobId: number | null = null;
+
+  if (!cfEnv.SUPABASE_URL || !cfEnv.SUPABASE_SERVICE_ROLE_KEY) {
+    return cfCreditError('서버 설정(SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)이 없어 요청을 처리할 수 없습니다.', 'config', 500);
+  }
+
+  const cfUser = await cfVerifyUser(cfEnv, request);
+
+  if (!cfUser) {
+    return cfCreditError('로그인이 필요합니다. coverfo.com 에서 로그인 후 다시 시도해 주세요.', 'login', 401);
+  }
+
+  try {
+    const spend: any = await cfRpc(cfEnv, 'cf_spend', {
+      p_user: cfUser.id,
+      p_cost: CF_CHAT_COST,
+      p_kind: 'chat',
+      p_prompt: cfLastUserText(messages),
+    });
+
+    if (!spend || !spend.ok) {
+      const reason = spend?.reason || 'insufficient';
+      const msg =
+        reason === 'pool_exhausted'
+          ? '이번 달 무료 크레딧(전체 한도)이 모두 소진되었습니다. 다음 달 1일에 다시 열립니다. coverfo.com/pricing 에서 충전하시면 계속 쓸 수 있습니다.'
+          : reason === 'free_closed'
+            ? '무료 크레딧 제공 기간이 끝났습니다. coverfo.com/pricing 에서 충전해 주세요.'
+            : `크레딧이 부족합니다. (보유 ${Number(spend?.free || 0) + Number(spend?.paid || 0)} · 필요 ${CF_CHAT_COST}) coverfo.com/pricing 에서 충전해 주세요.`;
+
+      return cfCreditError(msg, reason);
+    }
+
+    cfJobId = spend.job_id;
+  } catch (e: any) {
+    return cfCreditError('크레딧 확인에 실패했습니다: ' + String(e?.message || e).slice(0, 200), 'error', 500);
+  }
+
+  const cfRefund = async () => {
+    if (cfJobId == null) {
+      return;
+    }
+
+    try {
+      await cfRpc(cfEnv, 'cf_refund', { p_job: cfJobId });
+    } catch {
+      /* 환불 실패는 무시 */
+    }
+  };
 
   const cookieHeader = request.headers.get('Cookie');
   const apiKeys = JSON.parse(parseCookies(cookieHeader || '').apiKeys || '{}');
@@ -428,6 +561,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       },
     });
   } catch (error: any) {
+    await cfRefund();
     logger.error(error);
 
     const errorResponse = {

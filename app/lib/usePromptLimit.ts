@@ -65,22 +65,31 @@ export function usePromptLimit() {
       return false;
     }
 
-    const { data, error } = await supabase.rpc('cf_spend_self', {
-      p_cost: CHAT_COST,
-      p_kind: 'chat',
-      p_prompt: '',
-    });
+    // 차감은 서버(/api/chat)가 합니다. 여기서는 보내기 전에 잔액·이달 무료 한도만 미리 확인해 안내합니다.
+    const { data, error } = await supabase.rpc('cf_my_credits');
 
     if (error) {
       alert('크레딧 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.\n' + error.message);
       return false;
     }
 
-    const r = (data || {}) as any;
+    const cr = (data || {}) as any;
+    const free = Number(cr.free || 0);
+    const paid = Number(cr.paid || 0);
+    const pool = cr.pool || {};
+    const freeUsable = free > 0 && pool.open !== false && Number(pool.remaining ?? 1) >= CHAT_COST;
+    const r: any =
+      paid >= CHAT_COST || freeUsable
+        ? { ok: true, free, paid }
+        : { ok: false, free, paid, reason: free > 0 && pool.open === false ? 'free_closed' : free > 0 ? 'pool_exhausted' : 'insufficient' };
 
     if (!r.ok) {
       if (r.reason === 'login') {
         alert('coverfo.com 로그인 먼저!');
+      } else if (r.reason === 'pool_exhausted') {
+        alert('이번 달 무료 크레딧(전체 한도)이 모두 소진되었습니다. 다음 달 1일에 다시 열립니다.\ncoverfo.com/pricing 에서 충전하시면 계속 쓸 수 있습니다.');
+      } else if (r.reason === 'free_closed') {
+        alert('무료 크레딧 제공 기간이 끝났습니다.\ncoverfo.com/pricing 에서 충전해 주세요.');
       } else {
         const have = Number(r.free || 0) + Number(r.paid || 0);
         alert(`크레딧이 부족합니다. (보유 ${have} · 필요 ${CHAT_COST})\ncoverfo.com/pricing 에서 크레딧을 충전해 주세요.`);
@@ -91,7 +100,7 @@ export function usePromptLimit() {
 
     setCredits({ free: Number(r.free || 0), paid: Number(r.paid || 0) });
 
-    return true;
+    return true; // 실제 차감은 서버에서
   };
 
   return { profile, credits, loadCredits, canPrompt, checkAndIncrement };

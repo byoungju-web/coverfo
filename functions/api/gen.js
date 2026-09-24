@@ -98,7 +98,9 @@ async function getCredits(c, userId) {
   );
   const rows = r.ok ? await r.json() : [];
   const row = rows && rows[0];
-  return { free: row ? Number(row.free_balance || 0) : 0, paid: row ? Number(row.balance || 0) : 0 };
+  let pool = null;
+  try { pool = await rpc(c, 'cf_free_pool_status', {}); } catch (e) { pool = null; } // 이달 무료 풀 (없으면 null)
+  return { free: row ? Number(row.free_balance || 0) : 0, paid: row ? Number(row.balance || 0) : 0, pool: pool };
 }
 
 async function getJob(c, jobId, userId) {
@@ -390,7 +392,7 @@ async function handlePost(context) {
     return json({ error: '크레딧 처리 실패: ' + String(e.message || e).slice(0, 200) }, 500);
   }
   if (!spend || !spend.ok) {
-    return json({ error: 'insufficient', reason: spend && spend.reason, free: spend && spend.free, paid: spend && spend.paid, need: cost, paid_only: !!(spend && spend.paid_only) }, 402);
+    return json({ error: 'insufficient', reason: spend && spend.reason, free: spend && spend.free, paid: spend && spend.paid, need: cost, paid_only: !!(spend && spend.paid_only), pool: spend && spend.pool }, 402);
   }
   const jobId = spend.job_id;
 

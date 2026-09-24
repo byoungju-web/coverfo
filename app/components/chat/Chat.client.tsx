@@ -29,6 +29,7 @@ import type { TextUIPart, FileUIPart, Attachment } from '@ai-sdk/ui-utils';
 import { useMCPStore } from '~/lib/stores/mcp';
 import type { LlmErrorAlertType } from '~/types/actions';
 import { usePromptLimit } from '~/lib/usePromptLimit';
+import { supabase } from '~/lib/supabaseClient';
 import { tryTemplateRoute } from '~/lib/agents/templateRoute';
 
 const logger = createScopedLogger('Chat');
@@ -168,6 +169,20 @@ export const ChatImpl = memo(
       addToolResult,
     } = useChat({
       api: '/api/chat',
+
+      // 서버(/api/chat)가 로그인 확인과 크레딧 차감을 하므로, 요청마다 Supabase 로그인 토큰을 실어 보냅니다
+      fetch: async (input, init) => {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const headers = new Headers(init?.headers || {});
+
+        if (session?.access_token) {
+          headers.set('Authorization', 'Bearer ' + session.access_token);
+        }
+
+        return fetch(input, { ...init, headers });
+      },
       body: {
         apiKeys,
         files,
