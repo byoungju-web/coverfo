@@ -89,6 +89,26 @@ const SERVER_JS = [
   '```',
 ].join('\n');
 
+// 이미지·영상 요청은 채팅(앱 생성)이 아니라 스튜디오(Gemini 이미지 / Veo 영상)로 보냅니다. 홈 화면과 같은 기준.
+function studioKind(text: string): 'image' | 'video' | null {
+  const low = text.toLowerCase();
+  const has = (...keys: string[]) => keys.some((k) => text.includes(k) || low.includes(k));
+
+  if (has('영상', '동영상', '비디오', 'video')) {
+    return 'video';
+  }
+
+  if (has('이미지', '그림', '포스터', '일러스트', '사진', 'image')) {
+    return 'image';
+  }
+
+  return null;
+}
+
+function goStudio(kind: 'image' | 'video', text: string) {
+  window.location.href = '/studio?kind=' + kind + '&auto=1&prompt=' + encodeURIComponent(text);
+}
+
 function buildSpec(text: string) {
   const low = text.toLowerCase();
   const has = (...keys: string[]) => keys.some((k) => text.includes(k) || low.includes(k));
@@ -287,6 +307,15 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
                 return;
               }
 
+              if (props.chatMode === 'build') {
+                const k = studioKind(props.input.trim());
+
+                if (k) {
+                  goStudio(k, props.input.trim());
+                  return;
+                }
+              }
+
               props.handleSendMessage?.(
                 event,
                 props.chatMode === 'build' ? buildSpec(props.input.trim()) : props.input.trim(),
@@ -387,7 +416,7 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
             {/* 앱 생성하기 — 채팅 화면에서 바로 실행 */}
             <button
               type="button"
-              title="지금 적은 내용으로 앱을 만듭니다"
+              title="앱·3D는 여기서 만들고, 이미지·영상 요청은 스튜디오로 이동합니다"
               disabled={props.input.trim().length === 0 || props.isStreaming}
               className={classNames(
                 'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-semibold whitespace-nowrap transition active:scale-95',
@@ -405,11 +434,18 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
                   return;
                 }
 
+                const k = studioKind(raw);
+
+                if (k) {
+                  goStudio(k, raw);
+                  return;
+                }
+
                 props.setChatMode?.('build');
                 props.handleSendMessage?.(event, buildSpec(raw));
               }}
             >
-              앱생성 3D<span className="hidden sm:inline"> AUTO</span>
+              앱생성 · 3D · 영상<span className="hidden sm:inline"> AUTO</span>
             </button>
           </div>
           <ExpoQrModal open={props.qrModalOpen} onClose={() => props.setQrModalOpen(false)} />

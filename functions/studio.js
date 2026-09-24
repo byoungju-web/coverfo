@@ -300,6 +300,11 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
       token = s.access_token;
       client.auth.onAuthStateChange(function(_e, sess){ token = sess ? sess.access_token : null; });
       loadCredits(); loadHistory();
+      /* 홈 화면에서 넘어온 경우(auto=1): 클릭 없이 바로 만들기. 새로고침 때 또 만들지 않도록 주소에서 지움 */
+      if (q.get('auto') === '1' && $('prompt').value.trim()) {
+        try { history.replaceState({}, '', '/studio'); } catch (e) {}
+        setTimeout(function(){ $('go').click(); }, 300);
+      }
     });
   }).catch(function(e){ renderKind(); show('err','설정을 불러오지 못했습니다: '+e); });
 })();

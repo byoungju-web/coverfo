@@ -241,6 +241,18 @@ export const ChatImpl = memo(
       chatStore.setKey('started', initialMessages.length > 0);
     }, []);
 
+    // 왼쪽 목록에서 지난 채팅을 열면 채팅 화면이 먼저 보이게 합니다.
+    // (저장된 메시지를 다시 읽는 과정에서 결과·코드 화면이 자동으로 켜지는 것을 되돌림)
+    useEffect(() => {
+      if (initialMessages.length === 0) {
+        return;
+      }
+
+      const timers = [200, 600, 1200].map((ms) => setTimeout(() => workbenchStore.showWorkbench.set(false), ms));
+
+      return () => timers.forEach((t) => clearTimeout(t));
+    }, []);
+
     useEffect(() => {
       processSampledMessages({
         messages,
