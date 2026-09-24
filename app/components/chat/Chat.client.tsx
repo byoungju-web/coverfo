@@ -224,7 +224,7 @@ export const ChatImpl = memo(
         logger.debug('Finished streaming');
       },
       initialMessages,
-      initialInput: Cookies.get(PROMPT_COOKIE_KEY) || '',
+      initialInput: '', // 이전에 적었던 문구를 되살리지 않습니다 (쿠키 복원 끔)
     });
     useEffect(() => {
       const prompt = searchParams.get('prompt');
