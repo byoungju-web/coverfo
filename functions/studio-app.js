@@ -108,14 +108,14 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
 (function(){
   var kind = 'image', aspect = '1:1', costs = {image:2, video:25}, client = null, token = null, busy = false;
   var SRC = null; // 원본 이미지 {id, url, prompt}
+  var ASPECTS = { image:['1:1','16:9','9:16','4:3','3:4'], video:['16:9','9:16'] };
+  var $ = function(id){ return document.getElementById(id); };
   var DONE_PROMPT = false; // 생성이 끝난 직후면 true → 입력칸을 클릭할 때 이전 문구를 지움
   function markDone(){ DONE_PROMPT = true; }
   $('prompt').addEventListener('focus', function(){
     if (DONE_PROMPT) { DONE_PROMPT = false; $('prompt').value = ''; }
   });
   $('prompt').addEventListener('input', function(){ DONE_PROMPT = false; });
-  var ASPECTS = { image:['1:1','16:9','9:16','4:3','3:4'], video:['16:9','9:16'] };
-  var $ = function(id){ return document.getElementById(id); };
 
   var q = new URLSearchParams(location.search);
   if (q.get('kind') === 'video') kind = 'video';
