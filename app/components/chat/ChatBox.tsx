@@ -102,6 +102,11 @@ function studioKind(text: string): 'image' | 'video' | null {
     return 'image';
   }
 
+  // "3d" 도 스튜디오에서 그림으로 만듭니다. 조작이 필요한 3D 게임·앱·페이지만 채팅(앱 생성)으로.
+  if (has('3d', '입체') && !has('게임', 'game', '앱', '페이지', '사이트', '홈페이지', '조작', '돌려')) {
+    return 'image';
+  }
+
   return null;
 }
 

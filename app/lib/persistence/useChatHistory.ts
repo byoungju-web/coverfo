@@ -130,8 +130,7 @@ export function useChatHistory() {
                   role: 'assistant',
 
                   // Combine followup message and the artifact with files and command actions
-                  content: `
-                  <boltArtifact id="restored-project-setup" title="이전 작업 파일" type="bundled">
+                  content: `<boltArtifact id="restored-project-setup" title="이전 작업 파일" type="bundled">
                   ${Object.entries(snapshot?.files || {})
                     .map(([key, value]) => {
                       if (value?.type === 'file') {
