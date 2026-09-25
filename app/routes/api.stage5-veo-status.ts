@@ -1,6 +1,6 @@
 // 5단계 Veo — 작업 상태 확인 (?name=operations/...) 및 완성 영상 파일 전달 (?file=<uri>)
 import type { LoaderFunctionArgs } from '@remix-run/cloudflare';
-import { envOf, fail, ok, requireLogin } from '~/lib/engine/server';
+import { envOf, fail, googleFetch, ok, requireLogin } from '~/lib/engine/server';
 
 const GOOGLE_HOST = 'https://generativelanguage.googleapis.com/';
 
@@ -21,7 +21,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       return fail('허용되지 않은 주소입니다', 400);
     }
 
-    const r = await fetch(file, { headers: { 'x-goog-api-key': key }, redirect: 'follow' });
+    const r = await googleFetch(env, file, { method: 'GET' });
 
     return new Response(r.body, {
       status: r.status,
@@ -46,9 +46,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   }
 
   try {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/${name}`, {
-      headers: { 'x-goog-api-key': key },
-    });
+    const r = await googleFetch(env, `/v1beta/${name}`, { method: 'GET' });
     const data: any = await r.json();
     const sample = data.response?.generateVideoResponse?.generatedSamples?.[0];
     const videoUri: string | null = sample?.video?.uri || null;

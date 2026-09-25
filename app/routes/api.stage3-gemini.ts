@@ -1,6 +1,6 @@
 // 3단계 Gemini 3 Flash Image — 사진급 이미지 생성 (base64 로 돌려줌)
 import type { ActionFunctionArgs } from '@remix-run/cloudflare';
-import { envOf, fail, ok, readJson, requireLogin } from '~/lib/engine/server';
+import { envOf, fail, googleFetch, ok, readJson, requireLogin } from '~/lib/engine/server';
 import { ENGINE_MODELS } from '~/lib/engine/models';
 
 export async function action({ request, context }: ActionFunctionArgs) {
@@ -20,11 +20,12 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
   try {
     const started = Date.now();
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${ENGINE_MODELS.stage3}:generateContent`,
+    const r = await googleFetch(
+      env,
+      `/v1beta/models/${ENGINE_MODELS.stage3}:generateContent`,
       {
         method: 'POST',
-        headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [
             {

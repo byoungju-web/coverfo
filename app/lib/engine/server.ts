@@ -38,6 +38,71 @@ export function supabaseAuthConfig(env: Env) {
   return url && key ? { url, key } : null;
 }
 
+/*
+ * ── 지역 차단 우회 중계 ──────────────────────────────────────────
+ * Cloudflare 함수가 홍콩(HKG) 노드에서 돌면 Anthropic("Request not allowed")·Google("User location is not
+ * supported") 이 막습니다(실측). 그래서 gen.js 와 같은 방식으로 Supabase Edge Function 을 거칩니다.
+ *   Google    → {SUPABASE_URL}/functions/v1/google-proxy/v1beta/...
+ *   Anthropic → {SUPABASE_URL}/functions/v1/anthropic-relay/v1/messages
+ * Secret ENGINE_PROXY=off 로 끌 수 있고, 리전은 GOOGLE_PROXY_REGION(기본 ap-northeast-2 서울)을 같이 씁니다.
+ * SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY 가 없으면 자동으로 직접 호출합니다.
+ */
+const GOOGLE_HOST = 'https://generativelanguage.googleapis.com';
+const ANTHROPIC_HOST = 'https://api.anthropic.com';
+
+function proxyConfig(env: Env) {
+  const sbUrl = (env.SUPABASE_URL || '').replace(/\/+$/, '');
+  const service = env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const on = (env.ENGINE_PROXY || env.GOOGLE_PROXY || 'on') !== 'off';
+
+  return sbUrl && service && on ? { sbUrl, service, region: env.GOOGLE_PROXY_REGION || 'ap-northeast-2' } : null;
+}
+
+/** Google 호출 (중계 경유). url 은 전체 주소 또는 /v1beta/... 경로 */
+export function googleFetch(env: Env, url: string, init: RequestInit = {}) {
+  const key = env.GOOGLE_GENERATIVE_AI_API_KEY || '';
+  const headers = new Headers(init.headers || {});
+  headers.set('x-goog-api-key', key);
+
+  let target = url.startsWith('http') ? url : GOOGLE_HOST + url;
+  const px = proxyConfig(env);
+
+  if (px && target.startsWith(GOOGLE_HOST)) {
+    target = px.sbUrl + '/functions/v1/google-proxy' + target.slice(GOOGLE_HOST.length);
+    headers.set('Authorization', 'Bearer ' + px.service);
+    headers.set('apikey', px.service);
+    headers.set('x-region', px.region);
+  }
+
+  return fetch(target, { ...init, headers, redirect: 'follow' });
+}
+
+/** Anthropic 호출 (중계 경유). path 는 /v1/messages 같은 경로 */
+export function anthropicFetch(env: Env, path: string, init: RequestInit = {}) {
+  const key = env.ANTHROPIC_API_KEY || '';
+  const headers = new Headers(init.headers || {});
+  headers.set('x-api-key', key);
+  headers.set('anthropic-version', '2023-06-01');
+  headers.set('content-type', 'application/json');
+
+  let target = ANTHROPIC_HOST + path;
+  const px = proxyConfig(env);
+
+  if (px) {
+    target = px.sbUrl + '/functions/v1/anthropic-relay' + path;
+    // 중계 함수는 x-api-key 등 정해진 헤더만 Anthropic 으로 넘기므로 아래 둘은 Supabase 문 통과용입니다
+    headers.set('Authorization', 'Bearer ' + px.service);
+    headers.set('apikey', px.service);
+    headers.set('x-region', px.region);
+  }
+
+  return fetch(target, { ...init, headers });
+}
+
+export function proxyStatus(env: Env) {
+  return proxyConfig(env) ? 'on (' + proxyConfig(env)!.region + ')' : 'off';
+}
+
 /** 로그인 확인. 통과하면 null, 막으면 Response 를 돌려줍니다. */
 export async function requireLogin(request: Request, env: Env): Promise<Response | null> {
   const cfg = supabaseAuthConfig(env);
@@ -76,9 +141,8 @@ export async function anthropicText(env: Env, model: string, prompt: string, max
     throw new Error('ANTHROPIC_API_KEY 가 없습니다 (Cloudflare 환경변수)');
   }
 
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
+  const r = await anthropicFetch(env, '/v1/messages', {
     method: 'POST',
-    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
     body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] }),
   });
   const data: any = await r.json();
@@ -118,9 +182,8 @@ export async function anthropicStreamResponse(env: Env, model: string, prompt: s
     return fail('ANTHROPIC_API_KEY 가 없습니다 (Cloudflare 환경변수)');
   }
 
-  const upstream = await fetch('https://api.anthropic.com/v1/messages', {
+  const upstream = await anthropicFetch(env, '/v1/messages', {
     method: 'POST',
-    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
     body: JSON.stringify({ model, max_tokens: maxTokens, stream: true, messages: [{ role: 'user', content: prompt }] }),
   });
 
