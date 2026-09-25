@@ -1,6 +1,6 @@
-// 2단계 Astra 6 — 에셋·디자인 참고 조사 (실제 호출은 models.ts 의 stage2 모델)
+// 2단계 Astra 6 (OpenAI gpt-6-astra) — 에셋·디자인 참고 조사
 import type { ActionFunctionArgs } from '@remix-run/cloudflare';
-import { anthropicText, envOf, extractJson, fail, ok, readJson, requireLogin } from '~/lib/engine/server';
+import { envOf, extractJson, fail, ok, openaiText, readJson, requireLogin } from '~/lib/engine/server';
 import { ENGINE_MODELS } from '~/lib/engine/models';
 
 export async function action({ request, context }: ActionFunctionArgs) {
@@ -15,7 +15,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
   try {
     const started = Date.now();
-    const { text, usage } = await anthropicText(
+    const { text, usage } = await openaiText(
       env,
       ENGINE_MODELS.stage2,
       `You are the Browser Research Agent of coverfo 3D Orchestrator. Spec: ${JSON.stringify(spec || {}).slice(0, 3000)}

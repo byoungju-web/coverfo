@@ -159,6 +159,35 @@ export async function anthropicText(env: Env, model: string, prompt: string, max
   return { text, usage: data.usage };
 }
 
+/** OpenAI Chat Completions 로 글 한 번 받기 (2단계 gpt-6-astra). reasoning 모델이라 temperature 는 보내지 않습니다 */
+export async function openaiText(env: Env, model: string, prompt: string, maxTokens: number) {
+  const key = env.OPENAI_API_KEY;
+
+  if (!key) {
+    throw new Error('OPENAI_API_KEY 가 없습니다 (Cloudflare 환경변수)');
+  }
+
+  const r = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      max_completion_tokens: maxTokens,
+      reasoning_effort: 'low',
+    }),
+  });
+  const data: any = await r.json();
+
+  if (data.error) {
+    throw new Error(`${model}: ${data.error.message || JSON.stringify(data.error)}`);
+  }
+
+  const text: string = data.choices?.[0]?.message?.content || '';
+
+  return { text, usage: data.usage };
+}
+
 /** 글 안에서 첫 JSON 덩어리만 꺼내 파싱 (실패하면 null) */
 export function extractJson(text: string): any | null {
   try {

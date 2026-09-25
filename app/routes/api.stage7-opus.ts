@@ -16,7 +16,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     prompt?: string;
     spec?: unknown;
     research?: unknown;
-    assets?: { image1?: boolean; image2?: boolean; video?: boolean; model?: boolean };
+    assets?: { image1?: boolean; image2?: boolean; video?: boolean; video3d?: boolean; model?: boolean };
   }>(request);
   const a = assets || {};
 
@@ -24,6 +24,9 @@ export async function action({ request, context }: ActionFunctionArgs) {
     a.image1 ? '- {{IMAGE_1}} : hero photo (use as <img src="{{IMAGE_1}}"> or CSS background)' : '',
     a.image2 ? '- {{IMAGE_2}} : refined product/detail photo (use as <img src="{{IMAGE_2}}">)' : '',
     a.video ? '- {{VIDEO_URL}} : 5 second mp4 (use <video src="{{VIDEO_URL}}" autoplay muted loop playsinline>)' : '',
+    a.video3d
+      ? '- {{VIDEO_3D_URL}} : 4 second 360° turntable 3D video of the main subject (put it in a "3D 미리보기" section as <video src="{{VIDEO_3D_URL}}" autoplay muted loop playsinline> inside a rounded card; if the request is a 3D game or scene, ALSO build the interactive 3D part with Three.js primitives)'
+      : '',
     a.model
       ? '- {{MODEL_URL}} : GLB 3D model (load with Three.js GLTFLoader from CDN and show it in an interactive viewer with OrbitControls)'
       : '',
