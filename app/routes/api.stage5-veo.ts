@@ -1,4 +1,4 @@
-// 5단계 Veo 3.1 — 5초 영상 생성 시작 (긴 작업이라 operation 이름을 돌려주고, 상태는 stage5-veo-status 로 확인)
+// 5단계 Veo 3.1 — 4초 영상 생성 시작 (긴 작업이라 operation 이름을 돌려주고, 상태는 stage5-veo-status 로 확인)
 import type { ActionFunctionArgs } from '@remix-run/cloudflare';
 import { envOf, fail, ok, readJson, requireLogin } from '~/lib/engine/server';
 import { ENGINE_MODELS } from '~/lib/engine/models';
@@ -41,7 +41,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
         headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           instances: [instance],
-          parameters: { aspectRatio: '16:9', durationSeconds: 5, personGeneration: 'allow_adult', sampleCount: 1 },
+          // Veo 3.1 은 4~8초만 받습니다 (5 를 보내면 "out of bound" 오류 — 실측 확인). 가장 싼 4초로 고정.
+          parameters: { aspectRatio: '16:9', durationSeconds: 4, personGeneration: 'allow_adult', sampleCount: 1 },
         }),
       },
     );

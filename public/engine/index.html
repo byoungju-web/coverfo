@@ -80,6 +80,16 @@
 
   <div class="log" id="log"></div>
 
+  <div class="card" id="history" style="margin-top:14px">
+    <div class="bar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <strong style="font-size:14px">📂 작업 내역</strong>
+      <span class="count">이 브라우저에 최근 20건 저장 · 채팅으로 보낸 결과는 왼쪽 사이드바 "내 대화"에도 남습니다</span>
+      <span style="margin-left:auto"></span>
+      <button class="btn" id="clearHist">내역 비우기</button>
+    </div>
+    <div id="histList" style="display:flex;flex-direction:column;gap:6px"></div>
+  </div>
+
   <div class="result card" id="result">
     <div class="bar">
       <strong style="font-size:14px">7단계 결과 미리보기</strong>
@@ -101,7 +111,7 @@
     { n: 2, key: 'stage2', name: 'Astra 6', role: '에셋·디자인 조사', api: '/api/stage2-astra' },
     { n: 3, key: 'stage3', name: 'Gemini 3 Flash Image', role: '사진급 이미지', api: '/api/stage3-gemini' },
     { n: 4, key: 'stage4', name: 'gpt image 2', role: '질감·조명 보정', api: '/api/stage4-gptimage' },
-    { n: 5, key: 'stage5', name: 'Veo 3.1', role: '5초 영상', api: '/api/stage5-veo' },
+    { n: 5, key: 'stage5', name: 'Veo 3.1', role: '4초 영상', api: '/api/stage5-veo' },
     { n: 6, key: 'stage6', name: 'Tripo3D', role: '이미지 → 3D 모델', api: '/api/stage6-tripo' },
     { n: 7, key: 'stage7', name: 'Opus 4.5', role: '최종 코딩 (index.html)', api: '/api/stage7-opus' }
   ];
@@ -301,9 +311,27 @@
         throw new Error('4분 안에 끝나지 않아 3D 모델 없이 진행합니다');
       });
       await stage(7, async function () {
-        var j = await post('/api/stage7-opus', { prompt: prompt, spec: spec, research: research, assets: { image1: !!img1, image2: !!img2, video: !!videoUrl, model: !!modelUrl } });
-        var html = j.code || '';
-        if (!/<html[\s>]/i.test(html)) throw new Error('HTML 이 돌아오지 않았습니다');
+        // 7단계는 글자를 받는 대로 흘려보내는 스트림입니다 (한 번에 받으면 60초 넘어 연결이 끊김 — 실측)
+        var r = await fetch('/api/stage7-opus', { method: 'POST', headers: headers(), signal: ctrl.signal,
+          body: JSON.stringify({ prompt: prompt, spec: spec, research: research, assets: { image1: !!img1, image2: !!img2, video: !!videoUrl, model: !!modelUrl } }) });
+        var ct = r.headers.get('content-type') || '';
+        if (!r.ok || ct.indexOf('application/json') >= 0) {
+          var ej = await r.json().catch(function () { return {}; });
+          throw new Error(ej.error || ('HTTP ' + r.status));
+        }
+        var reader = r.body.getReader(), dec = new TextDecoder(), html = '', lastTick = 0;
+        while (true) {
+          var chunk = await reader.read();
+          if (chunk.done) break;
+          html += dec.decode(chunk.value, { stream: true });
+          if (Date.now() - lastTick > 700) { lastTick = Date.now(); out(7, '<pre>코드 받는 중… ' + html.length + '자</pre>'); }
+        }
+        html += dec.decode();
+        var em = html.match(/<!--CF_ERROR:([\s\S]*?)-->/);
+        if (em) throw new Error(em[1]);
+        html = html.trim().replace(/^```html\s*\n?/, '').replace(/^```\s*\n?/, '').replace(/\n```\s*$/, '');
+        if (!/<html[\s>]/i.test(html)) throw new Error('HTML 이 돌아오지 않았습니다 (' + html.length + '자)');
+        var j = { model: (models.stage7 || 'opus') };
         // 자리표시자를 실제 데이터로 바꿔 끼움 (이미지는 줄여서)
         if (img1 && html.indexOf('{{IMAGE_1}}') >= 0) html = html.split('{{IMAGE_1}}').join(await shrink('data:' + img1Mime + ';base64,' + img1, 1024));
         if (img2 && html.indexOf('{{IMAGE_2}}') >= 0) html = html.split('{{IMAGE_2}}').join(await shrink('data:image/png;base64,' + img2, 1024));
@@ -320,7 +348,43 @@
     }
     running = false; $('run').disabled = false; $('stop').disabled = true;
     if (!aborted) log('ok', '🎉 실행 끝');
+    // 작업 내역에 남깁니다 (단계별 결과 요약 + 완성 HTML)
+    var summary = STAGES.map(function (s) { return s.n + ':' + ($('p' + s.n).textContent || '').replace('진행 중', '중단'); }).join(' ');
+    saveHist({ at: Date.now(), prompt: prompt, title: finalTitle || prompt.slice(0, 40), ok: !!finalHtml, size: finalHtml.length, html: finalHtml, stages: summary });
   }
+
+  /* ───────── 작업 내역 (localStorage, 최근 20건) ───────── */
+  var HKEY = 'cf-engine-history';
+  function readHist() { try { var v = JSON.parse(localStorage.getItem(HKEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+  function writeHist(list) { try { localStorage.setItem(HKEY, JSON.stringify(list.slice(0, 20))); } catch (e) { log('bad', '작업 내역 저장 실패 (저장 공간 부족) — 오래된 항목을 지워 주세요'); } }
+  function saveHist(entry) { var list = readHist(); list.unshift(entry); writeHist(list); renderHist(); }
+  function renderHist() {
+    var box = $('histList'); box.innerHTML = '';
+    var list = readHist();
+    if (!list.length) { box.innerHTML = '<div style="font-size:12.5px;color:#6b6b6b;padding:6px 2px">아직 작업 내역이 없습니다.</div>'; return; }
+    list.forEach(function (h, i) {
+      var d = document.createElement('div');
+      d.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 10px;border:1px solid rgba(0,0,0,.07);border-radius:10px;background:#fff;font-size:12.5px';
+      var when = new Date(h.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      d.innerHTML = '<span style="color:#6b6b6b;flex:none">' + esc(when) + '</span>' +
+        '<span style="flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(h.prompt) + '">' + esc(h.title || h.prompt) + '</span>' +
+        '<span style="flex:none;color:' + (h.ok ? '#047857' : '#b91c1c') + '">' + (h.ok ? '완성 ' + Math.round(h.size / 1000) + 'KB' : '미완성') + '</span>' +
+        (h.stages ? '<span style="flex:none;color:#6b6b6b" title="단계별 결과">' + esc(h.stages) + '</span>' : '');
+      if (h.ok) {
+        var b1 = document.createElement('button'); b1.className = 'btn'; b1.style.height = '30px'; b1.textContent = '다시 보기';
+        b1.addEventListener('click', function () { finalHtml = h.html; finalTitle = h.title; $('prompt').value = h.prompt || ''; $('result').style.display = 'block'; $('frame').srcdoc = h.html; $('count').textContent = '작업 내역에서 불러옴'; $('result').scrollIntoView({ behavior: 'smooth' }); });
+        var b2 = document.createElement('button'); b2.className = 'btn green'; b2.style.height = '30px'; b2.textContent = '채팅으로';
+        b2.addEventListener('click', function () { finalHtml = h.html; finalTitle = h.title; $('prompt').value = h.prompt || ''; goChat(); });
+        d.appendChild(b1); d.appendChild(b2);
+      }
+      var b3 = document.createElement('button'); b3.className = 'btn'; b3.style.height = '30px'; b3.textContent = '삭제';
+      b3.addEventListener('click', function () { var l = readHist(); l.splice(i, 1); writeHist(l); renderHist(); });
+      d.appendChild(b3);
+      box.appendChild(d);
+    });
+  }
+  $('clearHist').addEventListener('click', function () { if (confirm('작업 내역을 모두 지울까요?')) { writeHist([]); renderHist(); } });
+  renderHist();
 
   function showResult() {
     $('result').style.display = 'block';

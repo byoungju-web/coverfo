@@ -1,7 +1,7 @@
 // 7단계 Opus 4.5 — 앞 단계 결과를 모아 최종 index.html 생성
 // 이미지·영상·3D 는 자리표시자({{IMAGE_1}} 등)로 넣고, 엔진 화면이 실제 데이터로 바꿔 끼웁니다.
 import type { ActionFunctionArgs } from '@remix-run/cloudflare';
-import { anthropicText, envOf, fail, ok, readJson, requireLogin } from '~/lib/engine/server';
+import { anthropicStreamResponse, envOf, fail, readJson, requireLogin } from '~/lib/engine/server';
 import { ENGINE_MODELS } from '~/lib/engine/models';
 
 export async function action({ request, context }: ActionFunctionArgs) {
@@ -31,9 +31,9 @@ export async function action({ request, context }: ActionFunctionArgs) {
     .filter(Boolean)
     .join('\n');
 
+  // 글자를 받는 대로 흘려보냅니다(text/plain 스트림). 엔진 화면이 모아서 index.html 로 씁니다.
   try {
-    const started = Date.now();
-    const { text, usage } = await anthropicText(
+    return await anthropicStreamResponse(
       env,
       ENGINE_MODELS.stage7,
       `You are the Final Coding Engine of coverfo 3D Orchestrator.
@@ -53,10 +53,6 @@ Rules:
 - No syntax errors. Return ONLY the HTML, no markdown fences, no explanation.`,
       16000,
     );
-    let code = text.trim();
-    code = code.replace(/^```html\s*\n?/, '').replace(/^```\s*\n?/, '').replace(/\n```\s*$/, '');
-
-    return ok({ stage: 'opus-4.5', model: ENGINE_MODELS.stage7, code, usage, ms: Date.now() - started });
   } catch (e: any) {
     return fail(e.message || String(e));
   }
