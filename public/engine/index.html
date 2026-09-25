@@ -59,7 +59,7 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="brand">cover<b>fo</b> <small>3D ORCHESTRATOR ENGINE™ v4.4</small></div>
+    <div class="brand">cover<b>fo</b> <small>3D ORCHESTRATOR ENGINE™ v4.5</small></div>
     <div class="env" id="env"></div>
     <a class="home" href="/">← 홈으로</a>
   </header>
@@ -69,9 +69,9 @@
     <div class="row">
       <button class="btn primary" id="run">▶ 7단계 엔진 실행</button>
       <button class="btn" id="stop" disabled>■ 중지</button>
-      <label class="chk"><input type="checkbox" id="skip3d"> 6단계(3D 회전 영상) 건너뛰기</label>
+      <label class="chk"><input type="checkbox" id="skip3d"> 6단계(Meshy 3D 모델) 건너뛰기</label>
       <label class="chk"><input type="checkbox" id="autogo" checked> 완성되면 결과 화면으로 자동 이동</label>
-      <span class="note" id="cost">1회 예상 비용 약 $0.5~1.5 (영상 2개 포함)</span>
+      <span class="note" id="cost">1회 예상 비용 약 $0.3~1.0 + Meshy 크레딧</span>
     </div>
     <div class="warn" id="warn"></div>
   </div>
@@ -112,7 +112,7 @@
     { n: 3, key: 'stage3', name: 'Gemini 3 Flash Image', role: '사진급 이미지', api: '/api/stage3-gemini' },
     { n: 4, key: 'stage4', name: 'gpt image 2', role: '질감·조명 보정', api: '/api/stage4-gptimage' },
     { n: 5, key: 'stage5', name: 'Veo 3.1', role: '4초 영상', api: '/api/stage5-veo' },
-    { n: 6, key: 'stage6', name: 'Veo 3.1 (3D)', role: '이미지 → 360° 회전 3D 영상', api: '/api/stage6-veo3d' },
+    { n: 6, key: 'stage6', name: 'Meshy 3D', role: '이미지 → 실제 3D 모델 (GLB)', api: '/api/stage6-meshy' },
     { n: 7, key: 'stage7', name: 'Opus 4.5', role: '최종 코딩 (index.html)', api: '/api/stage7-opus' }
   ];
   var IS3D = /3d|삼디|입체|three\.?js|glb|3D모델|3d모델/i;
@@ -184,7 +184,7 @@
   fetch('/api/env-check').then(function (r) { return r.json(); }).then(function (j) {
     models = j.models || {};
     renderStages();
-    var keys = ['ANTHROPIC_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'OPENAI_API_KEY', 'TRIPO_API_KEY'];
+    var keys = ['ANTHROPIC_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'OPENAI_API_KEY', 'MESHY_API_KEY'];
     var box = $('env'); box.innerHTML = '';
     keys.forEach(function (k) {
       var s = document.createElement('span'); s.className = j[k] ? 'on' : 'off';
@@ -308,28 +308,28 @@
         throw new Error('4분 안에 끝나지 않아 영상 없이 진행합니다');
       });
       await stage(6, async function () {
-        // 6단계: Tripo 키가 없어 Veo 3.1 로 대체 — 4단계(없으면 3단계) 이미지를 360° 회전(턴테이블) 3D 영상으로
+        // 6단계: Meshy Image-to-3D — 4단계(없으면 3단계) 이미지로 실제 GLB 3D 모델을 만듭니다
         if (!is3D) { setStage(6, 'skip', '건너뜀'); out(6, '<pre>건너뛰기 체크됨</pre>'); log('ok', '⊘ 6단계 건너뜀 (체크박스)'); return; }
         var src = img2 ? { b: img2, m: 'image/png' } : (img1 ? { b: img1, m: img1Mime } : null);
         var subj = (spec && (spec.subject || spec.title || spec.appName)) || prompt.slice(0, 80);
-        var j = await post('/api/stage6-veo3d', { subject: subj, imageBase64: src && src.b, mimeType: src && src.m });
-        log('run', '… 6단계 3D 회전 영상 만드는 중 (보통 1~3분): ' + j.operationName);
-        out(6, '<pre>3D 회전 영상 생성 중… 기다려 주세요</pre>');
-        var deadline = Date.now() + 240000;
+        var j = await post('/api/stage6-meshy', { subject: subj, imageBase64: src && src.b, mimeType: src && src.m });
+        if (j.skipped) { setStage(6, 'skip', '건너뜀'); out(6, '<pre>' + esc(j.reason) + '</pre>'); log('ok', '⊘ 6단계 건너뜀: ' + j.reason); return; }
+        log('run', '… 6단계 3D 모델 만드는 중 (보통 2~5분): ' + j.taskId);
+        out(6, '<pre>3D 모델 생성 중… 기다려 주세요</pre>');
+        var deadline = Date.now() + 420000;
         while (Date.now() < deadline) {
-          await sleep(8000);
-          var s = await get('/api/stage5-veo-status?name=' + encodeURIComponent(j.operationName));
-          if (s.error) throw new Error(JSON.stringify(s.error).slice(0, 300));
-          if (s.done && s.videoUri) {
-            video3dUrl = location.origin + '/api/stage5-veo-status?file=' + encodeURIComponent(s.videoUri);
-            out(6, '<video src="' + video3dUrl + '" controls muted playsinline loop></video>');
-            log('ok', '✓ 6단계 3D 회전 영상 완료');
+          await sleep(10000);
+          var s = await get('/api/stage6-meshy-status?id=' + encodeURIComponent(j.taskId));
+          if (s.status === 'SUCCEEDED' && s.glbUrl) {
+            modelUrl = location.origin + '/api/stage6-meshy-status?file=' + encodeURIComponent(s.glbUrl);
+            out(6, (s.thumbnailUrl ? '<img src="' + esc(s.thumbnailUrl) + '" alt="3D 모델 미리보기">' : '') + '<a href="' + esc(modelUrl) + '" target="_blank">GLB 모델 열기</a>');
+            log('ok', '✓ 6단계 3D 모델 완료');
             return;
           }
-          if (s.done) throw new Error('영상이 돌아오지 않았습니다');
-          out(6, '<pre>3D 회전 영상 생성 중… ' + Math.round((deadline - Date.now()) / 1000) + '초 더 기다립니다</pre>');
+          if (s.status === 'FAILED' || s.status === 'CANCELED') throw new Error('Meshy 상태: ' + s.status + (s.error ? ' — ' + s.error : ''));
+          out(6, '<pre>3D 모델 생성 중… ' + (s.progress != null ? s.progress + '%' : '') + ' (' + Math.round((deadline - Date.now()) / 1000) + '초 더 기다립니다)</pre>');
         }
-        throw new Error('4분 안에 끝나지 않아 3D 영상 없이 진행합니다');
+        throw new Error('7분 안에 끝나지 않아 3D 모델 없이 진행합니다');
       });
       await stage(7, async function () {
         // 7단계는 글자를 받는 대로 흘려보내는 스트림입니다 (한 번에 받으면 60초 넘어 연결이 끊김 — 실측)

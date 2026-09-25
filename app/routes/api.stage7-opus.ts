@@ -28,7 +28,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
       ? '- {{VIDEO_3D_URL}} : 4 second 360° turntable 3D video of the main subject (put it in a "3D 미리보기" section as <video src="{{VIDEO_3D_URL}}" autoplay muted loop playsinline> inside a rounded card; if the request is a 3D game or scene, ALSO build the interactive 3D part with Three.js primitives)'
       : '',
     a.model
-      ? '- {{MODEL_URL}} : GLB 3D model (load with Three.js GLTFLoader from CDN and show it in an interactive viewer with OrbitControls)'
+      ? '- {{MODEL_URL}} : real GLB 3D model of the main subject (same-origin URL). Show it in a "3D 모델" section as an interactive viewer: <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script> then a <script type="module"> using GLTFLoader + OrbitControls, auto-rotate, fit camera to the model bounding box, lights. If the request is a game, use this model as the player/main object in the game scene.'
       : '',
   ]
     .filter(Boolean)
