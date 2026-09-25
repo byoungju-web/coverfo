@@ -355,7 +355,8 @@ const ActionList = memo(({ actions }: ActionListProps) => {
         </div>
         <div className="w-full h-2 rounded-full bg-bolt-elements-background-depth-3 overflow-hidden">
           <motion.div
-            className={classNames('h-full rounded-full', failed ? 'bg-red-400' : 'bg-green-400')}
+            className={classNames('h-full rounded-full', failed ? 'bg-red-400' : 'bg-[#7C3AED]')}
+            style={failed ? undefined : { background: 'linear-gradient(90deg,#7C3AED,#8B5CF6)' }}
             initial={{ width: 0 }}
             animate={{ width: percent + '%' }}
             transition={{ duration: 0.4, ease: cubicEasingFn }}
@@ -502,7 +503,8 @@ const ActionList = memo(({ actions }: ActionListProps) => {
         {/* coverfo: 다 됐든, 멈췄든, 실패했든 결과 화면 버튼은 항상 보여 줍니다 */}
         {allRevealed && !stillWorking && total > 0 ? (
           <button
-            className="text-sm font-medium px-3.5 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition"
+            className="text-sm font-medium px-3.5 py-2 rounded-lg bg-[#7C3AED] text-white hover:bg-[#6D28D9] transition"
+            style={{ background: '#7C3AED' }}
             onClick={() => {
               workbenchStore.currentView.set('preview');
               workbenchStore.showWorkbench.set(true);

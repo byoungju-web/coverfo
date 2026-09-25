@@ -26,23 +26,32 @@ export async function action({ request, context }: ActionFunctionArgs) {
   const started = Date.now();
   const encoder = new TextEncoder();
 
+  async function generate(prompt: string) {
+    const r = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: ENGINE_MODELS.stage4, prompt, n: 1, size: '1024x1024', quality: 'high' }),
+    });
+
+    return (await r.json()) as any;
+  }
+
   const work = (async () => {
     try {
-      const r = await fetch('https://api.openai.com/v1/images/generations', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: ENGINE_MODELS.stage4,
-          prompt: `Ultra realistic, photorealistic, detailed PBR material, studio lighting, style: ${JSON.stringify(styleGuide || {}).slice(0, 500)}, subject: ${promptForImage || ''}, no cartoon, no illustration`,
-          n: 1,
-          size: '1024x1024',
-          quality: 'high',
-        }),
-      });
-      const data: any = await r.json();
+      const full = `Ultra realistic, photorealistic, detailed PBR material, studio lighting, style: ${JSON.stringify(styleGuide || {}).slice(0, 500)}, subject: ${promptForImage || ''}, no cartoon, no illustration`;
+      let data = await generate(full);
+      let retried = false;
+
+      // OpenAI 안전 검사에 걸리면(전투·무기 묘사 등, 실측) 한 번 더 순화한 문장으로 시도합니다
+      if (data.error && /safety/i.test(data.error.message || '')) {
+        retried = true;
+        data = await generate(
+          `Photorealistic studio product-style render, heroic standing pose, calm expression, no weapons, no combat, no blood, no violence, family friendly. Subject: ${(promptForImage || '').slice(0, 300)}`,
+        );
+      }
 
       if (data.error) {
-        return { error: data.error.message || 'OpenAI 오류' };
+        return { error: (retried ? '(순화 재시도 후에도) ' : '') + (data.error.message || 'OpenAI 오류') };
       }
 
       const item = data.data?.[0] || {};
@@ -52,6 +61,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
         model: ENGINE_MODELS.stage4,
         imageBase64: item.b64_json || null,
         revisedPrompt: item.revised_prompt || null,
+        softened: retried,
         ms: Date.now() - started,
       };
     } catch (e: any) {

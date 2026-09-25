@@ -19,4 +19,4 @@ export const ENGINE_MODELS = {
   stage7: 'claude-opus-4-5-20251101',
 } as const;
 
-export const ENGINE_VERSION = 'v4.7 coverfo.com (Cloudflare)';
+export const ENGINE_VERSION = 'v4.8 coverfo.com (Cloudflare)';

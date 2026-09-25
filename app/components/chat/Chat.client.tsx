@@ -298,13 +298,13 @@ export const ChatImpl = memo(
         {
           id: `engine-user-${stamp}`,
           role: 'user',
-          content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${payload.prompt || title} (7단계 엔진 결과 불러오기)`,
+          content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${payload.prompt || title} (coverfo 엔진 결과 불러오기)`,
           annotations: ['hidden'],
         },
         {
           id: `engine-result-${stamp}`,
           role: 'assistant',
-          content: `7단계 엔진이 만든 결과를 화면에 띄웁니다.
+          content: `coverfo 엔진이 만든 결과를 화면에 띄웁니다. 고칠 점이 있으면 아래 입력칸에 적어 주세요.
 
 <boltArtifact id="engine-result-${stamp}" title="${title}">
 <boltAction type="file" filePath="index.html">

@@ -252,14 +252,15 @@
         document.head.appendChild(inspectorStyle);
       }
       
-      document.body.classList.add('inspector-active');
+      // coverfo: 이 스크립트는 <head> 에서 먼저 실행되므로, <body> 가 아직 없을 때 부모가 신호를 보내면 오류가 났습니다 (실측)
+      if (document.body) document.body.classList.add('inspector-active');
       
       // Add event listeners
       document.addEventListener('mousemove', handleMouseMove, true);
       document.addEventListener('click', handleClick, true);
       document.addEventListener('mouseleave', handleMouseLeave, true);
     } else {
-      document.body.classList.remove('inspector-active');
+      if (document.body) document.body.classList.remove('inspector-active');
       
       // Remove highlight
       if (currentHighlight) {
