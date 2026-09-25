@@ -3,7 +3,7 @@
 // © 2026 coverfo All Rights Reserved
 
 const HTML = `<!DOCTYPE html>
-<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ v4.6 (coverfo.com / Cloudflare) -->
+<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ v4.7 (coverfo.com / Cloudflare) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -138,6 +138,7 @@ h3 .right{margin-left:auto}
       <strong style="font-size:14px">3D 에셋 결과</strong>
       <span class="count" id="acount"></span>
       <span style="margin-left:auto"></span>
+      <button class="btn green" id="toChatAssets">👀 채팅으로 보내기</button>
       <button class="btn pri" id="toApp">이 에셋으로 앱 만들기</button>
     </div>
     <div class="agrid" id="agrid"></div>
@@ -462,12 +463,17 @@ h3 .right{margin-left:auto}
         });
       } else skipStage(6, '"3D 모델 포함" 이 꺼져 있습니다');
       if (mode === 'app') await runStage7(S);
-      else { skipStage(7, '3D 에셋 모드 — 코드는 만들지 않습니다 ("이 에셋으로 앱 만들기" 로 이어갈 수 있음)'); showAssets(S); }
+      else {
+        skipStage(7, '3D 에셋 모드 — 코드는 만들지 않습니다 ("이 에셋으로 앱 만들기" 로 이어갈 수 있음)');
+        showAssets(S);
+        // 에셋만 담은 간단한 화면을 만들어 두면 "채팅으로 보내기"와 "최근 만든 것"에서 그대로 쓸 수 있습니다
+        if (S.img1 || S.img2 || S.videoUrl || S.modelUrl) { finalHtml = await buildAssetPage(S); finalTitle = S.title; }
+      }
     } catch (e) {
       log('bad', '중지: ' + (e.message || e));
     }
     setBusy(false);
-    if (aborted) show('err', '중지했습니다.'); else { log('ok', '🎉 실행 끝'); show('ok', mode === 'app' ? (finalHtml ? '완성됐습니다.' : '코드가 만들어지지 않았습니다. 로그를 확인해 주세요.') : '3D 에셋이 준비됐습니다.'); }
+    if (aborted) show('err', '중지했습니다.'); else { log('ok', '🎉 실행 끝'); show('ok', mode === 'app' ? (finalHtml ? '완성됐습니다.' : '코드가 만들어지지 않았습니다. 로그를 확인해 주세요.') : '3D 에셋이 준비됐습니다. 아래 "채팅으로 보내기"로 채팅 화면에서 볼 수 있습니다.'); }
     var summary = STAGES.map(function (s) { return s.n + ':' + ($('p' + s.n).textContent || '').replace('진행 중', '중단'); }).join(' ');
     saveHist({ at: Date.now(), mode: mode, prompt: prompt, title: S.title, ok: !!finalHtml, size: finalHtml.length, html: finalHtml, stages: summary });
     renderMode();
@@ -492,6 +498,38 @@ h3 .right{margin-left:auto}
     $('assets').scrollIntoView({ behavior: 'smooth' });
     if (S.modelUrl) viewGlb(S.modelUrl);
   }
+  /* 3D 에셋을 그대로 보여주는 간단한 index.html (Opus 없이 즉시 생성) — 채팅 워크벤치로 보낼 때 사용 */
+  async function buildAssetPage(S) {
+    var i1 = S.img1 ? await shrink('data:' + S.img1Mime + ';base64,' + S.img1, 768) : '';
+    var i2 = S.img2 ? await shrink('data:image/png;base64,' + S.img2, 768) : '';
+    var t = esc(S.title || '3D 에셋');
+    var h = '<!DOCTYPE html>\\n<html lang="ko">\\n<head>\\n<meta charset="UTF-8">\\n<meta name="viewport" content="width=device-width, initial-scale=1">\\n<title>' + t + '</title>\\n';
+    if (S.modelUrl) h += '<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}<\\/script>\\n';
+    h += '<style>body{margin:0;background:#0f1117;color:#eee;font-family:Inter,system-ui,sans-serif}.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 60px}h1{font-size:22px;margin:0 0 4px}p.sub{color:#9aa;margin:0 0 18px;font-size:13px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.card{background:#171a22;border:1px solid #262a35;border-radius:16px;overflow:hidden}.card img,.card video{width:100%;display:block;background:#000}.card .cap{padding:10px 12px;font-size:12.5px;color:#aab}#viewer{width:100%;aspect-ratio:16/9;background:#0b0d13}.full{grid-column:1/-1}</style>\\n</head>\\n<body>\\n<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ -->\\n<div class="wrap">\\n<h1>' + t + '</h1>\\n<p class="sub">' + esc(S.prompt || '') + '</p>\\n<div class="grid">\\n';
+    if (S.modelUrl) h += '<div class="card full"><div id="viewer"></div><div class="cap">3D 모델 · Meshy · 드래그로 회전 · <a href="' + esc(S.modelUrl) + '" style="color:#8ab4ff">GLB 다운로드</a></div></div>\\n';
+    if (S.videoUrl) h += '<div class="card"><video src="' + esc(S.videoUrl) + '" crossorigin="anonymous" autoplay muted loop playsinline controls preload="metadata"></video><div class="cap">영상 · Veo 3.1 · 4초</div></div>\\n';
+    if (i1) h += '<div class="card"><img src="' + i1 + '" alt=""><div class="cap">이미지 1 · Gemini</div></div>\\n';
+    if (i2) h += '<div class="card"><img src="' + i2 + '" alt=""><div class="cap">이미지 2 · gpt image</div></div>\\n';
+    h += '</div>\\n</div>\\n';
+    if (S.modelUrl) {
+      h += '<script type="module">\\ntry{\\nconst THREE=await import("three");const {GLTFLoader}=await import("three/addons/loaders/GLTFLoader.js");const {OrbitControls}=await import("three/addons/controls/OrbitControls.js");\\n' +
+        'const v=document.getElementById("viewer");const W=v.clientWidth,H=v.clientHeight||Math.round(W*9/16);const scene=new THREE.Scene();scene.background=new THREE.Color(0x0b0d13);\\n' +
+        'const cam=new THREE.PerspectiveCamera(45,W/H,0.01,1000);const ren=new THREE.WebGLRenderer({antialias:true});ren.setPixelRatio(Math.min(2,window.devicePixelRatio||1));ren.setSize(W,H);v.appendChild(ren.domElement);\\n' +
+        'scene.add(new THREE.HemisphereLight(0xffffff,0x444466,1.2));const dl=new THREE.DirectionalLight(0xffffff,1.4);dl.position.set(3,5,4);scene.add(dl);\\n' +
+        'const ctl=new OrbitControls(cam,ren.domElement);ctl.autoRotate=true;ctl.autoRotateSpeed=2;ctl.enableDamping=true;\\n' +
+        'new GLTFLoader().load(' + JSON.stringify(S.modelUrl) + ',g=>{const o=g.scene;scene.add(o);const b=new THREE.Box3().setFromObject(o),s=b.getSize(new THREE.Vector3()),c=b.getCenter(new THREE.Vector3());o.position.sub(c);const r=Math.max(s.x,s.y,s.z)||1;cam.position.set(r*1.2,r*0.8,r*1.6);cam.near=r/100;cam.far=r*100;cam.updateProjectionMatrix();});\\n' +
+        'window.addEventListener("resize",()=>{const W2=v.clientWidth,H2=Math.round(W2*9/16);cam.aspect=W2/H2;cam.updateProjectionMatrix();ren.setSize(W2,H2);});\\n' +
+        '(function loop(){requestAnimationFrame(loop);ctl.update();ren.render(scene,cam);})();\\n}catch(e){console.error(e);}\\n<\\/script>\\n';
+    }
+    h += '</body>\\n</html>';
+    return h;
+  }
+  $('toChatAssets').addEventListener('click', async function () {
+    if (!LAST) return;
+    if (!finalHtml) { finalHtml = await buildAssetPage(LAST); finalTitle = LAST.title; }
+    goChat();
+  });
+
   function viewGlb(url) {
     var v = $('viewer'); v.className = 'on'; v.innerHTML = '';
     Promise.all([import('three'), import('three/addons/loaders/GLTFLoader.js'), import('three/addons/controls/OrbitControls.js')]).then(function (m) {
@@ -517,6 +555,7 @@ h3 .right{margin-left:auto}
     if (!LAST || running) return;
     mode = 'app'; renderMode();
     hideMsg(); setBusy(true); aborted = false; ctrl = new AbortController();
+    finalHtml = ''; finalTitle = '';
     show('info', '준비된 에셋으로 앱 코드를 만드는 중입니다… (3~5분)');
     if (!LAST.research) {
       await stage(2, async function () {
