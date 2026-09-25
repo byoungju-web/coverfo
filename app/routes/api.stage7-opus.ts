@@ -49,6 +49,9 @@ Rules:
 - Only CDN <script> tags are allowed (Three.js from cdn.jsdelivr.net if 3D is needed). No npm, no package.json, no build step.
 - If the request is a game, make it playable with controls, score and restart.
 - If a {{MODEL_URL}} is given, load it with GLTFLoader; otherwise, if 3D is requested, build the scene from Three.js primitives.
+- NO loading screen, NO preloader overlay, NO "loading..." splash that waits for assets. The page content (header, text, UI) must be visible immediately on first paint even if the video, images, or 3D fail to load.
+- Any <video> must use preload="metadata" and must never block rendering; wrap CDN/3D code in try/catch so an error never hides the page.
+- Every external <script>, <link>, <img>, <video> that points to another domain must include crossorigin="anonymous".
 - Include <!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ --> after <body>.
 - No syntax errors. Return ONLY the HTML, no markdown fences, no explanation.`,
       16000,

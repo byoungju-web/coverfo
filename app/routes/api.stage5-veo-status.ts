@@ -29,6 +29,8 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
         'Content-Type': r.headers.get('content-type') || 'video/mp4',
         'Cache-Control': 'public, max-age=86400',
         'Access-Control-Allow-Origin': '*',
+        // 채팅 미리보기(WebContainer)는 COEP 가 켜져 있어 이 헤더가 없으면 다른 주소의 영상이 차단됩니다
+        'Cross-Origin-Resource-Policy': 'cross-origin',
       },
     });
   }

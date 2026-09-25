@@ -194,17 +194,26 @@
     var a = document.createElement('span'); a.textContent = j.auth === 'login-required' ? '로그인 검사 켜짐' : '로그인 검사 꺼짐'; box.appendChild(a);
     var px = document.createElement('span'); px.className = (j.proxy && j.proxy.indexOf('on') === 0) ? 'on' : 'off';
     px.textContent = '지역차단 우회 중계 ' + (j.proxy || '?'); px.title = 'Supabase Edge Function(google-proxy · anthropic-relay) 경유 여부'; box.appendChild(px);
-    if (j.auth === 'login-required' && !token()) {
+    var needLogin = (j.auth === 'login-required' && !token());
+    if (needLogin) {
       $('warn').style.display = 'block';
       $('warn').innerHTML = '로그인이 필요합니다. <a href="/">홈</a>에서 로그인한 뒤 다시 열어 주세요.';
     }
     log('ok', '엔진 준비됨 — ' + (j.version || ''));
+    /* 홈에서 넘어온 경우(?prompt=) → 버튼을 누르지 않아도 바로 실행 */
+    if (autoRun && !needLogin && $('prompt').value.trim()) {
+      autoRun = false;
+      log('run', '홈 화면에서 넘어옴 — 자동 실행합니다');
+      setTimeout(run, 300);
+    }
   }).catch(function () { renderStages(); log('bad', '/api/env-check 를 불러오지 못했습니다 (배포 확인 필요)'); });
 
-  /* ───────── 주소의 ?prompt= 자동 입력 ───────── */
+  /* ───────── 주소의 ?prompt= 자동 입력 + 자동 실행 표시 ───────── */
+  var autoRun = false;
   try {
-    var qp = new URLSearchParams(location.search).get('prompt');
-    if (qp) $('prompt').value = qp;
+    var sp = new URLSearchParams(location.search);
+    var qp = sp.get('prompt');
+    if (qp) { $('prompt').value = qp; autoRun = sp.get('auto') !== '0'; }
   } catch (e) {}
 
   /* ───────── 이미지 줄이기 (워크벤치에 넣을 때 파일이 너무 커지지 않게) ───────── */
@@ -216,7 +225,7 @@
         if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
         var c = document.createElement('canvas'); c.width = w; c.height = h;
         c.getContext('2d').drawImage(img, 0, 0, w, h);
-        res(c.toDataURL('image/jpeg', 0.82));
+        res(c.toDataURL('image/jpeg', 0.78));
       };
       img.onerror = function () { res(dataUrl); };
       img.src = dataUrl;
@@ -335,8 +344,8 @@
         if (!/<html[\s>]/i.test(html)) throw new Error('HTML 이 돌아오지 않았습니다 (' + html.length + '자)');
         var j = { model: (models.stage7 || 'opus') };
         // 자리표시자를 실제 데이터로 바꿔 끼움 (이미지는 줄여서)
-        if (img1 && html.indexOf('{{IMAGE_1}}') >= 0) html = html.split('{{IMAGE_1}}').join(await shrink('data:' + img1Mime + ';base64,' + img1, 1024));
-        if (img2 && html.indexOf('{{IMAGE_2}}') >= 0) html = html.split('{{IMAGE_2}}').join(await shrink('data:image/png;base64,' + img2, 1024));
+        if (img1 && html.indexOf('{{IMAGE_1}}') >= 0) html = html.split('{{IMAGE_1}}').join(await shrink('data:' + img1Mime + ';base64,' + img1, 768));
+        if (img2 && html.indexOf('{{IMAGE_2}}') >= 0) html = html.split('{{IMAGE_2}}').join(await shrink('data:image/png;base64,' + img2, 768));
         if (videoUrl) html = html.split('{{VIDEO_URL}}').join(videoUrl);
         if (modelUrl) html = html.split('{{MODEL_URL}}').join(modelUrl);
         html = html.replace(/\{\{(IMAGE_1|IMAGE_2|VIDEO_URL|MODEL_URL)\}\}/g, '');
