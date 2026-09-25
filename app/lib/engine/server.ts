@@ -221,6 +221,9 @@ export async function anthropicStreamResponse(env: Env, model: string, prompt: s
 
           if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta' && ev.delta.text) {
             controller.enqueue(encoder.encode(ev.delta.text));
+          } else if (ev.type === 'message_delta' && ev.delta?.stop_reason === 'max_tokens') {
+            // 출력 길이 한도에 걸려 잘렸음 — 엔진 화면이 이 표시를 보고 "잘림"으로 알립니다
+            controller.enqueue(encoder.encode(`\n<!--CF_TRUNCATED:max_tokens-->`));
           } else if (ev.type === 'error') {
             controller.enqueue(encoder.encode(`\n<!--CF_ERROR:${ev.error?.message || 'stream error'}-->`));
           }

@@ -340,8 +340,17 @@
         html += dec.decode();
         var em = html.match(/<!--CF_ERROR:([\s\S]*?)-->/);
         if (em) throw new Error(em[1]);
+        var truncated = html.indexOf('<!--CF_TRUNCATED:') >= 0;
+        html = html.replace(/\n?<!--CF_TRUNCATED:[^>]*-->/g, '');
         html = html.trim().replace(/^```html\s*\n?/, '').replace(/^```\s*\n?/, '').replace(/\n```\s*$/, '');
         if (!/<html[\s>]/i.test(html)) throw new Error('HTML 이 돌아오지 않았습니다 (' + html.length + '자)');
+        if (!truncated && !/<\/html>\s*$/i.test(html)) truncated = true;
+        if (truncated) {
+          // 끝까지 못 받은 파일: 일단 닫아서 보이게 하고, 잘렸다고 알립니다
+          if (!/<\/body>/i.test(html)) html += '\n</body>';
+          if (!/<\/html>/i.test(html)) html += '\n</html>';
+          log('bad', '⚠ 7단계 코드가 출력 길이 한도에 걸려 끝까지 오지 못했습니다 (' + html.length + '자). 화면 일부가 비거나 동작이 빠질 수 있습니다 — 요청 문장을 더 간단히 하거나 다시 실행해 주세요.');
+        }
         var j = { model: (models.stage7 || 'opus') };
         // 자리표시자를 실제 데이터로 바꿔 끼움 (이미지는 줄여서)
         if (img1 && html.indexOf('{{IMAGE_1}}') >= 0) html = html.split('{{IMAGE_1}}').join(await shrink('data:' + img1Mime + ';base64,' + img1, 768));
@@ -351,8 +360,9 @@
         html = html.replace(/\{\{(IMAGE_1|IMAGE_2|VIDEO_URL|MODEL_URL)\}\}/g, '');
         finalHtml = html;
         out(7, '<pre>' + esc(html.slice(0, 600)) + '…</pre>');
-        log('ok', '✓ 7단계 코드 완료 (' + j.model + ', ' + html.length + '자)');
+        log(truncated ? 'bad' : 'ok', (truncated ? '△ 7단계 코드 잘림 (' : '✓ 7단계 코드 완료 (') + j.model + ', ' + html.length + '자)');
         showResult();
+        if (truncated) setStage(7, 'bad', '잘림');
       });
     } catch (e) {
       log('bad', '중지: ' + (e.message || e));
