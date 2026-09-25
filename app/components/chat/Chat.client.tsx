@@ -7,7 +7,7 @@ import { toast } from 'react-toastify';
 import { useMessageParser, usePromptEnhancer, useShortcuts } from '~/lib/hooks';
 import { description, useChatHistory } from '~/lib/persistence';
 import { chatStore } from '~/lib/stores/chat';
-import { workbenchStore } from '~/lib/stores/workbench';
+import { workbenchStore, CF_SERVER_JS } from '~/lib/stores/workbench';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST } from '~/utils/constants';
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
@@ -260,6 +260,66 @@ export const ChatImpl = memo(
         });
       }
     }, [model, provider, searchParams]);
+
+    /*
+     * coverfo: 7단계 엔진(/engine)에서 넘어온 결과 HTML 을 워크벤치에 바로 띄웁니다.
+     * 엔진 페이지가 sessionStorage 'cf-engine-result' 에 {title, html} 를 넣고 /chat?engine=1 로 옵니다.
+     * 모델을 다시 부르지 않고, 스냅샷 복원과 같은 방식(숨은 메시지 + boltArtifact)으로 파일을 만들고 node server.js 를 실행합니다.
+     */
+    useEffect(() => {
+      if (searchParams.get('engine') !== '1') {
+        return;
+      }
+
+      let payload: { title?: string; html?: string; prompt?: string } | null = null;
+
+      try {
+        const raw = sessionStorage.getItem('cf-engine-result');
+        sessionStorage.removeItem('cf-engine-result');
+        payload = raw ? JSON.parse(raw) : null;
+      } catch {
+        payload = null;
+      }
+
+      setSearchParams({}, { replace: true });
+
+      if (!payload || !payload.html) {
+        toast.error('엔진 결과를 찾지 못했습니다. /engine 에서 다시 실행해 주세요.');
+        return;
+      }
+
+      const title = (payload.title || '엔진 결과').replace(/["<>]/g, '');
+      const stamp = Date.now();
+
+      setChatMode('build');
+      runAnimation();
+      setMessages([
+        ...messages,
+        {
+          id: `engine-user-${stamp}`,
+          role: 'user',
+          content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${payload.prompt || title} (7단계 엔진 결과 불러오기)`,
+          annotations: ['hidden'],
+        },
+        {
+          id: `engine-result-${stamp}`,
+          role: 'assistant',
+          content: `7단계 엔진이 만든 결과를 화면에 띄웁니다.
+
+<boltArtifact id="engine-result-${stamp}" title="${title}">
+<boltAction type="file" filePath="index.html">
+${payload.html}
+</boltAction>
+<boltAction type="file" filePath="server.js">
+${CF_SERVER_JS}
+</boltAction>
+<boltAction type="start">
+node server.js
+</boltAction>
+</boltArtifact>`,
+        },
+      ]);
+    }, [searchParams]);
 
     const { enhancingPrompt, promptEnhanced, enhancePrompt, resetEnhancer } = usePromptEnhancer();
     const { parsedMessages, parseMessages } = useMessageParser();

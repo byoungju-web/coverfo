@@ -23,7 +23,7 @@ import type { ActionAlert, DeployAlert, SupabaseAlert } from '~/types/actions';
 const { saveAs } = fileSaver;
 
 /* coverfo: 생성이 멈췄을 때 결과 화면을 띄우기 위한 기본 파일 (설치 없이 node 로 바로 실행) */
-const CF_SERVER_JS = `// server.js
+export const CF_SERVER_JS = `// server.js
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
