@@ -3,7 +3,7 @@
 // © 2026 coverfo All Rights Reserved
 
 const HTML = `<!DOCTYPE html>
-<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ v5.2 (coverfo.com / Cloudflare) -->
+<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ v5.4 (coverfo.com / Cloudflare) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -106,7 +106,7 @@ h3 .right{margin-left:auto}
 <div class="wrap">
   <header>
     <a class="logo" href="/" target="_top">cover<b>fo</b> <span style="font-weight:600;font-size:12px;color:#888;margin-left:2px">엔진</span></a>
-    <span class="credit" id="status"><i style="background:#ccc"></i>확인 중…</span>
+    <span style="display:flex;gap:6px;align-items:center"><span class="credit" id="credit" title="크레딧"><i></i>크레딧 확인 중…</span><span class="credit" id="status"><i style="background:#ccc"></i>확인 중…</span></span>
   </header>
 
   <div class="card">
@@ -139,7 +139,7 @@ h3 .right{margin-left:auto}
       <span class="count" id="acount"></span>
       <span style="margin-left:auto"></span>
       <button class="btn green" id="toChatAssets">👀 채팅으로 보내기</button>
-      <button class="btn pri" id="toApp">이 에셋으로 앱 만들기</button>
+      <button class="btn pri" id="toApp">이 에셋으로 앱 만들기 <span id="toAppCost" style="opacity:.8;font-weight:500"></span></button>
     </div>
     <div class="agrid" id="agrid"></div>
     <div id="viewer"></div>
@@ -216,15 +216,62 @@ h3 .right{margin-left:auto}
   }
   function topGo(url) { try { (window.top || window).location.href = url; } catch (e) { location.href = url; } }
 
+  /* ───────── 크레딧 (스튜디오와 같은 지갑) ───────── */
+  var COSTS = { engine_app: 30, engine_3d: 25, engine_edit: 5, engine_edit_img: 8, engine_edit_3d: 15, engine_edit_video: 15, engine_toapp: 8 };
+  var CREDIT = { enabled: true, free: 0, paid: 0 };
+  var jobId = null; // 이번 실행의 크레딧 기록 번호 (실패하면 환불에 씀)
+  function renderCredit() {
+    var el = $('credit'); if (!el) return;
+    if (!CREDIT.enabled) { el.innerHTML = '<i style="background:#ccc"></i>크레딧 차감 없음'; return; }
+    var low = CREDIT.free + CREDIT.paid < Math.min(COSTS.engine_edit, COSTS.engine_app);
+    el.innerHTML = '<i' + (low ? ' style="background:#f59e0b"' : '') + '></i>무료 ' + CREDIT.free + ' · 충전 ' + CREDIT.paid;
+  }
+  function loadCredit() {
+    return fetch('/api/engine-credit', { headers: headers() }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.costs) COSTS = j.costs;
+      if (j && typeof j.free === 'number') { CREDIT = { enabled: j.enabled !== false, free: j.free, paid: j.paid }; }
+      renderCredit(); renderMode();
+    }).catch(function () { $('credit').innerHTML = '<i style="background:#ccc"></i>크레딧 확인 실패'; });
+  }
+  function insufficientMsg(j) {
+    var have = (j.free || 0) + (j.paid || 0);
+    return '크레딧이 부족합니다. (필요 ' + j.need + ' · 보유 ' + have + ')<br><a href="/pricing" target="_top">크레딧 충전 안내 →</a>';
+  }
+  /* 실행 시작 전에 차감. 부족하면 안내하고 false. 실패하면 refundCredit() 로 되돌립니다 */
+  async function spendCredit(kind, promptText) {
+    jobId = null;
+    var r = await fetch('/api/engine-credit', { method: 'POST', headers: headers(), body: JSON.stringify({ op: 'spend', kind: kind, prompt: promptText }) });
+    var j = await r.json().catch(function () { return {}; });
+    if (r.status === 402) { show('err', insufficientMsg(j)); log('bad', '크레딧 부족 — 필요 ' + j.need + ', 보유 ' + ((j.free || 0) + (j.paid || 0))); return false; }
+    if (r.status === 401) { show('err', '로그인이 필요합니다. <a href="/" target="_top">홈으로 가서 로그인</a>'); return false; }
+    if (!r.ok || !j.ok) { show('err', '크레딧 처리 실패: ' + (j.error || ('HTTP ' + r.status))); log('bad', '크레딧 처리 실패: ' + (j.error || r.status)); return false; }
+    jobId = j.job_id || null;
+    if (j.enabled === false) { CREDIT.enabled = false; }
+    else { CREDIT.free = j.free; CREDIT.paid = j.paid; log('ok', '크레딧 ' + j.cost + ' 차감 (남음: 무료 ' + j.free + ' · 충전 ' + j.paid + ')'); }
+    renderCredit();
+    return true;
+  }
+  async function refundCredit(why) {
+    if (!jobId) return;
+    try { await fetch('/api/engine-credit', { method: 'POST', headers: headers(), body: JSON.stringify({ op: 'refund', job_id: jobId }) }); log('ok', '크레딧 환불됨' + (why ? ' — ' + why : '')); } catch (e) {}
+    jobId = null; loadCredit();
+  }
+  async function settleCredit() {
+    if (!jobId) return;
+    try { await fetch('/api/engine-credit', { method: 'POST', headers: headers(), body: JSON.stringify({ op: 'done', job_id: jobId }) }); } catch (e) {}
+    jobId = null;
+  }
+
   function renderMode() {
     $('tab-app').className = mode === 'app' ? 'on' : '';
     $('tab-3d').className = mode === '3d' ? 'on' : '';
     $('c-go').style.display = mode === 'app' ? '' : 'none';
     $('costhint').textContent = mode === 'app'
-      ? '설계부터 이미지·영상·3D·코드까지 한 번에 · 보통 5~10분'
-      : '이미지 2장 · 영상 · 3D 모델(GLB) · 보통 3~7분';
-    $('gocost').textContent = mode === 'app' ? '약 $0.5~1.5' : '약 $0.3~1.0';
+      ? '설계부터 이미지·영상·3D·코드까지 한 번에 · 보통 5~10분 · 실패하면 자동 환불'
+      : '이미지 2장 · 영상 · 3D 모델(GLB) · 보통 3~7분 · 실패하면 자동 환불';
+    $('gocost').textContent = (mode === 'app' ? COSTS.engine_app : COSTS.engine_3d) + ' 크레딧';
     $('stagesub').textContent = mode === 'app' ? '7단계' : '2·7단계는 건너뜀';
+    if ($('toAppCost')) $('toAppCost').textContent = '· ' + COSTS.engine_toapp + ' 크레딧';
     STAGES.forEach(function (s) {
       var el = $('st' + s.n); if (!el) return;
       var skip = (mode === '3d' && (s.n === 2 || s.n === 7)) || (s.n === 6 && !chipOn('c-3d')) || (s.n === 5 && !chipOn('c-video'));
@@ -369,6 +416,8 @@ h3 .right{margin-left:auto}
     setStage(7, '', '대기');
     log('run', '✏️ 수정 모드 — "' + (prev.title || prev.prompt).slice(0, 40) + '" 에 요청: ' + changeRequest.slice(0, 60));
     log('run', redo ? '명령에 따라 다시 만드는 것: ' + redo + ' (나머지는 이전 결과 사용)' : '코드만 수정합니다 (이미지·영상·3D 모델은 이전 결과 사용)');
+    var ekind = plan.model ? 'engine_edit_3d' : plan.video ? 'engine_edit_video' : plan.images ? 'engine_edit_img' : 'engine_edit';
+    if (!(await spendCredit(ekind, changeRequest))) { setBusy(false); return; }
     show('info', '이전 결과를 이어서 수정합니다' + (redo ? ' — ' + redo + ' 다시 만듦' : ' — 코드만 다시 씀') + ' · 보통 ' + (redo ? '4~8' : '2~4') + '분');
     var S = { prompt: prev.prompt, title: prev.title || prev.prompt.slice(0, 40), img1: null, img2: null, videoUrl: A.videoUrl, modelUrl: A.modelUrl };
     LAST = S;
@@ -438,16 +487,17 @@ h3 .right{margin-left:auto}
       if (!/<html[\\s>]/i.test(html)) throw new Error('HTML 이 돌아오지 않았습니다 (' + html.length + '자)');
       if (!truncated && !/<\\/html>\\s*$/i.test(html)) truncated = true;
       if (truncated) { if (!/<\\/body>/i.test(html)) html += '\\n</body>'; if (!/<\\/html>/i.test(html)) html += '\\n</html>'; log('bad', '⚠ 코드가 출력 길이 한도에 걸려 끝까지 오지 못했습니다 — 요청을 더 간단히 해 주세요'); }
-      finalHtml = fromPlaceholders(html, A); finalTitle = S.title + ' (수정)';
+      finalHtml = fromPlaceholders(html, A); finalTitle = S.title.replace(/(\\s*\\(수정\\))+$/, '') + ' (수정)';
       out(7, '<pre>' + esc(html.slice(0, 600)) + '…</pre>');
       log(truncated ? 'bad' : 'ok', (truncated ? '△ 코드 잘림 (' : '✓ 수정 완료 (') + finalHtml.length + '자)');
       showResult();
       if (truncated) setStage(7, 'bad', '잘림');
     });
     setBusy(false);
-    if (aborted) { show('err', '중지했습니다.'); return; }
+    if (aborted) { await refundCredit('중지'); show('err', '중지했습니다. 크레딧은 환불됐습니다.'); return; }
+    if (finalHtml) await settleCredit(); else await refundCredit('결과 없음');
     if (finalHtml) { chatUrlId = await saveChat(finalTitle, finalHtml, prev.prompt + '\\n\\n추가 요청: ' + changeRequest); if (chatUrlId) log('ok', '사이드바 "내 대화"에 저장했습니다'); }
-    show(finalHtml ? 'ok' : 'err', finalHtml ? '수정이 끝났습니다.' : '코드가 만들어지지 않았습니다. 로그를 확인해 주세요.');
+    show(finalHtml ? 'ok' : 'err', finalHtml ? '수정이 끝났습니다.' : '코드가 만들어지지 않았습니다. 크레딧은 환불됐습니다.');
     saveHist({ at: Date.now(), mode: 'edit', prompt: prev.prompt + ' → ' + changeRequest, title: finalTitle || S.title, ok: !!finalHtml, size: finalHtml.length, html: finalHtml, stages: '수정', chat: chatUrlId });
   }
 
@@ -464,6 +514,7 @@ h3 .right{margin-left:auto}
     var needLogin = (j.auth === 'login-required' && !token());
     if (needLogin) show('err', '로그인이 필요합니다. <a href="/" target="_top">홈으로 가서 로그인</a>한 뒤 다시 열어 주세요.');
     log('ok', '엔진 준비됨 — ' + (j.version || ''));
+    if (!needLogin) loadCredit(); else { CREDIT.enabled = false; $('credit').innerHTML = '<i style="background:#ccc"></i>로그인 필요'; }
     if (autoRun && !needLogin && $('prompt').value.trim()) {
       autoRun = false; cleanTopUrl();
       if (fromChat) {
@@ -576,6 +627,7 @@ h3 .right{margin-left:auto}
     var S = { prompt: prompt, title: prompt.slice(0, 40), spec: null, research: null, img1: null, img1Mime: 'image/png', img2: null, videoUrl: null, modelUrl: null, thumbUrl: null };
     LAST = S;
     log('run', '🚀 실행 시작 [' + (mode === 'app' ? '앱 만들기' : '3D 에셋') + '] — "' + prompt.slice(0, 60) + '"');
+    if (!(await spendCredit(mode === 'app' ? 'engine_app' : 'engine_3d', prompt))) { setBusy(false); return; }
     show('info', mode === 'app' ? '앱을 만드는 중입니다… 보통 5~10분 걸려요. 이 화면을 닫지 마세요.' : '3D 에셋을 만드는 중입니다… 보통 3~7분 걸려요. 이 화면을 닫지 마세요.');
 
     try {
@@ -664,7 +716,9 @@ h3 .right{margin-left:auto}
       log('bad', '중지: ' + (e.message || e));
     }
     setBusy(false);
-    if (aborted) show('err', '중지했습니다.'); else { log('ok', '🎉 실행 끝'); show('ok', mode === 'app' ? (finalHtml ? '완성됐습니다.' : '코드가 만들어지지 않았습니다. 로그를 확인해 주세요.') : '3D 에셋이 준비됐습니다. 아래 "채팅으로 보내기"로 채팅 화면에서 볼 수 있습니다.'); }
+    var produced = mode === 'app' ? !!finalHtml : !!(S.img1 || S.img2 || S.videoUrl || S.modelUrl);
+    if (aborted || !produced) await refundCredit(aborted ? '중지' : '결과 없음'); else await settleCredit();
+    if (aborted) show('err', '중지했습니다. 크레딧은 환불됐습니다.'); else { log('ok', '🎉 실행 끝'); show(produced ? 'ok' : 'err', mode === 'app' ? (finalHtml ? '완성됐습니다.' : '코드가 만들어지지 않았습니다. 크레딧은 환불됐습니다.') : (produced ? '3D 에셋이 준비됐습니다. 아래 "채팅으로 보내기"로 채팅 화면에서 볼 수 있습니다.' : '에셋이 만들어지지 않았습니다. 크레딧은 환불됐습니다.')); }
     var summary = STAGES.map(function (s) { return s.n + ':' + ($('p' + s.n).textContent || '').replace('진행 중', '중단'); }).join(' ');
     if (finalHtml && !aborted) { chatUrlId = await saveChat(S.title, finalHtml, prompt); if (chatUrlId) log('ok', '사이드바 "내 대화"에 저장했습니다'); }
     saveHist({ at: Date.now(), mode: mode, prompt: prompt, title: S.title, ok: !!finalHtml, size: finalHtml.length, html: finalHtml, stages: summary, chat: chatUrlId });
@@ -749,6 +803,7 @@ h3 .right{margin-left:auto}
     mode = 'app'; renderMode();
     hideMsg(); setBusy(true); aborted = false; ctrl = new AbortController();
     finalHtml = ''; finalTitle = '';
+    if (!(await spendCredit('engine_toapp', LAST.prompt))) { setBusy(false); return; }
     show('info', '준비된 에셋으로 앱 코드를 만드는 중입니다… (3~5분)');
     if (!LAST.research) {
       await stage(2, async function () {
@@ -758,7 +813,8 @@ h3 .right{margin-left:auto}
     }
     try { await runStage7(LAST); } catch (e) { log('bad', '중지: ' + (e.message || e)); }
     setBusy(false);
-    show(finalHtml ? 'ok' : 'err', finalHtml ? '완성됐습니다.' : '코드가 만들어지지 않았습니다. 로그를 확인해 주세요.');
+    if (finalHtml && !aborted) await settleCredit(); else await refundCredit(aborted ? '중지' : '결과 없음');
+    show(finalHtml ? 'ok' : 'err', finalHtml ? '완성됐습니다.' : '코드가 만들어지지 않았습니다. 크레딧은 환불됐습니다.');
     var summary = STAGES.map(function (s) { return s.n + ':' + ($('p' + s.n).textContent || ''); }).join(' ');
     if (finalHtml) { chatUrlId = await saveChat(LAST.title, finalHtml, LAST.prompt); if (chatUrlId) log('ok', '사이드바 "내 대화"에 저장했습니다'); }
     saveHist({ at: Date.now(), mode: 'app', prompt: LAST.prompt, title: LAST.title, ok: !!finalHtml, size: finalHtml.length, html: finalHtml, stages: summary, chat: chatUrlId });

@@ -103,6 +103,31 @@ export function proxyStatus(env: Env) {
   return proxyConfig(env) ? 'on (' + proxyConfig(env)!.region + ')' : 'off';
 }
 
+/** 로그인한 사용자 id (없으면 null). 크레딧 차감 등 사용자별 처리에 씁니다 */
+export async function getUserId(request: Request, env: Env): Promise<{ id: string; email: string } | null> {
+  const cfg = supabaseAuthConfig(env);
+  const auth = request.headers.get('authorization') || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+
+  if (!cfg || !token) {
+    return null;
+  }
+
+  try {
+    const r = await fetch(`${cfg.url}/auth/v1/user`, { headers: { apikey: cfg.key, Authorization: `Bearer ${token}` } });
+
+    if (!r.ok) {
+      return null;
+    }
+
+    const u: any = await r.json();
+
+    return u && u.id ? { id: u.id, email: u.email || '' } : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 로그인 확인. 통과하면 null, 막으면 Response 를 돌려줍니다. */
 export async function requireLogin(request: Request, env: Env): Promise<Response | null> {
   const cfg = supabaseAuthConfig(env);

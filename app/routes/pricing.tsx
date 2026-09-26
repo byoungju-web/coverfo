@@ -32,14 +32,23 @@ const PLANS: Plan[] = [
     price: '9,900원',
     period: '/ 100크레딧',
     description: '충전한 크레딧으로 쓴 만큼만 차감됩니다. 기간 제한 없이 남은 크레딧은 그대로 남습니다.',
-    features: ['앱 생성 · 대화 1크레딧', 'Gemini 이미지 2K 생성 2크레딧', 'Veo 3.1 영상 8초 25크레딧', '예약 페이지 · 견적서 · 문서 · 3D 게임 템플릿', '이메일 문의 지원'],
+    features: [
+      '앱 생성 · 대화 1크레딧',
+      '이미지 2K 생성 2크레딧',
+      '영상 8초 25크레딧',
+      'coverfo 엔진 · 앱 만들기 30크레딧',
+      'coverfo 엔진 · 3D 에셋(이미지·영상·3D 모델) 25크레딧',
+      '엔진 결과 수정 5크레딧부터 (이미지 8 · 3D 모델 15 · 영상 15)',
+      '예약 페이지 · 견적서 · 문서 · 3D 게임 템플릿',
+      '이메일 문의 지원',
+    ],
     highlight: true,
   },
   {
     name: '작동 방식',
     price: '1크레딧 ≈ 99원',
     period: '',
-    description: 'coverfo가 보유한 AI(Claude · Gemini · Veo)로 실행하고 크레딧만 차감합니다. 본인 API 키는 필요 없습니다.',
+    description: 'coverfo가 보유한 AI로 실행하고 크레딧만 차감합니다. 본인 API 키는 필요 없습니다.',
     features: ['API 키 발급 · 관리 불필요', '실패한 생성은 자동 환불', '만든 결과물은 그대로 사용'],
     highlight: false,
     note: '충전은 문의 후 계정에 바로 넣어 드립니다.',
@@ -129,7 +138,7 @@ export default function Pricing() {
               <dt className="text-sm font-medium text-bolt-elements-textPrimary">무료 크레딧은 어떻게 쓰이나요?</dt>
               <dd className="mt-1 text-sm text-bolt-elements-textSecondary">
                 계정을 만들면 무료 크레딧 10이 한 번 지급됩니다. 무엇인가를 만들어달라고 요청할 때마다 차감되고(앱 생성 1,
-                이미지 2), 만든 결과물을 보거나 수정하는 것은 차감되지 않습니다. 무료 사용은 전체 사용자 합산으로 매달 500까지
+                이미지 2, 엔진 앱 30 · 3D 에셋 25), 만든 결과물을 보는 것은 차감되지 않습니다. 무료 사용은 전체 사용자 합산으로 매달 500까지
                 선착순이며, 소진되면 다음 달 1일에 다시 열립니다. 영상은 충전한 크레딧으로만 만들 수 있습니다.
               </dd>
             </div>

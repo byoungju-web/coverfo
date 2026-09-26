@@ -1,4 +1,4 @@
-// 4단계 gpt image 2 — 질감·조명 보정 이미지 (gpt-image-2 는 항상 b64_json 으로 돌려줌)
+// 4단계 gpt image 2 — 질감·조명 보정 이미지 (gpt-image-2 는 항상 b64_json 으로 돌려줌, quality medium)
 //
 // gpt-image-2 (quality high) 는 2분 넘게 걸리기도 합니다(실측 125초). 그동안 아무 바이트도 안 보내면
 // Cloudflare 가 연결을 끊고 HTML 오류 페이지를 돌려줘 브라우저에 "Unexpected token '<' … is not valid JSON" 이 뜹니다.
@@ -30,7 +30,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
     const r = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: ENGINE_MODELS.stage4, prompt, n: 1, size: '1024x1024', quality: 'high' }),
+      // quality: medium — high 대비 원가 약 1/3 (화질은 3D 변환·미리보기에 충분)
+      body: JSON.stringify({ model: ENGINE_MODELS.stage4, prompt, n: 1, size: '1024x1024', quality: 'medium' }),
     });
 
     return (await r.json()) as any;
