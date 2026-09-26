@@ -6,6 +6,7 @@ const HTML = `<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>크레딧 충전 · coverfo</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#FCFCFD;color:#111;font-family:Inter,Pretendard,"Malgun Gothic","Apple SD Gothic Neo",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}

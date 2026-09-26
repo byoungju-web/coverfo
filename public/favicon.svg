@@ -1,19 +1,16 @@
-<svg width="64" height="64" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <defs>
-    <radialGradient id="fogRadial" cx="50%" cy="45%" r="60%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
-      <stop offset="55%" stop-color="#ffffff" stop-opacity="0"/>
-      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.65"/>
-    </radialGradient>
+    <linearGradient id="fv1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4C1D95"/><stop offset="1" stop-color="#312E81"/></linearGradient>
+    <linearGradient id="fv2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5B6CFF"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient>
+    <linearGradient id="fv3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#10B981"/><stop offset="1" stop-color="#06B6D4"/></linearGradient>
+    <linearGradient id="fvglow" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#67E8F9" stop-opacity=".95"/><stop offset="1" stop-color="#67E8F9" stop-opacity="0"/></linearGradient>
   </defs>
-  <rect width="64" height="64" rx="240" fill="#111"/>
-  <!-- Fog clearing from center -->
-  <rect width="64" height="64" rx="240" fill="url(#fogRadial)"/>
-  <!-- Minimal mark: 3 lines fading -->
-  <g transform="translate(320, 440)">
-    <rect x="0" y="0" width="280" height="24" rx="12" fill="white" opacity="0.95"/>
-    <rect x="0" y="48" width="200" height="24" rx="12" fill="#A78BFA" opacity="0.95"/>
-    <rect x="0" y="96" width="120" height="24" rx="12" fill="#7C3AED" opacity="0.95"/>
-    <circle cx="340" cy="36" r="22" fill="#7C3AED"/>
+  <rect width="64" height="64" rx="16" fill="#fff"/>
+  <g transform="translate(32 32) scale(.84) translate(-32 -32)">
+  <path d="M 32 58 L 56 46 L 32 34 L 8 46 Z" fill="url(#fv1)"/>
+  <path d="M 32 50 L 56 38 L 32 26 L 8 38 Z" fill="url(#fv2)"/>
+  <path d="M 32 26 L 56 38 L 56 31 L 32 19 L 8 31 L 8 38 Z" fill="url(#fvglow)" opacity=".85"/>
+  <path d="M 32 31 L 56 19 L 32 7 L 8 19 Z" fill="url(#fv3)"/>
+  <path d="M 8 19 L 32 7 L 56 19" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round" opacity=".85"/>
   </g>
 </svg>

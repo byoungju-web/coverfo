@@ -1,8 +1,4 @@
-// functions/engine-app.js — coverfo.com/engine-app : 7단계 엔진 화면 본체 (사이드 메뉴가 있는 /engine 안에 iframe 으로 들어감)
-// 원본 HTML 은 engine-src/engine-app.html 이며, 이 파일은 그것을 문자열로 감싼 것입니다 (studio-app.js 와 같은 방식)
-// © 2026 coverfo All Rights Reserved
-
-const HTML = `<!DOCTYPE html>
+<!DOCTYPE html>
 <!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ v5.5 (coverfo.com / Cloudflare) -->
 <html lang="ko">
 <head>
@@ -187,16 +183,16 @@ h3 .right{margin-left:auto}
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   /* 금지어: 화면(로그·단계 카드·결과 설명)에 모델·회사 이름이 보이지 않게 지웁니다 */
   var BANNED = [
-    /claude-fable-5-1|fable\\s?5\\.1|claude-opus-4-5-20251101|opus\\s?4\\.5|claude/gi,
-    /gpt-6-astra|astra\\s?6|gpt-image-2|gpt\\s?image\\s?2|gpt\\s?image|openai/gi,
-    /gemini-3\\.1-flash-image(-preview)?|gemini\\s?3(\\.1)?\\s?flash\\s?image|gemini|google/gi,
-    /models\\/veo-3\\.1-[a-z-]+\\/operations\\//gi, /veo-3\\.1-[a-z-]+|veo\\s?3\\.1|veo/gi,
-    /meshy-7\\.1|meshy\\s?3d|meshy/gi, /anthropic|cloudflare/gi
+    /claude-fable-5-1|fable\s?5\.1|claude-opus-4-5-20251101|opus\s?4\.5|claude/gi,
+    /gpt-6-astra|astra\s?6|gpt-image-2|gpt\s?image\s?2|gpt\s?image|openai/gi,
+    /gemini-3\.1-flash-image(-preview)?|gemini\s?3(\.1)?\s?flash\s?image|gemini|google/gi,
+    /models\/veo-3\.1-[a-z-]+\/operations\//gi, /veo-3\.1-[a-z-]+|veo\s?3\.1|veo/gi,
+    /meshy-7\.1|meshy\s?3d|meshy/gi, /anthropic|cloudflare/gi
   ];
   function clean(s) {
     s = String(s);
     BANNED.forEach(function (re) { s = s.replace(re, ''); });
-    return s.replace(/\\(\\s*\\)/g, '').replace(/(\\s*·\\s*)+/g, ' · ').replace(/^\\s*·\\s*|\\s*·\\s*$/g, '').replace(/[ \\t]{2,}/g, ' ').replace(/\\s+([,)])/g, '$1').trim();
+    return s.replace(/\(\s*\)/g, '').replace(/(\s*·\s*)+/g, ' · ').replace(/^\s*·\s*|\s*·\s*$/g, '').replace(/[ \t]{2,}/g, ' ').replace(/\s+([,)])/g, '$1').trim();
   }
   function log(kind, msg) {
     var box = $('log'), line = document.createElement('div');
@@ -353,13 +349,13 @@ h3 .right{margin-left:auto}
             if (!hit) { res(none); return; }
             var first = (hit.messages || []).filter(function (m) { return m.role === 'user'; })[0];
             var t = first && typeof first.content === 'string' ? first.content : '';
-            t = t.replace(/^\\[Model:[^\\]]*\\]\\s*\\n*\\[Provider:[^\\]]*\\]\\s*\\n*/i, '').replace(/\\s*\\(coverfo 엔진 결과 불러오기\\)\\s*$/, '');
+            t = t.replace(/^\[Model:[^\]]*\]\s*\n*\[Provider:[^\]]*\]\s*\n*/i, '').replace(/\s*\(coverfo 엔진 결과 불러오기\)\s*$/, '');
             var k = t.indexOf('<<coverfo-spec>>'); if (k >= 0) t = t.slice(0, k);
             // 마지막 assistant 메시지에서 index.html 내용을 꺼냅니다 (채팅에서 고쳐진 최신 버전을 우선)
             var html = '';
             (hit.messages || []).forEach(function (m) {
               if (m.role !== 'assistant' || typeof m.content !== 'string') return;
-              var mm = m.content.match(/<boltAction type="file" filePath="index\\.html">\\n?([\\s\\S]*?)\\n?<\\/boltAction>/);
+              var mm = m.content.match(/<boltAction type="file" filePath="index\.html">\n?([\s\S]*?)\n?<\/boltAction>/);
               if (mm) html = mm[1];
             });
             res({ prompt: t.trim(), title: hit.description || '', html: html });
@@ -373,11 +369,11 @@ h3 .right{margin-left:auto}
   /* ───────── 수정 모드: 이전 결과(index.html)의 이미지·영상·3D 모델은 그대로 두고 7단계만 다시 돌립니다 ───────── */
   function extractAssets(html) {
     var A = { img1: '', img2: '', videoUrl: '', modelUrl: '' };
-    var imgs = html.match(/data:image\\/[a-z]+;base64,[A-Za-z0-9+\\/=]+/g) || [];
+    var imgs = html.match(/data:image\/[a-z]+;base64,[A-Za-z0-9+\/=]+/g) || [];
     var uniq = []; imgs.forEach(function (u) { if (uniq.indexOf(u) < 0) uniq.push(u); });
     A.img1 = uniq[0] || ''; A.img2 = uniq[1] || '';
-    var v = html.match(/https?:\\/\\/[^"'\\s]*\\/api\\/stage5-veo-status\\?file=[^"'\\s]+/); if (v) A.videoUrl = v[0];
-    var g = html.match(/https?:\\/\\/[^"'\\s]*\\/api\\/stage6-meshy-status\\?file=[^"'\\s]+/); if (g) A.modelUrl = g[0];
+    var v = html.match(/https?:\/\/[^"'\s]*\/api\/stage5-veo-status\?file=[^"'\s]+/); if (v) A.videoUrl = v[0];
+    var g = html.match(/https?:\/\/[^"'\s]*\/api\/stage6-meshy-status\?file=[^"'\s]+/); if (g) A.modelUrl = g[0];
     return A;
   }
   function toPlaceholders(html, A) {
@@ -386,12 +382,12 @@ h3 .right{margin-left:auto}
     if (A.videoUrl) html = html.split(A.videoUrl).join('{{VIDEO_URL}}');
     if (A.modelUrl) html = html.split(A.modelUrl).join('{{MODEL_URL}}');
     // 나머지 base64 이미지(3장째 이상)는 지워서 길이를 줄입니다
-    return html.replace(/data:image\\/[a-z]+;base64,[A-Za-z0-9+\\/=]{200,}/g, '{{IMAGE_1}}');
+    return html.replace(/data:image\/[a-z]+;base64,[A-Za-z0-9+\/=]{200,}/g, '{{IMAGE_1}}');
   }
   function fromPlaceholders(html, A) {
     html = html.split('{{IMAGE_1}}').join(A.img1 || '').split('{{IMAGE_2}}').join(A.img2 || A.img1 || '');
     html = html.split('{{VIDEO_URL}}').join(A.videoUrl || '').split('{{MODEL_URL}}').join(A.modelUrl || '');
-    return html.replace(/\\{\\{(IMAGE_1|IMAGE_2|VIDEO_URL|VIDEO_3D_URL|MODEL_URL)\\}\\}/g, '');
+    return html.replace(/\{\{(IMAGE_1|IMAGE_2|VIDEO_URL|VIDEO_3D_URL|MODEL_URL)\}\}/g, '');
   }
   /* 수정 명령을 읽어 무엇을 다시 만들지 정합니다 (나머지는 이전 결과 그대로) */
   var ED_IMG = /이미지|사진|그림|일러스트|포스터|image|photo/i;
@@ -482,13 +478,13 @@ h3 .right{margin-left:auto}
       var reader = r.body.getReader(), dec = new TextDecoder(), html = '', lastTick = 0;
       while (true) { var chunk = await reader.read(); if (chunk.done) break; html += dec.decode(chunk.value, { stream: true }); if (Date.now() - lastTick > 700) { lastTick = Date.now(); out(7, '<pre>코드 받는 중… ' + html.length + '자</pre>'); } }
       html += dec.decode();
-      var em = html.match(/<!--CF_ERROR:([\\s\\S]*?)-->/); if (em) throw new Error(em[1]);
+      var em = html.match(/<!--CF_ERROR:([\s\S]*?)-->/); if (em) throw new Error(em[1]);
       var truncated = html.indexOf('<!--CF_TRUNCATED:') >= 0;
-      html = html.replace(/\\n?<!--CF_TRUNCATED:[^>]*-->/g, '').trim().replace(/^\`\`\`html\\s*\\n?/, '').replace(/^\`\`\`\\s*\\n?/, '').replace(/\\n\`\`\`\\s*$/, '');
-      if (!/<html[\\s>]/i.test(html)) throw new Error('HTML 이 돌아오지 않았습니다 (' + html.length + '자)');
-      if (!truncated && !/<\\/html>\\s*$/i.test(html)) truncated = true;
-      if (truncated) { if (!/<\\/body>/i.test(html)) html += '\\n</body>'; if (!/<\\/html>/i.test(html)) html += '\\n</html>'; log('bad', '⚠ 코드가 출력 길이 한도에 걸려 끝까지 오지 못했습니다 — 요청을 더 간단히 해 주세요'); }
-      finalHtml = fromPlaceholders(html, A); finalTitle = S.title.replace(/(\\s*\\(수정\\))+$/, '') + ' (수정)';
+      html = html.replace(/\n?<!--CF_TRUNCATED:[^>]*-->/g, '').trim().replace(/^```html\s*\n?/, '').replace(/^```\s*\n?/, '').replace(/\n```\s*$/, '');
+      if (!/<html[\s>]/i.test(html)) throw new Error('HTML 이 돌아오지 않았습니다 (' + html.length + '자)');
+      if (!truncated && !/<\/html>\s*$/i.test(html)) truncated = true;
+      if (truncated) { if (!/<\/body>/i.test(html)) html += '\n</body>'; if (!/<\/html>/i.test(html)) html += '\n</html>'; log('bad', '⚠ 코드가 출력 길이 한도에 걸려 끝까지 오지 못했습니다 — 요청을 더 간단히 해 주세요'); }
+      finalHtml = fromPlaceholders(html, A); finalTitle = S.title.replace(/(\s*\(수정\))+$/, '') + ' (수정)';
       out(7, '<pre>' + esc(html.slice(0, 600)) + '…</pre>');
       log(truncated ? 'bad' : 'ok', (truncated ? '△ 코드 잘림 (' : '✓ 수정 완료 (') + finalHtml.length + '자)');
       showResult();
@@ -497,7 +493,7 @@ h3 .right{margin-left:auto}
     setBusy(false);
     if (aborted) { await refundCredit('중지'); show('err', '중지했습니다. 크레딧은 환불됐습니다.'); return; }
     if (finalHtml) await settleCredit(); else await refundCredit('결과 없음');
-    if (finalHtml) { chatUrlId = await saveChat(finalTitle, finalHtml, prev.prompt + '\\n\\n추가 요청: ' + changeRequest); if (chatUrlId) log('ok', '사이드바 "내 대화"에 저장했습니다'); }
+    if (finalHtml) { chatUrlId = await saveChat(finalTitle, finalHtml, prev.prompt + '\n\n추가 요청: ' + changeRequest); if (chatUrlId) log('ok', '사이드바 "내 대화"에 저장했습니다'); }
     show(finalHtml ? 'ok' : 'err', finalHtml ? '수정이 끝났습니다.' : '코드가 만들어지지 않았습니다. 크레딧은 환불됐습니다.');
     saveHist({ at: Date.now(), mode: 'edit', prompt: prev.prompt + ' → ' + changeRequest, title: finalTitle || S.title, ok: !!finalHtml, size: finalHtml.length, html: finalHtml, stages: '수정', chat: chatUrlId });
   }
@@ -521,13 +517,13 @@ h3 .right{margin-left:auto}
       if (fromChat) {
         loadPrev(fromChat).then(function (prev) {
           var add = $('prompt').value.trim();
-          if (prev.html && /<html[\\s>]/i.test(prev.html)) {
+          if (prev.html && /<html[\s>]/i.test(prev.html)) {
             // 이전 결과 파일이 있으면: 에셋 재사용 + 코드만 수정 (1~6단계 비용 없음)
             $('prompt').value = add;
             setTimeout(function () { runEdit(prev, add); }, 300);
             return;
           }
-          if (prev.prompt && prev.prompt !== add) { $('prompt').value = prev.prompt + '\\n\\n추가 요청: ' + add; log('run', '이전 작업 파일을 찾지 못해 요청문만 합쳐 처음부터 만듭니다'); }
+          if (prev.prompt && prev.prompt !== add) { $('prompt').value = prev.prompt + '\n\n추가 요청: ' + add; log('run', '이전 작업 파일을 찾지 못해 요청문만 합쳐 처음부터 만듭니다'); }
           else log('run', '채팅 화면에서 넘어옴 — 자동 실행합니다');
           setTimeout(run, 300);
         });
@@ -589,23 +585,23 @@ h3 .right{margin-left:auto}
         if (Date.now() - lastTick > 700) { lastTick = Date.now(); out(7, '<pre>코드 받는 중… ' + html.length + '자</pre>'); }
       }
       html += dec.decode();
-      var em = html.match(/<!--CF_ERROR:([\\s\\S]*?)-->/);
+      var em = html.match(/<!--CF_ERROR:([\s\S]*?)-->/);
       if (em) throw new Error(em[1]);
       var truncated = html.indexOf('<!--CF_TRUNCATED:') >= 0;
-      html = html.replace(/\\n?<!--CF_TRUNCATED:[^>]*-->/g, '');
-      html = html.trim().replace(/^\`\`\`html\\s*\\n?/, '').replace(/^\`\`\`\\s*\\n?/, '').replace(/\\n\`\`\`\\s*$/, '');
-      if (!/<html[\\s>]/i.test(html)) throw new Error('HTML 이 돌아오지 않았습니다 (' + html.length + '자)');
-      if (!truncated && !/<\\/html>\\s*$/i.test(html)) truncated = true;
+      html = html.replace(/\n?<!--CF_TRUNCATED:[^>]*-->/g, '');
+      html = html.trim().replace(/^```html\s*\n?/, '').replace(/^```\s*\n?/, '').replace(/\n```\s*$/, '');
+      if (!/<html[\s>]/i.test(html)) throw new Error('HTML 이 돌아오지 않았습니다 (' + html.length + '자)');
+      if (!truncated && !/<\/html>\s*$/i.test(html)) truncated = true;
       if (truncated) {
-        if (!/<\\/body>/i.test(html)) html += '\\n</body>';
-        if (!/<\\/html>/i.test(html)) html += '\\n</html>';
+        if (!/<\/body>/i.test(html)) html += '\n</body>';
+        if (!/<\/html>/i.test(html)) html += '\n</html>';
         log('bad', '⚠ 7단계 코드가 출력 길이 한도에 걸려 끝까지 오지 못했습니다 (' + html.length + '자). 화면 일부가 비거나 동작이 빠질 수 있습니다 — 요청 문장을 더 간단히 하거나 다시 실행해 주세요.');
       }
       if (S.img1 && html.indexOf('{{IMAGE_1}}') >= 0) html = html.split('{{IMAGE_1}}').join(await shrink('data:' + S.img1Mime + ';base64,' + S.img1, 768));
       if (S.img2 && html.indexOf('{{IMAGE_2}}') >= 0) html = html.split('{{IMAGE_2}}').join(await shrink('data:image/png;base64,' + S.img2, 768));
       if (S.videoUrl) html = html.split('{{VIDEO_URL}}').join(S.videoUrl);
       if (S.modelUrl) html = html.split('{{MODEL_URL}}').join(S.modelUrl);
-      html = html.replace(/\\{\\{(IMAGE_1|IMAGE_2|VIDEO_URL|VIDEO_3D_URL|MODEL_URL)\\}\\}/g, '');
+      html = html.replace(/\{\{(IMAGE_1|IMAGE_2|VIDEO_URL|VIDEO_3D_URL|MODEL_URL)\}\}/g, '');
       finalHtml = html; finalTitle = S.title;
       out(7, '<pre>' + esc(html.slice(0, 600)) + '…</pre>');
       log(truncated ? 'bad' : 'ok', (truncated ? '△ 7단계 코드 잘림 (' : '✓ 7단계 코드 완료 (') + html.length + '자)');
@@ -750,25 +746,25 @@ h3 .right{margin-left:auto}
     var i1 = S.img1 ? await shrink('data:' + S.img1Mime + ';base64,' + S.img1, 768) : '';
     var i2 = S.img2 ? await shrink('data:image/png;base64,' + S.img2, 768) : '';
     var t = esc(S.title || '3D 에셋');
-    var h = '<!DOCTYPE html>\\n<html lang="ko">\\n<head>\\n<meta charset="UTF-8">\\n<meta name="viewport" content="width=device-width, initial-scale=1">\\n<title>' + t + '</title>\\n';
-    if (S.modelUrl) h += '<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}<\\/script>\\n';
-    h += '<style>body{margin:0;background:#0f1117;color:#eee;font-family:Inter,system-ui,sans-serif}.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 60px}h1{font-size:22px;margin:0 0 4px}p.sub{color:#9aa;margin:0 0 18px;font-size:13px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.card{background:#171a22;border:1px solid #262a35;border-radius:16px;overflow:hidden}.card img,.card video{width:100%;display:block;background:#000}.card .cap{padding:10px 12px;font-size:12.5px;color:#aab}#viewer{width:100%;aspect-ratio:16/9;background:#0b0d13}.full{grid-column:1/-1}</style>\\n</head>\\n<body>\\n<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ -->\\n<div class="wrap">\\n<h1>' + t + '</h1>\\n<p class="sub">' + esc(S.prompt || '') + '</p>\\n<div class="grid">\\n';
-    if (S.modelUrl) h += '<div class="card full"><div id="viewer"></div><div class="cap">3D 모델 · 드래그로 회전 · <a href="' + esc(S.modelUrl) + '" style="color:#8ab4ff">GLB 다운로드</a></div></div>\\n';
-    if (S.videoUrl) h += '<div class="card"><video src="' + esc(S.videoUrl) + '" crossorigin="anonymous" autoplay muted loop playsinline controls preload="metadata"></video><div class="cap">영상 · 4초</div></div>\\n';
-    if (i1) h += '<div class="card"><img src="' + i1 + '" alt=""><div class="cap">이미지 1</div></div>\\n';
-    if (i2) h += '<div class="card"><img src="' + i2 + '" alt=""><div class="cap">이미지 2</div></div>\\n';
-    h += '</div>\\n</div>\\n';
+    var h = '<!DOCTYPE html>\n<html lang="ko">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>' + t + '</title>\n';
+    if (S.modelUrl) h += '<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}<\/script>\n';
+    h += '<style>body{margin:0;background:#0f1117;color:#eee;font-family:Inter,system-ui,sans-serif}.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 60px}h1{font-size:22px;margin:0 0 4px}p.sub{color:#9aa;margin:0 0 18px;font-size:13px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.card{background:#171a22;border:1px solid #262a35;border-radius:16px;overflow:hidden}.card img,.card video{width:100%;display:block;background:#000}.card .cap{padding:10px 12px;font-size:12.5px;color:#aab}#viewer{width:100%;aspect-ratio:16/9;background:#0b0d13}.full{grid-column:1/-1}</style>\n</head>\n<body>\n<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ -->\n<div class="wrap">\n<h1>' + t + '</h1>\n<p class="sub">' + esc(S.prompt || '') + '</p>\n<div class="grid">\n';
+    if (S.modelUrl) h += '<div class="card full"><div id="viewer"></div><div class="cap">3D 모델 · 드래그로 회전 · <a href="' + esc(S.modelUrl) + '" style="color:#8ab4ff">GLB 다운로드</a></div></div>\n';
+    if (S.videoUrl) h += '<div class="card"><video src="' + esc(S.videoUrl) + '" crossorigin="anonymous" autoplay muted loop playsinline controls preload="metadata"></video><div class="cap">영상 · 4초</div></div>\n';
+    if (i1) h += '<div class="card"><img src="' + i1 + '" alt=""><div class="cap">이미지 1</div></div>\n';
+    if (i2) h += '<div class="card"><img src="' + i2 + '" alt=""><div class="cap">이미지 2</div></div>\n';
+    h += '</div>\n</div>\n';
     if (S.modelUrl) {
-      h += '<script type="module">\\ntry{\\nconst THREE=await import("three");const {GLTFLoader}=await import("three/addons/loaders/GLTFLoader.js");const {OrbitControls}=await import("three/addons/controls/OrbitControls.js");\\n' +
-        'const v=document.getElementById("viewer");const W=v.clientWidth,H=v.clientHeight||Math.round(W*9/16);const scene=new THREE.Scene();scene.background=new THREE.Color(0x0b0d13);\\n' +
-        'const cam=new THREE.PerspectiveCamera(45,W/H,0.01,1000);const ren=new THREE.WebGLRenderer({antialias:true});ren.setPixelRatio(Math.min(2,window.devicePixelRatio||1));ren.setSize(W,H);v.appendChild(ren.domElement);\\n' +
-        'scene.add(new THREE.HemisphereLight(0xffffff,0x444466,1.2));const dl=new THREE.DirectionalLight(0xffffff,1.4);dl.position.set(3,5,4);scene.add(dl);\\n' +
-        'const ctl=new OrbitControls(cam,ren.domElement);ctl.autoRotate=true;ctl.autoRotateSpeed=2;ctl.enableDamping=true;\\n' +
-        'new GLTFLoader().load(' + JSON.stringify(S.modelUrl) + ',g=>{const o=g.scene;scene.add(o);const b=new THREE.Box3().setFromObject(o),s=b.getSize(new THREE.Vector3()),c=b.getCenter(new THREE.Vector3());o.position.sub(c);const r=Math.max(s.x,s.y,s.z)||1;cam.position.set(r*1.2,r*0.8,r*1.6);cam.near=r/100;cam.far=r*100;cam.updateProjectionMatrix();});\\n' +
-        'window.addEventListener("resize",()=>{const W2=v.clientWidth,H2=Math.round(W2*9/16);cam.aspect=W2/H2;cam.updateProjectionMatrix();ren.setSize(W2,H2);});\\n' +
-        '(function loop(){requestAnimationFrame(loop);ctl.update();ren.render(scene,cam);})();\\n}catch(e){console.error(e);}\\n<\\/script>\\n';
+      h += '<script type="module">\ntry{\nconst THREE=await import("three");const {GLTFLoader}=await import("three/addons/loaders/GLTFLoader.js");const {OrbitControls}=await import("three/addons/controls/OrbitControls.js");\n' +
+        'const v=document.getElementById("viewer");const W=v.clientWidth,H=v.clientHeight||Math.round(W*9/16);const scene=new THREE.Scene();scene.background=new THREE.Color(0x0b0d13);\n' +
+        'const cam=new THREE.PerspectiveCamera(45,W/H,0.01,1000);const ren=new THREE.WebGLRenderer({antialias:true});ren.setPixelRatio(Math.min(2,window.devicePixelRatio||1));ren.setSize(W,H);v.appendChild(ren.domElement);\n' +
+        'scene.add(new THREE.HemisphereLight(0xffffff,0x444466,1.2));const dl=new THREE.DirectionalLight(0xffffff,1.4);dl.position.set(3,5,4);scene.add(dl);\n' +
+        'const ctl=new OrbitControls(cam,ren.domElement);ctl.autoRotate=true;ctl.autoRotateSpeed=2;ctl.enableDamping=true;\n' +
+        'new GLTFLoader().load(' + JSON.stringify(S.modelUrl) + ',g=>{const o=g.scene;scene.add(o);const b=new THREE.Box3().setFromObject(o),s=b.getSize(new THREE.Vector3()),c=b.getCenter(new THREE.Vector3());o.position.sub(c);const r=Math.max(s.x,s.y,s.z)||1;cam.position.set(r*1.2,r*0.8,r*1.6);cam.near=r/100;cam.far=r*100;cam.updateProjectionMatrix();});\n' +
+        'window.addEventListener("resize",()=>{const W2=v.clientWidth,H2=Math.round(W2*9/16);cam.aspect=W2/H2;cam.updateProjectionMatrix();ren.setSize(W2,H2);});\n' +
+        '(function loop(){requestAnimationFrame(loop);ctl.update();ren.render(scene,cam);})();\n}catch(e){console.error(e);}\n<\/script>\n';
     }
-    h += '</body>\\n</html>';
+    h += '</body>\n</html>';
     return h;
   }
   $('toChatAssets').addEventListener('click', async function () {
@@ -869,7 +865,7 @@ h3 .right{margin-left:auto}
     } else $('count').textContent = '';
   }
   /* ───────── 채팅 목록(브라우저 DB boltHistory)에 바로 저장 → 채팅으로 안 보내도 사이드바 "내 대화"에 보임 ───────── */
-  var SERVER_JS = "// server.js\\nconst http = require('http');\\nconst fs = require('fs');\\nconst path = require('path');\\nconst types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg' };\\nhttp.createServer((req, res) => {\\n  let p = decodeURIComponent((req.url || '/').split('?')[0]);\\n  if (p === '/') p = '/index.html';\\n  const file = path.join(process.cwd(), p);\\n  fs.readFile(file, (err, data) => {\\n    if (err) { res.writeHead(404); res.end('Not found'); return; }\\n    res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });\\n    res.end(data);\\n  });\\n}).listen(3000, '0.0.0.0', () => console.log('server on 3000'));\\n";
+  var SERVER_JS = "// server.js\nconst http = require('http');\nconst fs = require('fs');\nconst path = require('path');\nconst types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg' };\nhttp.createServer((req, res) => {\n  let p = decodeURIComponent((req.url || '/').split('?')[0]);\n  if (p === '/') p = '/index.html';\n  const file = path.join(process.cwd(), p);\n  fs.readFile(file, (err, data) => {\n    if (err) { res.writeHead(404); res.end('Not found'); return; }\n    res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });\n    res.end(data);\n  });\n}).listen(3000, '0.0.0.0', () => console.log('server on 3000'));\n";
   var chatUrlId = ''; // 이번 결과가 저장된 채팅 주소 (있으면 "채팅으로"는 그 대화를 엽니다)
   function saveChat(title, html, prompt) {
     return new Promise(function (res) {
@@ -877,8 +873,8 @@ h3 .right{margin-left:auto}
       var stamp = Date.now(), urlId = 'engine-' + stamp;
       var t = String(title || '엔진 결과').replace(/["<>]/g, '');
       var msgs = [
-        { id: 'engine-user-' + stamp, role: 'user', content: '[Model: ' + (models.stage2 || 'gpt-6-astra') + ']\\n\\n[Provider: OpenAI]\\n\\n' + (prompt || t) + ' (coverfo 엔진 결과 불러오기)', annotations: ['hidden'] },
-        { id: 'engine-result-' + stamp, role: 'assistant', content: 'coverfo 엔진이 만든 결과를 화면에 띄웁니다. 고칠 점이 있으면 아래 입력칸에 적어 주세요.\\n\\n<boltArtifact id="engine-result-' + stamp + '" title="' + t + '">\\n<boltAction type="file" filePath="index.html">\\n' + html + '\\n</boltAction>\\n<boltAction type="file" filePath="server.js">\\n' + SERVER_JS + '\\n</boltAction>\\n<boltAction type="start">\\nnode server.js\\n</boltAction>\\n</boltArtifact>' }
+        { id: 'engine-user-' + stamp, role: 'user', content: '[Model: ' + (models.stage2 || 'gpt-6-astra') + ']\n\n[Provider: OpenAI]\n\n' + (prompt || t) + ' (coverfo 엔진 결과 불러오기)', annotations: ['hidden'] },
+        { id: 'engine-result-' + stamp, role: 'assistant', content: 'coverfo 엔진이 만든 결과를 화면에 띄웁니다. 고칠 점이 있으면 아래 입력칸에 적어 주세요.\n\n<boltArtifact id="engine-result-' + stamp + '" title="' + t + '">\n<boltAction type="file" filePath="index.html">\n' + html + '\n</boltAction>\n<boltAction type="file" filePath="server.js">\n' + SERVER_JS + '\n</boltAction>\n<boltAction type="start">\nnode server.js\n</boltAction>\n</boltArtifact>' }
       ];
       var req;
       try { req = indexedDB.open('boltHistory'); } catch (e) { res(''); return; }
@@ -922,17 +918,3 @@ h3 .right{margin-left:auto}
 </script>
 </body>
 </html>
-`;
-
-export async function onRequestGet() {
-  return new Response(HTML, {
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store',
-      // 채팅 앱(/engine 부모 창)이 Cross-Origin-Embedder-Policy 를 쓰기 때문에, 그 안에 들어가는 이 문서도 같은 정책을 내야 표시됩니다
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Resource-Policy': 'same-origin',
-    },
-  });
-}

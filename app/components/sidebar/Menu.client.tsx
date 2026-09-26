@@ -614,7 +614,11 @@ export const Menu = () => {
         )}
       >
         <div className="h-12 flex items-center justify-between px-4 border-b border-gray-100 dark:border-gray-800/50 bg-gray-50/50 dark:bg-gray-900/50 rounded-tr-2xl">
-          <div className="text-gray-900 dark:text-white font-medium"></div>
+          {/* coverfo: 사이드바 상단 로고 (밝은 화면/어두운 화면용 따로) */}
+          <a href="/" className="flex items-center" aria-label="coverfo 홈">
+            <img src="/coverfo-logo.svg" alt="coverfo" className="h-6 w-auto dark:hidden" />
+            <img src="/coverfo-logo-dark.svg" alt="coverfo" className="h-6 w-auto hidden dark:block" />
+          </a>
         </div>
         <div className="flex-1 min-h-0 flex flex-col w-full overflow-y-auto overflow-x-hidden modern-scrollbar">
           <div className="p-4 space-y-3">
