@@ -46,7 +46,7 @@ const PLANS: Plan[] = [
     name: '작동 방식',
     price: '1크레딧 ≈ 99원',
     period: '',
-    description: 'coverfo가 보유한 AI로 실행하고 크레딧만 차감합니다. 본인 API 키는 필요 없습니다.',
+    description: '가입하고 바로 씁니다. 쓴 만큼만 크레딧이 차감되고, 따로 준비할 것은 없습니다.',
     features: ['API 키 발급 · 관리 불필요', '실패한 생성은 자동 환불', '만든 결과물은 그대로 사용'],
     highlight: false,
     note: '결제 즉시 자동으로 충전됩니다. 계좌이체 문의도 가능합니다.',
@@ -149,8 +149,7 @@ export default function Pricing() {
             <div>
               <dt className="text-sm font-medium text-bolt-elements-textPrimary">API 키를 따로 넣어야 하나요?</dt>
               <dd className="mt-1 text-sm text-bolt-elements-textSecondary">
-                아니요. coverfo가 보유한 API로 실행하고 크레딧만 차감됩니다. 생성이 실패하면 그 크레딧은 자동으로
-                환불됩니다.
+                아니요. 가입 후 바로 쓸 수 있고 크레딧만 차감됩니다. 생성이 실패하면 그 크레딧은 자동으로 환불됩니다.
               </dd>
             </div>
           </dl>

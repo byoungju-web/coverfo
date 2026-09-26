@@ -4,7 +4,6 @@ import { chatStore } from '~/lib/stores/chat';
 import { classNames } from '~/utils/classNames';
 import { HeaderActionButtons } from './HeaderActionButtons.client';
 import { ChatDescription } from '~/lib/persistence/ChatDescription.client';
-import { CoverfoAuth } from '~/lib/CoverfoAuth';
 
 export function Header() {
   const chat = useStore(chatStore);
@@ -51,9 +50,7 @@ export function Header() {
           </ClientOnly>
         </>
       )}
-      <div className="ml-auto pl-2 sm:pl-4 flex min-w-0 items-center">
-        <ClientOnly>{() => <CoverfoAuth />}</ClientOnly>
-      </div>
+      {/* coverfo: 상단의 이메일·로그아웃 표시는 뺐습니다 — 왼쪽 사이드바 하단(이메일 줄)에서 로그아웃합니다 */}
     </header>
   );
 }

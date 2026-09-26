@@ -361,8 +361,8 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
             중지
           </button>
         )}
-        <div className="flex flex-nowrap justify-between items-center gap-2 text-sm px-3 pb-1.5 pt-1">
-          <div className="flex gap-0.5 sm:gap-1 items-center min-w-0 flex-1 overflow-hidden">
+        <div className="flex flex-nowrap justify-between items-center gap-1 sm:gap-2 text-sm px-2 sm:px-3 pb-1.5 pt-1">
+          <div className="flex gap-0 sm:gap-1 items-center shrink-0">
             <IconButton title="사진 첨부" className="transition-all" onClick={() => props.handleFileUpload()}>
               <div className="i-ph:image-square text-xl"></div>
             </IconButton>
@@ -399,14 +399,14 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
               )}
             </IconButton>
           </div>
-          <div className="flex gap-1.5 items-center shrink-0">
+          <div className="flex gap-1 sm:gap-1.5 items-center shrink-0 ml-auto">
             {/* 대화 — 파일 없이 글로만 답변 */}
             <button
               type="button"
               title="파일을 만들지 않고 글로만 답합니다"
               disabled={props.input.trim().length === 0 || props.isStreaming}
               className={classNames(
-                'inline-flex items-center justify-center h-7 px-5 min-w-[5.5rem] rounded-full text-xs font-semibold tracking-[0.35em] transition active:scale-95',
+                'inline-flex items-center justify-center h-7 px-2.5 sm:px-5 min-w-0 sm:min-w-[5.5rem] rounded-full text-[11px] sm:text-xs font-semibold tracking-[0.12em] sm:tracking-[0.35em] transition active:scale-95',
 
                 /* 지금 선택된 모드(chat)는 진한 색으로 보여서 무엇을 눌렀는지 알 수 있게 합니다 */
                 props.chatMode === 'discuss'
@@ -435,7 +435,7 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
               title="앱·게임·사이트 → 엔진 / 3D → 3D 에셋 / 이미지·영상 → 스튜디오 (홈 화면 버튼과 동일)"
               disabled={props.input.trim().length === 0 || props.isStreaming}
               className={classNames(
-                'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-semibold whitespace-nowrap transition active:scale-95',
+                'inline-flex items-center gap-1 sm:gap-1.5 h-7 px-2 sm:px-2.5 rounded-full text-[11px] sm:text-xs font-semibold whitespace-nowrap transition active:scale-95',
 
                 /* 지금 선택된 모드(앱생성)는 진한 색으로 보여서 무엇을 눌렀는지 알 수 있게 합니다 */
                 props.chatMode === 'build'

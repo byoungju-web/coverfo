@@ -137,6 +137,42 @@ export const Menu = () => {
   // 데스크탑(1024px 이상)에서는 사이드바를 항상 펼쳐 둡니다
   const [isDesktop, setIsDesktop] = useState(false);
 
+  // 하단 설정 줄에 보여 줄 로그인 이메일 (없으면 '설정'). 운영자만 'API 키 · 모델'(Control Panel)을 봅니다
+  const [myEmail, setMyEmail] = useState<string>('');
+  const ADMIN_EMAILS = ['hasin7jk@gmail.com'];
+  const isAdmin = !!myEmail && ADMIN_EMAILS.includes(myEmail.toLowerCase());
+
+  useEffect(() => {
+    let alive = true;
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (alive) {
+          setMyEmail(data.session?.user?.email || '');
+        }
+      })
+      .catch(() => undefined);
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setMyEmail(session?.user?.email || '');
+    });
+
+    return () => {
+      alive = false;
+      sub?.subscription?.unsubscribe();
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // 무시
+    }
+
+    window.location.href = '/';
+  };
+
   // 사이드바 하단 '답변 언어' — AI 가 어떤 언어로 답할지 (채팅 전송 시 Chat.client 가 읽습니다)
   const [answerLang, setAnswerLang] = useState<string>(() => {
     try {
@@ -807,20 +843,40 @@ export const Menu = () => {
               className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-expanded={footOpen}
             >
-              <span className="i-ph:gear-six h-4 w-4 shrink-0" />
-              <span>설정</span>
+              <span className="i-ph:user-circle h-4 w-4 shrink-0" />
+              <span className="truncate font-medium" title={myEmail || undefined}>{myEmail || '설정'}</span>
             </button>
             {footOpen && (
               <div className="pl-3 space-y-0.5">
-                <button
-                  type="button"
-                  onClick={handleSettingsClick}
-                  className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <span className="i-ph:key h-4 w-4 shrink-0" />
-                  <span>API 키 · 모델</span>
-                  <span className="ml-auto i-ph:caret-right h-3.5 w-3.5 text-gray-400" />
-                </button>
+                {!myEmail && (
+                  <a
+                    href="/"
+                    className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <span className="i-ph:sign-in h-4 w-4 shrink-0" />
+                    <span>로그인 (홈에서)</span>
+                  </a>
+                )}
+                {myEmail && (
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <span className="i-ph:sign-out h-4 w-4 shrink-0" />
+                    <span>로그아웃</span>
+                  </button>
+                )}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={handleSettingsClick}
+                    className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <span className="i-ph:key h-4 w-4 shrink-0" />
+                    <span>API 키 · 모델 (운영자)</span>
+                  </button>
+                )}
                 <label className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer">
                   <span className="i-ph:globe h-4 w-4 shrink-0" />
                   <span>답변 언어</span>
@@ -843,7 +899,6 @@ export const Menu = () => {
                 >
                   <span className="i-ph:credit-card h-4 w-4 shrink-0" />
                   <span>이용료 · 요금제</span>
-                  <span className="ml-auto i-ph:caret-right h-3.5 w-3.5 text-gray-400" />
                 </a>
                 <div className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2">
                   <span className="i-ph:moon h-4 w-4 shrink-0" />
