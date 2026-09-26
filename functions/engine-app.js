@@ -3,7 +3,7 @@
 // © 2026 coverfo All Rights Reserved
 
 const HTML = `<!DOCTYPE html>
-<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ v5.0 (coverfo.com / Cloudflare) -->
+<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ v5.2 (coverfo.com / Cloudflare) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -286,32 +286,169 @@ h3 .right{margin-left:auto}
   if (q.get('mode') === '3d') mode = '3d';
   if (q.get('prompt')) { $('prompt').value = q.get('prompt'); autoRun = q.get('auto') !== '0'; }
 
-  /* 채팅 화면에서 "이어서 만들기"로 넘어온 경우(?from=engine-…): 그 대화의 처음 요청문을 찾아 앞에 붙입니다 */
-  function loadPrevPrompt(urlId) {
+  /* 채팅 화면에서 "이어서 만들기"로 넘어온 경우(?from=engine-…): 그 대화의 처음 요청문·제목·index.html 을 찾아옵니다 */
+  function loadPrev(urlId) {
     return new Promise(function (res) {
-      if (!urlId || !window.indexedDB) { res(''); return; }
+      var none = { prompt: '', title: '', html: '' };
+      if (!urlId || !window.indexedDB) { res(none); return; }
       var req;
-      try { req = indexedDB.open('boltHistory'); } catch (e) { res(''); return; }
-      req.onerror = function () { res(''); };
+      try { req = indexedDB.open('boltHistory'); } catch (e) { res(none); return; }
+      req.onerror = function () { res(none); };
       req.onsuccess = function () {
         var db = req.result;
-        if (!db.objectStoreNames.contains('chats')) { db.close(); res(''); return; }
+        if (!db.objectStoreNames.contains('chats')) { db.close(); res(none); return; }
         try {
           var all = db.transaction('chats', 'readonly').objectStore('chats').getAll();
           all.onsuccess = function () {
             db.close();
             var hit = (all.result || []).filter(function (c) { return c.urlId === urlId; })[0];
-            if (!hit) { res(''); return; }
+            if (!hit) { res(none); return; }
             var first = (hit.messages || []).filter(function (m) { return m.role === 'user'; })[0];
             var t = first && typeof first.content === 'string' ? first.content : '';
             t = t.replace(/^\\[Model:[^\\]]*\\]\\s*\\n*\\[Provider:[^\\]]*\\]\\s*\\n*/i, '').replace(/\\s*\\(coverfo 엔진 결과 불러오기\\)\\s*$/, '');
             var k = t.indexOf('<<coverfo-spec>>'); if (k >= 0) t = t.slice(0, k);
-            res(t.trim());
+            // 마지막 assistant 메시지에서 index.html 내용을 꺼냅니다 (채팅에서 고쳐진 최신 버전을 우선)
+            var html = '';
+            (hit.messages || []).forEach(function (m) {
+              if (m.role !== 'assistant' || typeof m.content !== 'string') return;
+              var mm = m.content.match(/<boltAction type="file" filePath="index\\.html">\\n?([\\s\\S]*?)\\n?<\\/boltAction>/);
+              if (mm) html = mm[1];
+            });
+            res({ prompt: t.trim(), title: hit.description || '', html: html });
           };
-          all.onerror = function () { db.close(); res(''); };
-        } catch (e) { db.close(); res(''); }
+          all.onerror = function () { db.close(); res(none); };
+        } catch (e) { db.close(); res(none); }
       };
     });
+  }
+
+  /* ───────── 수정 모드: 이전 결과(index.html)의 이미지·영상·3D 모델은 그대로 두고 7단계만 다시 돌립니다 ───────── */
+  function extractAssets(html) {
+    var A = { img1: '', img2: '', videoUrl: '', modelUrl: '' };
+    var imgs = html.match(/data:image\\/[a-z]+;base64,[A-Za-z0-9+\\/=]+/g) || [];
+    var uniq = []; imgs.forEach(function (u) { if (uniq.indexOf(u) < 0) uniq.push(u); });
+    A.img1 = uniq[0] || ''; A.img2 = uniq[1] || '';
+    var v = html.match(/https?:\\/\\/[^"'\\s]*\\/api\\/stage5-veo-status\\?file=[^"'\\s]+/); if (v) A.videoUrl = v[0];
+    var g = html.match(/https?:\\/\\/[^"'\\s]*\\/api\\/stage6-meshy-status\\?file=[^"'\\s]+/); if (g) A.modelUrl = g[0];
+    return A;
+  }
+  function toPlaceholders(html, A) {
+    if (A.img1) html = html.split(A.img1).join('{{IMAGE_1}}');
+    if (A.img2) html = html.split(A.img2).join('{{IMAGE_2}}');
+    if (A.videoUrl) html = html.split(A.videoUrl).join('{{VIDEO_URL}}');
+    if (A.modelUrl) html = html.split(A.modelUrl).join('{{MODEL_URL}}');
+    // 나머지 base64 이미지(3장째 이상)는 지워서 길이를 줄입니다
+    return html.replace(/data:image\\/[a-z]+;base64,[A-Za-z0-9+\\/=]{200,}/g, '{{IMAGE_1}}');
+  }
+  function fromPlaceholders(html, A) {
+    html = html.split('{{IMAGE_1}}').join(A.img1 || '').split('{{IMAGE_2}}').join(A.img2 || A.img1 || '');
+    html = html.split('{{VIDEO_URL}}').join(A.videoUrl || '').split('{{MODEL_URL}}').join(A.modelUrl || '');
+    return html.replace(/\\{\\{(IMAGE_1|IMAGE_2|VIDEO_URL|VIDEO_3D_URL|MODEL_URL)\\}\\}/g, '');
+  }
+  /* 수정 명령을 읽어 무엇을 다시 만들지 정합니다 (나머지는 이전 결과 그대로) */
+  var ED_IMG = /이미지|사진|그림|일러스트|포스터|image|photo/i;
+  var ED_VID = /영상|동영상|비디오|video|움직이/i;
+  var ED_MDL = /모델|캐릭터|모양|형태|외형|디자인을|색깔|색을|색상|옷|의상|얼굴|model/i;
+  function editPlan(req) {
+    var img = ED_IMG.test(req), vid = ED_VID.test(req), mdl = ED_MDL.test(req);
+    return { images: img || mdl, video: vid, model: mdl, code: true };
+  }
+  function b64of(dataUrl) { var i = (dataUrl || '').indexOf('base64,'); return i >= 0 ? dataUrl.slice(i + 7) : ''; }
+  function mimeOf(dataUrl) { var m = (dataUrl || '').match(/^data:([^;]+);/); return m ? m[1] : 'image/png'; }
+
+  async function runEdit(prev, changeRequest) {
+    if (running) return;
+    hideMsg(); setBusy(true); aborted = false; ctrl = new AbortController();
+    finalHtml = ''; finalTitle = ''; chatUrlId = '';
+    $('result').className = 'card result'; $('assets').className = 'card assets';
+    if (goTimer) { clearInterval(goTimer); goTimer = null; }
+    var A = extractAssets(prev.html);
+    var plan = editPlan(changeRequest);
+    var redo = [plan.images && '이미지', plan.video && '영상', plan.model && '3D 모델'].filter(Boolean).join(' · ');
+    STAGES.forEach(function (s) { setTime(s.n, null); out(s.n, ''); setStage(s.n, 'skip', '이전 결과'); });
+    setStage(7, '', '대기');
+    log('run', '✏️ 수정 모드 — "' + (prev.title || prev.prompt).slice(0, 40) + '" 에 요청: ' + changeRequest.slice(0, 60));
+    log('run', redo ? '명령에 따라 다시 만드는 것: ' + redo + ' (나머지는 이전 결과 사용)' : '코드만 수정합니다 (이미지·영상·3D 모델은 이전 결과 사용)');
+    show('info', '이전 결과를 이어서 수정합니다' + (redo ? ' — ' + redo + ' 다시 만듦' : ' — 코드만 다시 씀') + ' · 보통 ' + (redo ? '4~8' : '2~4') + '분');
+    var S = { prompt: prev.prompt, title: prev.title || prev.prompt.slice(0, 40), img1: null, img2: null, videoUrl: A.videoUrl, modelUrl: A.modelUrl };
+    LAST = S;
+    var pImg = prev.prompt + ' — ' + changeRequest;
+    var img1b = b64of(A.img1), img1m = mimeOf(A.img1), img2b = b64of(A.img2);
+    try {
+      if (plan.images) {
+        await stage(3, async function () {
+          var j = await post('/api/stage3-gemini', { promptForImage: pImg });
+          if (j.imageBase64) { img1b = j.imageBase64; img1m = j.mimeType || 'image/png'; A.img1 = 'data:' + img1m + ';base64,' + img1b; out(3, '<img src="' + A.img1 + '">'); }
+          log('ok', '✓ 3단계 이미지 다시 만듦');
+        });
+        await stage(4, async function () {
+          var j = await post('/api/stage4-gptimage', { promptForImage: pImg });
+          if (j.imageBase64) { img2b = j.imageBase64; A.img2 = 'data:image/png;base64,' + img2b; out(4, '<img src="' + A.img2 + '">'); }
+          log('ok', '✓ 4단계 이미지 다시 만듦');
+        });
+      }
+      if (plan.video) {
+        await stage(5, async function () {
+          var j = await post('/api/stage5-veo', { promptForVideo: pImg, promptForImage: pImg, imageBase64: img1b || undefined, mimeType: img1m });
+          out(5, '<pre>영상 생성 중… 기다려 주세요</pre>');
+          var deadline = Date.now() + 240000;
+          while (Date.now() < deadline) {
+            await sleep(8000);
+            var st = await get('/api/stage5-veo-status?name=' + encodeURIComponent(j.operationName));
+            if (st.error) throw new Error(JSON.stringify(st.error).slice(0, 300));
+            if (st.done && st.videoUri) { A.videoUrl = location.origin + '/api/stage5-veo-status?file=' + encodeURIComponent(st.videoUri); S.videoUrl = A.videoUrl; out(5, '<video src="' + A.videoUrl + '" controls muted playsinline></video>'); log('ok', '✓ 5단계 영상 다시 만듦'); return; }
+            if (st.done) throw new Error('영상이 돌아오지 않았습니다');
+            out(5, '<pre>영상 생성 중… ' + Math.round((deadline - Date.now()) / 1000) + '초 더 기다립니다</pre>');
+          }
+          throw new Error('4분 안에 끝나지 않아 이전 영상을 씁니다');
+        });
+      }
+      if (plan.model) {
+        await stage(6, async function () {
+          var srcB = img2b || img1b, srcM = img2b ? 'image/png' : img1m;
+          if (!srcB) throw new Error('3D 로 만들 이미지가 없어 이전 모델을 씁니다');
+          var j = await post('/api/stage6-meshy', { subject: pImg.slice(0, 200), imageBase64: srcB, mimeType: srcM });
+          if (j.skipped) throw new Error(j.reason);
+          out(6, '<pre>3D 모델 생성 중… 기다려 주세요</pre>');
+          var deadline = Date.now() + 420000;
+          while (Date.now() < deadline) {
+            await sleep(10000);
+            var st = await get('/api/stage6-meshy-status?id=' + encodeURIComponent(j.taskId));
+            if (st.status === 'SUCCEEDED' && st.glbUrl) { A.modelUrl = location.origin + '/api/stage6-meshy-status?file=' + encodeURIComponent(st.glbUrl); S.modelUrl = A.modelUrl; out(6, '<a href="' + esc(A.modelUrl) + '" target="_blank">GLB 모델 열기</a>'); log('ok', '✓ 6단계 3D 모델 다시 만듦'); return; }
+            if (st.status === 'FAILED' || st.status === 'CANCELED') throw new Error('상태: ' + st.status);
+            out(6, '<pre>3D 모델 생성 중… ' + (st.progress != null ? st.progress + '%' : '') + '</pre>');
+          }
+          throw new Error('7분 안에 끝나지 않아 이전 모델을 씁니다');
+        });
+      }
+    } catch (e) { if (aborted) { setBusy(false); show('err', '중지했습니다.'); return; } }
+    if (aborted) { setBusy(false); show('err', '중지했습니다.'); return; }
+    var placeholdered = toPlaceholders(prev.html, extractAssets(prev.html));
+    await stage(7, async function () {
+      var r = await fetch('/api/stage7-opus', { method: 'POST', headers: headers(), signal: ctrl.signal,
+        body: JSON.stringify({ previousHtml: placeholdered, changeRequest: changeRequest + (redo ? ' (참고: ' + redo + ' 파일은 새 것으로 교체됨 — 자리표시자는 그대로 두면 됨)' : '') }) });
+      var ct = r.headers.get('content-type') || '';
+      if (!r.ok || ct.indexOf('application/json') >= 0) { var ej = await r.json().catch(function () { return {}; }); throw new Error(ej.error || ('HTTP ' + r.status)); }
+      var reader = r.body.getReader(), dec = new TextDecoder(), html = '', lastTick = 0;
+      while (true) { var chunk = await reader.read(); if (chunk.done) break; html += dec.decode(chunk.value, { stream: true }); if (Date.now() - lastTick > 700) { lastTick = Date.now(); out(7, '<pre>코드 받는 중… ' + html.length + '자</pre>'); } }
+      html += dec.decode();
+      var em = html.match(/<!--CF_ERROR:([\\s\\S]*?)-->/); if (em) throw new Error(em[1]);
+      var truncated = html.indexOf('<!--CF_TRUNCATED:') >= 0;
+      html = html.replace(/\\n?<!--CF_TRUNCATED:[^>]*-->/g, '').trim().replace(/^\`\`\`html\\s*\\n?/, '').replace(/^\`\`\`\\s*\\n?/, '').replace(/\\n\`\`\`\\s*$/, '');
+      if (!/<html[\\s>]/i.test(html)) throw new Error('HTML 이 돌아오지 않았습니다 (' + html.length + '자)');
+      if (!truncated && !/<\\/html>\\s*$/i.test(html)) truncated = true;
+      if (truncated) { if (!/<\\/body>/i.test(html)) html += '\\n</body>'; if (!/<\\/html>/i.test(html)) html += '\\n</html>'; log('bad', '⚠ 코드가 출력 길이 한도에 걸려 끝까지 오지 못했습니다 — 요청을 더 간단히 해 주세요'); }
+      finalHtml = fromPlaceholders(html, A); finalTitle = S.title + ' (수정)';
+      out(7, '<pre>' + esc(html.slice(0, 600)) + '…</pre>');
+      log(truncated ? 'bad' : 'ok', (truncated ? '△ 코드 잘림 (' : '✓ 수정 완료 (') + finalHtml.length + '자)');
+      showResult();
+      if (truncated) setStage(7, 'bad', '잘림');
+    });
+    setBusy(false);
+    if (aborted) { show('err', '중지했습니다.'); return; }
+    if (finalHtml) { chatUrlId = await saveChat(finalTitle, finalHtml, prev.prompt + '\\n\\n추가 요청: ' + changeRequest); if (chatUrlId) log('ok', '사이드바 "내 대화"에 저장했습니다'); }
+    show(finalHtml ? 'ok' : 'err', finalHtml ? '수정이 끝났습니다.' : '코드가 만들어지지 않았습니다. 로그를 확인해 주세요.');
+    saveHist({ at: Date.now(), mode: 'edit', prompt: prev.prompt + ' → ' + changeRequest, title: finalTitle || S.title, ok: !!finalHtml, size: finalHtml.length, html: finalHtml, stages: '수정', chat: chatUrlId });
   }
 
   /* ───────── 환경 확인 ───────── */
@@ -330,9 +467,15 @@ h3 .right{margin-left:auto}
     if (autoRun && !needLogin && $('prompt').value.trim()) {
       autoRun = false; cleanTopUrl();
       if (fromChat) {
-        loadPrevPrompt(fromChat).then(function (prev) {
+        loadPrev(fromChat).then(function (prev) {
           var add = $('prompt').value.trim();
-          if (prev && prev !== add) { $('prompt').value = prev + '\\n\\n추가 요청: ' + add; log('run', '이전 작업을 불러와 이어서 만듭니다 — "' + prev.slice(0, 40) + '"'); }
+          if (prev.html && /<html[\\s>]/i.test(prev.html)) {
+            // 이전 결과 파일이 있으면: 에셋 재사용 + 코드만 수정 (1~6단계 비용 없음)
+            $('prompt').value = add;
+            setTimeout(function () { runEdit(prev, add); }, 300);
+            return;
+          }
+          if (prev.prompt && prev.prompt !== add) { $('prompt').value = prev.prompt + '\\n\\n추가 요청: ' + add; log('run', '이전 작업 파일을 찾지 못해 요청문만 합쳐 처음부터 만듭니다'); }
           else log('run', '채팅 화면에서 넘어옴 — 자동 실행합니다');
           setTimeout(run, 300);
         });
@@ -634,7 +777,7 @@ h3 .right{margin-left:auto}
       var d = document.createElement('div'); d.className = 'it';
       var when = new Date(h.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
       d.innerHTML = '<span style="color:#8a8a8a;flex:none">' + esc(when) + '</span>' +
-        '<span style="flex:none;color:#666">' + (h.mode === '3d' ? '3D' : '앱') + '</span>' +
+        '<span style="flex:none;color:#666">' + (h.mode === '3d' ? '3D' : h.mode === 'edit' ? '수정' : '앱') + '</span>' +
         '<span style="flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(h.prompt) + '">' + esc(h.title || h.prompt) + '</span>' +
         '<span style="flex:none;color:' + (h.ok ? '#047857' : '#b91c1c') + '">' + (h.ok ? '완성 ' + Math.round(h.size / 1000) + 'KB' : (h.mode === '3d' ? '에셋' : '미완성')) + '</span>' +
         (h.stages ? '<span style="flex:none;color:#8a8a8a" title="단계별 결과">' + esc(h.stages) + '</span>' : '');

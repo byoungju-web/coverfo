@@ -12,13 +12,48 @@ export async function action({ request, context }: ActionFunctionArgs) {
     return denied;
   }
 
-  const { prompt, spec, research, assets } = await readJson<{
+  const { prompt, spec, research, assets, previousHtml, changeRequest } = await readJson<{
     prompt?: string;
     spec?: unknown;
     research?: unknown;
     assets?: { image1?: boolean; image2?: boolean; video?: boolean; video3d?: boolean; model?: boolean };
+    previousHtml?: string;
+    changeRequest?: string;
   }>(request);
   const a = assets || {};
+
+  /*
+   * 수정 모드: 이전에 만든 index.html(에셋은 자리표시자로 바꾼 상태)과 고칠 점을 받아,
+   * 이미지·영상·3D 모델은 그대로 두고 요청한 부분만 바꾼 완성본을 돌려줍니다 (1~6단계 다시 안 돌림)
+   */
+  if (previousHtml && changeRequest) {
+    try {
+      return await anthropicStreamResponse(
+        env,
+        ENGINE_MODELS.stage7,
+        `You are the Final Coding Engine of coverfo 3D Orchestrator, in EDIT mode.
+Below is the CURRENT index.html of a project that was already built. Asset files were replaced by placeholder strings
+({{IMAGE_1}}, {{IMAGE_2}}, {{VIDEO_URL}}, {{MODEL_URL}}) — keep every placeholder EXACTLY as written; they are real files (photos, a 4-second mp4, a GLB 3D model) and must stay in use.
+
+CHANGE REQUEST (Korean): ${changeRequest}
+
+Rules:
+- Apply the change request on top of the current page. Keep everything the user did not ask to change (layout, texts, colors, the 3D model viewer, video, images).
+- If the request is about the 3D scene (background, stars, galaxy, lighting, ground, particles, camera, animation, controls, game rules…), modify the Three.js code accordingly while still loading {{MODEL_URL}} with GLTFLoader as the main object.
+- Only CDN <script> tags (Three.js 0.160 from cdn.jsdelivr.net via importmap). No npm, no package.json, no build step.
+- NO loading screen, NO preloader overlay; content visible immediately even if assets fail. Wrap 3D/CDN code in try/catch.
+- Keep the whole file under 35,000 characters, compact CSS. Korean UI text.
+- Include <!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ --> after <body>.
+- Return ONLY the complete new HTML (from <!DOCTYPE html> to </html>), no markdown fences, no explanation.
+
+CURRENT index.html:
+${previousHtml.slice(0, 60000)}`,
+        32000,
+      );
+    } catch (e: any) {
+      return fail(e.message || String(e));
+    }
+  }
 
   const assetLines = [
     a.image1 ? '- {{IMAGE_1}} : hero photo (use as <img src="{{IMAGE_1}}"> or CSS background)' : '',
