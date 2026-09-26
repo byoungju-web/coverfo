@@ -3,7 +3,7 @@
 // © 2026 coverfo All Rights Reserved
 
 const HTML = `<!DOCTYPE html>
-<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ v5.4 (coverfo.com / Cloudflare) -->
+<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ v5.5 (coverfo.com / Cloudflare) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -224,7 +224,7 @@ h3 .right{margin-left:auto}
     var el = $('credit'); if (!el) return;
     if (!CREDIT.enabled) { el.innerHTML = '<i style="background:#ccc"></i>크레딧 차감 없음'; return; }
     var low = CREDIT.free + CREDIT.paid < Math.min(COSTS.engine_edit, COSTS.engine_app);
-    el.innerHTML = '<i' + (low ? ' style="background:#f59e0b"' : '') + '></i>무료 ' + CREDIT.free + ' · 충전 ' + CREDIT.paid;
+    el.innerHTML = '<i' + (low ? ' style="background:#f59e0b"' : '') + '></i>무료 ' + CREDIT.free + ' · 충전 ' + CREDIT.paid + ' <a href="/buy" target="_top" style="color:#5B6CFF;text-decoration:none;margin-left:4px">충전</a>';
   }
   function loadCredit() {
     return fetch('/api/engine-credit', { headers: headers() }).then(function (r) { return r.json(); }).then(function (j) {

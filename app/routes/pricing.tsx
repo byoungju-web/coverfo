@@ -39,8 +39,6 @@ const PLANS: Plan[] = [
       'coverfo 엔진 · 앱 만들기 30크레딧',
       'coverfo 엔진 · 3D 에셋(이미지·영상·3D 모델) 25크레딧',
       '엔진 결과 수정 5크레딧부터 (이미지 8 · 3D 모델 15 · 영상 15)',
-      '예약 페이지 · 견적서 · 문서 · 3D 게임 템플릿',
-      '이메일 문의 지원',
     ],
     highlight: true,
   },
@@ -51,7 +49,7 @@ const PLANS: Plan[] = [
     description: 'coverfo가 보유한 AI로 실행하고 크레딧만 차감합니다. 본인 API 키는 필요 없습니다.',
     features: ['API 키 발급 · 관리 불필요', '실패한 생성은 자동 환불', '만든 결과물은 그대로 사용'],
     highlight: false,
-    note: '충전은 문의 후 계정에 바로 넣어 드립니다.',
+    note: '결제 즉시 자동으로 충전됩니다. 계좌이체 문의도 가능합니다.',
   },
 ];
 
@@ -93,10 +91,10 @@ function PlanCard({ plan }: { plan: Plan }) {
       <div className="mt-6">
         {plan.highlight ? (
           <a
-            href="mailto:hasin7jk@gmail.com?subject=coverfo 크레딧 충전 문의"
+            href="/buy"
             className="block rounded-lg bg-accent-500 px-4 py-2.5 text-center text-sm font-medium text-white"
           >
-            문의하고 충전하기
+            충전하기 (카드 · 계좌이체 · 간편결제)
           </a>
         ) : (
           <a
