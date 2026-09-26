@@ -96,7 +96,7 @@ const SERVER_JS = [
  *  - 3D → 엔진(3D 에셋), 앱·게임·사이트·페이지 → 엔진(7단계) : 새 대화에서만 (진행 중인 앱 작업은 그대로 AI 에게)
  *  - 아무 낱말도 없으면 null → 평소처럼 이 채팅에서 만듭니다
  */
-function cfTarget(text: string, chatStarted: boolean): string | null {
+function cfTarget(text: string, chatStarted: boolean, force = false): string | null {
   const target = cfRouteByCommand(text);
 
   if (!target) {
@@ -107,7 +107,20 @@ function cfTarget(text: string, chatStarted: boolean): string | null {
     return target;
   }
 
-  return chatStarted ? null : target;
+  // 지금 열려 있는 대화가 엔진 결과(/chat/engine-…)면 그 작업을 이어서 만들도록 대화 주소를 같이 넘깁니다
+  const m = typeof window !== 'undefined' ? window.location.pathname.match(/^\/chat\/([^/?#]+)/) : null;
+  const chatId = m ? m[1] : '';
+  const isEngineChat = chatId.startsWith('engine-');
+
+  if (!chatStarted) {
+    return target;
+  }
+
+  if (force || isEngineChat) {
+    return target + (chatId ? '&from=' + encodeURIComponent(chatId) : '');
+  }
+
+  return null;
 }
 
 function buildSpec(text: string) {
@@ -438,7 +451,8 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
                   return;
                 }
 
-                const target = cfTarget(raw, props.chatStarted);
+                // 버튼 클릭은 홈 화면 버튼과 똑같이: 어떤 대화에서든 엔진/스튜디오로 갑니다 (진행 중인 작업은 from= 으로 이어 받음)
+                const target = cfTarget(raw, props.chatStarted, true);
 
                 if (target) {
                   window.location.href = target;

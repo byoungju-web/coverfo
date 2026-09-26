@@ -3,7 +3,7 @@
 // © 2026 coverfo All Rights Reserved
 
 const HTML = `<!DOCTYPE html>
-<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ v4.9 (coverfo.com / Cloudflare) -->
+<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ v5.0 (coverfo.com / Cloudflare) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -281,10 +281,38 @@ h3 .right{margin-left:auto}
   function setTime(n, ms) { $('t' + n).textContent = ms != null ? (ms / 1000).toFixed(1) + '초' : ''; }
   function out(n, html) { $('o' + n).innerHTML = html.indexOf('src=') >= 0 ? html : clean(html); } // 이미지·영상(base64) 은 글자 치환에서 제외
 
-  /* ───────── 주소 값: mode / prompt / auto ───────── */
-  var autoRun = false;
+  /* ───────── 주소 값: mode / prompt / auto / from ───────── */
+  var autoRun = false, fromChat = q.get('from') || '';
   if (q.get('mode') === '3d') mode = '3d';
   if (q.get('prompt')) { $('prompt').value = q.get('prompt'); autoRun = q.get('auto') !== '0'; }
+
+  /* 채팅 화면에서 "이어서 만들기"로 넘어온 경우(?from=engine-…): 그 대화의 처음 요청문을 찾아 앞에 붙입니다 */
+  function loadPrevPrompt(urlId) {
+    return new Promise(function (res) {
+      if (!urlId || !window.indexedDB) { res(''); return; }
+      var req;
+      try { req = indexedDB.open('boltHistory'); } catch (e) { res(''); return; }
+      req.onerror = function () { res(''); };
+      req.onsuccess = function () {
+        var db = req.result;
+        if (!db.objectStoreNames.contains('chats')) { db.close(); res(''); return; }
+        try {
+          var all = db.transaction('chats', 'readonly').objectStore('chats').getAll();
+          all.onsuccess = function () {
+            db.close();
+            var hit = (all.result || []).filter(function (c) { return c.urlId === urlId; })[0];
+            if (!hit) { res(''); return; }
+            var first = (hit.messages || []).filter(function (m) { return m.role === 'user'; })[0];
+            var t = first && typeof first.content === 'string' ? first.content : '';
+            t = t.replace(/^\\[Model:[^\\]]*\\]\\s*\\n*\\[Provider:[^\\]]*\\]\\s*\\n*/i, '').replace(/\\s*\\(coverfo 엔진 결과 불러오기\\)\\s*$/, '');
+            var k = t.indexOf('<<coverfo-spec>>'); if (k >= 0) t = t.slice(0, k);
+            res(t.trim());
+          };
+          all.onerror = function () { db.close(); res(''); };
+        } catch (e) { db.close(); res(''); }
+      };
+    });
+  }
 
   /* ───────── 환경 확인 ───────── */
   fetch('/api/env-check').then(function (r) { return r.json(); }).then(function (j) {
@@ -301,8 +329,17 @@ h3 .right{margin-left:auto}
     log('ok', '엔진 준비됨 — ' + (j.version || ''));
     if (autoRun && !needLogin && $('prompt').value.trim()) {
       autoRun = false; cleanTopUrl();
-      log('run', '홈 화면에서 넘어옴 — 자동 실행합니다');
-      setTimeout(run, 300);
+      if (fromChat) {
+        loadPrevPrompt(fromChat).then(function (prev) {
+          var add = $('prompt').value.trim();
+          if (prev && prev !== add) { $('prompt').value = prev + '\\n\\n추가 요청: ' + add; log('run', '이전 작업을 불러와 이어서 만듭니다 — "' + prev.slice(0, 40) + '"'); }
+          else log('run', '채팅 화면에서 넘어옴 — 자동 실행합니다');
+          setTimeout(run, 300);
+        });
+      } else {
+        log('run', '홈 화면에서 넘어옴 — 자동 실행합니다');
+        setTimeout(run, 300);
+      }
     }
   }).catch(function () { renderStages(); $('status').innerHTML = '<i style="background:#ef4444"></i>설정 확인 실패'; log('bad', '/api/env-check 를 불러오지 못했습니다 (배포 확인 필요)'); });
 
