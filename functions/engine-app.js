@@ -3,7 +3,7 @@
 // © 2026 coverfo All Rights Reserved
 
 const HTML = `<!DOCTYPE html>
-<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ v4.7 (coverfo.com / Cloudflare) -->
+<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ v4.9 (coverfo.com / Cloudflare) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -67,9 +67,9 @@ h3 .right{margin-left:auto}
 .st .out img,.st .out video{width:100%;border-radius:10px;display:block;margin-top:6px;background:#000}
 .st .out a{font-size:12px;color:#5B6CFF}
 /* 로그 */
-.log{background:#0b0b0e;color:#d7d7de;border-radius:14px;padding:12px 14px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:1.6;max-height:220px;overflow:auto;margin-top:10px}
-.log .t{color:#6b6f80;margin-right:8px}
-.log .ok{color:#7affa1}.log .bad{color:#ff7a7a}.log .run{color:#9bb0ff}
+.log{background:#fff;color:#333;border:1px solid rgba(0,0,0,.06);border-radius:14px;padding:12px 14px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:1.6;max-height:220px;overflow:auto;margin-top:10px}
+.log .t{color:#aaa;margin-right:8px}
+.log .ok{color:#047857}.log .bad{color:#b91c1c}.log .run{color:#4f46e5}
 /* 3D 에셋 결과 */
 .assets{display:none}
 .assets.on{display:block}
@@ -167,13 +167,13 @@ h3 .right{margin-left:auto}
 (function () {
   /* ───────── 설정 ───────── */
   var STAGES = [
-    { n: 1, key: 'stage1', name: 'Fable 5.1', role: '설계 확장 (spec)' },
-    { n: 2, key: 'stage2', name: 'Astra 6', role: '에셋·디자인 조사' },
-    { n: 3, key: 'stage3', name: 'Gemini 3 Flash Image', role: '사진급 이미지' },
-    { n: 4, key: 'stage4', name: 'gpt image 2', role: '질감·조명 보정' },
-    { n: 5, key: 'stage5', name: 'Veo 3.1', role: '4초 영상' },
-    { n: 6, key: 'stage6', name: 'Meshy 3D', role: '이미지 → 3D 모델 (GLB)' },
-    { n: 7, key: 'stage7', name: 'Opus 4.5', role: '최종 코딩 (index.html)' }
+    { n: 1, key: 'stage1', role: '설계 확장' },
+    { n: 2, key: 'stage2', role: '에셋·디자인 조사' },
+    { n: 3, key: 'stage3', role: '사진급 이미지' },
+    { n: 4, key: 'stage4', role: '질감·조명 보정' },
+    { n: 5, key: 'stage5', role: '4초 영상' },
+    { n: 6, key: 'stage6', role: '이미지 → 3D 모델 (GLB)' },
+    { n: 7, key: 'stage7', role: '최종 코딩 (index.html)' }
   ];
   var $ = function (id) { return document.getElementById(id); };
   var models = {}, mode = 'app';
@@ -184,9 +184,22 @@ h3 .right{margin-left:auto}
 
   /* ───────── 화면 도우미 ───────── */
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  /* 금지어: 화면(로그·단계 카드·결과 설명)에 모델·회사 이름이 보이지 않게 지웁니다 */
+  var BANNED = [
+    /claude-fable-5-1|fable\\s?5\\.1|claude-opus-4-5-20251101|opus\\s?4\\.5|claude/gi,
+    /gpt-6-astra|astra\\s?6|gpt-image-2|gpt\\s?image\\s?2|gpt\\s?image|openai/gi,
+    /gemini-3\\.1-flash-image(-preview)?|gemini\\s?3(\\.1)?\\s?flash\\s?image|gemini|google/gi,
+    /models\\/veo-3\\.1-[a-z-]+\\/operations\\//gi, /veo-3\\.1-[a-z-]+|veo\\s?3\\.1|veo/gi,
+    /meshy-7\\.1|meshy\\s?3d|meshy/gi, /anthropic|cloudflare/gi
+  ];
+  function clean(s) {
+    s = String(s);
+    BANNED.forEach(function (re) { s = s.replace(re, ''); });
+    return s.replace(/\\(\\s*\\)/g, '').replace(/(\\s*·\\s*)+/g, ' · ').replace(/^\\s*·\\s*|\\s*·\\s*$/g, '').replace(/[ \\t]{2,}/g, ' ').replace(/\\s+([,)])/g, '$1').trim();
+  }
   function log(kind, msg) {
     var box = $('log'), line = document.createElement('div');
-    line.innerHTML = '<span class="t">' + new Date().toTimeString().slice(0, 8) + '</span><span class="' + kind + '">' + esc(msg) + '</span>';
+    line.innerHTML = '<span class="t">' + new Date().toTimeString().slice(0, 8) + '</span><span class="' + kind + '">' + esc(clean(msg)) + '</span>';
     box.appendChild(line); box.scrollTop = box.scrollHeight;
   }
   function show(type, html) { var m = $('msg'); m.className = 'msg on ' + type; m.innerHTML = html; }
@@ -258,9 +271,7 @@ h3 .right{margin-left:auto}
     STAGES.forEach(function (s) {
       var d = document.createElement('div');
       d.className = 'st'; d.id = 'st' + s.n;
-      d.innerHTML = '<div class="num">STAGE ' + s.n + '</div><div class="name">' + s.name + '</div>' +
-        '<div class="model" id="m' + s.n + '">' + esc(models[s.key] || '') + '</div>' +
-        '<div class="role">' + s.role + '</div>' +
+      d.innerHTML = '<div class="num">STAGE ' + s.n + '</div><div class="name">' + s.role + '</div>' +
         '<span class="pill" id="p' + s.n + '">대기</span><div class="time" id="t' + s.n + '"></div><div class="out" id="o' + s.n + '"></div>';
       g.appendChild(d);
     });
@@ -268,7 +279,7 @@ h3 .right{margin-left:auto}
   }
   function setStage(n, state, label) { var el = $('st' + n); el.className = 'st ' + state; $('p' + n).textContent = label; }
   function setTime(n, ms) { $('t' + n).textContent = ms != null ? (ms / 1000).toFixed(1) + '초' : ''; }
-  function out(n, html) { $('o' + n).innerHTML = html; }
+  function out(n, html) { $('o' + n).innerHTML = html.indexOf('src=') >= 0 ? html : clean(html); } // 이미지·영상(base64) 은 글자 치환에서 제외
 
   /* ───────── 주소 값: mode / prompt / auto ───────── */
   var autoRun = false;
@@ -280,10 +291,10 @@ h3 .right{margin-left:auto}
     models = j.models || {};
     renderStages();
     var keys = ['ANTHROPIC_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'OPENAI_API_KEY', 'MESHY_API_KEY'];
-    var missing = keys.filter(function (k) { return !j[k]; }).map(function (k) { return k.replace('_API_KEY', '').replace('GOOGLE_GENERATIVE_AI', 'GOOGLE'); });
+    var missing = keys.filter(function (k) { return !j[k]; }).map(function (k) { return '단계 ' + ({ ANTHROPIC_API_KEY: '1·7', GOOGLE_GENERATIVE_AI_API_KEY: '3·5', OPENAI_API_KEY: '2·4', MESHY_API_KEY: '6' })[k]; });
     var st = $('status');
-    st.innerHTML = '<i' + (missing.length ? ' style="background:#f59e0b"' : '') + '></i>' + (missing.length ? '키 없음: ' + esc(missing.join(', ')) : '준비됨') + ' · 중계 ' + esc(j.proxy || '?');
-    st.title = keys.map(function (k) { return k + (j[k] ? ' ✓' : ' ✗'); }).join('\\n') + '\\n로그인 검사: ' + (j.auth === 'login-required' ? '켜짐' : '꺼짐') + '\\n' + (j.version || '');
+    st.innerHTML = '<i' + (missing.length ? ' style="background:#f59e0b"' : '') + '></i>' + (missing.length ? '설정 필요: ' + esc(missing.join(', ')) : '준비됨') + ' · 중계 ' + (j.proxy && j.proxy.indexOf('on') === 0 ? 'on' : 'off');
+    st.title = (j.version || '');
     if (!j.MESHY_API_KEY) { $('c-3d').className = 'chip'; renderMode(); }
     var needLogin = (j.auth === 'login-required' && !token());
     if (needLogin) show('err', '로그인이 필요합니다. <a href="/" target="_top">홈으로 가서 로그인</a>한 뒤 다시 열어 주세요.');
@@ -365,7 +376,7 @@ h3 .right{margin-left:auto}
       html = html.replace(/\\{\\{(IMAGE_1|IMAGE_2|VIDEO_URL|VIDEO_3D_URL|MODEL_URL)\\}\\}/g, '');
       finalHtml = html; finalTitle = S.title;
       out(7, '<pre>' + esc(html.slice(0, 600)) + '…</pre>');
-      log(truncated ? 'bad' : 'ok', (truncated ? '△ 7단계 코드 잘림 (' : '✓ 7단계 코드 완료 (') + (models.stage7 || 'opus') + ', ' + html.length + '자)');
+      log(truncated ? 'bad' : 'ok', (truncated ? '△ 7단계 코드 잘림 (' : '✓ 7단계 코드 완료 (') + html.length + '자)');
       showResult();
       if (truncated) setStage(7, 'bad', '잘림');
     });
@@ -377,7 +388,7 @@ h3 .right{margin-left:auto}
     if (!prompt) { show('err', '무엇을 만들지 적어 주세요.'); return; }
     if (running) return;
     hideMsg(); setBusy(true); aborted = false; ctrl = new AbortController();
-    finalHtml = ''; finalTitle = '';
+    finalHtml = ''; finalTitle = ''; chatUrlId = '';
     $('result').className = 'card result'; $('assets').className = 'card assets'; $('viewer').className = ''; $('viewer').innerHTML = '';
     if (goTimer) { clearInterval(goTimer); goTimer = null; }
     STAGES.forEach(function (s) { setStage(s.n, '', '대기'); setTime(s.n, null); out(s.n, ''); });
@@ -392,14 +403,14 @@ h3 .right{margin-left:auto}
         var j = await post('/api/stage1-fable', { prompt: prompt });
         S.spec = j.spec; S.title = (S.spec && S.spec.title) || prompt.slice(0, 40);
         out(1, '<pre>' + esc(JSON.stringify(S.spec, null, 1).slice(0, 1200)) + '</pre>');
-        log('ok', '✓ 1단계 설계 완료 (' + j.model + ')');
+        log('ok', '✓ 1단계 설계 완료');
       });
       if (mode === 'app') {
         await stage(2, async function () {
           var j = await post('/api/stage2-astra', { spec: S.spec });
           S.research = j.research;
           out(2, '<pre>' + esc(JSON.stringify(S.research, null, 1).slice(0, 800)) + '</pre>');
-          log('ok', '✓ 2단계 조사 완료 (' + j.model + ')');
+          log('ok', '✓ 2단계 조사 완료');
         });
       } else skipStage(2, '3D 에셋 모드에서는 조사 단계를 건너뜁니다');
       var pImg = (S.spec && S.spec.promptForImage) || prompt;
@@ -407,18 +418,18 @@ h3 .right{margin-left:auto}
         var j = await post('/api/stage3-gemini', { promptForImage: pImg });
         S.img1 = j.imageBase64; S.img1Mime = j.mimeType || 'image/png';
         out(3, '<img src="data:' + S.img1Mime + ';base64,' + S.img1 + '">');
-        log('ok', '✓ 3단계 이미지 완료 (' + j.model + ')');
+        log('ok', '✓ 3단계 이미지 완료');
       });
       await stage(4, async function () {
         var j = await post('/api/stage4-gptimage', { styleGuide: S.spec && S.spec.styleGuide, promptForImage: pImg });
         S.img2 = j.imageBase64;
         if (S.img2) out(4, '<img src="data:image/png;base64,' + S.img2 + '">');
-        log('ok', '✓ 4단계 이미지 완료 (' + j.model + ')');
+        log('ok', '✓ 4단계 이미지 완료');
       });
       if (wantVideo) {
         await stage(5, async function () {
           var j = await post('/api/stage5-veo', { promptForVideo: S.spec && S.spec.promptForVideo, promptForImage: pImg, imageBase64: S.img1, mimeType: S.img1Mime });
-          log('run', '… 5단계 영상 만드는 중 (보통 1~3분): ' + j.operationName);
+          log('run', '… 5단계 영상 만드는 중 (보통 1~3분)');
           out(5, '<pre>영상 생성 중… 기다려 주세요</pre>');
           var deadline = Date.now() + 240000;
           while (Date.now() < deadline) {
@@ -443,7 +454,7 @@ h3 .right{margin-left:auto}
           var subj = (S.spec && (S.spec.subject || S.spec.title || S.spec.appName)) || prompt.slice(0, 80);
           var j = await post('/api/stage6-meshy', { subject: subj, imageBase64: src && src.b, mimeType: src && src.m });
           if (j.skipped) { skipStage(6, j.reason); return; }
-          log('run', '… 6단계 3D 모델 만드는 중 (보통 2~5분): ' + j.taskId);
+          log('run', '… 6단계 3D 모델 만드는 중 (보통 2~5분)');
           out(6, '<pre>3D 모델 생성 중… 기다려 주세요</pre>');
           var deadline = Date.now() + 420000;
           while (Date.now() < deadline) {
@@ -475,7 +486,8 @@ h3 .right{margin-left:auto}
     setBusy(false);
     if (aborted) show('err', '중지했습니다.'); else { log('ok', '🎉 실행 끝'); show('ok', mode === 'app' ? (finalHtml ? '완성됐습니다.' : '코드가 만들어지지 않았습니다. 로그를 확인해 주세요.') : '3D 에셋이 준비됐습니다. 아래 "채팅으로 보내기"로 채팅 화면에서 볼 수 있습니다.'); }
     var summary = STAGES.map(function (s) { return s.n + ':' + ($('p' + s.n).textContent || '').replace('진행 중', '중단'); }).join(' ');
-    saveHist({ at: Date.now(), mode: mode, prompt: prompt, title: S.title, ok: !!finalHtml, size: finalHtml.length, html: finalHtml, stages: summary });
+    if (finalHtml && !aborted) { chatUrlId = await saveChat(S.title, finalHtml, prompt); if (chatUrlId) log('ok', '사이드바 "내 대화"에 저장했습니다'); }
+    saveHist({ at: Date.now(), mode: mode, prompt: prompt, title: S.title, ok: !!finalHtml, size: finalHtml.length, html: finalHtml, stages: summary, chat: chatUrlId });
     renderMode();
   }
 
@@ -489,10 +501,10 @@ h3 .right{margin-left:auto}
       g.appendChild(d);
     }
     var n = 0;
-    if (S.img1) { n++; var u1 = 'data:' + S.img1Mime + ';base64,' + S.img1; card('<img src="' + u1 + '" alt="">', '이미지 1 · Gemini', function () { saveFile(u1, 'coverfo-3d-image1.png'); }); }
-    if (S.img2) { n++; var u2 = 'data:image/png;base64,' + S.img2; card('<img src="' + u2 + '" alt="">', '이미지 2 · gpt image', function () { saveFile(u2, 'coverfo-3d-image2.png'); }); }
-    if (S.videoUrl) { n++; card('<video src="' + esc(S.videoUrl) + '" controls muted playsinline loop></video>', '영상 · Veo 3.1 · 4초', function () { saveFile(S.videoUrl, 'coverfo-3d-video.mp4'); }); }
-    if (S.modelUrl) { n++; card(S.thumbUrl ? '<img src="' + esc(S.thumbUrl) + '" alt="">' : '<div style="aspect-ratio:1/1;display:grid;place-items:center;font-size:32px">🎲</div>', '3D 모델 · Meshy · GLB', function () { saveFile(S.modelUrl, 'coverfo-3d-model.glb'); }); }
+    if (S.img1) { n++; var u1 = 'data:' + S.img1Mime + ';base64,' + S.img1; card('<img src="' + u1 + '" alt="">', '이미지 1', function () { saveFile(u1, 'coverfo-3d-image1.png'); }); }
+    if (S.img2) { n++; var u2 = 'data:image/png;base64,' + S.img2; card('<img src="' + u2 + '" alt="">', '이미지 2', function () { saveFile(u2, 'coverfo-3d-image2.png'); }); }
+    if (S.videoUrl) { n++; card('<video src="' + esc(S.videoUrl) + '" controls muted playsinline loop></video>', '영상 · 4초', function () { saveFile(S.videoUrl, 'coverfo-3d-video.mp4'); }); }
+    if (S.modelUrl) { n++; card(S.thumbUrl ? '<img src="' + esc(S.thumbUrl) + '" alt="">' : '<div style="aspect-ratio:1/1;display:grid;place-items:center;font-size:32px">🎲</div>', '3D 모델 · GLB', function () { saveFile(S.modelUrl, 'coverfo-3d-model.glb'); }); }
     $('acount').textContent = n ? n + '개 에셋' : '만들어진 에셋이 없습니다';
     $('assets').className = 'card assets on';
     $('assets').scrollIntoView({ behavior: 'smooth' });
@@ -506,10 +518,10 @@ h3 .right{margin-left:auto}
     var h = '<!DOCTYPE html>\\n<html lang="ko">\\n<head>\\n<meta charset="UTF-8">\\n<meta name="viewport" content="width=device-width, initial-scale=1">\\n<title>' + t + '</title>\\n';
     if (S.modelUrl) h += '<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}<\\/script>\\n';
     h += '<style>body{margin:0;background:#0f1117;color:#eee;font-family:Inter,system-ui,sans-serif}.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 60px}h1{font-size:22px;margin:0 0 4px}p.sub{color:#9aa;margin:0 0 18px;font-size:13px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.card{background:#171a22;border:1px solid #262a35;border-radius:16px;overflow:hidden}.card img,.card video{width:100%;display:block;background:#000}.card .cap{padding:10px 12px;font-size:12.5px;color:#aab}#viewer{width:100%;aspect-ratio:16/9;background:#0b0d13}.full{grid-column:1/-1}</style>\\n</head>\\n<body>\\n<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ -->\\n<div class="wrap">\\n<h1>' + t + '</h1>\\n<p class="sub">' + esc(S.prompt || '') + '</p>\\n<div class="grid">\\n';
-    if (S.modelUrl) h += '<div class="card full"><div id="viewer"></div><div class="cap">3D 모델 · Meshy · 드래그로 회전 · <a href="' + esc(S.modelUrl) + '" style="color:#8ab4ff">GLB 다운로드</a></div></div>\\n';
-    if (S.videoUrl) h += '<div class="card"><video src="' + esc(S.videoUrl) + '" crossorigin="anonymous" autoplay muted loop playsinline controls preload="metadata"></video><div class="cap">영상 · Veo 3.1 · 4초</div></div>\\n';
-    if (i1) h += '<div class="card"><img src="' + i1 + '" alt=""><div class="cap">이미지 1 · Gemini</div></div>\\n';
-    if (i2) h += '<div class="card"><img src="' + i2 + '" alt=""><div class="cap">이미지 2 · gpt image</div></div>\\n';
+    if (S.modelUrl) h += '<div class="card full"><div id="viewer"></div><div class="cap">3D 모델 · 드래그로 회전 · <a href="' + esc(S.modelUrl) + '" style="color:#8ab4ff">GLB 다운로드</a></div></div>\\n';
+    if (S.videoUrl) h += '<div class="card"><video src="' + esc(S.videoUrl) + '" crossorigin="anonymous" autoplay muted loop playsinline controls preload="metadata"></video><div class="cap">영상 · 4초</div></div>\\n';
+    if (i1) h += '<div class="card"><img src="' + i1 + '" alt=""><div class="cap">이미지 1</div></div>\\n';
+    if (i2) h += '<div class="card"><img src="' + i2 + '" alt=""><div class="cap">이미지 2</div></div>\\n';
     h += '</div>\\n</div>\\n';
     if (S.modelUrl) {
       h += '<script type="module">\\ntry{\\nconst THREE=await import("three");const {GLTFLoader}=await import("three/addons/loaders/GLTFLoader.js");const {OrbitControls}=await import("three/addons/controls/OrbitControls.js");\\n' +
@@ -527,6 +539,7 @@ h3 .right{margin-left:auto}
   $('toChatAssets').addEventListener('click', async function () {
     if (!LAST) return;
     if (!finalHtml) { finalHtml = await buildAssetPage(LAST); finalTitle = LAST.title; }
+    if (!chatUrlId) chatUrlId = await saveChat(finalTitle, finalHtml, LAST.prompt);
     goChat();
   });
 
@@ -560,14 +573,15 @@ h3 .right{margin-left:auto}
     if (!LAST.research) {
       await stage(2, async function () {
         var j = await post('/api/stage2-astra', { spec: LAST.spec }); LAST.research = j.research;
-        out(2, '<pre>' + esc(JSON.stringify(LAST.research, null, 1).slice(0, 800)) + '</pre>'); log('ok', '✓ 2단계 조사 완료 (' + j.model + ')');
+        out(2, '<pre>' + esc(JSON.stringify(LAST.research, null, 1).slice(0, 800)) + '</pre>'); log('ok', '✓ 2단계 조사 완료');
       });
     }
     try { await runStage7(LAST); } catch (e) { log('bad', '중지: ' + (e.message || e)); }
     setBusy(false);
     show(finalHtml ? 'ok' : 'err', finalHtml ? '완성됐습니다.' : '코드가 만들어지지 않았습니다. 로그를 확인해 주세요.');
     var summary = STAGES.map(function (s) { return s.n + ':' + ($('p' + s.n).textContent || ''); }).join(' ');
-    saveHist({ at: Date.now(), mode: 'app', prompt: LAST.prompt, title: LAST.title, ok: !!finalHtml, size: finalHtml.length, html: finalHtml, stages: summary });
+    if (finalHtml) { chatUrlId = await saveChat(LAST.title, finalHtml, LAST.prompt); if (chatUrlId) log('ok', '사이드바 "내 대화"에 저장했습니다'); }
+    saveHist({ at: Date.now(), mode: 'app', prompt: LAST.prompt, title: LAST.title, ok: !!finalHtml, size: finalHtml.length, html: finalHtml, stages: summary, chat: chatUrlId });
   });
 
   /* ───────── 최근 만든 것 (localStorage, 최근 20건) ───────── */
@@ -591,7 +605,7 @@ h3 .right{margin-left:auto}
         var b1 = document.createElement('button'); b1.className = 'b'; b1.textContent = '다시 보기';
         b1.addEventListener('click', function () { finalHtml = h.html; finalTitle = h.title; $('prompt').value = h.prompt || ''; $('result').className = 'card result on'; $('frame').srcdoc = h.html; $('count').textContent = '내역에서 불러옴'; $('result').scrollIntoView({ behavior: 'smooth' }); });
         var b2 = document.createElement('button'); b2.className = 'b pri'; b2.textContent = '채팅으로';
-        b2.addEventListener('click', function () { finalHtml = h.html; finalTitle = h.title; $('prompt').value = h.prompt || ''; goChat(); });
+        b2.addEventListener('click', function () { finalHtml = h.html; finalTitle = h.title; chatUrlId = h.chat || ''; $('prompt').value = h.prompt || ''; goChat(); });
         d.appendChild(b1); d.appendChild(b2);
       }
       var b3 = document.createElement('button'); b3.className = 'b del'; b3.textContent = '삭제';
@@ -617,8 +631,43 @@ h3 .right{margin-left:auto}
       }, 1000);
     } else $('count').textContent = '';
   }
+  /* ───────── 채팅 목록(브라우저 DB boltHistory)에 바로 저장 → 채팅으로 안 보내도 사이드바 "내 대화"에 보임 ───────── */
+  var SERVER_JS = "// server.js\\nconst http = require('http');\\nconst fs = require('fs');\\nconst path = require('path');\\nconst types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg' };\\nhttp.createServer((req, res) => {\\n  let p = decodeURIComponent((req.url || '/').split('?')[0]);\\n  if (p === '/') p = '/index.html';\\n  const file = path.join(process.cwd(), p);\\n  fs.readFile(file, (err, data) => {\\n    if (err) { res.writeHead(404); res.end('Not found'); return; }\\n    res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });\\n    res.end(data);\\n  });\\n}).listen(3000, '0.0.0.0', () => console.log('server on 3000'));\\n";
+  var chatUrlId = ''; // 이번 결과가 저장된 채팅 주소 (있으면 "채팅으로"는 그 대화를 엽니다)
+  function saveChat(title, html, prompt) {
+    return new Promise(function (res) {
+      if (!window.indexedDB || !html) { res(''); return; }
+      var stamp = Date.now(), urlId = 'engine-' + stamp;
+      var t = String(title || '엔진 결과').replace(/["<>]/g, '');
+      var msgs = [
+        { id: 'engine-user-' + stamp, role: 'user', content: '[Model: ' + (models.stage2 || 'gpt-6-astra') + ']\\n\\n[Provider: OpenAI]\\n\\n' + (prompt || t) + ' (coverfo 엔진 결과 불러오기)', annotations: ['hidden'] },
+        { id: 'engine-result-' + stamp, role: 'assistant', content: 'coverfo 엔진이 만든 결과를 화면에 띄웁니다. 고칠 점이 있으면 아래 입력칸에 적어 주세요.\\n\\n<boltArtifact id="engine-result-' + stamp + '" title="' + t + '">\\n<boltAction type="file" filePath="index.html">\\n' + html + '\\n</boltAction>\\n<boltAction type="file" filePath="server.js">\\n' + SERVER_JS + '\\n</boltAction>\\n<boltAction type="start">\\nnode server.js\\n</boltAction>\\n</boltArtifact>' }
+      ];
+      var req;
+      try { req = indexedDB.open('boltHistory'); } catch (e) { res(''); return; }
+      req.onerror = function () { res(''); };
+      req.onsuccess = function () {
+        var db = req.result;
+        if (!db.objectStoreNames.contains('chats')) { db.close(); res(''); return; }
+        try {
+          var tx = db.transaction('chats', 'readwrite'), st = tx.objectStore('chats');
+          var all = st.getAll();
+          all.onsuccess = function () {
+            var max = 0;
+            (all.result || []).forEach(function (it) { var n = parseInt(it.id, 10); if (!isNaN(n) && n > max) max = n; });
+            var rec = { id: String(max + 1), urlId: urlId, description: t, messages: msgs, timestamp: new Date().toISOString() };
+            var put = st.put(rec);
+            put.onsuccess = function () { db.close(); res(urlId); };
+            put.onerror = function () { db.close(); res(''); };
+          };
+          all.onerror = function () { db.close(); res(''); };
+        } catch (e) { db.close(); res(''); }
+      };
+    });
+  }
   function goChat() {
     if (!finalHtml) return;
+    if (chatUrlId) { topGo('/chat/' + chatUrlId); return; }
     try {
       sessionStorage.setItem('cf-engine-result', JSON.stringify({ title: finalTitle || '엔진 결과', html: finalHtml, prompt: $('prompt').value.trim() }));
     } catch (e) { alert('결과가 너무 커서 넘기지 못했습니다. HTML 복사를 이용해 주세요.'); return; }

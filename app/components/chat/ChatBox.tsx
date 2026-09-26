@@ -14,6 +14,7 @@ import styles from './BaseChat.module.scss';
 import type { ProviderInfo } from '~/types/model';
 import type { DesignScheme } from '~/types/design-scheme';
 import type { ElementInfo } from '~/components/workbench/Inspector';
+import { cfRouteByCommand } from '~/utils/cfRoute';
 
 interface ChatBoxProps {
   isModelSettingsCollapsed: boolean;
@@ -89,29 +90,24 @@ const SERVER_JS = [
   '```',
 ].join('\n');
 
-// 이미지·영상 요청은 채팅(앱 생성)이 아니라 스튜디오(Gemini 이미지 / Veo 영상)로 보냅니다. 홈 화면과 같은 기준.
-function studioKind(text: string): 'image' | 'video' | null {
-  const low = text.toLowerCase();
-  const has = (...keys: string[]) => keys.some((k) => text.includes(k) || low.includes(k));
+/*
+ * coverfo: "앱 생성하기 · 3D · 영상 AUTO" 는 홈 화면 버튼과 같은 규칙(~/utils/cfRoute)으로 갈 곳을 정합니다.
+ *  - 이미지·영상 → 스튜디오 (진행 중인 대화에서도: 채팅은 이미지·영상을 못 만들기 때문)
+ *  - 3D → 엔진(3D 에셋), 앱·게임·사이트·페이지 → 엔진(7단계) : 새 대화에서만 (진행 중인 앱 작업은 그대로 AI 에게)
+ *  - 아무 낱말도 없으면 null → 평소처럼 이 채팅에서 만듭니다
+ */
+function cfTarget(text: string, chatStarted: boolean): string | null {
+  const target = cfRouteByCommand(text);
 
-  if (has('영상', '동영상', '비디오', 'video')) {
-    return 'video';
+  if (!target) {
+    return null;
   }
 
-  if (has('이미지', '그림', '포스터', '일러스트', '사진', 'image')) {
-    return 'image';
+  if (target.startsWith('/studio')) {
+    return target;
   }
 
-  // "3d" 도 스튜디오에서 그림으로 만듭니다. 조작이 필요한 3D 게임·앱·페이지만 채팅(앱 생성)으로.
-  if (has('3d', '입체') && !has('게임', 'game', '앱', '페이지', '사이트', '홈페이지', '조작', '돌려')) {
-    return 'image';
-  }
-
-  return null;
-}
-
-function goStudio(kind: 'image' | 'video', text: string) {
-  window.location.href = '/studio?kind=' + kind + '&auto=1&prompt=' + encodeURIComponent(text);
+  return chatStarted ? null : target;
 }
 
 function buildSpec(text: string) {
@@ -314,10 +310,10 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
               }
 
               if (props.chatMode === 'build') {
-                const k = studioKind(props.input.trim());
+                const target = cfTarget(props.input.trim(), props.chatStarted);
 
-                if (k) {
-                  goStudio(k, props.input.trim());
+                if (target) {
+                  window.location.href = target;
                   return;
                 }
               }
@@ -422,7 +418,7 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
             {/* 앱 생성하기 — 채팅 화면에서 바로 실행 */}
             <button
               type="button"
-              title="앱·3D는 여기서 만들고, 이미지·영상 요청은 스튜디오로 이동합니다"
+              title="앱·게임·사이트 → 엔진 / 3D → 3D 에셋 / 이미지·영상 → 스튜디오 (홈 화면 버튼과 동일)"
               disabled={props.input.trim().length === 0 || props.isStreaming}
               className={classNames(
                 'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-semibold whitespace-nowrap transition active:scale-95',
@@ -440,10 +436,10 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
                   return;
                 }
 
-                const k = studioKind(raw);
+                const target = cfTarget(raw, props.chatStarted);
 
-                if (k) {
-                  goStudio(k, raw);
+                if (target) {
+                  window.location.href = target;
                   return;
                 }
 
@@ -451,7 +447,7 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
                 props.handleSendMessage?.(event, buildSpec(raw));
               }}
             >
-              앱생성 · 3D · 영상<span className="hidden sm:inline"> AUTO</span>
+              🧊 앱 생성하기 · 3D · 영상<span className="hidden sm:inline"> AUTO</span>
             </button>
           </div>
           <ExpoQrModal open={props.qrModalOpen} onClose={() => props.setQrModalOpen(false)} />
