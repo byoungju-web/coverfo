@@ -614,38 +614,36 @@ export const Menu = () => {
         )}
       >
         <div className="h-12 flex items-center justify-between px-4 border-b border-gray-100 dark:border-gray-800/50 bg-gray-50/50 dark:bg-gray-900/50 rounded-tr-2xl">
-          {/* coverfo: 사이드바 상단 로고 (밝은 화면/어두운 화면용 따로) */}
-          <a href="/" className="flex items-center" aria-label="coverfo 홈">
-            <img src="/coverfo-logo.svg" alt="coverfo" className="h-6 w-auto dark:hidden" />
-            <img src="/coverfo-logo-dark.svg" alt="coverfo" className="h-6 w-auto hidden dark:block" />
-          </a>
+          {/* coverfo: 이 자리에는 화면 상단(Header)의 로고가 사이드바 위로 겹쳐 보이므로 비워 둡니다 */}
+          <div className="text-gray-900 dark:text-white font-medium"></div>
         </div>
         <div className="flex-1 min-h-0 flex flex-col w-full overflow-y-auto overflow-x-hidden modern-scrollbar">
           <div className="p-4 space-y-3">
-            <div className="flex gap-2">
+            {/* coverfo: 버튼 3개를 같은 크기 3칸으로 — 글자는 가로로 쓰고 칸이 좁으면 2줄까지 줄바꿈 */}
+            <div className="grid grid-cols-3 gap-2">
               <a
                 href="/"
-                className="flex-1 flex gap-2 items-center bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/20 rounded-lg px-4 py-2 transition-colors"
+                className="flex items-center justify-center gap-1 text-center bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/20 rounded-lg px-1.5 py-2 transition-colors leading-tight break-keep"
               >
-                <span className="inline-block i-ph:plus-circle h-4 w-4" />
-                <span className="text-sm font-medium">새 대화 시작</span>
+                <span className="inline-block i-ph:plus-circle h-4 w-4 shrink-0" />
+                <span className="text-[13px] font-medium">새 대화 시작</span>
               </a>
               <a
                 href="/studio"
                 title="이미지·영상 만들기"
-                className="flex gap-1.5 items-center bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 transition-colors"
+                className="flex items-center justify-center gap-1 text-center bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg px-1.5 py-2 transition-colors leading-tight break-keep"
               >
-                <span className="i-ph:palette h-4 w-4" />
-                <span className="text-sm font-medium">스튜디오</span>
+                <span className="i-ph:palette h-4 w-4 shrink-0" />
+                <span className="text-[13px] font-medium">스튜디오</span>
               </a>
-              {/* coverfo: '여러 개 선택' 버튼 자리에 엔진(앱·3D·영상) 바로가기 — 엔진 화면의 "최근 만든 것"이 작업 목록입니다 */}
+              {/* coverfo: '여러 개 선택' 버튼 자리에 엔진(앱·3D) 바로가기 — 엔진 화면의 "최근 만든 것"이 작업 목록입니다 */}
               <a
                 href="/engine"
                 title="coverfo 엔진 — 앱 · 3D (작업 목록)"
-                className="flex gap-1.5 items-center bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 transition-colors whitespace-nowrap"
+                className="flex items-center justify-center gap-1 text-center bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg px-1.5 py-2 transition-colors leading-tight break-keep"
               >
-                <span aria-hidden="true">🧊</span>
-                <span className="text-sm font-medium">coverfo 엔진</span>
+                <span aria-hidden="true" className="shrink-0">🧊</span>
+                <span className="text-[13px] font-medium">coverfo 엔진</span>
               </a>
             </div>
             <div className="relative w-full">
