@@ -31,6 +31,7 @@ import type { LlmErrorAlertType } from '~/types/actions';
 import { usePromptLimit } from '~/lib/usePromptLimit';
 import { tryTemplateRoute } from '~/lib/agents/templateRoute';
 import { cfTrace } from '~/utils/cfTrace';
+import { cfRouteByCommand } from '~/utils/cfRoute';
 
 const logger = createScopedLogger('Chat');
 
@@ -558,6 +559,14 @@ node server.js
         if (handledByTemplate) {
           return;
         }
+
+        // coverfo: 새 대화에서 "앱생성 · 3D · 영상 AUTO" 상태로 보내면 홈 화면과 같은 규칙으로 스튜디오/엔진에 바로 넘깁니다
+        const target = cfRouteByCommand(messageContent);
+
+        if (target) {
+          window.location.href = target;
+          return;
+        }
       }
 
       const allowedToSend = await checkAndIncrement();
@@ -848,7 +857,18 @@ node server.js
         clearLlmErrorAlert={clearApiErrorAlert}
         data={chatData}
         chatMode={chatMode}
-        setChatMode={setChatMode}
+        setChatMode={(m) => {
+          setChatMode(m);
+
+          // coverfo: 새 대화에서 글을 적어 둔 채 "앱생성 · 3D · 영상 AUTO" 를 누르면 홈 화면 버튼처럼 바로 실행
+          if (m === 'build' && !chatStarted && uploadedFiles.length === 0 && imageDataList.length === 0) {
+            const target = cfRouteByCommand(input);
+
+            if (target) {
+              window.location.href = target;
+            }
+          }
+        }}
         append={append}
         designScheme={designScheme}
         setDesignScheme={setDesignScheme}

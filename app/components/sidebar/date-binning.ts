@@ -1,8 +1,11 @@
-import { format, isAfter, isThisWeek, isThisYear, isToday, isYesterday, subDays } from 'date-fns';
 import type { ChatHistoryItem } from '~/lib/persistence';
 
 type Bin = { category: string; items: ChatHistoryItem[] };
 
+/*
+ * coverfo: 대화 목록 날짜 묶기 — 홈 화면 사이드바(landing-html.ts)와 같은 규칙.
+ * '지난 24시간'이 아니라 기기 시간의 달력 날짜로 비교합니다 (오늘 / 어제 / 지난 7일 / 지난 30일 / 이전).
+ */
 export function binDates(_list: ChatHistoryItem[]) {
   const list = _list.toSorted((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
 
@@ -29,31 +32,28 @@ export function binDates(_list: ChatHistoryItem[]) {
   return bins;
 }
 
+function startOfDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
 function dateCategory(date: Date) {
-  if (isToday(date)) {
-    return 'Today';
+  const days = Math.round((startOfDay(new Date()) - startOfDay(date)) / 86400000);
+
+  if (days <= 0) {
+    return '오늘';
   }
 
-  if (isYesterday(date)) {
-    return 'Yesterday';
+  if (days === 1) {
+    return '어제';
   }
 
-  if (isThisWeek(date)) {
-    // e.g., "Mon" instead of "Monday"
-    return format(date, 'EEE');
+  if (days < 7) {
+    return '지난 7일';
   }
 
-  const thirtyDaysAgo = subDays(new Date(), 30);
-
-  if (isAfter(date, thirtyDaysAgo)) {
-    return 'Past 30 Days';
+  if (days < 30) {
+    return '지난 30일';
   }
 
-  if (isThisYear(date)) {
-    // e.g., "Jan" instead of "January"
-    return format(date, 'LLL');
-  }
-
-  // e.g., "Jan 2023" instead of "January 2023"
-  return format(date, 'LLL yyyy');
+  return '이전';
 }
