@@ -601,11 +601,11 @@ export const Menu = () => {
               {/* coverfo: '여러 개 선택' 버튼 자리에 엔진(앱·3D·영상) 바로가기 — 엔진 화면의 "최근 만든 것"이 작업 목록입니다 */}
               <a
                 href="/engine"
-                title="엔진 — 앱 · 3D · 영상 (작업 목록)"
-                className="flex gap-1.5 items-center bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 transition-colors"
+                title="coverfo 엔진 — 앱 · 3D (작업 목록)"
+                className="flex gap-1.5 items-center bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 transition-colors whitespace-nowrap"
               >
                 <span aria-hidden="true">🧊</span>
-                <span className="text-sm font-medium">엔진</span>
+                <span className="text-sm font-medium">coverfo 엔진</span>
               </a>
             </div>
             <div className="relative w-full">
@@ -809,11 +809,6 @@ export const Menu = () => {
             >
               <span className="i-ph:gear-six h-4 w-4 shrink-0" />
               <span>설정</span>
-              <span
-                className={classNames('ml-auto i-ph:caret-right h-3.5 w-3.5 text-gray-400 transition-transform', {
-                  'rotate-90': footOpen,
-                })}
-              />
             </button>
             {footOpen && (
               <div className="pl-3 space-y-0.5">

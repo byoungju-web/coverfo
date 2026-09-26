@@ -12,7 +12,7 @@ const HTML = `<!DOCTYPE html>
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box}
 body{margin:0;background:#FCFCFD;color:#111;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-.wrap{max-width:760px;margin:0 auto;padding:14px 14px 40px}
+.wrap{max-width:960px;margin:0 auto;padding:14px 14px 40px}
 header{display:flex;align-items:center;justify-content:space-between;gap:10px;height:56px}
 .logo{display:flex;align-items:center;gap:8px;text-decoration:none;color:#111;font-weight:800;font-size:19px;letter-spacing:-.02em}
 .logo b{background:linear-gradient(90deg,#5B6CFF,#8B5CF6);-webkit-background-clip:text;background-clip:text;color:transparent}
