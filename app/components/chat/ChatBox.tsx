@@ -397,10 +397,11 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
 
                 /* 지금 선택된 모드(chat)는 진한 색으로 보여서 무엇을 눌렀는지 알 수 있게 합니다 */
                 props.chatMode === 'discuss'
-                  ? 'bg-accent-500 text-white border border-accent-500 shadow-sm'
-                  : 'bg-accent-100 text-accent-700 border border-accent-300 hover:bg-accent-200',
+                  ? 'bg-[#6D28D9] text-white border border-[#6D28D9] shadow-sm'
+                  : 'bg-[#EDE9FE] text-[#4C1D95] border border-[#A78BFA] hover:bg-[#DDD6FE]',
                 props.input.trim().length === 0 || props.isStreaming ? 'cursor-not-allowed' : 'active:brightness-90',
               )}
+              style={props.chatMode === 'discuss' ? { background: '#6D28D9', borderColor: '#6D28D9' } : { background: '#EDE9FE', color: '#4C1D95', borderColor: '#A78BFA' }}
               onClick={(event) => {
                 const raw = props.input.trim();
 
@@ -425,10 +426,11 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
 
                 /* 지금 선택된 모드(앱생성)는 진한 색으로 보여서 무엇을 눌렀는지 알 수 있게 합니다 */
                 props.chatMode === 'build'
-                  ? 'bg-accent-500 text-white border border-accent-500 shadow-sm'
-                  : 'bg-accent-100 text-accent-700 border border-accent-300 hover:bg-accent-200',
+                  ? 'bg-[#6D28D9] text-white border border-[#6D28D9] shadow-sm'
+                  : 'bg-[#EDE9FE] text-[#4C1D95] border border-[#A78BFA] hover:bg-[#DDD6FE]',
                 props.input.trim().length === 0 || props.isStreaming ? 'cursor-not-allowed' : 'active:brightness-90',
               )}
+              style={props.chatMode === 'build' ? { background: '#6D28D9', borderColor: '#6D28D9' } : { background: '#EDE9FE', color: '#4C1D95', borderColor: '#A78BFA' }}
               onClick={(event) => {
                 const raw = props.input.trim();
 

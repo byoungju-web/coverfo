@@ -307,15 +307,6 @@ export const Menu = () => {
     setDialogContent(null);
   };
 
-  const toggleSelectionMode = () => {
-    setSelectionMode(!selectionMode);
-
-    if (selectionMode) {
-      // If turning selection mode OFF, clear selection
-      setSelectedItems([]);
-    }
-  };
-
   const toggleItemSelection = useCallback((id: string) => {
     setSelectedItems((prev) => {
       const newSelectedItems = prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id];
@@ -607,18 +598,15 @@ export const Menu = () => {
                 <span className="i-ph:palette h-4 w-4" />
                 <span className="text-sm font-medium">스튜디오</span>
               </a>
-              <button
-                onClick={toggleSelectionMode}
-                className={classNames(
-                  'flex gap-1 items-center rounded-lg px-3 py-2 transition-colors',
-                  selectionMode
-                    ? 'bg-purple-600 dark:bg-purple-500 text-white border border-purple-700 dark:border-purple-600'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700',
-                )}
-                aria-label={selectionMode ? '선택 모드 끝내기' : '여러 개 선택'}
+              {/* coverfo: '여러 개 선택' 버튼 자리에 엔진(앱·3D·영상) 바로가기 — 엔진 화면의 "최근 만든 것"이 작업 목록입니다 */}
+              <a
+                href="/engine"
+                title="엔진 — 앱 · 3D · 영상 (작업 목록)"
+                className="flex gap-1.5 items-center bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 transition-colors"
               >
-                <span className={selectionMode ? 'i-ph:x h-4 w-4' : 'i-ph:check-square h-4 w-4'} />
-              </button>
+                <span aria-hidden="true">🧊</span>
+                <span className="text-sm font-medium">엔진</span>
+              </a>
             </div>
             <div className="relative w-full">
               <div className="absolute left-3 top-1/2 -translate-y-1/2">
