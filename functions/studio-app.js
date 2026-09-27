@@ -240,7 +240,8 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
       var t=document.createElement('div'); t.className='t';
       t.innerHTML='<span></span><small></small>';
       t.querySelector('span').textContent=(it.prompt||'').slice(0,40);
-      t.querySelector('small').textContent=(it.kind==='video'?'영상':'이미지')+' · '+it.cost+'크레딧'+(it.status==='failed'||it.status==='refunded'?' · 실패(환불)':'');
+      var secs = it.kind==='video' && it.meta && it.meta.seconds ? ' · '+it.meta.seconds+'초' : '';
+      t.querySelector('small').textContent=(it.kind==='video'?'영상':'이미지')+secs+' · '+it.cost+'크레딧'+(it.status==='failed'||it.status==='refunded'?' · 실패(환불)':'');
       var acts=document.createElement('div'); acts.className='acts';
       var bs=document.createElement('button'); bs.type='button'; bs.textContent='저장'; bs.disabled=!done;
       bs.addEventListener('click', function(){ saveFile(it.result_url, 'coverfo-'+it.id+(it.kind==='video'?'.mp4':'.png')); });
@@ -261,9 +262,35 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
         bv.addEventListener('click', function(){ setSource(it,'video'); });
         acts.appendChild(be); acts.appendChild(bv);
       } else if(it.kind==='video'){
-        var br=document.createElement('button'); br.type='button'; br.className='pri'; br.textContent='다시';
-        br.addEventListener('click', function(){ SRC=null; kind='video'; $('prompt').value=(it.prompt||'').replace(/^\[수정 #\d+\] /,''); renderKind(); window.scrollTo({top:0,behavior:'smooth'}); $('prompt').focus(); });
+        /* 영상은 만들어진 파일을 고칠 수 없어서(영상 API 특성) '수정' = 같은 첫 장면(원본 이미지)과 문장을 불러와 문장을 고친 뒤 새로 만드는 방식입니다 (영상 크레딧 다시 듦) */
+        var br=document.createElement('button'); br.type='button'; br.className='pri'; br.textContent='수정';
+        br.addEventListener('click', function(){
+          var srcId = it.meta && it.meta.source_job ? String(it.meta.source_job) : '';
+          var srcJob = null;
+          if(srcId){ for(var k=0;k<JOBS.length;k++){ if(String(JOBS[k].id)===srcId && JOBS[k].kind==='image' && JOBS[k].result_url){ srcJob=JOBS[k]; break; } } }
+          kind='video';
+          if(srcJob){ setSource(srcJob,'video'); } else { SRC=null; renderKind(); $('result').className='result'; hideMsg(); window.scrollTo({top:0,behavior:'smooth'}); }
+          $('prompt').value=(it.prompt||'').replace(/^\[수정 #\d+\] /,'');
+          show('info', srcJob ? '원본 이미지와 문장을 불러왔습니다. 문장을 고친 뒤 "생성"을 누르면 새 영상을 만듭니다 (영상 크레딧이 다시 듭니다).' : '문장을 불러왔습니다. 고친 뒤 "생성"을 누르면 새 영상을 만듭니다 (영상 크레딧이 다시 듭니다).');
+          $('prompt').focus();
+        });
         acts.appendChild(br);
+        /* 7초 연장: 720p 로 만든 영상만 가능 (구글 영상 연장 규칙). 예전 1080p 영상은 버튼을 숨깁니다 */
+        if(done && it.meta && it.meta.res==='720p'){
+          var bx=document.createElement('button'); bx.type='button'; bx.textContent='7초 연장';
+          bx.title='이 영상 뒤에 7초를 이어 붙인 새 영상을 만듭니다 (영상 1건 크레딧)';
+          bx.addEventListener('click', function(){
+            if(busy) return;
+            if(!confirm('이 영상 뒤에 7초를 이어 붙일까요? ('+costs.video+'크레딧, 새 영상으로 저장됩니다)')) return;
+            setBusy(true); hideMsg();
+            api('POST','',{kind:'video', prompt:(it.prompt||'').replace(/^\[(수정|연장) #\d+\] /,''), aspect:(it.meta&&it.meta.aspect)||'16:9', extend_job: it.id}).then(function(j){
+              if(j.__status===402){ setBusy(false); show('err', insufficientMsg(j)); return; }
+              if(j.__status!==200){ setBusy(false); show('err','연장 시작 실패: '+(j.error||'')); return; }
+              loadCredits(); loadHistory(); pollVideo(j.job_id);
+            }).catch(function(e){ setBusy(false); show('err','연장 시작 실패: '+e); });
+          });
+          acts.appendChild(bx);
+        }
       }
       acts.appendChild(bs); acts.appendChild(bd);
       card.appendChild(th); card.appendChild(t); card.appendChild(acts); h.appendChild(card);

@@ -17,8 +17,9 @@
 //   GET  /api/gen?config=1          → { url, anonKey }  (studio 화면이 로그인 세션을 읽으려고 씀)
 //   GET  /api/gen?credits=1         → { free, paid, pool(운영자만) }   운영자 이메일: Secret ADMIN_EMAILS (쉼표 구분, 기본 hasin7jk@gmail.com)
 //   GET  /api/gen?list=1            → 최근 작업 20개
-//   POST /api/gen  {kind:'image'|'video', prompt, aspect, source_job?}  → 작업 시작 (이미지는 바로 완료)
+//   POST /api/gen  {kind:'image'|'video', prompt, aspect, source_job?, extend_job?}  → 작업 시작 (이미지는 바로 완료)
 //        source_job: 목록의 이미지 작업 번호. 이미지면 그 이미지를 고쳐서 새로 만들고, 영상이면 첫 장면으로 씀
+//        extend_job: 목록의 영상 작업 번호. 그 영상 뒤에 7초를 이어 붙인 새 영상을 만듦 (720p 영상만 가능, 영상 1건 크레딧)
 //   GET  /api/gen?job=ID            → 진행 확인 (영상은 완료되면 파일을 받아 저장)
 //   DELETE /api/gen?job=ID         → 최근 만든 것에서 삭제 (파일 삭제)
 
@@ -123,7 +124,7 @@ async function getJob(c, jobId, userId) {
 
 async function listJobs(c, userId) {
   const r = await fetch(
-    c.sbUrl + '/rest/v1/cf_jobs?select=id,kind,prompt,cost,status,result_url,error,created_at&user_id=eq.' +
+    c.sbUrl + '/rest/v1/cf_jobs?select=id,kind,prompt,cost,status,result_url,error,created_at,meta&user_id=eq.' +
       encodeURIComponent(userId) + '&kind=in.(image,video)&status=neq.deleted&order=created_at.desc&limit=40',
     { headers: sbHeaders(c) },
   );
@@ -199,6 +200,26 @@ async function loadSourceImage(c, userId, srcJobId) {
   return { mime: mime.split(';')[0], b64: bytesToB64(bytes), job_id: job.id };
 }
 
+// 목록에 있는 영상 작업을 연장 원본으로 불러온다 (본인 것 + 완료된 영상만). 구글 연장은 720p 영상만 받는다.
+async function loadSourceVideo(c, userId, jobId) {
+  const job = await getJob(c, jobId, userId);
+  if (!job || job.kind !== 'video' || job.status !== 'done' || !job.result_url) throw new Error('연장할 영상을 찾을 수 없습니다');
+  const meta = job.meta || {};
+  if (meta.res !== '720p') throw new Error('이 영상은 예전(1080p) 방식으로 만들어져 연장할 수 없습니다. 새로 만든 영상부터 연장됩니다.');
+  let bytes;
+  if (job.result_url.indexOf('/media/') === 0) {
+    if (!c.media) throw new Error('R2 저장소 연결(MEDIA 바인딩)이 없습니다');
+    const obj = await c.media.get(job.result_url.slice('/media/'.length));
+    if (!obj) throw new Error('원본 영상 파일이 없습니다');
+    bytes = new Uint8Array(await obj.arrayBuffer());
+  } else {
+    const r = await fetch(job.result_url);
+    if (!r.ok) throw new Error('원본 영상을 읽지 못했습니다 (' + r.status + ')');
+    bytes = new Uint8Array(await r.arrayBuffer());
+  }
+  return { b64: bytesToB64(bytes), job_id: job.id, seconds: parseInt(meta.seconds || '8', 10) || 8, aspect: meta.aspect || '16:9' };
+}
+
 function b64ToBytes(b64) {
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);
@@ -251,7 +272,8 @@ async function googleImage(c, prompt, aspect, srcImage) {
 
 async function googleVideoStart(c, prompt, aspect, srcImage) {
   const inst = { prompt: prompt };
-  const params = { aspectRatio: aspect === '9:16' ? '9:16' : '16:9', resolution: '1080p', durationSeconds: 8 };
+  // 720p: 구글 영상 연장(7초 이어 붙이기)은 720p 영상만 받아서, 새 영상은 720p 로 만듭니다
+  const params = { aspectRatio: aspect === '9:16' ? '9:16' : '16:9', resolution: '720p', durationSeconds: 8 };
   if (srcImage) {
     inst.image = { bytesBase64Encoded: srcImage.b64, mimeType: srcImage.mime }; // Veo는 inlineData 대신 이 형식
     params.personGeneration = 'allow_adult'; // 이미지→영상은 구글이 이 값만 허용
@@ -264,6 +286,22 @@ async function googleVideoStart(c, prompt, aspect, srcImage) {
   });
   const d = await r.json().catch(() => ({}));
   if (!r.ok || !d.name) throw new Error('google video ' + r.status + ': ' + JSON.stringify(d).slice(0, 400));
+  return d.name;
+}
+
+// 영상 뒤에 7초 이어 붙이기 (Veo 3.1 video extension). 원본 mp4 를 본문에 넣어 보낸다.
+async function googleVideoExtend(c, prompt, srcVideo) {
+  const body = {
+    instances: [{ prompt: 'Continue the same scene seamlessly, same subject, same style. ' + prompt, video: { inlineData: { mimeType: 'video/mp4', data: srcVideo.b64 } } }],
+    parameters: { resolution: '720p', sampleCount: 1 },
+  };
+  const r = await gfetch(c, '/models/' + c.videoModel + ':predictLongRunning', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.name) throw new Error('google video extend ' + r.status + ': ' + JSON.stringify(d).slice(0, 400));
   return d.name;
 }
 
@@ -382,10 +420,21 @@ async function handlePost(context) {
 
   const cost = kind === 'video' ? c.costVideo : c.costImage;
   const srcJobId = body.source_job ? String(body.source_job) : '';
+  const extJobId = kind === 'video' && body.extend_job ? String(body.extend_job) : '';
+
+  // 0-1) 영상 연장이면 원본 영상을 먼저 불러온다 — 실패하면 크레딧을 건드리지 않음
+  let srcVideo = null;
+  if (extJobId) {
+    try {
+      srcVideo = await loadSourceVideo(c, user.id, extJobId);
+    } catch (e) {
+      return json({ error: String(e.message || e).slice(0, 300) }, 400);
+    }
+  }
 
   // 0) 원본 이미지(수정하기 / 이미지→영상)가 있으면 먼저 불러온다 — 실패하면 크레딧을 건드리지 않음
   let srcImage = null;
-  if (srcJobId) {
+  if (srcJobId && !srcVideo) {
     try {
       srcImage = await loadSourceImage(c, user.id, srcJobId);
     } catch (e) {
@@ -396,7 +445,7 @@ async function handlePost(context) {
   // 1) 크레딧 차감 (부족하면 여기서 끝)
   let spend;
   try {
-    spend = await rpc(c, 'cf_spend', { p_user: user.id, p_cost: cost, p_kind: kind, p_prompt: (srcImage ? '[수정 #' + srcImage.job_id + '] ' : '') + prompt });
+    spend = await rpc(c, 'cf_spend', { p_user: user.id, p_cost: cost, p_kind: kind, p_prompt: (srcVideo ? '[연장 #' + srcVideo.job_id + '] ' : srcImage ? '[수정 #' + srcImage.job_id + '] ' : '') + prompt });
   } catch (e) {
     return json({ error: '크레딧 처리 실패: ' + String(e.message || e).slice(0, 200) }, 500);
   }
@@ -416,8 +465,14 @@ async function handlePost(context) {
       await patchJob(c, jobId, { status: 'done', result_url: resultUrl });
       return json({ job_id: jobId, status: 'done', kind: 'image', result_url: resultUrl, free: spend.free, paid: spend.paid });
     }
+    if (srcVideo) {
+      const opName2 = await googleVideoExtend(c, prompt, srcVideo);
+      await patchJob(c, jobId, { op_name: opName2, task_id: opName2, meta: { extend_of: srcVideo.job_id, res: '720p', seconds: srcVideo.seconds + 7, aspect: srcVideo.aspect } });
+      return json({ job_id: jobId, status: 'running', kind: 'video', free: spend.free, paid: spend.paid });
+    }
     const opName = await googleVideoStart(c, prompt, aspect, srcImage);
-    await patchJob(c, jobId, Object.assign({ op_name: opName, task_id: opName }, srcImage ? { meta: { source_job: srcImage.job_id } } : {}));
+    // meta.res/seconds/aspect: 나중에 "7초 연장" 이 가능한지(720p) 와 길이 표시에 씀
+    await patchJob(c, jobId, Object.assign({ op_name: opName, task_id: opName, meta: Object.assign({ res: '720p', seconds: 8, aspect: aspect === '9:16' ? '9:16' : '16:9' }, srcImage ? { source_job: srcImage.job_id } : {}) }));
     return json({ job_id: jobId, status: 'running', kind: 'video', free: spend.free, paid: spend.paid });
   } catch (e) {
     // 실패 → 환불

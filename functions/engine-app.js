@@ -94,7 +94,13 @@ h3 .right{margin-left:auto}
 .btn:disabled{opacity:.5;cursor:default}
 /* 최근 만든 것 */
 .hl{display:flex;flex-direction:column;gap:6px}
-.hl .it{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 10px;border:1px solid rgba(0,0,0,.06);border-radius:12px;background:#fff;font-size:12.5px}
+.hl .it{display:block;padding:10px 12px;border:1.5px solid rgba(0,0,0,.12);border-left:5px solid #6D28D9;border-radius:12px;background:#fafafa;font-size:12.5px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.hl .it .ti{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.hl .it .ti .tt{flex:1;min-width:0;font-size:15px;font-weight:800;color:#111;letter-spacing:-.01em;line-height:1.3;word-break:break-all}
+.hl .it .ti .kd{flex:none;font-size:11px;font-weight:700;color:#4C1D95;background:#EDE9FE;border-radius:999px;padding:2px 8px}
+.hl .it .ti .hs{flex:none;font-size:12px;font-weight:700}
+.hl .it .mt{color:#777;font-size:11.5px;line-height:1.5;margin-bottom:8px;word-break:break-all}
+.hl .it .ac{display:flex;gap:6px;flex-wrap:wrap}
 .hl .it .b{height:28px;padding:0 10px;border-radius:8px;border:1px solid rgba(0,0,0,.08);background:#fff;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit}
 .hl .it .b.pri{background:#111;color:#fff;border-color:#111}
 .hl .it .b.del{color:#c0392b}
@@ -119,6 +125,7 @@ h3 .right{margin-left:auto}
     <div class="row" id="opts">
       <button type="button" class="chip on" id="c-3d">3D 모델 포함</button>
       <button type="button" class="chip on" id="c-video">영상 포함</button>
+      <button type="button" class="chip" id="c-ext" title="4초 영상 뒤에 7초를 이어 붙여 11초로 만듭니다 (영상 1건 크레딧 추가)">영상 7초 연장 <small id="c-ext-cost"></small></button>
       <button type="button" class="chip on" id="c-go">완성되면 채팅으로 이동</button>
       <button type="button" class="chip stop" id="stop">■ 중지</button>
     </div>
@@ -218,7 +225,7 @@ h3 .right{margin-left:auto}
   function topGo(url) { try { (window.top || window).location.href = url; } catch (e) { location.href = url; } }
 
   /* ───────── 크레딧 (스튜디오와 같은 지갑) ───────── */
-  var COSTS = { engine_app: 30, engine_3d: 25, engine_edit: 5, engine_edit_img: 8, engine_edit_3d: 15, engine_edit_video: 15, engine_toapp: 8 };
+  var COSTS = { engine_app: 30, engine_3d: 25, engine_edit: 5, engine_edit_img: 8, engine_edit_3d: 15, engine_edit_video: 15, engine_toapp: 8, engine_extend: 25 };
   var CREDIT = { enabled: true, free: 0, paid: 0 };
   var jobId = null; // 이번 실행의 크레딧 기록 번호 (실패하면 환불에 씀)
   function renderCredit() {
@@ -267,6 +274,8 @@ h3 .right{margin-left:auto}
     $('tab-app').className = mode === 'app' ? 'on' : '';
     $('tab-3d').className = mode === '3d' ? 'on' : '';
     $('c-go').style.display = mode === 'app' ? '' : 'none';
+    $('c-ext').style.display = chipOn('c-video') ? '' : 'none';
+    $('c-ext-cost').textContent = '+' + (COSTS.engine_extend || 25) + '크레딧';
     $('costhint').textContent = mode === 'app'
       ? '설계부터 이미지·영상·3D·코드까지 한 번에 · 보통 5~10분 · 실패하면 자동 환불'
       : '이미지 2장 · 영상 · 3D 모델(GLB) · 보통 3~7분 · 실패하면 자동 환불';
@@ -281,7 +290,7 @@ h3 .right{margin-left:auto}
   }
   $('tab-app').addEventListener('click', function () { mode = 'app'; renderMode(); });
   $('tab-3d').addEventListener('click', function () { mode = '3d'; renderMode(); });
-  ['c-3d', 'c-video', 'c-go'].forEach(function (id) { $(id).addEventListener('click', function () { toggle(id); renderMode(); }); });
+  ['c-3d', 'c-video', 'c-go', 'c-ext'].forEach(function (id) { $(id).addEventListener('click', function () { toggle(id); renderMode(); }); });
 
   /* ───────── 로그인 토큰 (홈에서 로그인한 Supabase 세션, 같은 도메인이라 공유) ───────── */
   function token() {
@@ -672,7 +681,8 @@ h3 .right{margin-left:auto}
             if (s.done && s.videoUri) {
               S.videoUrl = location.origin + '/api/stage5-veo-status?file=' + encodeURIComponent(s.videoUri);
               out(5, '<video src="' + S.videoUrl + '" controls muted playsinline></video>');
-              log('ok', '✓ 5단계 영상 완료');
+              log('ok', '✓ 5단계 영상 완료 (4초)');
+              if (chipOn('c-ext')) await extendVideo(s.videoUri, S.spec && S.spec.promptForVideo);
               return;
             }
             if (s.done) throw new Error('영상이 돌아오지 않았습니다');
@@ -821,6 +831,39 @@ h3 .right{margin-left:auto}
     saveHist({ at: Date.now(), mode: 'app', prompt: LAST.prompt, title: LAST.title, ok: !!finalHtml, size: finalHtml.length, html: finalHtml, stages: summary, chat: chatUrlId });
   });
 
+  /* ───────── 영상 7초 연장 (4초 → 11초). 크레딧을 따로 차감하고, 실패하면 4초 영상을 그대로 씁니다 ───────── */
+  async function extendVideo(videoUri, promptForVideo) {
+    var jobBefore = jobId;
+    jobId = null;
+    if (!(await spendCredit('engine_extend', '영상 7초 연장'))) { jobId = jobBefore; log('bad', '연장 크레딧이 부족해 4초 영상으로 진행합니다'); return; }
+    var extJob = jobId; jobId = jobBefore;
+    try {
+      log('run', '… 영상 7초 연장 중 (보통 1~3분)');
+      out(5, '<pre>영상 7초 연장 중… 기다려 주세요</pre>');
+      var j = await post('/api/stage5-veo-extend', { videoUri: videoUri, prompt: promptForVideo || '' });
+      var deadline = Date.now() + 240000;
+      while (Date.now() < deadline) {
+        await sleep(8000);
+        var s = await get('/api/stage5-veo-status?name=' + encodeURIComponent(j.operationName));
+        if (s.error) throw new Error(JSON.stringify(s.error).slice(0, 300));
+        if (s.done && s.videoUri) {
+          S.videoUrl = location.origin + '/api/stage5-veo-status?file=' + encodeURIComponent(s.videoUri);
+          out(5, '<video src="' + S.videoUrl + '" controls muted playsinline></video>');
+          log('ok', '✓ 영상 연장 완료 (11초)');
+          if (extJob) { try { fetch('/api/engine-credit', { method: 'POST', headers: headers(), body: JSON.stringify({ op: 'done', job_id: extJob }) }); } catch (e2) {} }
+          return;
+        }
+        if (s.done) throw new Error('연장 영상이 돌아오지 않았습니다');
+        out(5, '<pre>영상 7초 연장 중… ' + Math.round((deadline - Date.now()) / 1000) + '초 더 기다립니다</pre>');
+      }
+      throw new Error('4분 안에 끝나지 않았습니다');
+    } catch (e) {
+      log('bad', '영상 연장 실패 — 4초 영상으로 진행합니다 (연장 크레딧 환불): ' + clean(String(e.message || e)));
+      out(5, '<video src="' + S.videoUrl + '" controls muted playsinline></video>');
+      if (extJob) { try { await fetch('/api/engine-credit', { method: 'POST', headers: headers(), body: JSON.stringify({ op: 'refund', job_id: extJob }) }); loadCredit(); } catch (e2) {} }
+    }
+  }
+
   /* ───────── 최근 만든 것 (localStorage, 최근 20건) ───────── */
   var HKEY = 'cf-engine-history';
   function readHist() { try { var v = JSON.parse(localStorage.getItem(HKEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
@@ -850,21 +893,26 @@ h3 .right{margin-left:auto}
     list.forEach(function (h, i) {
       var d = document.createElement('div'); d.className = 'it';
       var when = new Date(h.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-      d.innerHTML = '<span style="color:#8a8a8a;flex:none">' + esc(when) + '</span>' +
-        '<span style="flex:none;color:#666">' + (h.mode === '3d' ? '3D' : h.mode === 'edit' ? '수정' : '앱') + '</span>' +
-        '<span style="flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(h.prompt) + '">' + esc(h.title || h.prompt) + '</span>' +
-        '<span style="flex:none;color:' + (h.ok ? '#047857' : '#b91c1c') + '">' + (h.ok ? '완성 ' + Math.round(h.size / 1000) + 'KB' : (h.mode === '3d' ? '에셋' : '미완성')) + '</span>' +
-        (h.stages ? '<span style="flex:none;color:#8a8a8a" title="단계별 결과">' + esc(h.stages) + '</span>' : '');
+      var kindTxt = h.mode === '3d' ? '3D' : h.mode === 'edit' ? '수정' : '앱';
+      var stTxt = h.ok ? '완성 ' + Math.round(h.size / 1000) + 'KB' : (h.mode === '3d' ? '에셋' : '미완성');
+      /* 1줄: 제목(크게) · 종류 · 상태 / 2줄: 시각 · 단계별 결과 / 3줄: 버튼 — 칸마다 왼쪽 보라 띠로 구분 */
+      d.innerHTML = '<div class="ti"><span class="kd"></span><span class="tt"></span><span class="hs"></span></div><div class="mt"></div><div class="ac"></div>';
+      d.querySelector('.kd').textContent = kindTxt;
+      d.querySelector('.tt').textContent = h.title || h.prompt || '(제목 없음)';
+      d.querySelector('.tt').title = h.prompt || '';
+      var st = d.querySelector('.hs'); st.textContent = stTxt; st.style.color = h.ok ? '#047857' : '#b91c1c';
+      d.querySelector('.mt').textContent = when + (h.stages ? ' · ' + h.stages : '');
+      var ac = d.querySelector('.ac');
       if (h.ok) {
         var b1 = document.createElement('button'); b1.className = 'b'; b1.textContent = '다시 보기';
         b1.addEventListener('click', function () { finalHtml = h.html; finalTitle = h.title; $('prompt').value = h.prompt || ''; $('result').className = 'card result on'; $('frame').srcdoc = h.html; $('count').textContent = '내역에서 불러옴'; $('result').scrollIntoView({ behavior: 'smooth' }); });
         var b2 = document.createElement('button'); b2.className = 'b pri'; b2.textContent = '채팅으로';
         b2.addEventListener('click', function () { finalHtml = h.html; finalTitle = h.title; chatUrlId = h.chat || ''; $('prompt').value = h.prompt || ''; goChat(); });
-        d.appendChild(b1); d.appendChild(b2);
+        ac.appendChild(b1); ac.appendChild(b2);
       }
       var b3 = document.createElement('button'); b3.className = 'b del'; b3.textContent = '삭제';
       b3.addEventListener('click', function () { var l = readHist(); var gone = l.splice(i, 1)[0]; writeHist(l); renderHist(); if (gone && gone.at) cloudDelete(gone.at); });
-      d.appendChild(b3);
+      ac.appendChild(b3);
       box.appendChild(d);
     });
   }

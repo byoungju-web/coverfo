@@ -96,6 +96,35 @@ export const Workbench = memo(
     // 데스크탑에서 대화 목록(사이드바)이 고정으로 열려 있고 채팅칸이 보이는 상태
     const withFixedSidebar = !isSmallViewport && showChat;
 
+    /*
+     * coverfo: 결과 화면(워크벤치)이 열리면 뒤로가기 기록을 한 칸 넣어 둡니다.
+     * → 휴대폰에서 "결과 화면 보기" 뒤에 뒤로가기를 누르면 홈으로 튕기지 않고 결과 화면만 닫혀 채팅으로 돌아옵니다.
+     *   닫기 버튼으로 닫을 때는 그 기록을 다시 빼서(history.back) 기록이 쌓이지 않게 합니다.
+     */
+    useEffect(() => {
+      if (typeof window === 'undefined') {
+        return undefined;
+      }
+
+      const hasMark = () => !!(window.history.state && (window.history.state as any).cfWb);
+
+      if (showWorkbench && !hasMark()) {
+        window.history.pushState({ ...(window.history.state || {}), cfWb: 1 }, '');
+      } else if (!showWorkbench && hasMark()) {
+        window.history.back();
+      }
+
+      const onPop = () => {
+        if (workbenchStore.showWorkbench.get() && !hasMark()) {
+          workbenchStore.showWorkbench.set(false);
+        }
+      };
+
+      window.addEventListener('popstate', onPop);
+
+      return () => window.removeEventListener('popstate', onPop);
+    }, [showWorkbench]);
+
     const setSelectedView = (view: WorkbenchViewType) => {
       workbenchStore.currentView.set(view);
     };
