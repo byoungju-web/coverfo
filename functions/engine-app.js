@@ -901,7 +901,8 @@ h3 .right{margin-left:auto}
       d.querySelector('.tt').textContent = h.title || h.prompt || '(제목 없음)';
       d.querySelector('.tt').title = h.prompt || '';
       var st = d.querySelector('.hs'); st.textContent = stTxt; st.style.color = h.ok ? '#047857' : '#b91c1c';
-      d.querySelector('.mt').textContent = when + (h.stages ? ' · ' + h.stages : '');
+      d.querySelector('.mt').textContent = when; /* 단계별 결과(1:완료 2:건너뜀 …)는 보이지 않게 — 마우스를 올리면 툴팁으로만 */
+      if (h.stages) d.querySelector('.mt').title = h.stages;
       var ac = d.querySelector('.ac');
       if (h.ok) {
         var b1 = document.createElement('button'); b1.className = 'b'; b1.textContent = '다시 보기';
