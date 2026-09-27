@@ -402,21 +402,21 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
           </div>
           {/* coverfo: 휴대폰에서는 chat 버튼과 앱·3D·영상 버튼을 같은 크기(남는 폭을 반씩)로 */}
           <div className="flex gap-1 sm:gap-1.5 items-center flex-1 sm:flex-none min-w-0 ml-auto justify-end">
-            {/* 대화 — 파일 없이 글로만 답변 */}
+            {/* chat 버튼 — 채팅 안에서 파일도 만들 수 있는 기본 모드 (build) */}
             <button
               type="button"
-              title="파일을 만들지 않고 글로만 답합니다"
+              title="채팅 안에서 파일을 만들고 미리보기를 실행합니다"
               disabled={props.input.trim().length === 0 || props.isStreaming}
               className={classNames(
                 'inline-flex items-center justify-center h-8 sm:h-7 flex-1 sm:flex-none px-2 sm:px-5 min-w-0 sm:min-w-[5.5rem] rounded-full text-[13px] sm:text-xs font-semibold tracking-[0.06em] sm:tracking-[0.35em] whitespace-nowrap transition active:scale-95',
 
-                /* 지금 선택된 모드(chat)는 진한 색으로 보여서 무엇을 눌렀는지 알 수 있게 합니다 */
-                props.chatMode === 'discuss'
+                /* 지금 선택된 모드(chat/build)는 진한 색으로 보여서 무엇을 눌렀는지 알 수 있게 합니다 */
+                props.chatMode === 'build'
                   ? 'bg-[#6D28D9] text-white border border-[#6D28D9] shadow-sm'
                   : 'bg-[#EDE9FE] text-[#4C1D95] border border-[#A78BFA] hover:bg-[#DDD6FE]',
                 props.input.trim().length === 0 || props.isStreaming ? 'cursor-not-allowed' : 'active:brightness-90',
               )}
-              style={props.chatMode === 'discuss' ? { background: '#6D28D9', borderColor: '#6D28D9' } : { background: '#EDE9FE', color: '#4C1D95', borderColor: '#A78BFA' }}
+              style={props.chatMode === 'build' ? { background: '#6D28D9', borderColor: '#6D28D9' } : { background: '#EDE9FE', color: '#4C1D95', borderColor: '#A78BFA' }}
               onClick={(event) => {
                 const raw = props.input.trim();
 
@@ -424,8 +424,8 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
                   return;
                 }
 
-                props.setChatMode?.('discuss');
-                props.handleSendMessage?.(event, raw);
+                props.setChatMode?.('build');
+                props.handleSendMessage?.(event, buildSpec(raw));
               }}
             >
               chat
