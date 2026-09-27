@@ -400,14 +400,15 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
               )}
             </IconButton>
           </div>
-          <div className="flex gap-1 sm:gap-1.5 items-center shrink-0 ml-auto">
+          {/* coverfo: 휴대폰에서는 chat 버튼과 앱·3D·영상 버튼을 같은 크기(남는 폭을 반씩)로 */}
+          <div className="flex gap-1 sm:gap-1.5 items-center flex-1 sm:flex-none min-w-0 ml-auto justify-end">
             {/* 대화 — 파일 없이 글로만 답변 */}
             <button
               type="button"
               title="파일을 만들지 않고 글로만 답합니다"
               disabled={props.input.trim().length === 0 || props.isStreaming}
               className={classNames(
-                'inline-flex items-center justify-center h-7 px-2 sm:px-5 min-w-0 sm:min-w-[5.5rem] rounded-full text-[11px] sm:text-xs font-semibold tracking-[0.06em] sm:tracking-[0.35em] whitespace-nowrap transition active:scale-95',
+                'inline-flex items-center justify-center h-8 sm:h-7 flex-1 sm:flex-none px-2 sm:px-5 min-w-0 sm:min-w-[5.5rem] rounded-full text-[13px] sm:text-xs font-semibold tracking-[0.06em] sm:tracking-[0.35em] whitespace-nowrap transition active:scale-95',
 
                 /* 지금 선택된 모드(chat)는 진한 색으로 보여서 무엇을 눌렀는지 알 수 있게 합니다 */
                 props.chatMode === 'discuss'
@@ -436,7 +437,7 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
               title="앱·게임·사이트 → 엔진 / 3D → 3D 에셋 / 이미지·영상 → 스튜디오 (홈 화면 버튼과 동일)"
               disabled={props.input.trim().length === 0 || props.isStreaming}
               className={classNames(
-                'inline-flex items-center gap-1 sm:gap-1.5 h-7 px-2 sm:px-2.5 rounded-full text-[11px] sm:text-xs font-semibold whitespace-nowrap shrink-0 transition active:scale-95',
+                'inline-flex items-center justify-center gap-1 sm:gap-1.5 h-8 sm:h-7 flex-1 sm:flex-none px-2 sm:px-2.5 rounded-full text-[12px] sm:text-xs font-semibold whitespace-nowrap transition active:scale-95',
 
                 /* 지금 선택된 모드(앱생성)는 진한 색으로 보여서 무엇을 눌렀는지 알 수 있게 합니다 */
                 props.chatMode === 'build'

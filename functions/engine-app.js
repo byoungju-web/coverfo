@@ -158,7 +158,7 @@ h3 .right{margin-left:auto}
     <iframe id="frame" sandbox="allow-scripts allow-same-origin"></iframe>
   </div>
 
-  <h3>최근 만든 것 <span class="sub">이 브라우저에 최근 20건 · 채팅으로 보낸 결과는 왼쪽 "내 대화"에도 남습니다</span><button class="btn right" id="clearHist" style="height:28px;font-size:11px">내역 비우기</button></h3>
+  <h3>최근 만든 것 <span class="sub">최근 20건 (로그인하면 다른 기기에서도 보임) · 채팅으로 보낸 결과는 왼쪽 "내 대화"에도 남습니다</span><button class="btn right" id="clearHist" style="height:28px;font-size:11px">내역 비우기</button></h3>
   <div class="hl" id="histList"></div>
 
   <div class="foot">이미지·영상만 필요하면 <a href="/studio" target="_top">스튜디오로 →</a></div>
@@ -825,7 +825,24 @@ h3 .right{margin-left:auto}
   var HKEY = 'cf-engine-history';
   function readHist() { try { var v = JSON.parse(localStorage.getItem(HKEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
   function writeHist(list) { try { localStorage.setItem(HKEY, JSON.stringify(list.slice(0, 20))); } catch (e) { log('bad', '내역 저장 실패 (저장 공간 부족) — 오래된 항목을 지워 주세요'); } }
-  function saveHist(entry) { var list = readHist(); list.unshift(entry); writeHist(list); renderHist(); }
+  function saveHist(entry) { var list = readHist(); list.unshift(entry); writeHist(list); renderHist(); cloudPush(entry); }
+  /* ── 서버 저장(/api/engine-history, 로그인한 사용자별) — 데스크탑에서 만든 것이 스마트폰에서도 보이게 ── */
+  function cloudPush(entry) { try { fetch('/api/engine-history', { method: 'POST', headers: headers(), body: JSON.stringify({ entry: entry }) }).catch(function () {}); } catch (e) {} }
+  function cloudDelete(at, all) { try { fetch('/api/engine-history', { method: 'DELETE', headers: headers(), body: JSON.stringify(all ? { all: 1 } : { at: at }) }).catch(function () {}); } catch (e) {} }
+  function cloudPull() {
+    if (!token()) return;
+    fetch('/api/engine-history', { headers: headers() }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d || !d.cloud || !Array.isArray(d.items)) return;
+      var local = readHist(), have = {}, merged = [];
+      local.forEach(function (h) { have[h.at] = true; merged.push(h); });
+      var added = 0;
+      d.items.forEach(function (h) { if (h && h.at && !have[h.at]) { merged.push(h); added++; } });
+      /* 이 브라우저에만 있던 것은 서버에도 올려 둡니다 (다른 기기에서 보이도록) */
+      var onServer = {}; d.items.forEach(function (h) { if (h && h.at) onServer[h.at] = true; });
+      local.forEach(function (h) { if (h && h.at && !onServer[h.at]) cloudPush(h); });
+      if (added) { merged.sort(function (a, b) { return (b.at || 0) - (a.at || 0); }); writeHist(merged); renderHist(); }
+    }).catch(function () {});
+  }
   function renderHist() {
     var box = $('histList'); box.innerHTML = '';
     var list = readHist();
@@ -846,13 +863,14 @@ h3 .right{margin-left:auto}
         d.appendChild(b1); d.appendChild(b2);
       }
       var b3 = document.createElement('button'); b3.className = 'b del'; b3.textContent = '삭제';
-      b3.addEventListener('click', function () { var l = readHist(); l.splice(i, 1); writeHist(l); renderHist(); });
+      b3.addEventListener('click', function () { var l = readHist(); var gone = l.splice(i, 1)[0]; writeHist(l); renderHist(); if (gone && gone.at) cloudDelete(gone.at); });
       d.appendChild(b3);
       box.appendChild(d);
     });
   }
-  $('clearHist').addEventListener('click', function () { if (confirm('내역을 모두 지울까요?')) { writeHist([]); renderHist(); } });
+  $('clearHist').addEventListener('click', function () { if (confirm('내역을 모두 지울까요? (다른 기기에서도 지워집니다)')) { writeHist([]); renderHist(); cloudDelete(0, true); } });
   renderHist();
+  cloudPull();
 
   /* ───────── 앱 결과 → 채팅 워크벤치 ───────── */
   function showResult() {
