@@ -204,10 +204,19 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
         <ClientOnly>
           {() => (
             <div className={props.isModelSettingsCollapsed ? 'hidden' : ''}>
+              {/* 이 선택은 '앱 생성(build)'에만 적용됩니다. 일반 대화(chat)는 저가 모델로 자동 처리됩니다. */}
+              <div className="text-[11px] font-semibold text-bolt-elements-textSecondary px-1 pb-1">
+                앱 생성용 모델 <span className="font-normal text-bolt-elements-textTertiary">(일반 대화는 자동)</span>
+              </div>
               <ModelSelector
                 key={props.provider?.name + ':' + props.modelList.length}
                 model={props.model}
-                setModel={props.setModel}
+                setModel={(m) => {
+                  props.setModel?.(m);
+
+                  // 모델을 고르면 설정칸을 접어 원래 입력 화면으로 돌아갑니다 (안 접혀서 계속 남아 있던 문제 수정)
+                  props.setIsModelSettingsCollapsed(true);
+                }}
                 modelList={props.modelList}
                 provider={props.provider}
                 setProvider={props.setProvider}

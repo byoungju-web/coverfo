@@ -97,7 +97,13 @@ async function cfChatGate(mode: 'discuss' | 'build'): Promise<boolean> {
       return true; // 미설정/일시오류/한도 이내 → 통과
     }
 
-    toast.info('오늘 무료 대화 4회를 모두 사용했어요. 내일 다시 이용하거나 "앱 생성"(크레딧)을 사용해 보세요.');
+    if (q.reason === 'monthly_15') {
+      toast.info('이번 달 무료 대화 15회를 모두 사용했어요. 다음 달에 다시 이용하거나 "앱 생성"(크레딧)을 사용해 보세요.');
+    } else if (q.reason === 'monthly_cap_full') {
+      toast.info('이번 달 무료 이용자(선착순 1만 명)가 마감됐어요. 다음 달 1일에 다시 열립니다.');
+    } else {
+      toast.info('오늘 무료 대화 4회를 모두 사용했어요. 내일 다시 이용하거나 "앱 생성"(크레딧)을 사용해 보세요.');
+    }
 
     return false;
   }
@@ -667,6 +673,15 @@ node server.js
       const effectiveMode: 'discuss' | 'build' = messageContent.includes('[제작 지시]') ? 'build' : 'discuss';
 
       /*
+       * coverfo 모델 분리: 일반 문의(discuss)는 저가 모델(gpt-6-luna)로 강제, 앱 생성(build)은 사용자가 고른 모델 그대로.
+       * 서버(api.chat)는 메시지 앞의 [Model:]/[Provider:] 로 모델을 정하므로, 여기서 접두어만 바꾸면 됩니다.
+       * (엔진·3D·스튜디오는 이 흐름과 무관 — 서버 지정 그대로)
+       */
+      const cfSendModel = effectiveMode === 'discuss' ? 'gpt-6-luna' : model;
+      const cfSendProvider = effectiveMode === 'discuss' ? 'OpenAI' : provider.name;
+      const cfPrefix = `[Model: ${cfSendModel}]\n\n[Provider: ${cfSendProvider}]\n\n`;
+
+      /*
        * 새로 요청을 보내면 이전 오류 안내는 지웁니다.
        * 다시 만들었는데도 빨간 오류가 남아 있으면 사용자가 실패한 줄 알게 됩니다.
        */
@@ -713,7 +728,8 @@ node server.js
       if (!chatStarted) {
         setFakeLoading(true);
 
-        if (autoSelectTemplate) {
+        // 일반 문의(discuss)는 앱 뼈대(스타터 템플릿)를 만들지 않습니다. 앱 생성(build)일 때만.
+        if (autoSelectTemplate && effectiveMode === 'build') {
           const { template, title } = await selectStarterTemplate({
             message: finalMessageContent,
             model,
@@ -733,7 +749,7 @@ node server.js
 
             if (temResp) {
               const { assistantMessage, userMessage } = temResp;
-              const userMessageText = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${finalMessageContent}`;
+              const userMessageText = `${cfPrefix}${finalMessageContent}`;
 
               setMessages([
                 {
@@ -750,7 +766,7 @@ node server.js
                 {
                   id: `3-${new Date().getTime()}`,
                   role: 'user',
-                  content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${userMessage}`,
+                  content: `${cfPrefix}${userMessage}`,
                   annotations: ['hidden'],
                 },
               ]);
@@ -779,7 +795,7 @@ node server.js
         }
 
         // If autoSelectTemplate is disabled or template selection failed, proceed with normal message
-        const userMessageText = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${finalMessageContent}`;
+        const userMessageText = `${cfPrefix}${finalMessageContent}`;
         const attachments = uploadedFiles.length > 0 ? await filesToAttachments(uploadedFiles) : undefined;
 
         setMessages([
@@ -823,7 +839,7 @@ node server.js
 
       if (modifiedFiles !== undefined) {
         const userUpdateArtifact = filesToArtifacts(modifiedFiles, `${Date.now()}`);
-        const messageText = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${userUpdateArtifact}${finalMessageContent}`;
+        const messageText = `${cfPrefix}${userUpdateArtifact}${finalMessageContent}`;
 
         const attachmentOptions: any = { body: { chatMode: effectiveMode } };
 
@@ -842,7 +858,7 @@ node server.js
 
         workbenchStore.resetAllFileModifications();
       } else {
-        const messageText = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${finalMessageContent}`;
+        const messageText = `${cfPrefix}${finalMessageContent}`;
 
         const attachmentOptions: any = { body: { chatMode: effectiveMode } };
 
