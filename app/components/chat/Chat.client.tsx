@@ -28,7 +28,6 @@ import type { ElementInfo } from '~/components/workbench/Inspector';
 import type { TextUIPart, FileUIPart, Attachment } from '@ai-sdk/ui-utils';
 import { useMCPStore } from '~/lib/stores/mcp';
 import type { LlmErrorAlertType } from '~/types/actions';
-import { usePromptLimit } from '~/lib/usePromptLimit';
 import { tryTemplateRoute } from '~/lib/agents/templateRoute';
 import { cfTrace } from '~/utils/cfTrace';
 import { supabase } from '~/lib/supabaseClient';
@@ -53,6 +52,80 @@ function getAnswerLangInstruction(): string {
     return name ? `[답변 언어] 설명과 답변은 반드시 ${name}(으)로 작성하세요.` : '';
   } catch {
     return '';
+  }
+}
+
+/*
+ * coverfo 요금 게이트.
+ *  · chat(discuss, 글 답변) : 하루 4회 무료 (서버 Supabase 기준 — sql/cf_chat_usage.sql). 소진 시 막고 안내.
+ *  · 앱 생성(build)         : 무료 없음. 매번 크레딧 차감 (기본 8, Cloudflare 변수 COST_CHAT_BUILD).
+ * 엔진·3D·스튜디오는 각자의 화면에서 이미 크레딧을 차감하므로 여기서 다루지 않습니다.
+ * 로그인 세션이 없으면 막습니다(채팅 자체가 로그인 필수). 서버 확인이 실패하면 막지 않습니다(사이트 잠김 방지).
+ * 통과하면 true, 막으면 false 를 돌려주고 사용자에게 안내를 띄웁니다.
+ */
+async function cfChatGate(mode: 'discuss' | 'build'): Promise<boolean> {
+  let token = '';
+
+  try {
+    const { data } = await supabase.auth.getSession();
+    token = data.session?.access_token || '';
+  } catch {
+    token = '';
+  }
+
+  if (!token) {
+    toast.info('로그인이 필요합니다.');
+    return false;
+  }
+
+  // ── 글 답변(discuss): 하루 4회 무료 ─────────────────────────
+  if (mode === 'discuss') {
+    let q: any = null;
+
+    try {
+      const r = await fetch('/api/chat-quota', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ mode: 'discuss' }),
+      });
+      q = await r.json();
+    } catch {
+      return true; // 서버 확인 실패 → 막지 않음
+    }
+
+    if (!q || q.enabled === false || q.softfail || q.ok) {
+      return true; // 미설정/일시오류/한도 이내 → 통과
+    }
+
+    toast.info('오늘 무료 대화 4회를 모두 사용했어요. 내일 다시 이용하거나 "앱 생성"(크레딧)을 사용해 보세요.');
+
+    return false;
+  }
+
+  // ── 앱 생성(build): 무료 없이 매번 크레딧 차감 ──────────────
+  try {
+    const r2 = await fetch('/api/engine-credit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ op: 'spend', kind: 'chat_build', prompt: '' }),
+    });
+    const j2: any = await r2.json();
+
+    if (j2 && j2.enabled === false) {
+      return true; // Supabase 미설정(개발) → 통과
+    }
+
+    if (r2.ok && j2.ok) {
+      return true; // 크레딧 차감 성공
+    }
+
+    toast.error('크레딧이 부족합니다. 충전 후 이용해 주세요. (충전: /pricing)');
+
+    return false;
+  } catch {
+    toast.error('크레딧 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+
+    return false;
   }
 }
 
@@ -213,7 +286,6 @@ export const ChatImpl = memo(
     });
     const [selectedElement, setSelectedElement] = useState<ElementInfo | null>(null);
     const mcpSettings = useMCPStore((state) => state.settings);
-    const { checkAndIncrement } = usePromptLimit();
 
     const {
       messages,
@@ -602,7 +674,8 @@ node server.js
         }
       }
 
-      const allowedToSend = await checkAndIncrement();
+      // coverfo 요금: chat(글답변) 하루 4회 무료 / 앱생성(build)은 매번 크레딧 차감
+      const allowedToSend = await cfChatGate(chatMode);
 
       if (!allowedToSend) {
         return;

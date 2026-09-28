@@ -4,11 +4,11 @@
 //   POST /api/engine-credit {op:'refund', job_id}      → { ok }
 //   POST /api/engine-credit {op:'done', job_id}        → { ok }
 // 단가(크레딧)는 Cloudflare 변수로 바꿀 수 있습니다: COST_ENGINE_APP(30) COST_ENGINE_3D(25) COST_ENGINE_EDIT(5)
-//   COST_ENGINE_EDIT_IMG(8) COST_ENGINE_EDIT_3D(15) COST_ENGINE_EDIT_VIDEO(15) COST_ENGINE_TOAPP(8) COST_ENGINE_EXTEND(25)
+//   COST_ENGINE_EDIT_IMG(8) COST_ENGINE_EDIT_3D(15) COST_ENGINE_EDIT_VIDEO(15) COST_ENGINE_TOAPP(8) COST_ENGINE_EXTEND(25) COST_CHAT_BUILD(8)
 import type { ActionFunctionArgs, LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { envOf, fail, getUserId, ok, readJson } from '~/lib/engine/server';
 
-const KINDS = ['engine_app', 'engine_3d', 'engine_edit', 'engine_edit_img', 'engine_edit_3d', 'engine_edit_video', 'engine_toapp', 'engine_extend'] as const;
+const KINDS = ['engine_app', 'engine_3d', 'engine_edit', 'engine_edit_img', 'engine_edit_3d', 'engine_edit_video', 'engine_toapp', 'engine_extend', 'chat_build'] as const;
 type Kind = (typeof KINDS)[number];
 
 function costs(env: any): Record<Kind, number> {
@@ -26,6 +26,7 @@ function costs(env: any): Record<Kind, number> {
     engine_edit_video: n('COST_ENGINE_EDIT_VIDEO', 15),
     engine_toapp: n('COST_ENGINE_TOAPP', 8),
     engine_extend: n('COST_ENGINE_EXTEND', 25), // 영상 7초 연장 (스튜디오 영상 1건과 같은 값)
+    chat_build: n('COST_CHAT_BUILD', 8), // 채팅에서 앱 생성(build) — 하루 무료 1회 소진 후 1회당 차감
   };
 }
 
