@@ -1,10 +1,12 @@
-// functions/view.js — coverfo.com/view?at=<타임스탬프>
-// 저장된 결과(HTML)를 대화·사이드바 없이 "전체화면"으로 그대로 보여줍니다.
-// cf_engine_history 표의 data.html 을 내보냅니다. (엔진 대화주소 engine-<at> 의 <at> 숫자를 씁니다)
+// functions/view.js — coverfo.com/view?chat=engine-<번호>  (또는 ?at=<번호>)
+// 저장된 결과(HTML)를 대화·사이드바 없이 "전체화면"으로 보여줍니다.
+// cf_engine_history 에서 그 결과를 찾아 data.html 을 그대로 내보냅니다.
+//  - 서버에 아직 없으면(동기화 전) 검은 화면 대신 채팅 화면(/chat/…)으로 자동 이동합니다.
 // © 2026 coverfo All Rights Reserved
 export async function onRequestGet(context) {
   const { request, env } = context;
   const url = new URL(request.url);
+  const chat = (url.searchParams.get('chat') || '').replace(/[^a-zA-Z0-9_-]/g, '');
   const at = (url.searchParams.get('at') || '').replace(/[^0-9]/g, '');
 
   const shell = (title, body) =>
@@ -16,10 +18,19 @@ export async function onRequestGet(context) {
         'font-family:system-ui,-apple-system,"Malgun Gothic",sans-serif}' +
         '.c{height:100%;display:grid;place-items:center;text-align:center;padding:24px;line-height:1.6}' +
         'a{color:#8B5CF6;text-decoration:none}</style></head><body>' + body + '</body></html>',
-      { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300' } },
+      { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } },
     );
 
-  if (!at) {
+  // 못 찾을 때 돌아갈 곳: chat 주소가 있으면 그 채팅 화면으로 (검은 화면 방지)
+  const fallback = () => {
+    if (chat) {
+      return Response.redirect(new URL('/chat/' + chat, request.url).toString(), 302);
+    }
+
+    return shell('coverfo', '<div class="c">결과를 찾지 못했습니다.<br><a href="/">홈으로</a></div>');
+  };
+
+  if (!chat && !at) {
     return shell('coverfo', '<div class="c">주소가 올바르지 않습니다.<br><a href="/">홈으로</a></div>');
   }
 
@@ -27,26 +38,28 @@ export async function onRequestGet(context) {
   const service = env.SUPABASE_SERVICE_ROLE_KEY || '';
 
   if (!sbUrl || !service) {
-    return shell('coverfo', '<div class="c">서버 설정이 없습니다.</div>');
+    return fallback();
   }
 
   try {
-    const r = await fetch(
-      sbUrl + '/rest/v1/cf_engine_history?at=eq.' + encodeURIComponent(at) + '&select=data&limit=1',
-      { headers: { apikey: service, Authorization: 'Bearer ' + service } },
-    );
+    const q = chat
+      ? 'data->>chat=eq.' + encodeURIComponent(chat)
+      : 'at=eq.' + encodeURIComponent(at);
+    const r = await fetch(sbUrl + '/rest/v1/cf_engine_history?' + q + '&select=data&order=at.desc&limit=1', {
+      headers: { apikey: service, Authorization: 'Bearer ' + service },
+    });
     const rows = r.ok ? await r.json() : [];
     const html = rows && rows[0] && rows[0].data ? rows[0].data.html : '';
 
     if (!html) {
-      return shell('coverfo', '<div class="c">결과를 찾지 못했습니다.<br>(만료되었거나 삭제된 항목일 수 있습니다)<br><a href="/">홈으로</a></div>');
+      return fallback();
     }
 
-    // 저장된 HTML 을 그대로 전체화면으로 내보냅니다 (대화·사이드바 없음)
+    // 저장된 HTML 을 그대로 전체화면으로 (대화·사이드바 없음)
     return new Response(html, {
       headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300' },
     });
   } catch (e) {
-    return shell('coverfo', '<div class="c">불러오기 실패. 잠시 후 다시 시도해 주세요.<br><a href="/">홈으로</a></div>');
+    return fallback();
   }
 }
