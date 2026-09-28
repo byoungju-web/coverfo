@@ -658,6 +658,15 @@ node server.js
       }
 
       /*
+       * coverfo: 이번 전송이 '앱 생성(build)'인지 '글 답변(discuss)'인지를 메시지 내용으로 판별합니다.
+       *  - chat 버튼: 원문 그대로 보냄(제작 지시 없음) → discuss
+       *  - 앱 생성 버튼/build 엔터: buildSpec 이 '[제작 지시]' 문구를 붙여 보냄 → build
+       * chatMode 상태값은 버튼을 누른 직후엔 아직 안 바뀌어 있어(리액트 상태 반영 지연) 그대로 쓰면
+       * 직전 모드로 잘못 전송됩니다(=chat 눌러도 앱 생성됨). 그래서 내용으로 판별합니다.
+       */
+      const effectiveMode: 'discuss' | 'build' = messageContent.includes('[제작 지시]') ? 'build' : 'discuss';
+
+      /*
        * 새로 요청을 보내면 이전 오류 안내는 지웁니다.
        * 다시 만들었는데도 빨간 오류가 남아 있으면 사용자가 실패한 줄 알게 됩니다.
        */
@@ -666,7 +675,7 @@ node server.js
       workbenchStore.clearDeployAlert();
 
       // coverfo: 첫 메시지가 템플릿이 있는 요청(예: 예약 페이지)이면 AI 대신 템플릿으로 바로 만들지 물어봄
-      if (!chatStarted && chatMode === 'build' && uploadedFiles.length === 0 && imageDataList.length === 0) {
+      if (!chatStarted && effectiveMode === 'build' && uploadedFiles.length === 0 && imageDataList.length === 0) {
         const handledByTemplate = await tryTemplateRoute(messageContent, importChat);
 
         if (handledByTemplate) {
@@ -675,7 +684,7 @@ node server.js
       }
 
       // coverfo 요금: chat(글답변) 하루 4회 무료 / 앱생성(build)은 매번 크레딧 차감
-      const allowedToSend = await cfChatGate(chatMode);
+      const allowedToSend = await cfChatGate(effectiveMode);
 
       if (!allowedToSend) {
         return;
@@ -746,10 +755,11 @@ node server.js
                 },
               ]);
 
-              const reloadOptions =
-                uploadedFiles.length > 0
-                  ? { experimental_attachments: await filesToAttachments(uploadedFiles) }
-                  : undefined;
+              const reloadOptions: any = { body: { chatMode: effectiveMode } };
+
+              if (uploadedFiles.length > 0) {
+                reloadOptions.experimental_attachments = await filesToAttachments(uploadedFiles);
+              }
 
               reload(reloadOptions);
               setInput('');
@@ -781,7 +791,14 @@ node server.js
             experimental_attachments: attachments,
           },
         ]);
-        reload(attachments ? { experimental_attachments: attachments } : undefined);
+
+        const firstReloadOptions: any = { body: { chatMode: effectiveMode } };
+
+        if (attachments) {
+          firstReloadOptions.experimental_attachments = attachments;
+        }
+
+        reload(firstReloadOptions);
         setFakeLoading(false);
         setInput('');
         Cookies.remove(PROMPT_COOKIE_KEY);
@@ -808,8 +825,11 @@ node server.js
         const userUpdateArtifact = filesToArtifacts(modifiedFiles, `${Date.now()}`);
         const messageText = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${userUpdateArtifact}${finalMessageContent}`;
 
-        const attachmentOptions =
-          uploadedFiles.length > 0 ? { experimental_attachments: await filesToAttachments(uploadedFiles) } : undefined;
+        const attachmentOptions: any = { body: { chatMode: effectiveMode } };
+
+        if (uploadedFiles.length > 0) {
+          attachmentOptions.experimental_attachments = await filesToAttachments(uploadedFiles);
+        }
 
         append(
           {
@@ -824,8 +844,11 @@ node server.js
       } else {
         const messageText = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${finalMessageContent}`;
 
-        const attachmentOptions =
-          uploadedFiles.length > 0 ? { experimental_attachments: await filesToAttachments(uploadedFiles) } : undefined;
+        const attachmentOptions: any = { body: { chatMode: effectiveMode } };
+
+        if (uploadedFiles.length > 0) {
+          attachmentOptions.experimental_attachments = await filesToAttachments(uploadedFiles);
+        }
 
         append(
           {
