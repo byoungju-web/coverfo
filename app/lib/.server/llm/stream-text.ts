@@ -280,7 +280,17 @@ export async function streamText(props: {
       apiKeys,
       providerSettings,
     }),
-    system: chatMode === 'build' ? systemPrompt : discussPrompt(),
+    /*
+     * coverfo: 앱 생성(build)일 때만 앱 제작 프롬프트를 쓰고, 그 외(대화)는 대화 전용 프롬프트를 씁니다.
+     * 대화 모드에서는 파일/앱을 절대 만들지 않도록 서버에서도 한 번 더 못 박습니다(글로만 답변).
+     */
+    system:
+      chatMode === 'build'
+        ? systemPrompt
+        : discussPrompt() +
+          '\n\n[CRITICAL] You are in DISCUSS (chat) mode. Answer with plain text only. ' +
+          'Do NOT create or edit files. Do NOT run commands. Do NOT output <boltArtifact> or <boltAction> tags under any circumstances. ' +
+          'If the user asks to build an app/site/game/image/video/3D, briefly explain and tell them to use the "앱 생성 · 3D · 영상" button instead.',
     ...tokenParams,
     messages: convertToCoreMessages(processedMessages as any),
     ...filteredOptions,
