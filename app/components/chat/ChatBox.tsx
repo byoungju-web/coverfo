@@ -224,10 +224,11 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
                 apiKeys={props.apiKeys}
                 modelLoading={props.isModelLoading}
               />
-              {(props.providerList || []).length > 0 &&
+              {/* API 키는 서버(Cloudflare 환경변수)에 있으므로 사용자에게 키 입력칸을 보이지 않습니다 (데스크탑에서도 숨김) */}
+              {false && (props.providerList || []).length > 0 &&
                 props.provider &&
                 !LOCAL_PROVIDERS.includes(props.provider.name) && (
-                  <div className="hidden sm:block">
+                  <div className="hidden">
                     <APIKeyManager
                       provider={props.provider}
                       apiKey={props.apiKeys[props.provider.name] || ''}
