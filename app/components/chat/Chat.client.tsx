@@ -31,6 +31,7 @@ import type { LlmErrorAlertType } from '~/types/actions';
 import { usePromptLimit } from '~/lib/usePromptLimit';
 import { tryTemplateRoute } from '~/lib/agents/templateRoute';
 import { cfTrace } from '~/utils/cfTrace';
+import { supabase } from '~/lib/supabaseClient';
 
 const logger = createScopedLogger('Chat');
 
@@ -60,9 +61,50 @@ export function Chat() {
 
   const { ready, initialMessages, storeMessageHistory, importChat, exportChat } = useChatHistory();
   const title = useStore(description);
+
+  /*
+   * coverfo: 채팅은 로그인해야 쓸 수 있습니다.
+   * 로그인 세션이 없으면 홈(/?login=1)으로 보내 로그인 창을 띄웁니다.
+   * 홈 입력창에서 오든 /chat 링크로 직접 오든, 이 한 곳에서 모두 막힙니다.
+   * 세션 확인에 실패하면(로그인 기능이 꺼져 있을 수 있음) 막지 않고 통과시킵니다.
+   */
+  const [gate, setGate] = useState<'checking' | 'allowed' | 'blocked'>('checking');
+  useEffect(() => {
+    let alive = true;
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!alive) {
+          return;
+        }
+
+        if (data.session?.access_token) {
+          setGate('allowed');
+        } else {
+          setGate('blocked');
+
+          const back = window.location.pathname + window.location.search;
+          window.location.replace('/?login=1&from=' + encodeURIComponent(back));
+        }
+      })
+      .catch(() => {
+        if (alive) {
+          setGate('allowed');
+        }
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   useEffect(() => {
     workbenchStore.setReloadedMessages(initialMessages.map((m) => m.id));
   }, [initialMessages]);
+
+  if (gate !== 'allowed') {
+    return null;
+  }
 
   return (
     <>
