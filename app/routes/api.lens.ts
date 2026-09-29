@@ -1,5 +1,6 @@
 /*
- * coverfo Lens (FogLens 문서·상품 · WorkLens 일) — 서버 라우트 (Remix + Cloudflare Pages)  v2: 탭 2개 + Brave 최저가·외주
+ * coverfo Lens v3 — 🎬 LifeMovie(문서·상품 → 설명 + 드라마 각색 + 언박싱 리뷰 + 최저가) · 💼 WorkTok(일 → 히어로 포트폴리오 + 채용 + 최저가)
+ *   서버 라우트 (Remix + Cloudflare Pages). 이전 FogLens/WorkLens(document/work)의 기능은 전부 포함하고 드라마·리뷰·밈 템플릿이 추가됨.
  *
  *   POST /api/lens  {op:'analyze', mode, imageBase64, mimeType, hash, lang}
  *        → 사진 1장 분석. 같은 사진(hash)+모드+언어가 cf_lens 표에 있으면 캐시로 돌려주고 크레딧 0.
@@ -33,8 +34,16 @@ const LENS_MODELS = {
   video: 'veo-3.1-fast-generate-preview', // 스튜디오(functions/api/gen.js)와 같은 영상 모델
 } as const;
 
-type Mode = 'document' | 'work';
-const MODES: Mode[] = ['document', 'work']; // v2: 상품(shop) 탭은 문서 탭에 흡수
+type Mode = 'lifemovie' | 'worktok';
+const MODES: Mode[] = ['lifemovie', 'worktok'];
+// 예전 탭 이름으로 와도 받아 줍니다 (document → lifemovie, work → worktok)
+const MODE_ALIAS: Record<string, Mode> = { document: 'lifemovie', shop: 'lifemovie', work: 'worktok' };
+function toMode(v: any): Mode {
+  const m = String(v || '');
+  return (MODES as string[]).includes(m) ? (m as Mode) : MODE_ALIAS[m] || 'lifemovie';
+}
+// 캔버스 밈 템플릿 20개 (화면 쪽 MEMES 와 이름이 같아야 함)
+const MEMES = ['pop_check', 'trash_drop', 'warning_shake', 'celebrate', 'search', 'rotate_3d', 'money', 'medical', 'legal', 'education', 'hero', 'drama', 'shopping', 'work', 'fire', 'heart', 'star', 'rocket', 'crown', 'diamond'];
 
 type Env = Record<string, any>;
 
@@ -134,28 +143,39 @@ async function patchLens(c: SB, hash: string, mode: Mode, lang: string, patch: a
 /* ── 프롬프트 ─────────────────────────────────────────────────────── */
 const LANG_NAME: Record<string, string> = { ko: 'Korean', en: 'English', ja: 'Japanese', zh: 'Chinese', th: 'Thai' };
 
+const PRIVACY_RULE = `Privacy rule: never output a real person's name read from the photo or guessed from a face; refer to people only by a playful nickname (e.g. "the night-shift hero"). Do not describe facial features.`;
+const MEME_RULE = `"canvasMeme" must be one of: ${MEMES.join('|')}.`;
+
 function visionPrompt(mode: Mode) {
-  if (mode === 'work') {
-    return `You are WorkLens. Look at this photo of someone working (farming, cooking, repair, beauty, sewing, construction, office/computer work, any trade).
+  if (mode === 'worktok') {
+    return `You are WorkTok. Look at this photo of someone working (farming, cooking, repair, beauty, sewing, construction, office/computer work, any trade).
+${PRIVACY_RULE}
 Return ONLY a JSON object:
 {"type":"<short category>","workDescription":"<what exactly is being done, tools, materials, visible skill level>",
  "skills":["<skill>","..."],"portfolioTitle":"<3-6 word portfolio title>","globalJobTitle":"<internationally understood job title in English>",
  "steps":[{"icon":"<one emoji>","title":"<short>","desc":"<one sentence>"}] (3-4 steps of the work shown),
- "outsourceSkill":"<2-4 words: the skill someone would hire for this work, in the language of the photo's country if visible, else Korean>",
+ "workNeeded":{"title":"<the task in 3-6 words>","skill":"<main skill>","estimatedTime":"<e.g. 2 hours>","difficulty":"<easy|medium|hard>","impact":"<one phrase: what this work makes possible>"},
+ "dramaStory":{"title":"<catchy 2-5 word hero-movie title>","logline":"<one sentence movie logline about this worker>","heroName":"<nickname, never a real name>","conflict":"<the challenge in this scene>","caption":"<short social caption with 2-3 hashtags>"},
+ "outsourceSkill":"<2-4 words: the skill someone would hire for this work>",
  "shoppingKeywords":["<2-4 word product name of a tool/material visible or needed for this work>"] (max 2, or empty),
- "canvasAnimation":{"bgColor":"<hex color that suits the trade>"}}`;
+ "canvasMeme":"<see rule>","canvasAnimation":{"bgColor":"<hex color that suits the trade>"}}
+${MEME_RULE}`;
   }
 
-  return `You are FogLens. Look at this photo. It is usually a document (prescription, contract, bill, homework, notice, foreign menu, sign, form)
-but it may also be a product (package, label, price tag, receipt). Read every visible text carefully. Return ONLY a JSON object:
-{"type":"<category: prescription|contract|bill|notice|homework|menu|form|product|other>",
- "rawSummary":"<what it literally says: key names, numbers, dates, amounts>",
+  return `You are LifeMovie. Look at this photo. It may be a document (prescription, contract, bill, homework, notice, foreign menu, sign, form),
+a product (package, label, price tag, receipt), or any everyday scene. Read every visible text carefully. ${PRIVACY_RULE}
+Return ONLY a JSON object:
+{"type":"<category: prescription|contract|bill|notice|homework|menu|form|product|scene|other>",
+ "rawSummary":"<what it literally says or shows: key names(no real person names), numbers, dates, amounts>",
  "simpleExplanation":"<2-3 sentences: what this is and what it means for the person holding it>",
  "riskWarnings":["<deadline, fee, penalty, side effect, allergen, expiry, clause to be careful of>"],"urgency":"<none|low|medium|high>",
  "steps":[{"icon":"<one emoji>","title":"<short>","desc":"<one sentence>"}] (3-4 actions to take, in order),
  "productName":"<if a product: name as printed, else empty>","brand":"<brand or empty>","priceSeen":"<price printed if any>","expiry":"<expiry date if printed>",
- "shoppingKeywords":["<2-4 word product name to search for buying — only if this is a product or the document names a specific product to buy (e.g. a medicine, a part); else empty>"] (max 2),
- "canvasAnimation":{"bgColor":"<hex>"}}`;
+ "productFacts":"<if a product: ingredients/specs/claims printed on it, short; else empty>",
+ "dramaStory":{"title":"<catchy 2-5 word K-drama style title for this photo>","logline":"<one sentence dramatic logline>","heroName":"<nickname of the main character or object, never a real name>","conflict":"<the tension in this scene>","caption":"<short social caption with 2-3 hashtags>"},
+ "shoppingKeywords":["<2-4 word product name to search for buying — only if this is a product or the document names a specific product to buy; else empty>"] (max 2),
+ "canvasMeme":"<see rule>","canvasAnimation":{"bgColor":"<hex>"}}
+${MEME_RULE}`;
 }
 
 function writerPrompt(mode: Mode, lang: string, parsed: any) {
@@ -163,20 +183,26 @@ function writerPrompt(mode: Mode, lang: string, parsed: any) {
   const common = `Write everything in ${langName}, for a person who has no expert knowledge — short, warm, concrete, no jargon.
 Keep facts exactly as given (names, numbers, dates); do not invent details that are not in the data. Return ONLY a JSON object.`;
 
-  if (mode === 'work') {
-    return `${common}
-Data: ${JSON.stringify(parsed).slice(0, 2500)}
+  if (mode === 'worktok') {
+    return `${common} ${PRIVACY_RULE}
+Data: ${JSON.stringify(parsed).slice(0, 3000)}
 JSON: {"simpleExplanation":"<2 sentences describing this person's work and strength>","portfolioTitle":"<title in ${langName}>",
  "globalJobTitle":"<job title in English>","skills":["..."],"steps":[{"icon":"<emoji>","title":"...","desc":"..."}],
  "hireNote":"<one sentence an employer would like to read about this worker>",
+ "workNeeded":{"title":"...","skill":"...","estimatedTime":"...","difficulty":"<easy|medium|hard>","impact":"..."},
+ "dramaStory":{"title":"<in ${langName}>","logline":"<in ${langName}>","heroName":"<nickname in ${langName}>","conflict":"<in ${langName}>","caption":"<in ${langName}, 2-3 hashtags>"},
+ "shareText":"<2 lines someone would post with this photo, in ${langName}>",
  "outsourceSkill":"<2-4 words in ${langName}: the skill to hire for this work>","shoppingKeywords":["<product name in ${langName}>"] (max 2, keep from data or empty)}`;
   }
 
-  return `${common}
-Data: ${JSON.stringify(parsed).slice(0, 2500)}
+  return `${common} ${PRIVACY_RULE}
+Data: ${JSON.stringify(parsed).slice(0, 3000)}
 JSON: {"simpleExplanation":"<2-3 sentences>","riskWarnings":["..."],"urgency":"<none|low|medium|high>",
  "steps":[{"icon":"<emoji>","title":"...","desc":"..."}],"todayAdvice":"<the single most important thing to do today>",
  "reassurance":"<one calm, honest sentence>","productName":"<keep from data or empty>","brand":"<keep or empty>",
+ "dramaStory":{"title":"<in ${langName}>","logline":"<in ${langName}>","heroName":"<nickname in ${langName}>","conflict":"<in ${langName}>","caption":"<in ${langName}, 2-3 hashtags>"},
+ "shareText":"<2 lines someone would post with this photo, in ${langName}>",
+ "unboxReview":<only if productName is not empty, else null> {"hook":"<one-line opening like a creator's unboxing video>","firstImpression":"<packaging/label impression from what is visible>","pros":["<3 likely strengths based ONLY on printed facts>"],"cons":["<2 honest cautions based on printed facts or missing info>"],"verdict":"<one sentence>","score":<1-5>},
  "shoppingKeywords":["<product name in ${langName}>"] (max 2, keep from data or empty)}`;
 }
 
@@ -272,8 +298,32 @@ function buildFinal(mode: Mode, parsed: any, easy: any) {
   final.shoppingKeywords = kw.map((k: any) => String(k || '').trim()).filter(Boolean).slice(0, 2);
   final.productName = easy?.productName || parsed?.productName || '';
   final.brand = easy?.brand || parsed?.brand || '';
+  final.canvasMeme = MEMES.includes(parsed?.canvasMeme) ? parsed.canvasMeme : mode === 'worktok' ? 'hero' : 'drama';
 
-  if (mode === 'document') {
+  const ds = (easy?.dramaStory && typeof easy.dramaStory === 'object' ? easy.dramaStory : parsed?.dramaStory) || {};
+  final.dramaStory = {
+    title: String(ds.title || ''),
+    logline: String(ds.logline || ''),
+    heroName: String(ds.heroName || ''),
+    conflict: String(ds.conflict || ''),
+    caption: String(ds.caption || ''),
+  };
+  final.shareText = String(easy?.shareText || ds.caption || '');
+
+  if (mode === 'lifemovie') {
+    const ur = easy?.unboxReview;
+    final.unboxReview =
+      final.productName && ur && typeof ur === 'object'
+        ? {
+            hook: String(ur.hook || ''),
+            firstImpression: String(ur.firstImpression || ''),
+            pros: Array.isArray(ur.pros) ? ur.pros.map(String).slice(0, 3) : [],
+            cons: Array.isArray(ur.cons) ? ur.cons.map(String).slice(0, 2) : [],
+            verdict: String(ur.verdict || ''),
+            score: Math.min(5, Math.max(1, Number(ur.score) || 3)),
+          }
+        : null;
+    final.productFacts = parsed?.productFacts || '';
     final.riskWarnings = Array.isArray(easy?.riskWarnings) ? easy.riskWarnings : Array.isArray(parsed?.riskWarnings) ? parsed.riskWarnings : [];
     final.urgency = easy?.urgency || parsed?.urgency || 'none';
     final.todayAdvice = easy?.todayAdvice || '';
@@ -288,6 +338,15 @@ function buildFinal(mode: Mode, parsed: any, easy: any) {
     final.hireNote = easy?.hireNote || '';
     final.workDescription = parsed?.workDescription || '';
     final.outsourceSkill = easy?.outsourceSkill || parsed?.outsourceSkill || '';
+
+    const wn = (easy?.workNeeded && typeof easy.workNeeded === 'object' ? easy.workNeeded : parsed?.workNeeded) || {};
+    final.workNeeded = {
+      title: String(wn.title || ''),
+      skill: String(wn.skill || ''),
+      estimatedTime: String(wn.estimatedTime || ''),
+      difficulty: String(wn.difficulty || ''),
+      impact: String(wn.impact || ''),
+    };
   }
 
   return final;
@@ -337,7 +396,7 @@ async function addBrave(env: Env, mode: Mode, final: any, lang: string) {
     }
   }
 
-  if (mode === 'work') {
+  if (mode === 'worktok') {
     const skill = String(final.outsourceSkill || final.globalJobTitle || '').trim();
 
     if (skill) {
@@ -373,7 +432,7 @@ async function saveMedia(env: Env, key: string, bytes: Uint8Array, contentType: 
 function videoPrompt(mode: Mode, x: any) {
   const base = 'Vertical 9:16, warm bright studio lighting, clean white background, smooth slow camera move, no text overlays, no real celebrities.';
 
-  if (mode === 'work') {
+  if (mode === 'worktok') {
     return `${base} A skilled ${x.globalJobTitle || 'worker'} at work: ${String(x.workDescription || x.simpleExplanation || '').slice(0, 300)}. Confident, professional portfolio mood.`;
   }
 
@@ -381,7 +440,9 @@ function videoPrompt(mode: Mode, x: any) {
     return `${base} Product showcase of ${x.brand ? x.brand + ' ' : ''}${x.productName || 'the product'} rotating slowly on a pedestal, close-up on label details, trustworthy retail mood.`;
   }
 
-  return `${base} A friendly teacher standing beside a large simple illustrated board, explaining calmly: ${String(x.simpleExplanation || '').slice(0, 300)}.`;
+  const ds = x.dramaStory || {};
+
+  return `${base} Cinematic K-drama style trailer shot titled "${String(ds.title || '').slice(0, 60)}": ${String(ds.logline || x.simpleExplanation || '').slice(0, 300)}. No real people's likeness, no text.`;
 }
 
 /* ══════════════ POST ══════════════ */
@@ -390,7 +451,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
   const c = sb(env);
   const body = await readJson<any>(request);
   const op = String(body.op || 'analyze');
-  const mode: Mode = MODES.includes(body.mode) ? body.mode : 'document';
+  const mode: Mode = toMode(body.mode);
   const lang = /^[a-z]{2}$/.test(String(body.lang || '')) ? String(body.lang) : 'ko';
   const hash = String(body.hash || '').replace(/[^a-f0-9]/gi, '').slice(0, 64);
 
@@ -535,7 +596,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
       return fail('먼저 사진을 분석해 주세요', 400);
     }
 
-    if (mode === 'document' && !row.result.productName) {
+    if (mode === 'lifemovie' && !row.result.productName) {
       return fail('제품이 읽힌 경우에만 스튜디오 사진을 만들 수 있습니다', 400);
     }
 
@@ -556,7 +617,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     try {
       const x = row.result;
       const prompt =
-        mode === 'work'
+        mode === 'worktok'
           ? `Professional portfolio photo of a ${x.globalJobTitle || 'skilled worker'} at work: ${String(x.workDescription || x.simpleExplanation || '').slice(0, 300)}. Natural light, respectful, no text.`
           : `Clean e-commerce studio photo of ${x.brand ? x.brand + ' ' : ''}${x.productName || 'the product'} on a white background, soft shadow, no text, no logos other than what the product has.`;
       const r = await fetch('https://api.openai.com/v1/images/generations', {
@@ -624,8 +685,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   }
 
   const hash = String(url.searchParams.get('hash') || '').replace(/[^a-f0-9]/gi, '').slice(0, 64);
-  const modeQ = url.searchParams.get('mode') || 'document';
-  const mode: Mode = MODES.includes(modeQ as Mode) ? (modeQ as Mode) : 'document';
+  const mode: Mode = toMode(url.searchParams.get('mode'));
   const langQ = url.searchParams.get('lang') || 'ko';
   const lang = /^[a-z]{2}$/.test(langQ) ? langQ : 'ko';
   const row = await getLens(c, hash, mode, lang);
