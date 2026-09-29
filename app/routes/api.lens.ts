@@ -1,5 +1,5 @@
 /*
- * coverfo Lens (FogLens 문서 · WorkLens 일 · ShopLens 상품) — 서버 라우트 (Remix + Cloudflare Pages)
+ * coverfo Lens (FogLens 문서·상품 · WorkLens 일) — 서버 라우트 (Remix + Cloudflare Pages)  v2: 탭 2개 + Brave 최저가·외주
  *
  *   POST /api/lens  {op:'analyze', mode, imageBase64, mimeType, hash, lang}
  *        → 사진 1장 분석. 같은 사진(hash)+모드+언어가 cf_lens 표에 있으면 캐시로 돌려주고 크레딧 0.
@@ -7,13 +7,15 @@
  *   POST /api/lens  {op:'video', mode, hash, lang}
  *        → 설명 영상(Veo 3.1 fast, 9:16, 8초) 시작. 이미 영상이 있으면 재사용(크레딧 0). 없으면 25 차감.
  *   POST /api/lens  {op:'photo', mode, hash, lang}
- *        → (일·상품 모드) gpt image 2 로 스튜디오 사진 1장. 이미 있으면 재사용(0), 없으면 2 차감.
+ *        → (일 모드, 또는 문서 모드에서 제품이 읽힌 경우) gpt image 2 로 스튜디오 사진 1장. 이미 있으면 재사용(0), 없으면 2 차감.
  *   GET  /api/lens?op=status&hash=...&mode=...&lang=...
  *        → 영상 진행 상태. 완성되면 구글에서 받아 R2(MEDIA 바인딩)에 저장하고 /media/lens/... 주소를 돌려줌.
  *
  * 공용 도우미(app/lib/engine/server.ts)의 googleFetch·anthropicFetch 를 쓰므로
  * 구글·Anthropic 호출은 엔진·스튜디오와 똑같이 Supabase Edge Function 중계(서울 ap-northeast-2)를 탑니다.
  * 크레딧은 스튜디오·엔진과 같은 Supabase 함수 cf_spend / cf_refund 를 씁니다.
+ * 분석 뒤 Brave(app/lib/.server/brave.ts, Secret BRAVE_API_KEY)로 "최저가 3개"(두 탭)와 "외주 3명"(일 탭)을 찾아
+ * result 에 같이 저장합니다 — 캐시 적중 시에는 다시 검색하지 않음. 키가 없거나 실패하면 쇼핑·외주 없이 진행.
  *
  * 단가(크레딧)는 Cloudflare 변수로 바꿀 수 있습니다: COST_LENS(1) COST_LENS_VIDEO(25) COST_LENS_PHOTO(2)
  * 모델은 아래 LENS_MODELS 한 곳에서 관리합니다 (Cloudflare 변수 LENS_VISION_MODEL 로 사진 읽기 모델만 바꿀 수 있음).
@@ -21,6 +23,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { anthropicFetch, envOf, extractJson, fail, getUserId, googleFetch, ok, readJson } from '~/lib/engine/server';
 import { ENGINE_MODELS } from '~/lib/engine/models';
+import { braveSearch } from '~/lib/.server/brave';
 
 /* ── 모델 (현재 coverfo 가 쓰는 것과 같은 ID) ─────────────────────────── */
 const LENS_MODELS = {
@@ -30,8 +33,8 @@ const LENS_MODELS = {
   video: 'veo-3.1-fast-generate-preview', // 스튜디오(functions/api/gen.js)와 같은 영상 모델
 } as const;
 
-type Mode = 'document' | 'work' | 'shop';
-const MODES: Mode[] = ['document', 'work', 'shop'];
+type Mode = 'document' | 'work';
+const MODES: Mode[] = ['document', 'work']; // v2: 상품(shop) 탭은 문서 탭에 흡수
 
 type Env = Record<string, any>;
 
@@ -133,30 +136,25 @@ const LANG_NAME: Record<string, string> = { ko: 'Korean', en: 'English', ja: 'Ja
 
 function visionPrompt(mode: Mode) {
   if (mode === 'work') {
-    return `You are WorkLens. Look at this photo of someone working (farming, cooking, repair, beauty, sewing, construction, any trade).
+    return `You are WorkLens. Look at this photo of someone working (farming, cooking, repair, beauty, sewing, construction, office/computer work, any trade).
 Return ONLY a JSON object:
 {"type":"<short category>","workDescription":"<what exactly is being done, tools, materials, visible skill level>",
  "skills":["<skill>","..."],"portfolioTitle":"<3-6 word portfolio title>","globalJobTitle":"<internationally understood job title in English>",
  "steps":[{"icon":"<one emoji>","title":"<short>","desc":"<one sentence>"}] (3-4 steps of the work shown),
+ "outsourceSkill":"<2-4 words: the skill someone would hire for this work, in the language of the photo's country if visible, else Korean>",
+ "shoppingKeywords":["<2-4 word product name of a tool/material visible or needed for this work>"] (max 2, or empty),
  "canvasAnimation":{"bgColor":"<hex color that suits the trade>"}}`;
   }
 
-  if (mode === 'shop') {
-    return `You are ShopLens. Look at this photo of a product (package, label, tag, receipt, price sign).
-Read every visible text. Return ONLY a JSON object:
-{"type":"<product category>","productName":"<name as printed>","brand":"<brand or empty>","priceSeen":"<price printed if any>",
- "expiry":"<expiry/manufacture date if printed>","origin":"<country of origin if printed>","ingredientsOrSpecs":"<key ingredients or specs, short>",
- "authenticitySignals":["<what looks genuine or suspicious: print quality, logo, spelling, seals, serial>"],
- "safety":"<allergen/usage/safety warnings printed, or empty>","steps":[{"icon":"<one emoji>","title":"<short>","desc":"<one sentence>"}] (3-4 checks a buyer should do),
- "searchKeywords":"<2-4 words to search this product online>","canvasAnimation":{"bgColor":"<hex>"}}`;
-  }
-
-  return `You are FogLens. Look at this photo of a document (prescription, contract, bill, homework, notice, foreign menu, sign, form).
-Read every visible text carefully. Return ONLY a JSON object:
-{"type":"<document category>","rawSummary":"<what the document literally says, key names, numbers, dates, amounts>",
+  return `You are FogLens. Look at this photo. It is usually a document (prescription, contract, bill, homework, notice, foreign menu, sign, form)
+but it may also be a product (package, label, price tag, receipt). Read every visible text carefully. Return ONLY a JSON object:
+{"type":"<category: prescription|contract|bill|notice|homework|menu|form|product|other>",
+ "rawSummary":"<what it literally says: key names, numbers, dates, amounts>",
  "simpleExplanation":"<2-3 sentences: what this is and what it means for the person holding it>",
- "riskWarnings":["<deadline, fee, penalty, side effect, clause to be careful of>"],"urgency":"<none|low|medium|high>",
+ "riskWarnings":["<deadline, fee, penalty, side effect, allergen, expiry, clause to be careful of>"],"urgency":"<none|low|medium|high>",
  "steps":[{"icon":"<one emoji>","title":"<short>","desc":"<one sentence>"}] (3-4 actions to take, in order),
+ "productName":"<if a product: name as printed, else empty>","brand":"<brand or empty>","priceSeen":"<price printed if any>","expiry":"<expiry date if printed>",
+ "shoppingKeywords":["<2-4 word product name to search for buying — only if this is a product or the document names a specific product to buy (e.g. a medicine, a part); else empty>"] (max 2),
  "canvasAnimation":{"bgColor":"<hex>"}}`;
 }
 
@@ -170,24 +168,16 @@ Keep facts exactly as given (names, numbers, dates); do not invent details that 
 Data: ${JSON.stringify(parsed).slice(0, 2500)}
 JSON: {"simpleExplanation":"<2 sentences describing this person's work and strength>","portfolioTitle":"<title in ${langName}>",
  "globalJobTitle":"<job title in English>","skills":["..."],"steps":[{"icon":"<emoji>","title":"...","desc":"..."}],
- "hireNote":"<one sentence an employer would like to read about this worker>"}`;
-  }
-
-  if (mode === 'shop') {
-    return `${common}
-Data: ${JSON.stringify(parsed).slice(0, 2500)}
-JSON: {"productName":"...","brand":"...","simpleExplanation":"<2 sentences: what this product is and who it is for>",
- "authenticity":"<cautious, evidence-based note on genuine/suspicious signs — say clearly that a photo alone cannot prove authenticity>",
- "priceAnalysis":"<if a price was read: is it reasonable, what to compare; else say no price was visible>",
- "safety":"<allergen/expiry/usage cautions, or 'none seen'>","steps":[{"icon":"<emoji>","title":"...","desc":"..."}],
- "cheapestHint":"<how to find it cheaper: search words, where to compare>","searchKeywords":"..."}`;
+ "hireNote":"<one sentence an employer would like to read about this worker>",
+ "outsourceSkill":"<2-4 words in ${langName}: the skill to hire for this work>","shoppingKeywords":["<product name in ${langName}>"] (max 2, keep from data or empty)}`;
   }
 
   return `${common}
 Data: ${JSON.stringify(parsed).slice(0, 2500)}
 JSON: {"simpleExplanation":"<2-3 sentences>","riskWarnings":["..."],"urgency":"<none|low|medium|high>",
  "steps":[{"icon":"<emoji>","title":"...","desc":"..."}],"todayAdvice":"<the single most important thing to do today>",
- "reassurance":"<one calm, honest sentence>"}`;
+ "reassurance":"<one calm, honest sentence>","productName":"<keep from data or empty>","brand":"<keep or empty>",
+ "shoppingKeywords":["<product name in ${langName}>"] (max 2, keep from data or empty)}`;
 }
 
 /* ── 모델 호출 ─────────────────────────────────────────────────────── */
@@ -278,29 +268,92 @@ function buildFinal(mode: Mode, parsed: any, easy: any) {
     canvasAnimation: parsed?.canvasAnimation || {},
   };
 
+  const kw = Array.isArray(easy?.shoppingKeywords) && easy.shoppingKeywords.length ? easy.shoppingKeywords : Array.isArray(parsed?.shoppingKeywords) ? parsed.shoppingKeywords : [];
+  final.shoppingKeywords = kw.map((k: any) => String(k || '').trim()).filter(Boolean).slice(0, 2);
+  final.productName = easy?.productName || parsed?.productName || '';
+  final.brand = easy?.brand || parsed?.brand || '';
+
   if (mode === 'document') {
     final.riskWarnings = Array.isArray(easy?.riskWarnings) ? easy.riskWarnings : Array.isArray(parsed?.riskWarnings) ? parsed.riskWarnings : [];
     final.urgency = easy?.urgency || parsed?.urgency || 'none';
     final.todayAdvice = easy?.todayAdvice || '';
     final.reassurance = easy?.reassurance || '';
     final.rawSummary = parsed?.rawSummary || '';
-  } else if (mode === 'work') {
+    final.priceSeen = parsed?.priceSeen || '';
+    final.expiry = parsed?.expiry || '';
+  } else {
     final.portfolioTitle = easy?.portfolioTitle || parsed?.portfolioTitle || '';
     final.globalJobTitle = easy?.globalJobTitle || parsed?.globalJobTitle || '';
     final.skills = Array.isArray(easy?.skills) ? easy.skills : Array.isArray(parsed?.skills) ? parsed.skills : [];
     final.hireNote = easy?.hireNote || '';
     final.workDescription = parsed?.workDescription || '';
-  } else {
-    final.productName = easy?.productName || parsed?.productName || '';
-    final.brand = easy?.brand || parsed?.brand || '';
-    final.authenticity = easy?.authenticity || '';
-    final.priceAnalysis = easy?.priceAnalysis || '';
-    final.safety = easy?.safety || parsed?.safety || '';
-    final.cheapestHint = easy?.cheapestHint || '';
-    final.searchKeywords = easy?.searchKeywords || parsed?.searchKeywords || '';
-    final.priceSeen = parsed?.priceSeen || '';
-    final.expiry = parsed?.expiry || '';
-    final.origin = parsed?.origin || '';
+    final.outsourceSkill = easy?.outsourceSkill || parsed?.outsourceSkill || '';
+  }
+
+  return final;
+}
+
+/* ── Brave: 최저가 3개(두 탭) · 외주 3명(일 탭) ──────────────────────── */
+type Link = { title: string; url: string; price: string; snippet: string };
+
+function priceIn(text: string) {
+  const m = String(text || '').match(/(?:₩|\$|€|£|฿)\s?\d[\d,.]*|\d[\d,.]*\s?(?:원|円|元|บาท|USD|KRW)/);
+
+  return m ? m[0] : '';
+}
+
+async function braveLinks(env: Env, q: string, n: number): Promise<Link[]> {
+  const rs = await braveSearch(env, q, 8);
+
+  return rs.slice(0, n).map((r) => ({ title: r.title, url: r.url, price: priceIn(r.description), snippet: r.description.slice(0, 80) }));
+}
+
+/** 분석 결과에 shopping(최저가 3개)·workers(외주 3명)를 붙입니다. 키가 없거나 실패하면 빈 배열(화면에 칸이 안 보임) */
+async function addBrave(env: Env, mode: Mode, final: any, lang: string) {
+  final.shopping = [];
+  final.workers = [];
+
+  const product = String(final.productName || (final.shoppingKeywords || [])[0] || '').trim();
+  const cheapest = { ko: '최저가', ja: '最安値', zh: '最低价', th: 'ราคาถูกที่สุด' }[lang] || 'best price';
+  const outsource = { ko: '외주 크몽 숨고', ja: '外注 依頼', zh: '外包 接单', th: 'จ้างฟรีแลนซ์' }[lang] || 'freelancer hire';
+
+  if (!env.BRAVE_API_KEY) {
+    return final;
+  }
+
+  if (product) {
+    try {
+      final.shopping = await braveLinks(env, `${product} ${cheapest}`, 3);
+    } catch {
+      final.shopping = [];
+    }
+
+    if (!final.shopping.length && lang === 'ko') {
+      // 검색 결과가 없으면 쿠팡·네이버 검색 링크로 대체 (한국어일 때만)
+      final.shopping = [
+        { title: `쿠팡에서 "${product}" 검색`, url: `https://www.coupang.com/np/search?q=${encodeURIComponent(product)}`, price: '', snippet: '쿠팡' },
+        { title: `네이버 쇼핑에서 "${product}" 비교`, url: `https://search.shopping.naver.com/search/all?query=${encodeURIComponent(product)}`, price: '', snippet: '네이버 쇼핑' },
+      ];
+    }
+  }
+
+  if (mode === 'work') {
+    const skill = String(final.outsourceSkill || final.globalJobTitle || '').trim();
+
+    if (skill) {
+      try {
+        final.workers = await braveLinks(env, `${skill} ${outsource}`, 3);
+      } catch {
+        final.workers = [];
+      }
+
+      if (!final.workers.length && lang === 'ko') {
+        final.workers = [
+          { title: `크몽에서 "${skill}" 전문가 찾기`, url: `https://kmong.com/search?keyword=${encodeURIComponent(skill)}`, price: '', snippet: '크몽' },
+          { title: `숨고에서 "${skill}" 고수 찾기`, url: `https://soomgo.com/search?query=${encodeURIComponent(skill)}`, price: '', snippet: '숨고' },
+        ];
+      }
+    }
   }
 
   return final;
@@ -324,7 +377,7 @@ function videoPrompt(mode: Mode, x: any) {
     return `${base} A skilled ${x.globalJobTitle || 'worker'} at work: ${String(x.workDescription || x.simpleExplanation || '').slice(0, 300)}. Confident, professional portfolio mood.`;
   }
 
-  if (mode === 'shop') {
+  if (x.type === 'product' && x.productName) {
     return `${base} Product showcase of ${x.brand ? x.brand + ' ' : ''}${x.productName || 'the product'} rotating slowly on a pedestal, close-up on label details, trustworthy retail mood.`;
   }
 
@@ -395,7 +448,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
       const { parsed, reader } = await readImage(env, mode, imageBase64, mimeType);
       const easyText = await claudeText(env, LENS_MODELS.writer, [{ type: 'text', text: writerPrompt(mode, lang, parsed) }], 1200);
       const easy = extractJson(easyText);
-      const final = buildFinal(mode, parsed, easy);
+      const final = await addBrave(env, mode, buildFinal(mode, parsed, easy), lang);
 
       // 같은 사진을 다른 사람이 먼저 저장했을 수도 있어 upsert (image_hash+mode+language 가 유일키)
       await fetch(`${c.url}/rest/v1/cf_lens?on_conflict=image_hash,mode,language`, {
@@ -476,14 +529,14 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
   /* ── 스튜디오 사진 (gpt image 2) ───────────────────── */
   if (op === 'photo') {
-    if (mode === 'document') {
-      return fail('문서 모드에는 사진 생성이 없습니다', 400);
-    }
-
     const row = await getLens(c, hash, mode, lang);
 
     if (!row || !row.result) {
       return fail('먼저 사진을 분석해 주세요', 400);
+    }
+
+    if (mode === 'document' && !row.result.productName) {
+      return fail('제품이 읽힌 경우에만 스튜디오 사진을 만들 수 있습니다', 400);
     }
 
     if (row.photo_url) {
