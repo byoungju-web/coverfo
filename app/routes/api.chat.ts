@@ -14,6 +14,7 @@ import { extractPropertiesFromMessage } from '~/lib/.server/llm/utils';
 import type { DesignScheme } from '~/types/design-scheme';
 import { MCPService } from '~/lib/services/mcpService';
 import { StreamRecoveryManager } from '~/lib/.server/llm/stream-recovery';
+import { autoSearchQuery, braveSearch, formatBraveResults } from '~/lib/.server/brave'; // coverfo Brave 자동 검색
 
 export async function action(args: ActionFunctionArgs) {
   return chatAction(args);
@@ -100,6 +101,45 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
         let messageSliceId = 0;
 
         const processedMessages = await mcpService.processToolInvocations(messages, dataStream);
+
+        /*
+         * ── coverfo: Brave 자동 검색 (B 방식) ──────────────────────────────
+         * 글 답변(discuss)에서 마지막 사용자 메시지가 최신 정보를 묻는 것처럼 보이면
+         * (또는 "검색:" 으로 시작하면) Brave 로 먼저 찾아 그 결과를 메시지 뒤에 붙여 모델에 넘깁니다.
+         * 키가 없거나 검색이 실패하면 아무것도 붙이지 않고 그냥 진행합니다(채팅이 막히지 않게).
+         */
+        try {
+          const braveEnv: any = context.cloudflare?.env;
+          const lastUser = processedMessages.filter((m) => m.role === 'user').slice(-1)[0];
+          const lastText = lastUser && typeof lastUser.content === 'string' ? lastUser.content : '';
+          const q = chatMode === 'discuss' && braveEnv?.BRAVE_API_KEY ? autoSearchQuery(lastText) : null;
+
+          if (q && lastUser) {
+            dataStream.writeData({
+              type: 'progress',
+              label: 'search',
+              status: 'in-progress',
+              order: progressCounter++,
+              message: 'Searching the web',
+            } satisfies ProgressAnnotation);
+
+            const results = await braveSearch(braveEnv, q, 8);
+
+            if (results.length) {
+              (lastUser as any).content = `${lastText}\n\n${formatBraveResults(q, results)}`;
+            }
+
+            dataStream.writeData({
+              type: 'progress',
+              label: 'search',
+              status: 'complete',
+              order: progressCounter++,
+              message: results.length ? `Found ${results.length} web results` : 'No web results',
+            } satisfies ProgressAnnotation);
+          }
+        } catch (e: any) {
+          logger.warn('Brave auto search skipped: ' + String(e?.message || e));
+        }
 
         if (processedMessages.length > 3) {
           messageSliceId = processedMessages.length - 3;

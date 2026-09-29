@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { IconButton } from '~/components/ui/IconButton';
 import { toast } from 'react-toastify';
 import { classNames } from '~/utils/classNames';
+import { supabase } from '~/lib/supabaseClient'; // coverfo Brave: 로그인 토큰
 
 interface WebSearchProps {
   onSearchResult: (result: string) => void;
@@ -66,6 +67,42 @@ export function WebSearch({ onSearchResult, disabled = false }: WebSearchProps) 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
+  /* coverfo Brave (A 방식): 주소(http…)가 아니면 검색어로 보고 /api/brave-search 로 검색합니다 */
+  const isUrlLike = (s: string) => /^https?:\/\//i.test(s) || /^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(s);
+
+  const handleBraveSearch = async (q: string) => {
+    let token = '';
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      token = data.session?.access_token || '';
+    } catch {
+      token = '';
+    }
+
+    if (!token) {
+      throw new Error('로그인이 필요합니다');
+    }
+
+    const response = await fetch('/api/brave-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ q, count: 8 }),
+    });
+    const result = (await response.json()) as { success?: boolean; text?: string; results?: any[]; error?: string };
+
+    if (!response.ok || !result.success || !result.text) {
+      throw new Error(result.error || '검색에 실패했습니다');
+    }
+
+    if (!result.results || result.results.length === 0) {
+      throw new Error('검색 결과가 없습니다');
+    }
+
+    onSearchResult(result.text);
+    toast.success(`웹 검색 결과 ${result.results.length}건을 붙였습니다`);
+  };
+
   const handleFetch = async () => {
     const trimmedUrl = url.trim();
 
@@ -76,10 +113,18 @@ export function WebSearch({ onSearchResult, disabled = false }: WebSearchProps) 
     setIsSearching(true);
 
     try {
+      if (!isUrlLike(trimmedUrl)) {
+        await handleBraveSearch(trimmedUrl);
+        setUrl('');
+        setIsOpen(false);
+
+        return;
+      }
+
       const response = await fetch('/api/web-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: trimmedUrl }),
+        body: JSON.stringify({ url: /^https?:\/\//i.test(trimmedUrl) ? trimmedUrl : 'https://' + trimmedUrl }),
       });
 
       const result = (await response.json()) as WebSearchResponse;
@@ -102,7 +147,7 @@ export function WebSearch({ onSearchResult, disabled = false }: WebSearchProps) 
   return (
     <div ref={containerRef} className="relative">
       <IconButton
-        title="Fetch URL content"
+        title="웹 검색 (검색어) 또는 주소 내용 가져오기"
         disabled={disabled || isSearching}
         onClick={() => setIsOpen(!isOpen)}
         className="transition-all"
@@ -122,7 +167,7 @@ export function WebSearch({ onSearchResult, disabled = false }: WebSearchProps) 
         >
           <input
             ref={inputRef}
-            type="url"
+            type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             onKeyDown={(e) => {
@@ -134,7 +179,7 @@ export function WebSearch({ onSearchResult, disabled = false }: WebSearchProps) 
                 setIsOpen(false);
               }
             }}
-            placeholder="https://example.com"
+            placeholder="검색어 또는 https://…"
             disabled={isSearching}
             className={classNames(
               'w-[300px] px-3 py-1.5 text-sm rounded-md',
@@ -154,7 +199,7 @@ export function WebSearch({ onSearchResult, disabled = false }: WebSearchProps) 
               'disabled:opacity-50 disabled:cursor-not-allowed',
             )}
           >
-            {isSearching ? 'Fetching...' : 'Fetch'}
+            {isSearching ? '검색 중…' : isUrlLike(url.trim()) ? '가져오기' : '검색'}
           </button>
         </div>
       )}
