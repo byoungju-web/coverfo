@@ -167,6 +167,8 @@ a product (package, label, price tag, receipt), or any everyday scene. Read ever
 Return ONLY a JSON object:
 {"type":"<category: prescription|contract|bill|notice|homework|menu|form|product|scene|other>",
  "rawSummary":"<what it literally says or shows: key names(no real person names), numbers, dates, amounts>",
+ "extractedText":"<ALL readable text in the photo, verbatim, in its original language, line breaks as \\n (max ~1500 chars); empty if no text>",
+ "sourceLang":"<ISO 639-1 code of the text's language, e.g. en, ko, ja, zh, th, vi; empty if no text>",
  "simpleExplanation":"<2-3 sentences: what this is and what it means for the person holding it>",
  "riskWarnings":["<deadline, fee, penalty, side effect, allergen, expiry, clause to be careful of>"],"urgency":"<none|low|medium|high>",
  "steps":[{"icon":"<one emoji>","title":"<short>","desc":"<one sentence>"}] (3-4 actions to take, in order),
@@ -195,9 +197,13 @@ JSON: {"simpleExplanation":"<2 sentences describing this person's work and stren
  "outsourceSkill":"<2-4 words in ${langName}: the skill to hire for this work>","shoppingKeywords":["<product name in ${langName}>"] (max 2, keep from data or empty)}`;
   }
 
+  const src = String(parsed?.sourceLang || '').toLowerCase();
+  const needTr = !!(parsed?.extractedText && src && src !== lang);
+
   return `${common} ${PRIVACY_RULE}
-Data: ${JSON.stringify(parsed).slice(0, 3000)}
+Data: ${JSON.stringify(parsed).slice(0, 4500)}
 JSON: {"simpleExplanation":"<2-3 sentences>","riskWarnings":["..."],"urgency":"<none|low|medium|high>",
+ "translation":${needTr ? `"<faithful full translation of extractedText into ${langName}, keep line breaks as \\n, keep numbers/names/dates exactly>"` : 'null'},
  "steps":[{"icon":"<emoji>","title":"...","desc":"..."}],"todayAdvice":"<the single most important thing to do today>",
  "reassurance":"<one calm, honest sentence>","productName":"<keep from data or empty>","brand":"<keep or empty>",
  "dramaStory":{"title":"<in ${langName}>","logline":"<in ${langName}>","heroName":"<nickname in ${langName}>","conflict":"<in ${langName}>","caption":"<in ${langName}, 2-3 hashtags>"},
@@ -213,7 +219,7 @@ async function geminiVision(env: Env, model: string, prompt: string, imageBase64
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType, data: imageBase64 } }] }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 1500, responseModalities: ['TEXT'] },
+      generationConfig: { temperature: 0.2, maxOutputTokens: 2500, responseModalities: ['TEXT'] },
     }),
   });
   const data: any = await r.json().catch(() => ({}));
@@ -272,7 +278,7 @@ async function readImage(env: Env, mode: Mode, imageBase64: string, mimeType: st
       env,
       LENS_MODELS.writer,
       [{ type: 'image', source: { type: 'base64', media_type: mimeType, data: imageBase64 } }, { type: 'text', text: prompt }],
-      1500,
+      2500,
     );
     const parsed = extractJson(text);
 
@@ -331,6 +337,9 @@ function buildFinal(mode: Mode, parsed: any, easy: any) {
     final.rawSummary = parsed?.rawSummary || '';
     final.priceSeen = parsed?.priceSeen || '';
     final.expiry = parsed?.expiry || '';
+    final.extractedText = String(parsed?.extractedText || '').slice(0, 3000);
+    final.sourceLang = String(parsed?.sourceLang || '').toLowerCase().slice(0, 5);
+    final.translation = typeof easy?.translation === 'string' ? easy.translation.slice(0, 4000) : '';
   } else {
     final.portfolioTitle = easy?.portfolioTitle || parsed?.portfolioTitle || '';
     final.globalJobTitle = easy?.globalJobTitle || parsed?.globalJobTitle || '';
@@ -507,7 +516,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     try {
       const { parsed, reader } = await readImage(env, mode, imageBase64, mimeType);
-      const easyText = await claudeText(env, LENS_MODELS.writer, [{ type: 'text', text: writerPrompt(mode, lang, parsed) }], 1200);
+      const easyText = await claudeText(env, LENS_MODELS.writer, [{ type: 'text', text: writerPrompt(mode, lang, parsed) }], 2500);
       const easy = extractJson(easyText);
       const final = await addBrave(env, mode, buildFinal(mode, parsed, easy), lang);
 
