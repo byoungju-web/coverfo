@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>coverfo 빠른 실행 · 나라별 확인표</title>
+<meta name="robots" content="noindex">
+<style>
+  body{font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;margin:0;padding:16px;background:#faf8ff;color:#222;font-size:14px}
+  h1{font-size:18px;margin:0 0 6px}
+  .sub{color:#666;font-size:12.5px;line-height:1.6;margin-bottom:12px}
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+  select,input,button{font:inherit;padding:8px 10px;border:1px solid #ddd;border-radius:10px;background:#fff}
+  input{flex:1;min-width:220px}
+  button.go{background:#6d28d9;color:#fff;border-color:#6d28d9;cursor:pointer}
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden}
+  th,td{border-bottom:1px solid #eee;padding:8px;text-align:left;vertical-align:top;font-size:12.5px}
+  th{background:#f1edfb}
+  td.k{white-space:nowrap;color:#5b21b6;font-weight:600}
+  td a{color:#1d4ed8;word-break:break-all}
+  .note{color:#888;font-size:11.5px}
+  .none{color:#b91c1c}
+  .box{background:#fff;border:1px solid #e5e0f5;border-radius:12px;padding:12px;margin:12px 0;font-size:12.5px;line-height:1.7}
+</style>
+</head>
+<body>
+<h1>🧭 coverfo 빠른 실행 · 나라별 확인표</h1>
+<div class="sub">홈 입력칸에 이런 문장을 치면 채팅 대신 어느 앱·사이트가 열리는지, 나라를 바꿔 가며 미리 봅니다. 링크를 눌러 실제로 열어 볼 수 있어요(폰에서 열면 앱이 뜹니다). 이 표는 판별 규칙만 씁니다 — AI 보조 판단(규칙에 없는 문장, 크레딧 소액 차감)은 홈에서 로그인 후에만 동작.</div>
+<div class="row">
+  <label>나라 <select id="c"></select></label>
+  <input id="q" placeholder="직접 시험: 예) 뉴욕 맛집 알려줘">
+  <button class="go" id="go">판별</button>
+  <span id="out" class="note"></span>
+</div>
+<div id="tbl"></div>
+<div class="box" id="how"></div>
+<script src="/cf-ui-lang.js?v=2"></script>
+<script src="/cf-quick.js?v=1"></script>
+<script>
+(function(){
+  var SAMPLES=[
+    "뉴욕 맛집 알려줘","near me pizza","워싱턴 가볼만한곳","백악관 길안내해줘","directions to JFK airport","속초 동명항 맛집",
+    "BTS 다이너마이트 틀어줘","play Taylor Swift Cruel Summer","무선 이어폰 최저가 알려줘","cheapest air fryer","에어프라이어 최저가",
+    "택시 불러줘 타임스퀘어로","call a cab to Central Park","010-1234-5678로 전화해줘","010-1234-5678한테 늦는다고 문자 보내줘",
+    "서울에서 부산 KTX 예매","book a train to Boston","치킨 배달 시켜줘","order pizza delivery",
+    "토스로 국민은행 123456789012 에 3만원 송금","send $20 to @alex-jones","send $20 to @alex via venmo","send 500 to friend@upi",
+    "12월 24일 강릉 호텔 2박 3명 예약","book a hotel in Miami for 2 nights on Dec 24 for 3 people",
+    "김치찌개 끓이는 방법","이순신 장군은 누구야"
+  ];
+  var sel=document.getElementById("c"), tbl=document.getElementById("tbl");
+  window.cfQuick.COUNTRIES.forEach(function(x){ var o=document.createElement("option"); o.value=x[0]; o.textContent=x[1]; sel.appendChild(o); });
+  sel.value=window.cfQuick.isOverride()?window.cfQuick.country():"AUTO";
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+  function render(){
+    var c=sel.value==="AUTO"?(window.cfUiLang.country()||"KR"):sel.value;
+    var rows=[], pending=SAMPLES.length;
+    SAMPLES.forEach(function(s,i){
+      window.cfQuick.decide(s,function(r){
+        var cls=window.cfQuick.classify(s);
+        rows[i]='<tr><td>'+esc(s)+'</td><td class="k">'+(cls?cls.kind:'<span class="note">채팅(규칙 없음 → AI 판단)</span>')+'</td><td>'+
+          (r?(r.none?'<span class="none">'+esc(r.none)+'</span>':'<b>'+esc(r.w)+'</b><br><a href="'+esc(r.u)+'" target="_blank" rel="noopener">'+esc(r.u)+'</a>'+(r.alt?'<br><span class="note">대안: <a href="'+esc(r.alt.u)+'" target="_blank" rel="noopener">'+esc(r.alt.w)+'</a></span>':'')+(r.note?'<br><span class="note">'+esc(r.note)+'</span>':'')):'<span class="note">— 채팅으로</span>')+'</td></tr>';
+        if(--pending===0){ tbl.innerHTML='<table><tr><th>입력 문장</th><th>판별</th><th>'+esc(c)+' 에서 여는 곳</th></tr>'+rows.join("")+'</table>'; }
+      },{country:c,noAI:true});
+    });
+    document.getElementById("how").innerHTML='<b>지금 기준 나라: '+esc(c)+'</b> (자동이면 폰 시간대 → '+esc(window.cfUiLang.where()||"?")+')<br>'+
+      '· 홈에서 실제로 시험: 주소창에 <code>coverfo.com/?cf_country='+esc(c)+'</code> 를 한 번 열면 이 기기에 저장돼요. 되돌리기: <code>coverfo.com/?cf_country=AUTO</code><br>'+
+      '· 폰 자체를 그 나라처럼: 설정 → 일반 → 날짜와 시간 → 자동 설정 끄고 시간대를 New York 등으로 (화면 언어까지 같이 바뀜)';
+  }
+  sel.addEventListener("change",render);
+  document.getElementById("go").addEventListener("click",function(){
+    var q=document.getElementById("q").value.trim(); if(!q)return; var c=sel.value==="AUTO"?(window.cfUiLang.country()||"KR"):sel.value;
+    window.cfQuick.decide(q,function(r){ document.getElementById("out").innerHTML=r?(r.none?'<span class="none">'+esc(r.none)+'</span>':esc(r.w)+' → <a href="'+esc(r.u)+'" target="_blank" rel="noopener">열기</a>'):'채팅으로'; },{country:c,noAI:true});
+  });
+  render();
+})();
+</script>
+</body>
+</html>
