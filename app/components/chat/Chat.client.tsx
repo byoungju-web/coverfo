@@ -42,6 +42,10 @@ const ANSWER_LANG_NAMES: Record<string, string> = {
   ja: '日本語',
   zh: '中文(简体)',
   th: 'ภาษาไทย',
+  hi: 'हिन्दी (Hindi)',
+  es: 'Español',
+  fr: 'Français',
+  de: 'Deutsch',
 };
 
 function getAnswerLangInstruction(): string {
