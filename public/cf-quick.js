@@ -30,31 +30,32 @@
   /* ── 검색어 정리 (포도톡 그대로 + 영어) ── */
   function clean(q) {
     return String(q || "")
-      .replace(/알려\s*줘?|추천\s*해?\s*줘?|좀|해\s*줘?|찾아\s*줘?|보여\s*줘?|어디(야|있어|에)?|쫙/g, "")
-      .replace(/\b(please|find|show|me|recommend|tell|search|for|some|good|best|any|a|the|near\s*me|nearby|around\s*here|where\s*(is|are|can\s*i)|can\s*you|i\s*want|i'd\s*like|looking\s*for)\b/gi, "")
+      .replace(/알려\s*줘?|추천\s*해?\s*줘?|좀|해\s*줘?|찾아\s*줘?|보여\s*줘?|어디(야|있어|에|있나|있을까)?|쫙|배고파|배고픈데|뭐\s*먹(지|을까|을지)|있나요?|있을까요?|있어요?|알려주세요|주세요|부탁(해|해요|합니다)?/g, "")
+      .replace(/(^|\s)(please|find|show|me|recommend|tell|search|for|some|good|best|any|a|the|near\s*me|nearby|around\s*here|where\s*(is|are|can\s*i)|can\s*you|i\s*want|i'd\s*like|looking\s*for)(?=\s|$)/gi, "$1")
       .replace(/\s+/g, " ").trim() || q;
   }
   /* ── 판별 규칙: 포도톡(한국어) + 영어 ── */
   var R = {
-    place: [/(맛집|먹을\s*곳|먹거리|음식점|맛있는\s*곳)/, /(가볼\s*만한|가볼만한곳|관광지|관광|명소|여행지|놀\s*거리|갈\s*만한\s*곳|볼거리)/,
+    place: [/(맛집|맛짐|맛집추천|먹을\s*(곳|데|만한)|먹거리|음식점|식당|밥집|맛있는\s*(곳|집|데)|뭐\s*먹(지|을까)|배고파|카페\s*추천|술집|호프|포차|디저트\s*(집|카페)|브런치|점심\s*(추천|뭐)|저녁\s*(추천|뭐))/,
+      /(가\s*볼\s*만\s*한|가볼만한|볼\s*만\s*한\s*(곳|데)|관광지|관광|명소|여행지|놀\s*(거리|데|곳)|갈\s*(만\s*한|데|곳)|볼\s*거리|구경\s*(거리|할|갈)|핫플|유명한\s*(곳|데)|데이트\s*(코스|장소)|나들이|놀러\s*(갈|가)|산책\s*(길|코스)|야경|전망대|포토\s*(존|스팟)|액티비티|체험)/,
       /(restaurants?|food|eat|dinner|lunch|brunch|cafe|coffee|bar|pizza|sushi|things\s*to\s*do|attractions|sightseeing|places\s*to\s*(visit|see|go)|tourist|landmarks?|must[- ]see)/i],
-    placeNear: [/(근처|주변|가까운)/, /(near|nearby|around|closest|nearest)/i],
-    placeKinds: [/(카페|식당|병원|약국|편의점|주유소|주차장|은행|atm|마트|숙소|호텔|모텔|펜션|미용실|세탁소|헬스장|공원|화장실)/i, /(pharmacy|drugstore|hospital|clinic|gas\s*station|parking|bank|atm|grocery|supermarket|mall|gym|park|restroom|laundry|barber|salon|hotel|coffee)/i],
-    navi: [/길\s*안내|내비게이션|내비|네비게이션|네비|길\s*찾기|길찾기|가는\s*길|가는\s*법|어떻게\s*가|찾아\s*가|까지\s*가|데려다|목적지/, /(directions?\s*to|navigate\s*to|how\s*(do\s*i|to)\s*get\s*to|route\s*to|take\s*me\s*to|drive\s*to|way\s*to)/i],
-    music: [/(틀어|들려|재생|플레이|듣고\s*싶|노래\s*해)/, /(유튜브|유툽|유투브|youtube)/i, /\b(play|listen\s*to)\b.*\b(song|music|video|mv|playlist|album)\b|\b(youtube|yt)\b/i, /^\s*play\s+(?!.*\b(games?|store|station)\b)\S/i],
-    shopWord: [/(쇼핑몰|쇼핑|최저가|가성비|판매처|구매|사고\s*싶|어디서\s*사|가격\s*비교|얼마|싸게\s*사|저렴|판매량|리뷰\s*많)/, /\b(buy|purchase|cheapest|best\s*price|price\s*of|how\s*much\s*(is|does)|deal|shop\s*for|shopping|order\s*online|amazon)\b/i],
+    placeNear: [/(근처|주변|가까운|가까이|여기|이\s*근방|근방|옆에|앞에|부근)/, /(near|nearby|around|closest|nearest)/i],
+    placeKinds: [/(카페|식당|병원|의원|응급실|약국|편의점|주유소|충전소|주차장|은행|atm|현금\s*인출기|마트|슈퍼|시장|숙소|호텔|모텔|펜션|미용실|이발소|세탁소|헬스장|공원|화장실|우체국|주민센터|경찰서|소방서|도서관|학교|유치원|어린이집|키즈카페|동물병원|정비소|세차장|노래방|피시방|pc방|영화관|극장|목욕탕|찜질방|사우나|빨래방|문구점|서점|꽃집|빵집|베이커리|치킨집|피자집|분식|국밥|고기집|횟집|초밥|중국집|일식|한식|양식|지하철역|버스\s*정류장|터미널|기차역|공항|백화점|아울렛|쇼핑몰)/i, /(pharmacy|drugstore|hospital|clinic|gas\s*station|parking|bank|atm|grocery|supermarket|mall|gym|park|restroom|laundry|barber|salon|hotel|coffee)/i],
+    navi: [/길\s*안내|길\s*좀|내비게이션|내비|네비게이션|네비|나비게이션|길\s*찾기|길찾기|길\s*찾아|가는\s*길|가는\s*법|가는\s*방법|어떻게\s*가|찾아\s*가|까지\s*가|로\s*가\s*(줘|자)|에\s*가\s*(줘|자)|데려다|목적지|경로|안내\s*해|출발|도착\s*(까지|하는)/, /(directions?\s*to|navigate\s*to|how\s*(do\s*i|to)\s*get\s*to|route\s*to|take\s*me\s*to|drive\s*to|way\s*to)/i],
+    music: [/(틀어|틀러|들려|재생|플레이|듣고\s*싶|듣자|노래\s*(해|찾아|불러)|음악\s*(틀|켜|찾)|뮤비|뮤직비디오|노래\s*좀|음악\s*좀|한\s*곡)/, /(유튜브|유툽|유투브|유튜부|유투부|youtube|you\s*tube)/i, /\b(play|listen\s*to)\b.*\b(song|music|video|mv|playlist|album)\b|\b(youtube|yt)\b/i, /^\s*play\s+(?!.*\b(games?|store|station)\b)\S/i],
+    shopWord: [/(쇼핑몰|쇼핑|최저가|가성비|판매처|구매|사고\s*싶|사\s*줘|살래|살\s*건데|어디서\s*(사|팔)|파는\s*(곳|데)|가격\s*(비교|좀|알려|얼마)|얼마|싸게|제일\s*싼|가장\s*싼|저렴|판매량|리뷰\s*많|할인|세일|특가|주문\s*하고\s*싶)/, /\b(buy|purchase|cheapest|best\s*price|price\s*of|how\s*much\s*(is|does)|deal|shop\s*for|shopping|order\s*online|amazon)\b/i],
     shopAsk: [/(추천|알려|골라|비교|어떤|뭐가\s*좋|뭐\s*살|살까)/, /\b(recommend|which|compare|best)\b/i],
     shopBuy: [/(가성비|최저가|리뷰|구매|판매량|베스트|제품|상품|모델|브랜드|저렴|쇼핑|얼마|만원|원대)/, /\b(product|brand|model|review|cheap|budget|under\s*\$?\d+)\b/i],
     call: [/(전화|통화|콜)/, /\b(call|phone|dial|ring)\b/i],
     sms: [/(문자|메시지|메세지|sms)/i, /\b(text|sms|message)\b/i],
-    taxi: [/택시|카카오\s*t|카카오티/i, /\b(taxi|cab|uber|lyft|ride)\b/i],
+    taxi: [/택시|탁시|카카오\s*t|카카오티|카카오\s*택시|우버|그랩/i, /\b(taxi|cab|uber|lyft|grab|ride)\b/i],
     train: [/(srt|ktx|기차|열차|코레일|고속철|무궁화|새마을|itx)/i, /\b(train|amtrak|rail(way)?|eurostar|shinkansen)\b/i],
-    delivery: [/배민|배달의민족|요기요|쿠팡이츠|배달/, /\b(doordash|uber\s*eats|grubhub|deliver(y|ed)?|order\s*(food|pizza|takeout))\b/i],
+    delivery: [/배민|배달의민족|요기요|쿠팡이츠|배달|배달\s*시켜|시켜\s*먹|시켜먹/, /\b(doordash|uber\s*eats|grubhub|deliver(y|ed)?|order\s*(food|pizza|takeout))\b/i],
     pay: [/토스|송금|이체|카카오\s*페이|네이버\s*페이/, /\b(send|pay|transfer|venmo|paypal|cash\s*app|zelle|upi|wire)\b/i],
     stay: [/(예약|숙박|묵을|묵고|\d+\s*박|체크인|빈\s*방|객실|방\s*잡)/, /\b(hotel|hostel|airbnb|book(ing)?\s*(a\s*)?(room|hotel|stay)|stay|nights?|check[- ]?in|accommodation|lodging|resort|motel)\b/i],
     stayWord: [/(콘도|리조트|펜션|호텔|모텔|민박|게스트하우스|글램핑|캠핑|숙소|풀빌라|롯지|료칸)/, /\b(hotel|hostel|airbnb|resort|motel|inn|lodge|guesthouse|villa|cabin|apartment)\b/i]
   };
-  function any(list, q) { for (var i = 0; i < list.length; i++) if (list[i].test(q)) return true; return false; }
+  function any(list, q) { var qn = String(q || "").replace(/\s+/g, ""); for (var i = 0; i < list.length; i++) if (list[i].test(q) || list[i].test(qn)) return true; return false; }
   function notQuestion(q) { return !/(방법|사용법|어떻게\s*(해|하는)|고장|수리|원리|뜻|의미|증상|차이점|뭐야|what\s*is|how\s*does|meaning|why)/i.test(q); }
 
   /* ── 금액·숫자 (포도톡 tossAmount + 달러) ── */
@@ -184,8 +185,183 @@
   }
 
   /* ── 규칙으로 판별 → {kind, q} ── */
+  /* ══════════════ 현지어 규칙 (30개국 언어) ══════════════
+     한국어·영어 규칙에 안 걸린 문장을 그 나라 말로 다시 본다. 낱말 목록(소문자 포함 검사)이라 띄어쓰기·어미 변화에 강하다.
+     글자 모양으로 언어를 먼저 고르고(일본어 가나·중국어 한자·태국어·아랍어·힌디어·베트남어 성조 부호), 라틴 문자 언어는 가장 많이 맞는 목록을 쓴다.
+     여는 곳은 나라별(위 표)과 같고, 현지어 검색어는 그 나라 지도·쇼핑이 그대로 알아들으므로 번역하지 않는다. */
+  var L = {
+    ja: { place: ["レストラン","食事","ご飯","ごはん","美味しい","おいしい","グルメ","飲食店","居酒屋","ラーメン","寿司","カフェ","喫茶","観光","名所","観光地","見どころ","スポット","遊び","行くところ","おすすめの場所","デート"], near: ["近く","周辺","近い","この辺","付近","最寄り"],
+      kinds: ["薬局","ドラッグストア","病院","コンビニ","駅","銀行","atm","ガソリンスタンド","駐車場","ホテル","スーパー","トイレ","公園","美容院","床屋","ジム","郵便局","交番","図書館","空港"],
+      navi: ["道案内","ナビ","行き方","経路","ルート","まで行","へ行","に行き","案内して","連れて","行きたい"], music: ["流して","再生","聴きたい","聞きたい","かけて","曲","音楽","ユーチューブ","youtube"],
+      shop: ["買いたい","購入","最安値","安い","値段","価格","いくら","ショッピング","通販","どこで買","セール","お得"], taxi: ["タクシー","ウーバー","uber","配車","go タクシー"], train: ["電車","新幹線","列車","乗車券","切符","指定席","jr"],
+      delivery: ["出前","デリバリー","配達","宅配","ウーバーイーツ","出前館"], pay: ["送金","振込","振り込","支払","ペイペイ","paypay","お金を送"], stay: ["ホテル","宿","泊","宿泊","民宿","旅館","部屋"], book: ["予約","泊","取って","取りたい"],
+      call: ["電話"], sms: ["メッセージ","sms","メール"], question: ["方法","とは","意味","なぜ","どうして","使い方","作り方","レシピ","教えて下さい"], stop: ["教えて","おしえて","おすすめ","ください","下さい","どこ","まで","への","から","近くで","近くの","周辺の","美味しい","おいしい","探して","見つけて","行きたい","呼んで","お願い","の","を","で","？","?"] },
+    zh: { place: ["餐厅","餐廳","美食","好吃","吃饭","吃飯","饭店","飯店","小吃","火锅","咖啡","景点","景點","旅游","旅遊","好玩","景区","名胜","打卡","去哪","哪里玩","约会"], near: ["附近","周边","周邊","旁边","旁邊","最近的","这边","這邊"],
+      kinds: ["药店","藥局","药房","医院","醫院","诊所","便利店","便利商店","地铁站","捷運","银行","銀行","atm","加油站","停车场","停車場","酒店","饭店","超市","厕所","洗手间","公园","公園","理发","美发","健身房","邮局","机场","機場"],
+      navi: ["导航","導航","怎么走","怎麼走","怎么去","怎麼去","路线","路線","带我去","帶我去","去一下","到"], music: ["播放","放一首","放歌","听","聽","歌","音乐","音樂","油管","youtube","mv","b站"],
+      shop: ["买","買","购买","購買","最便宜","便宜","价格","價格","多少钱","多少錢","购物","購物","哪里买","哪裡買","淘宝","优惠","折扣"], taxi: ["打车","打車","出租车","計程車","的士","叫车","叫車","滴滴","uber"], train: ["火车","火車","高铁","高鐵","动车","车票","車票","订票","訂票","12306","台铁","高铁票"],
+      delivery: ["外卖","外賣","送餐","点餐","點餐","美团","饿了么","foodpanda","uber eats"], pay: ["转账","轉帳","付款","支付","汇款","匯款","支付宝","微信支付","转钱"], stay: ["酒店","飯店","住宿","民宿","旅馆","旅館","房间","房間"], book: ["订","訂","预订","預訂","预定","住","晚"],
+      call: ["打电话","打電話","电话","電話"], sms: ["短信","簡訊","发消息","發訊息"], question: ["怎么做","怎麼做","是什么","是什麼","为什么","為什麼","什么意思","方法","教程","食谱","怎么办"], stop: ["推荐","推薦","告诉我","告訴我","有没有","有沒有","哪里有","哪裡有","请","請","吗","嗎","一下","帮我","幫我","我想","我要","想去","想吃","有什么","什么","哪里","哪儿","附近的","好吃的","的","？","?"] },
+    th: { place: ["ร้านอาหาร","อาหาร","ของกิน","กิน","อร่อย","ร้านกาแฟ","คาเฟ่","ที่เที่ยว","เที่ยว","สถานที่ท่องเที่ยว","น่าไป","ไปไหนดี","แหล่งท่องเที่ยว"], near: ["ใกล้","แถวนี้","ใกล้ๆ","บริเวณ","รอบๆ"],
+      kinds: ["ร้านขายยา","โรงพยาบาล","คลินิก","เซเว่น","ร้านสะดวกซื้อ","ปั๊มน้ำมัน","ที่จอดรถ","ธนาคาร","ตู้เอทีเอ็ม","atm","โรงแรม","ห้องน้ำ","ตลาด","สวนสาธารณะ","ร้านตัดผม","ฟิตเนส","สถานี","สนามบิน","ไปรษณีย์"],
+      navi: ["นำทาง","ทางไป","ไปยังไง","ไปอย่างไร","เส้นทาง","พาไป","ไปที่","ไปส่ง"], music: ["เปิดเพลง","เล่นเพลง","ฟังเพลง","เพลง","ยูทูป","youtube","อยากฟัง"],
+      shop: ["ซื้อ","ราคา","ถูกที่สุด","ถูกๆ","เท่าไหร่","เท่าไร","ช้อปปิ้ง","ซื้อที่ไหน","โปรโมชั่น","ลดราคา"], taxi: ["แท็กซี่","เรียกรถ","แกร็บ","grab","โบลท์","bolt"], train: ["รถไฟ","ตั๋วรถไฟ","จองตั๋ว","รถไฟฟ้า","บีทีเอส"],
+      delivery: ["สั่งอาหาร","เดลิเวอรี่","ส่งอาหาร","สั่งข้าว","แกร็บฟู้ด","grabfood","ไลน์แมน","lineman"], pay: ["โอนเงิน","โอน","จ่ายเงิน","พร้อมเพย์","ชำระ"], stay: ["โรงแรม","ที่พัก","รีสอร์ท","โฮสเทล","ห้องพัก"], book: ["จอง","คืน","พัก"],
+      call: ["โทร","โทรหา"], sms: ["ส่งข้อความ","ข้อความ","sms"], question: ["วิธี","คืออะไร","ทำไม","หมายความว่า","สูตร","ทำยังไง"], stop: ["แนะนำ","หน่อย","ที่ไหน","ครับ","ค่ะ","คะ","ให้หน่อย","แถวนี้","ใกล้ๆ","อยาก","เรียก","ขอ","?"] },
+    vi: { place: ["nhà hàng","quán ăn","ăn gì","ăn ngon","ngon","quán cà phê","cà phê","cafe","quán nhậu","địa điểm","du lịch","tham quan","chỗ chơi","đi đâu","vui chơi","check in"], near: ["gần","gần đây","quanh đây","xung quanh","ở đây"],
+      kinds: ["hiệu thuốc","nhà thuốc","bệnh viện","phòng khám","cửa hàng tiện lợi","circle k","cây xăng","bãi đỗ xe","bãi đậu xe","ngân hàng","atm","khách sạn","siêu thị","chợ","nhà vệ sinh","công viên","tiệm tóc","phòng gym","ga tàu","sân bay","bưu điện"],
+      navi: ["chỉ đường","đường đi","đi đến","dẫn đường","lộ trình","đường tới","đưa tôi","đi tới"], music: ["mở nhạc","phát nhạc","phát bài","nghe nhạc","bài hát","nhạc","youtube","mở bài"],
+      shop: ["mua","giá","rẻ nhất","giá rẻ","bao nhiêu tiền","mua sắm","mua ở đâu","khuyến mãi","giảm giá","shopee"], taxi: ["taxi","gọi xe","grab","xe ôm","be ","gojek"], train: ["tàu hỏa","tàu lửa","vé tàu","đặt vé tàu","đường sắt"],
+      delivery: ["giao hàng","giao đồ ăn","đặt đồ ăn","ship đồ ăn","đặt món","grabfood","shopeefood","baemin"], pay: ["chuyển tiền","chuyển khoản","thanh toán","momo","zalopay","gửi tiền"], stay: ["khách sạn","chỗ ở","nhà nghỉ","homestay","phòng","resort"], book: ["đặt","đêm","ở lại","thuê"],
+      call: ["gọi điện","gọi cho","điện thoại"], sms: ["nhắn tin","tin nhắn","sms"], question: ["cách","là gì","tại sao","nghĩa là","hướng dẫn","công thức","làm sao"], stop: ["gợi ý","cho tôi","ở đâu","có","nhé","giúp","tìm","với","nào","?","đến","tới","ở","gần đây","quanh đây","gần","tôi","mình","muốn","hãy","đi","gọi","ra","đặt"] },
+    id: { place: ["restoran","rumah makan","makan","makanan","enak","kafe","warung","kuliner","tempat wisata","wisata","tempat nongkrong","jalan-jalan","tempat menarik","liburan","tempat makan","makan apa"], near: ["dekat","sekitar","terdekat","di sini","sekitar sini","berdekatan"],
+      kinds: ["apotek","apotik","farmasi","rumah sakit","klinik","minimarket","indomaret","alfamart","spbu","pom bensin","parkir","bank","atm","hotel","supermarket","pasar","toilet","taman","salon","barber","gym","stasiun","bandara","kantor pos","terminal"],
+      navi: ["arah ke","rute","petunjuk arah","navigasi","cara ke","antar ke","jalan ke","pergi ke","menuju","bawa saya","tunjukkan jalan"], music: ["putar","putarkan","mainkan","dengar","dengarkan","lagu","musik","youtube","setel"],
+      shop: ["beli","harga","termurah","murah","berapa","belanja","beli di mana","promo","diskon","tokopedia","shopee","lazada"], taxi: ["taksi","taxi","grab","gojek","gocar","pesan mobil","pesan ojek","ojek"], train: ["kereta","krl","tiket kereta","pesan tiket","kai","mrt"],
+      delivery: ["pesan makanan","antar makanan","delivery","gofood","grabfood","shopeefood","pesan antar"], pay: ["transfer","kirim uang","bayar","ovo","dana","gopay","qris","transfer uang"], stay: ["hotel","penginapan","villa","homestay","hostel","kamar"], book: ["pesan","booking","menginap","malam","sewa"],
+      call: ["telepon","telpon","hubungi"], sms: ["kirim pesan","sms","wa ","whatsapp"], question: ["cara","apa itu","kenapa","mengapa","artinya","tutorial","resep","bagaimana"], stop: ["rekomendasi","rekomendasikan","tolong","di mana","dimana","ada","dong","ya","carikan","cari","yang","saya","aku","ingin","mau","?","sini","di sini","dekat sini","sekitar sini","dekat","terdekat","ke","di","yang enak","enak","tempat","pesan","panggil","antar"] },
+    es: { place: ["restaurante","comer","comida","rico","cafetería","café","bar","tapas","lugares para visitar","qué ver","que ver","turístico","turistico","atracciones","sitios","dónde ir","donde ir","qué hacer","que hacer","paseo","salir"], near: ["cerca","cercano","por aquí","por aqui","alrededor","más cercano","mas cercano"],
+      kinds: ["farmacia","hospital","clínica","clinica","gasolinera","parking","estacionamiento","banco","cajero","hotel","supermercado","mercado","baño","parque","peluquería","peluqueria","gimnasio","estación","estacion","metro","aeropuerto","correos"],
+      navi: ["cómo llegar","como llegar","cómo llego","como llego","ruta","dirección a","direccion a","llévame","llevame","navegar","ir a","camino a","indicaciones"], music: ["pon ","reproduce","reproducir","escuchar","canción","cancion","música","musica","youtube","ponme"],
+      shop: ["comprar","precio","más barato","mas barato","barato","cuánto cuesta","cuanto cuesta","cuánto vale","compras","dónde comprar","donde comprar","oferta","rebajas","descuento"], taxi: ["taxi","uber","cabify","didi","pedir un coche","pide un taxi"], train: ["tren","renfe","ave ","billete","boleto","reservar tren","pasaje"],
+      delivery: ["pedir comida","delivery","a domicilio","rappi","glovo","uber eats","pedidos"], pay: ["enviar dinero","transferir","transferencia","pagar","bizum","mandar dinero","paypal"], stay: ["hotel","hostal","alojamiento","habitación","habitacion","airbnb","hospedaje","posada"], book: ["reservar","reserva","noches","noche","alojarme","quedarme"],
+      call: ["llamar","llama a","llamada"], sms: ["mensaje","sms","enviar un mensaje","whatsapp"], question: ["cómo se hace","como se hace","qué es","que es","por qué","por que","significa","receta","cómo hacer","como hacer"], stop: ["recomienda","recomiéndame","recomiendame","dónde","donde","hay","por favor","quiero","busca","buscar","encuentra","un","una","unos","unas","el","la","los","las","de","en","para","me","algún","alguna","?","¿","aquí","aqui","al","a la","hasta","cerca","cercano","por aquí","por aqui","alrededor","pide","pedir","llama","llamar"] },
+    fr: { place: ["restaurant","manger","bon resto","cuisine","café","brasserie","bar","à visiter","a visiter","que voir","touristique","attractions","endroits","où aller","ou aller","balade","que faire","sortir","bonne adresse"], near: ["près","pres","proche","à côté","a cote","autour","par ici","le plus proche"],
+      kinds: ["pharmacie","hôpital","hopital","clinique","station-service","station service","parking","banque","distributeur","hôtel","hotel","supermarché","supermarche","marché","marche","toilettes","parc","coiffeur","salle de sport","gare","métro","metro","aéroport","aeroport","poste"],
+      navi: ["itinéraire","itineraire","comment aller","comment me rendre","route vers","emmène-moi","emmene-moi","naviguer","aller à","aller a","direction","chemin pour"], music: ["mets ","joue ","écouter","ecouter","chanson","musique","youtube","lance"],
+      shop: ["acheter","prix","moins cher","pas cher","combien coûte","combien coute","shopping","où acheter","ou acheter","promo","soldes","réduction"], taxi: ["taxi","uber","vtc","bolt","heetch","commande un taxi"], train: ["train","sncf","tgv","billet","réserver un train","reserver un train","ouigo"],
+      delivery: ["commander","livraison","à emporter","deliveroo","uber eats","se faire livrer"], pay: ["envoyer de l'argent","virement","payer","lydia","paypal","transférer","transferer"], stay: ["hôtel","hotel","auberge","hébergement","hebergement","chambre","airbnb","gîte","gite"], book: ["réserver","reserver","réservation","nuits","nuit","dormir"],
+      call: ["appeler","appelle","appel"], sms: ["message","sms","texto","envoyer un message","whatsapp"], question: ["comment faire","c'est quoi","qu'est-ce que","pourquoi","signifie","recette","comment on fait"], stop: ["recommande","conseille","où","ou","il y a","s'il te plaît","s'il vous plaît","stp","svp","je veux","je cherche","trouve","trouver","un","une","des","le","la","les","de","du","en","pour","moi","me","?","ici","d'ici","au","aux","à","a","vers","près","pres","proche","à côté","a cote","autour","commande","commander","appelle"] },
+    de: { place: ["restaurant","essen gehen","essen","lecker","café","cafe","bar","kneipe","sehenswürdigkeiten","sehenswurdigkeiten","was kann man","ausflug","orte","wohin","sehenswert","unternehmen","gut essen"], near: ["in der nähe","in der nahe","nahe","hier","umgebung","nächste","nachste","nächstgelegene"],
+      kinds: ["apotheke","krankenhaus","arzt","tankstelle","parkplatz","bank","geldautomat","hotel","supermarkt","markt","toilette","park","friseur","fitnessstudio","bahnhof","u-bahn","flughafen","post"],
+      navi: ["route","wegbeschreibung","wie komme ich","navigation","bring mich","fahren nach","weg nach","navigiere","wie kommt man","richtung"], music: ["spiel ","spiele ","abspielen","hören","horen","lied","song","musik","youtube","anhören"],
+      shop: ["kaufen","preis","billigste","günstig","gunstig","billig","wie viel kostet","was kostet","shopping","wo kaufen","angebot","rabatt","einkaufen"], taxi: ["taxi","uber","bolt","freenow","taxi rufen"], train: ["zug","bahn","ice","fahrkarte","ticket","zugticket","db "],
+      delivery: ["bestellen","lieferung","lieferando","liefern lassen","wolt","uber eats"], pay: ["geld senden","überweisen","uberweisen","überweisung","bezahlen","paypal","geld schicken"], stay: ["hotel","unterkunft","pension","zimmer","airbnb","hostel","ferienwohnung"], book: ["buchen","buchung","übernachtung","ubernachtung","nächte","nachte","nacht","übernachten"],
+      call: ["anrufen","ruf ","anruf"], sms: ["nachricht","sms","schreib ","whatsapp"], question: ["wie macht man","was ist","warum","bedeutet","rezept","anleitung","wie funktioniert"], stop: ["empfiehl","empfehlung","wo","gibt es","bitte","ich möchte","ich mochte","ich will","suche","finde","ein","eine","einen","der","die","das","in","nach","mir","mich","?","zum","zur","nach","zu","hier","in der nähe","in der nahe","nahe","umgebung","rufen","ruf","bestellen"] },
+    it: { place: ["ristorante","mangiare","buono","trattoria","pizzeria","caffè","caffe","bar","da visitare","cosa vedere","turistico","attrazioni","posti","dove andare","cosa fare","gita","aperitivo"], near: ["vicino","qui vicino","nei dintorni","intorno","più vicino","piu vicino"],
+      kinds: ["farmacia","ospedale","clinica","benzinaio","distributore","parcheggio","banca","bancomat","hotel","supermercato","mercato","bagno","parco","parrucchiere","palestra","stazione","metro","aeroporto","posta"],
+      navi: ["come arrivare","come arrivo","percorso","indicazioni","portami","navigare","andare a","strada per","come raggiungere"], music: ["metti ","riproduci","ascoltare","canzone","musica","youtube","fammi sentire"],
+      shop: ["comprare","prezzo","più economico","piu economico","economico","quanto costa","shopping","dove comprare","offerta","sconto","acquistare"], taxi: ["taxi","uber","chiama un taxi","freenow"], train: ["treno","trenitalia","italo","biglietto","prenotare treno","frecciarossa"],
+      delivery: ["ordinare","consegna","a domicilio","glovo","deliveroo","just eat","ordina"], pay: ["inviare soldi","bonifico","pagare","paypal","satispay","mandare soldi"], stay: ["hotel","albergo","alloggio","camera","b&b","airbnb","ostello","agriturismo"], book: ["prenotare","prenotazione","notti","notte","dormire","soggiornare"],
+      call: ["chiamare","chiama","telefonare"], sms: ["messaggio","sms","scrivi a","whatsapp"], question: ["come si fa","cos'è","che cos'è","perché","perche","significa","ricetta","come fare"], stop: ["consiglia","consigliami","dove","c'è","ce","per favore","voglio","cerco","trova","trovare","un","una","il","lo","la","i","gli","le","di","a","in","per","mi","?","al","alla","allo","ai","agli","alle","qui","vicino","qui vicino","nei dintorni","intorno","chiama","chiamare","ordina","ordinare"] },
+    pt: { place: ["restaurante","comer","comida","gostoso","café","cafe","bar","boteco","lugares para visitar","o que fazer","turístico","turistico","atrações","atracoes","pontos turísticos","onde ir","passeio","o que ver","rolê","role"], near: ["perto","próximo","proximo","por aqui","ao redor","mais próximo","mais proximo"],
+      kinds: ["farmácia","farmacia","hospital","clínica","clinica","posto de gasolina","posto","estacionamento","banco","caixa eletrônico","caixa eletronico","hotel","supermercado","mercado","banheiro","parque","cabeleireiro","barbearia","academia","estação","estacao","metrô","metro","aeroporto","correios"],
+      navi: ["como chegar","como chego","rota","direção","direcao","me leve","me leva","navegar","ir para","caminho para","trajeto"], music: ["toca ","tocar","reproduzir","ouvir","música","musica","canção","cancao","youtube","coloca"],
+      shop: ["comprar","preço","preco","mais barato","barato","quanto custa","compras","onde comprar","promoção","promocao","desconto","oferta"], taxi: ["táxi","taxi","uber","99","chamar um carro","indriver"], train: ["trem","passagem de trem","bilhete","comboio"],
+      delivery: ["pedir comida","delivery","entrega","ifood","rappi","pedir"], pay: ["enviar dinheiro","transferir","pix","pagar","transferência","transferencia","mandar dinheiro"], stay: ["hotel","pousada","hospedagem","quarto","airbnb","hostel","resort"], book: ["reservar","reserva","noites","noite","hospedar","ficar"],
+      call: ["ligar","ligue","liga para","telefonar"], sms: ["mensagem","sms","mandar mensagem","whatsapp"], question: ["como fazer","o que é","o que e","por que","porque","significa","receita","como faço"], stop: ["recomenda","recomende","indica","onde","tem","por favor","quero","procuro","busca","encontre","um","uma","uns","umas","o","a","os","as","de","em","para","me","?","no","na","nos","nas","ao","à","até","aqui","perto","próximo","proximo","por aqui","de mim","chamar","chama","pedir"] },
+    nl: { place: ["restaurant","eten","lekker","café","cafe","bar","kroeg","bezienswaardigheden","wat te doen","uitje","plekken","waar naartoe","leuke plekken","uit eten"], near: ["in de buurt","dichtbij","hier","omgeving","dichtstbijzijnde","vlakbij"],
+      kinds: ["apotheek","ziekenhuis","huisarts","tankstation","parkeren","parkeerplaats","bank","geldautomaat","pinautomaat","hotel","supermarkt","markt","toilet","wc","park","kapper","sportschool","station","metro","luchthaven","postkantoor"],
+      navi: ["route","routebeschrijving","hoe kom ik","navigatie","breng me","rijden naar","weg naar","navigeer","richting"], music: ["speel ","afspelen","luisteren","liedje","nummer","muziek","youtube","zet "],
+      shop: ["kopen","prijs","goedkoopste","goedkoop","hoeveel kost","winkelen","waar kopen","aanbieding","korting","bol.com"], taxi: ["taxi","uber","bolt"], train: ["trein","ns ","treinkaartje","kaartje","ov"],
+      delivery: ["bestellen","bezorgen","bezorging","thuisbezorgd","uber eats","deliveroo"], pay: ["geld sturen","overmaken","betalen","tikkie","paypal","overschrijven"], stay: ["hotel","accommodatie","kamer","airbnb","hostel","vakantiehuis"], book: ["boeken","boeking","overnachting","nachten","nacht","overnachten","verblijven"],
+      call: ["bellen","bel ","telefoneren"], sms: ["bericht","sms","appen","whatsapp","sturen"], question: ["hoe maak je","wat is","waarom","betekent","recept","hoe werkt","uitleg"], stop: ["aanbevelen","aanrader","tip","waar","is er","zijn er","alsjeblieft","alstublieft","ik wil","zoek","vind","een","de","het","in","naar","voor","mij","me","?","naar","hier","in de buurt","dichtbij","vlakbij","omgeving","bij"] },
+    sv: { place: ["restaurang","äta","ata","mat","gott","kafé","kafe","café","bar","krog","sevärdheter","sevardheter","saker att göra","saker att gora","utflykt","platser","vart ska","ställen","stallen","äta ute"], near: ["nära","nara","i närheten","i narheten","här","har","närmaste","narmaste","runt"],
+      kinds: ["apotek","sjukhus","vårdcentral","vardcentral","bensinstation","mack","parkering","bank","bankomat","hotell","mataffär","mataffar","livsmedel","ica","toalett","park","frisör","frisor","gym","station","tunnelbana","flygplats","posten"],
+      navi: ["vägbeskrivning","vagbeskrivning","hur kommer jag","rutt","navigera","ta mig till","åka till","aka till","vägen till","vagen till","hitta till"], music: ["spela","lyssna","låt","lat","musik","youtube","sätt på","satt pa"],
+      shop: ["köpa","kopa","pris","billigast","billig","vad kostar","shopping","var köper","var koper","erbjudande","rea","rabatt"], taxi: ["taxi","uber","bolt"], train: ["tåg","tag ","sj","tågbiljett","tagbiljett","biljett","pendeltåg"],
+      delivery: ["beställa","bestalla","leverans","hemkörning","hemkorning","foodora","wolt","uber eats"], pay: ["skicka pengar","överföra","overfora","betala","swish","swisha"], stay: ["hotell","boende","rum","airbnb","vandrarhem","stuga"], book: ["boka","bokning","övernattning","overnattning","nätter","natter","natt","bo "],
+      call: ["ringa","ring "], sms: ["meddelande","sms","skicka","messa"], question: ["hur gör man","hur gor man","vad är","vad ar","varför","varfor","betyder","recept","hur fungerar"], stop: ["rekommendera","tips på","tips pa","var","finns","tack","jag vill","leta","hitta","en","ett","i","till","för","for","mig","?","till","här","har","nära","nara","i närheten","i narheten","runt","mig"] },
+    pl: { place: ["restauracja","zjeść","zjesc","jeść","jesc","jedzenie","pyszne","kawiarnia","bar","pub","knajpa","atrakcje","co zobaczyć","co zobaczyc","zwiedzanie","miejsca","gdzie iść","gdzie isc","warto zobaczyć","co robić","co robic"], near: ["blisko","w pobliżu","w poblizu","tutaj","najbliższa","najblizsza","najbliższy","okolica","niedaleko"],
+      kinds: ["apteka","szpital","przychodnia","stacja benzynowa","stacja paliw","parking","bank","bankomat","hotel","sklep","market","biedronka","toaleta","park","fryzjer","siłownia","silownia","dworzec","metro","lotnisko","poczta"],
+      navi: ["jak dojechać","jak dojechac","jak dojść","jak dojsc","trasa","nawigacja","zaprowadź","zaprowadz","jedź do","jedz do","droga do","nawiguj","dojazd"], music: ["puść","pusc","włącz","wlacz","odtwórz","odtworz","posłuchać","posluchac","piosenka","piosenkę","muzyka","muzykę","youtube"],
+      shop: ["kupić","kupic","cena","najtaniej","tanio","ile kosztuje","zakupy","gdzie kupić","gdzie kupic","promocja","allegro","przecena"], taxi: ["taksówka","taksowka","taxi","uber","bolt","freenow"], train: ["pociąg","pociag","pkp","bilet","intercity","kolej"],
+      delivery: ["zamówić","zamowic","dostawa","pyszne.pl","glovo","uber eats","wolt","zamów"], pay: ["wyślij pieniądze","wyslij pieniadze","przelew","zapłać","zaplac","blik","przelać","przelac","revolut"], stay: ["hotel","nocleg","pokój","pokoj","airbnb","hostel","pensjonat","apartament"], book: ["zarezerwować","zarezerwowac","rezerwacja","noce","noc","zatrzymać"],
+      call: ["zadzwoń","zadzwon","dzwoń","telefon"], sms: ["wiadomość","wiadomosc","sms","napisz do","whatsapp"], question: ["jak zrobić","jak zrobic","co to jest","dlaczego","znaczy","przepis","jak działa","instrukcja"], stop: ["poleć","polec","polecasz","gdzie","jest","są","sa","proszę","prosze","chcę","chce","szukam","znajdź","znajdz","jakieś","jakies","w","do","na","mi","?","do","na","tutaj","blisko","w pobliżu","w poblizu","niedaleko","okolica","zamów","zamówić","zamowic"] },
+    tr: { place: ["restoran","yemek","lezzetli","kafe","kahve","bar","meyhane","gezilecek yerler","görülecek","gorulecek","turistik","gezi","nereye gid","mekan","ne yenir","yemek yeri"], near: ["yakın","yakin","yakında","yakinda","buralarda","en yakın","en yakin","civar","çevre"],
+      kinds: ["eczane","hastane","klinik","benzin istasyonu","benzinlik","otopark","banka","atm","otel","market","süpermarket","supermarket","tuvalet","park","kuaför","kuafor","berber","spor salonu","istasyon","metro","havalimanı","havalimani","postane"],
+      navi: ["nasıl giderim","nasil giderim","nasıl gidilir","nasil gidilir","yol tarifi","rota","navigasyon","beni götür","beni gotur","gidelim","yolu"], music: ["çal","cal ","oynat","dinle","şarkı","sarki","müzik","muzik","youtube","aç"],
+      shop: ["satın al","satin al","almak istiyorum","fiyat","en ucuz","ucuz","ne kadar","kaç para","kac para","alışveriş","alisveris","nereden alınır","nereden alinir","indirim","kampanya","trendyol"], taxi: ["taksi","uber","bitaksi","taksi çağır"], train: ["tren","yht","tcdd","bilet","marmaray"],
+      delivery: ["sipariş","siparis","yemek sipariş","teslimat","yemeksepeti","getir","trendyol yemek"], pay: ["para gönder","para gonder","havale","eft","ödeme","odeme","papara","öde"], stay: ["otel","konaklama","pansiyon","oda","airbnb","hostel","apart"], book: ["rezervasyon","gece","kalmak","rezerve"],
+      call: ["ara","arama","telefon et"], sms: ["mesaj","sms","yaz","whatsapp"], question: ["nasıl yapılır","nasil yapilir","nedir","neden","anlamı","anlami","tarif","nasıl çalışır"], stop: ["öner","oner","tavsiye","nerede","var mı","var mi","lütfen","lutfen","istiyorum","bul","bana","bir","de","da","?","ye","ya","e","a","buralarda","yakın","yakin","yakında","yakinda","civar","bana","beni","çağır","cagir","sipariş","siparis"] },
+    ar: { place: ["مطعم","مطاعم","أكل","اكل","طعام","لذيذ","كافيه","كوفي","مقهى","أماكن سياحية","اماكن سياحية","سياحة","معالم","أماكن","اماكن","وين أروح","وين اروح","فين أروح","نتفسح","مكان حلو"], near: ["قريب","قريبة","بالقرب","حولي","هنا","أقرب","اقرب"],
+      kinds: ["صيدلية","مستشفى","عيادة","محطة بنزين","بنزين","موقف","مواقف","بنك","صراف","فندق","سوبرماركت","بقالة","حمام","دورة مياه","حديقة","صالون","حلاق","نادي","جيم","محطة","مترو","مطار","بريد"],
+      navi: ["الطريق إلى","الطريق الى","كيف أروح","كيف اروح","كيف أصل","كيف اوصل","اتجاهات","ملاحة","وديني","خذني","دلني"], music: ["شغل","تشغيل","اسمع","أغنية","اغنية","موسيقى","يوتيوب","youtube","سمعني"],
+      shop: ["اشتري","أشتري","شراء","سعر","أرخص","ارخص","رخيص","بكم","كم سعر","تسوق","وين أشتري","وين اشتري","عرض","خصم","تخفيض","نون","امازون"], taxi: ["تاكسي","أوبر","اوبر","كريم","سيارة أجرة","اطلب سيارة"], train: ["قطار","تذكرة","الحرمين","سار","مترو"],
+      delivery: ["اطلب","توصيل","طلبات","هنقرستيشن","جاهز","طلب أكل","مرسول"], pay: ["حول","تحويل","ادفع","دفع","stc pay","أرسل فلوس","ارسل فلوس","فلوس"], stay: ["فندق","سكن","غرفة","شقة","منتجع","نزل"], book: ["حجز","احجز","ليلة","ليالي","أقيم"],
+      call: ["اتصل","كلم","مكالمة"], sms: ["رسالة","مسج","ارسل رسالة","واتساب"], question: ["كيف أسوي","كيف اسوي","كيف اعمل","ما هو","ما هي","ليش","لماذا","معنى","وصفة","طريقة"], stop: ["اقترح","وين","فين","فيه","لو سمحت","أبغى","ابغى","أبي","ابي","أريد","اريد","دور","ابحث","في","على","لي","؟","?","إلى","الى","ل","هنا","قريب","قريبة","بالقرب","حولي","أقرب","اقرب","اطلب","أطلب"] },
+    hi: { place: ["रेस्टोरेंट","रेस्तरां","खाना","खाने की जगह","स्वादिष्ट","ढाबा","कैफे","घूमने की जगह","घूमने","पर्यटन","दर्शनीय","कहाँ जाएं","कहां जाएं","मशहूर जगह"], near: ["पास","नज़दीक","नजदीक","आसपास","यहाँ","यहां","सबसे पास"],
+      kinds: ["दवाई","दवा","फार्मेसी","मेडिकल","अस्पताल","हॉस्पिटल","पेट्रोल पंप","पार्किंग","बैंक","एटीएम","होटल","सुपरमार्केट","बाज़ार","बाजार","शौचालय","टॉयलेट","पार्क","सैलून","जिम","स्टेशन","मेट्रो","एयरपोर्ट","डाकघर"],
+      navi: ["रास्ता","कैसे जाएं","कैसे पहुंचे","कैसे पहुँचे","नेविगेशन","ले चलो","जाना है","रूट","दिशा"], music: ["चलाओ","बजाओ","सुनना","सुनाओ","गाना","गीत","संगीत","यूट्यूब","youtube"],
+      shop: ["खरीदना","खरीदो","कीमत","सबसे सस्ता","सस्ता","कितने का","कितने में","शॉपिंग","कहाँ मिलेगा","कहां मिलेगा","ऑफर","डिस्काउंट","फ्लिपकार्ट","अमेज़न"], taxi: ["टैक्सी","ओला","उबर","कैब","रिक्शा","ऑटो"], train: ["ट्रेन","रेल","रेलगाड़ी","टिकट","irctc"],
+      delivery: ["ऑर्डर","डिलीवरी","खाना मंगवाना","मंगवाओ","swiggy","zomato","स्विगी","जोमैटो"], pay: ["पैसे भेजो","पैसे भेजना","ट्रांसफर","भुगतान","यूपीआई","upi","paytm","phonepe","गूगल पे"], stay: ["होटल","रहने की जगह","कमरा","धर्मशाला","गेस्ट हाउस","रिसॉर्ट"], book: ["बुक","बुकिंग","रात","रुकना","ठहरना"],
+      call: ["कॉल","फोन करो","फ़ोन","कॉल करो"], sms: ["मैसेज","संदेश","sms","भेजो","व्हाट्सएप"], question: ["कैसे बनाएं","कैसे बनाते","क्या है","क्यों","मतलब","रेसिपी","तरीका"], stop: ["बताओ","बताइए","सुझाव","कहाँ","कहां","है","हैं","कृपया","मुझे","चाहिए","ढूंढो","खोजो","का","की","के","में","?","पास","पास में","नज़दीक","नजदीक","आसपास","यहाँ","यहां","को","तक","करो","कर दो","दो","बुलाओ","ऑर्डर"] }
+  };
+  /* 글자 모양으로 언어 고르기. 라틴 문자면 낱말이 가장 많이 맞는 언어 */
+  var LATIN = ["es","fr","de","it","pt","nl","sv","pl","tr","id"];
+  function allWords(d) { var out = []; for (var k in d) if (d.hasOwnProperty(k) && k !== "stop") out = out.concat(d[k]); return out; }
+  var LETTER = null; try { LETTER = new RegExp("\\p{L}", "u"); } catch (e) { LETTER = /[A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF\u0590-\u06FF\u0900-\u097F\u1E00-\u1EFF]/; }
+  function isLetter(ch) { return !!ch && LETTER.test(ch); }
+  function hasWord(q, w, cjk) {
+    if (!w) return false;
+    if (cjk) return q.indexOf(w) >= 0;
+    var at = -1;
+    while ((at = q.indexOf(w, at + 1)) >= 0) {
+      if (!isLetter(q.charAt(at - 1)) && !isLetter(q.charAt(at + w.length))) return true;
+    }
+    return false;
+  }
+  function hits(q, words, cjk) { var n = 0; for (var i = 0; i < words.length; i++) if (hasWord(q, words[i], cjk)) n++; return n; }
+  function isCjk(lang) { return /^(ja|zh|th)$/.test(lang); }
+  function detectLang(q) {
+    if (/[぀-ヿ]/.test(q)) return "ja";
+    if (/[一-鿿]/.test(q)) return "zh";
+    if (/[฀-๿]/.test(q)) return "th";
+    if (/[؀-ۿ]/.test(q)) return "ar";
+    if (/[ऀ-ॿ]/.test(q)) return "hi";
+    if (/[ăâđêôơưĂÂĐÊÔƠƯ]|[àáảãạèéẻẽẹìíỉĩịòóỏõọùúủũụỳýỷỹỵ]/.test(q) && /[ạảẹẻịỉọỏụủđư]/.test(q)) return "vi";
+    var best = "", bn = 0, lq = q.toLowerCase();
+    for (var i = 0; i < LATIN.length; i++) { var n = hits(lq, allWords(L[LATIN[i]]), false); if (n > bn) { bn = n; best = LATIN[i]; } }
+    return bn ? best : "";
+  }
+  /* 현지어로 판별 → {kind, q, lang} */
+  function classifyL(q) {
+    var lang = detectLang(q); if (!lang) return null;
+    var d = L[lang], lq = q.toLowerCase(), cjk = isCjk(lang);
+    var has = function (k) { return !!(d[k] && hits(lq, d[k], cjk)); };
+    var n = hits(lq, allWords(d), cjk);   /* 몇 낱말이나 맞았나 — 영어 규칙과 겹칠 때 우선순위 판단에 씀 */
+    var question = has("question");
+    var out = function (kind) { return { kind: kind, q: q, lang: lang, n: n }; };
+    if (has("pay") && !question && !has("sms")) return out("pay");
+    if (has("call") && numIn(q)) return out("call");
+    if (has("sms") && numIn(q)) return out("sms");
+    if (has("taxi") && !question) return out("taxi");
+    if (has("train") && !question) return out("train");
+    if (has("delivery") && !question) return out("delivery");
+    if (has("stay") && has("book") && !question) return out("stay");
+    if (has("navi")) return out("navi");
+    if (has("music")) return out("music");
+    if (!question && (has("place") || (has("near") && has("kinds")))) return out("place");
+    if (!question && has("shop") && !has("place") && !has("kinds")) return out("shop");
+    return null;
+  }
+  /* 현지어 검색어 다듬기: 그 언어의 의도 낱말·군더더기만 빼고 장소·물건 이름은 남긴다 */
+  function stripL(q, lang, kinds) {
+    var d = L[lang]; if (!d) return q;
+    var words = [].concat(d.stop || []);
+    for (var i = 0; i < kinds.length; i++) words = words.concat(d[kinds[i]] || []);
+    words.sort(function (a, b) { return b.length - a.length; });
+    var cjk = /^(ja|zh|th)$/.test(lang), out = q;
+    for (var k = 0; k < words.length; k++) {
+      var w = String(words[k] || "").trim(); if (!w) continue;
+      /* 일본어·중국어·태국어는 띄어쓰기가 없어 글자 그대로, 그 외는 낱말 경계(앞뒤 공백·문장부호)에서만 지운다 */
+      if (cjk) { out = out.split(w).join(" "); continue; }
+      var lo = out.toLowerCase(), at = -1, parts = [], last = 0;
+      while ((at = lo.indexOf(w.toLowerCase(), at + 1)) >= 0) {
+        if (!isLetter(lo.charAt(at - 1)) && !isLetter(lo.charAt(at + w.length))) { parts.push(out.slice(last, at)); last = at + w.length; at = last - 1; }
+      }
+      parts.push(out.slice(last)); out = parts.join(" ");
+    }
+    return out.replace(/[?？¿؟!¡。、，,]/g, " ").replace(/\s+/g, " ").trim() || q;
+  }
   function classify(t) {
     t = String(t || "").trim(); if (!t) return null;
+    var en = classifyKE(t), lr = classifyL(t);
+    if (lr && (!en || lr.n >= 2 || isCjk(lr.lang) || /^(ar|hi|vi)$/.test(lr.lang) || (en.kind === "place" && lr.kind !== "place"))) return lr;
+    return en;
+  }
+  /* 한국어·영어 규칙 */
+  function classifyKE(t) {
     var q = t;
     if (any(R.pay, q) && notQuestion(q) && !/문자|메시지|카톡/.test(q) && (amountOf(q) || /토스|송금|이체|venmo|paypal|cash\s*app|zelle|upi|transfer/i.test(q))) return { kind: "pay", q: q };
     if (any(R.call, q) && notQuestion(q) && /(걸|연결|통화|해\s*줘|해줘|줘|콜|call|dial|ring)/i.test(q) && !/번호\s*(뭐|알려|찾|등록|저장)/.test(q) && !any(R.taxi, q)) return { kind: "call", q: q };
@@ -196,7 +372,7 @@
     if (any(R.stay, q) && any(R.stayWord, q) && notQuestion(q)) return { kind: "stay", q: q };
     if (any(R.navi, q)) return { kind: "navi", q: q };
     if (any(R.music, q)) return { kind: "music", q: q };
-    if (R.place[0].test(q) || R.place[1].test(q) || R.place[2].test(q) || (any(R.placeNear, q) && any(R.placeKinds, q))) return { kind: "place", q: q };
+    if (any([R.place[0], R.place[1], R.place[2]], q) || (any(R.placeNear, q) && any(R.placeKinds, q))) return { kind: "place", q: q };
     if (!any([/(맛집|카페|식당|술집|숙소|펜션|호텔|관광|여행|가볼만|놀거리|근처|주변|길\s*안내|예약|항공권|비행기표|전화|문자|메일)/], q) && notQuestion(q)) {
       var shopWord = any(R.shopWord, q), buy = any(R.shopBuy, q), ask = any(R.shopAsk, q);
       if (shopWord || (buy && ask)) return { kind: "shop", q: q };
@@ -224,7 +400,16 @@
   /* ── 판별 결과 → 열 주소 ── */
   function build(r, c) {
     var q = r.q, k = r.kind;
-    if (k === "place") return mapsSearch(r.query || clean(q), c);
+    if (r.lang && !r.query) {
+      if (k === "place") r.query = stripL(q, r.lang, ["near"]);
+      else if (k === "navi") r.query = stripL(q, r.lang, ["navi"]);
+      else if (k === "shop") r.query = stripL(q, r.lang, ["shop"]);
+      else if (k === "music") r.query = stripL(q, r.lang, ["music"]);
+      else if (k === "taxi") r.query = stripL(q, r.lang, ["taxi", "navi"]);
+      else if (k === "delivery") r.query = stripL(q, r.lang, ["delivery"]);
+      if (k === "place" && r.lang && !r.query) r.query = q;
+    }
+    if (k === "place") { var pq = r.query || clean(q); if (/^(근처|주변|여기|가까운|이\s*근방|근방)?$/.test(pq.trim())) pq = (pq.trim() || "근처") + " 맛집"; return mapsSearch(pq, c); }   /* "배고파 근처 뭐 먹지" → 근처 맛집 */
     if (k === "navi") return mapsDir(r.query || naviDest(q), c);
     if (k === "music") return music(r.query || q, c);
     if (k === "shop") return shop(r.query || shopTopic(q), c);
@@ -232,9 +417,9 @@
     if (k === "sms") { var n2 = numIn(q), body = (r.body || String(q).replace(/(\+?\d[\d\-\s]{6,}\d)/g, " ").replace(/^\s*.+?(에게|한테|께서|께)/, "").replace(/(문자|메시지|메세지|sms|전송|발신|보내\s*줘?|보내|써\s*줘?|작성|줘|해\s*줘?|해|좀|부탁(해|해줘)?|\btext\b|\bsend\b|\bmessage\b|\bto\b)/gi, " ").replace(/\s+/g, " ").trim().replace(/고\s*$/, "")); return { u: "sms:" + n2 + (body ? "?body=" + E(body) : ""), w: "💬 문자" }; }
     if (k === "taxi") return taxi(r.query || taxiDest(q), c);
     if (k === "train") return train(q, c);
-    if (k === "delivery") return delivery(q, c);
+    if (k === "delivery") return delivery(r.query || q, c);
     if (k === "pay") return pay(q, c);
-    if (k === "stay") return stay(q, c);
+    if (k === "stay") { if (r.lang) { var sres = stay(q, c), nm = stripL(stayInfo(q).stay, r.lang, ["stay", "book"]); if (nm && nm !== sres.info.stay) { sres.u = sres.u.split(E(sres.info.stay)).join(E(nm)); if (sres.alt) sres.alt.u = sres.alt.u.split(E(sres.info.stay)).join(E(nm)); sres.info.stay = nm; } return sres; } return stay(q, c); }
     return null;
   }
   /* 한국 밖에서 한국어로 치면 지도·쇼핑 검색어만 영어로 (cf-ui-lang.js 의 무료 번역기, 실패하면 원문) */
@@ -244,6 +429,7 @@
     window.cfUiLang.translate(text, "en", function (out) { if (done) return; done = true; clearTimeout(t); cb(out || text); });
   }
   /* ── 규칙 실패 시 AI(Claude Fable 5.1)에게 한 번: /api/quick-intent ── */
+  var AI_FALLBACK = false;   /* 규칙에 안 걸린 문장을 AI(크레딧 차감)에게 물을지. false 면 바로 채팅으로 — 오타·발음 오류로 크레딧이 나가지 않게 */
   var AI_COST = 1;   /* 표시용 기본값. 서버 GET /api/quick-intent 의 cost 로 갱신 */
   function aiClassify(text, c, cb) {
     var tok = null;
@@ -276,10 +462,10 @@
       finish(build(rr, c));
     };
     if (r) { go(r); return; }
-    if (opts.noAI) { cb(null); return; }
+    if (opts.noAI || !AI_FALLBACK) { cb(null); return; }
     aiClassify(text, c, function (j) { if (!j) { cb(null); return; } go({ kind: j.kind, q: text, query: j.query || "", body: j.body || "" }); });
   }
-  try { fetch("/api/quick-intent").then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j && j.cost != null) AI_COST = Number(j.cost) || 0; })["catch"](function () {}); } catch (e) {}
+  if (AI_FALLBACK) try { fetch("/api/quick-intent").then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j && j.cost != null) AI_COST = Number(j.cost) || 0; })["catch"](function () {}); } catch (e) {}
   window.cfQuick = { country: country, setCountry: setCountry, isOverride: isOverride, classify: classify, build: build, decide: decide, stayInfo: stayInfo, amountOf: amountOf, aiCost: function () { return AI_COST; }, onAI: null,
     /* 세계 주요 경제국 30 (관리자 시험 칩·확인표에 쓰임) */
     COUNTRIES: [["AUTO", "🌐 자동(시간대)"], ["KR", "🇰🇷 대한민국"], ["US", "🇺🇸 미국"], ["JP", "🇯🇵 일본"], ["CN", "🇨🇳 중국"], ["IN", "🇮🇳 인도"], ["GB", "🇬🇧 영국"], ["DE", "🇩🇪 독일"], ["FR", "🇫🇷 프랑스"], ["ES", "🇪🇸 스페인"], ["IT", "🇮🇹 이탈리아"],

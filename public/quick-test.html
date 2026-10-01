@@ -25,7 +25,7 @@
 </head>
 <body>
 <h1>🧭 coverfo 빠른 실행 · 나라별 확인표</h1>
-<div class="sub">홈 입력칸에 이런 문장을 치면 채팅 대신 어느 앱·사이트가 열리는지, 나라를 바꿔 가며 미리 봅니다. 링크를 눌러 실제로 열어 볼 수 있어요(폰에서 열면 앱이 뜹니다). 이 표는 판별 규칙만 씁니다 — AI 보조 판단(규칙에 없는 문장, 크레딧 소액 차감)은 홈에서 로그인 후에만 동작.</div>
+<div class="sub">홈 입력칸에 이런 문장을 치면 채팅 대신 어느 앱·사이트가 열리는지, 나라를 바꿔 가며 미리 봅니다. 링크를 눌러 실제로 열어 볼 수 있어요(폰에서 열면 앱이 뜹니다). 규칙에 없는 문장은 크레딧 차감 없이 그냥 채팅으로 갑니다(AI 보조 판단은 꺼 둠).</div>
 <div class="row">
   <label>나라 <select id="c"></select></label>
   <input id="q" placeholder="직접 시험: 예) 뉴욕 맛집 알려줘">
@@ -35,7 +35,7 @@
 <div id="tbl"></div>
 <div class="box" id="how"></div>
 <script src="/cf-ui-lang.js?v=3"></script>
-<script src="/cf-quick.js?v=2"></script>
+<script src="/cf-quick.js?v=4"></script>
 <script>
 (function(){
   var SAMPLES=[
@@ -45,7 +45,10 @@
     "서울에서 부산 KTX 예매","book a train to Boston","치킨 배달 시켜줘","order pizza delivery",
     "토스로 국민은행 123456789012 에 3만원 송금","send $20 to @alex-jones","send $20 to @alex via venmo","send 500 to friend@upi",
     "12월 24일 강릉 호텔 2박 3명 예약","book a hotel in Miami for 2 nights on Dec 24 for 3 people",
-    "김치찌개 끓이는 방법","이순신 장군은 누구야"
+    "김치찌개 끓이는 방법","이순신 장군은 누구야",
+    "新宿の近くで美味しいラーメン教えて","東京タワーまでの行き方","附近有什么好吃的餐厅","怎么去天安门","ร้านอาหารอร่อยแถวนี้","quán ăn ngon gần đây","restoran enak dekat sini",
+    "restaurantes cerca de aquí","cómo llegar al museo del prado","itinéraire pour la tour eiffel","wie komme ich zum brandenburger tor","come arrivare al colosseo","como chegar no cristo redentor",
+    "route naar rijksmuseum","vägbeskrivning till gamla stan","jak dojechać do wawelu","taksim nasıl giderim","مطاعم قريبة","ताज महल का रास्ता","pizza bestellen","احجز فندق في الرياض ليلتين"
   ];
   var sel=document.getElementById("c"), tbl=document.getElementById("tbl");
   window.cfQuick.COUNTRIES.forEach(function(x){ var o=document.createElement("option"); o.value=x[0]; o.textContent=x[1]; sel.appendChild(o); });
