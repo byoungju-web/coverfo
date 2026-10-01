@@ -29,7 +29,9 @@
     London: ["en", "영국", "GB"], Dublin: ["en", "아일랜드", "IE"],
     Sydney: ["en", "호주", "AU"], Melbourne: ["en", "호주", "AU"], Brisbane: ["en", "호주", "AU"], Perth: ["en", "호주", "AU"], Adelaide: ["en", "호주", "AU"], Auckland: ["en", "뉴질랜드", "NZ"], Singapore: ["en", "싱가포르", "SG"], Manila: ["en", "필리핀", "PH"],
     Bangkok: ["th", "태국", "TH"], Ho_Chi_Minh: ["vi", "베트남", "VN"], Jakarta: ["id", "인도네시아", "ID"],
-    Rome: ["it", "이탈리아", "IT"], Amsterdam: ["nl", "네덜란드", "NL"], Lisbon: ["pt", "포르투갈", "PT"], Sao_Paulo: ["pt", "브라질", "BR"], Dubai: ["ar", "아랍에미리트", "AE"]
+    Rome: ["it", "이탈리아", "IT"], Amsterdam: ["nl", "네덜란드", "NL"], Lisbon: ["pt", "포르투갈", "PT"], Sao_Paulo: ["pt", "브라질", "BR"], Dubai: ["ar", "아랍에미리트", "AE"],
+    Riyadh: ["ar", "사우디아라비아", "SA"], Istanbul: ["tr", "튀르키예", "TR"], Warsaw: ["pl", "폴란드", "PL"], Stockholm: ["sv", "스웨덴", "SE"], Oslo: ["no", "노르웨이", "NO"], Copenhagen: ["da", "덴마크", "DK"], Helsinki: ["fi", "핀란드", "FI"],
+    Kuala_Lumpur: ["ms", "말레이시아", "MY"], Johannesburg: ["en", "남아프리카", "ZA"], Cairo: ["ar", "이집트", "EG"], Karachi: ["ur", "파키스탄", "PK"], Dhaka: ["bn", "방글라데시", "BD"]
   };
   function LS(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function LSS(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }

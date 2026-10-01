@@ -73,43 +73,70 @@
   function numIn(q) { var m = (q || "").match(/(\+?\d[\d\-\s]{6,}\d)/); return m ? m[1].replace(/[^0-9+]/g, "") : ""; }
 
   /* ── 여는 곳: 나라별 ── */
+  /* ── 나라별 서비스 표 (30개 주요 경제국) — 각 회사가 공개한 주소 형식·공개 페이지만 ──
+     지도: Google Maps URLs (KR 네이버지도, CN 高德 URI API — 구글이 막혀 있음)
+     택시: Uber 운영국은 Uber 유니버설 링크, 그 외는 Google Maps 길찾기(택시 앱 공개 링크가 없는 나라: 동남아 Grab·중국 DiDi·브라질 99 등)
+     기차: 각국 국영/대표 철도 예매 사이트 홈, 없으면 Google Maps 대중교통
+     배달: Uber Eats 운영국은 Uber Eats 검색, 미국·캐나다·호주 DoorDash, 동남아 GrabFood 나라 페이지, 그 외 Google Maps "배달" 검색 */
+  var UBER = { US:1, CA:1, GB:1, IE:1, FR:1, DE:1, ES:1, IT:1, NL:1, BE:1, CH:1, AT:1, PL:1, SE:1, TR:1, AU:1, NZ:1, JP:1, HK:1, TW:1, IN:1, SA:1, AE:1, MX:1, BR:1, AR:1, ZA:1 };
+  var UBEREATS = { US:1, CA:1, GB:1, IE:1, FR:1, DE:1, ES:1, IT:1, NL:1, BE:1, CH:1, SE:1, PL:1, AU:1, NZ:1, JP:1, TW:1, HK:1, MX:1, BR:1, SA:1, AE:1, ZA:1 };
+  var GRABFOOD = { SG:"sg", TH:"th", VN:"vn", ID:"id", MY:"my", PH:"ph" };
+  var TRAIN = { US:["https://www.amtrak.com/","Amtrak"], CA:["https://www.viarail.ca/","VIA Rail"], JP:["https://smart-ex.jp/","신칸센 EX"], GB:["https://www.thetrainline.com/","Trainline"],
+    DE:["https://www.bahn.de/","DB"], FR:["https://www.sncf-connect.com/","SNCF"], ES:["https://www.renfe.com/","Renfe"], IT:["https://www.trenitalia.com/","Trenitalia"], NL:["https://www.ns.nl/","NS"],
+    BE:["https://www.belgiantrain.be/","SNCB"], CH:["https://www.sbb.ch/","SBB"], AT:["https://www.oebb.at/","ÖBB"], SE:["https://www.sj.se/","SJ"], PL:["https://www.intercity.pl/","PKP Intercity"],
+    TR:["https://ebilet.tcddtasimacilik.gov.tr/","TCDD"], IN:["https://www.irctc.co.in/","IRCTC"], CN:["https://www.12306.cn/","12306"], TW:["https://www.thsrc.com.tw/","台灣高鐵"], HK:["https://www.mtr.com.hk/","MTR"],
+    ID:["https://www.kai.id/","KAI"], MY:["https://www.ktmb.com.my/","KTMB"], TH:["https://www.dticket.railway.co.th/","SRT 태국철도"], VN:["https://dsvn.vn/","베트남철도"], SA:["https://www.sar.com.sa/","SAR"] };
+  function gmapsOk(c) { return c !== "CN"; }   /* 중국 본토는 구글 서비스가 막혀 있음 */
   function mapsSearch(q, c) {
     if (c === "KR") return { u: "https://map.naver.com/p/search/" + E(q), w: "📍 네이버지도" };
+    if (c === "CN") return { u: "https://uri.amap.com/search?keyword=" + E(q) + "&view=map&src=coverfo", w: "📍 高德地图" };   /* 高德 URI API(공식) */
     /* 아이폰도 Google Maps 우선(공식 Maps URLs). 앱이 없으면 웹 지도가 열린다 */
     return { u: "https://www.google.com/maps/search/?api=1&query=" + E(q), w: "📍 Google Maps" };
   }
   function mapsDir(dest, c) {
     if (c === "KR") return { u: "https://map.naver.com/p/search/" + E(dest), w: "🧭 네이버지도 길찾기" };
+    if (c === "CN") return { u: "https://uri.amap.com/search?keyword=" + E(dest) + "&view=map&src=coverfo", w: "🧭 高德地图", note: "중국은 구글 지도가 막혀 있어 高德 검색으로 엽니다. 길안내는 지도 안에서 눌러 주세요." };
     return { u: "https://www.google.com/maps/dir/?api=1&destination=" + E(dest) + "&travelmode=driving", w: "🧭 Google Maps 내비" };
   }
   function shop(q, c) {
     if (c === "KR") return { u: "https://search.shopping.naver.com/search/all?query=" + E(q) + "&sort=rel", w: "🛒 네이버쇼핑" };
+    if (c === "CN") return { u: "", w: "쇼핑", none: "중국 본토에서는 구글 쇼핑을 열 수 없어요. 타오바오·징둥 앱에서 직접 검색해 주세요." };
     /* 한국 밖: Google 쇼핑 탭 (구글 자체 검색 주소). 나라별 쇼핑몰 검색 링크는 약관 확인이 안 돼 쓰지 않는다 */
     return { u: "https://www.google.com/search?tbm=shop&q=" + E(q), w: "🛒 Google 쇼핑" };
   }
   function taxi(dest, c) {
     if (c === "KR") return isIOS() ? { u: "https://apps.apple.com/kr/app/id981110422", w: "🚕 카카오T (앱스토어)", note: "아이폰은 카카오T 공개 링크가 없어 앱 설치/열기 화면으로 갑니다." } : { u: "intent://launch#Intent;scheme=kakaot;package=com.kakao.taxi;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kakao.taxi;end", w: "🚕 카카오T" };
-    /* Uber 공식 유니버설 링크 (목적지만 채워짐 · 호출 확인은 본인이) */
-    var u = "https://m.uber.com/ul/?action=setPickup&pickup=my_location" + (dest ? "&dropoff[formatted_address]=" + E(dest) : "");
-    return { u: u, w: "🚕 Uber", alt: { u: "https://ride.lyft.com/", w: "Lyft (홈)" } };   /* Lyft 공식 SDK 링크는 위도·경도만 받고 주소 형식은 확인 안 됨 → 홈만 */
+    if (UBER[c]) {
+      /* Uber 공식 유니버설 링크 (목적지만 채워짐 · 호출 확인은 본인이) */
+      var u = "https://m.uber.com/ul/?action=setPickup&pickup=my_location" + (dest ? "&dropoff[formatted_address]=" + E(dest) : "");
+      return { u: u, w: "🚕 Uber", alt: c === "US" ? { u: "https://ride.lyft.com/", w: "Lyft (홈)" } : undefined };
+    }
+    if (c === "CN") return { u: "", w: "택시", none: "중국은 디디(滴滴) 공개 링크가 없어 앱에서 직접 불러 주세요." };
+    /* Grab(동남아)·99(브라질) 등은 공개 호출 링크가 없음 → 목적지까지 길찾기만 */
+    return dest ? { u: "https://www.google.com/maps/dir/?api=1&destination=" + E(dest), w: "🧭 Google Maps 길찾기", note: "이 나라는 택시 앱 공개 링크가 없어 길찾기로 엽니다. 호출은 Grab 등 현지 앱에서." } : { u: "", w: "택시", none: "이 나라는 택시 앱 공개 링크가 없어요. Grab 등 현지 앱에서 불러 주세요." };
   }
   function train(q, c) {
     if (c === "KR") return { u: /srt|수서/i.test(q) ? "https://etk.srail.kr/main.do" : "https://www.letskorail.com/", w: "🚄 기차 예매" };
-    if (c === "US" || c === "CA") return { u: "https://www.amtrak.com/", w: "🚄 Amtrak" };
-    if (c === "JP") return { u: "https://smart-ex.jp/", w: "🚄 신칸센 EX" };
-    if (c === "GB") return { u: "https://www.thetrainline.com/", w: "🚄 Trainline" };
-    if (c === "DE") return { u: "https://www.bahn.de/", w: "🚄 DB" }; if (c === "FR") return { u: "https://www.sncf-connect.com/", w: "🚄 SNCF" }; if (c === "ES") return { u: "https://www.renfe.com/", w: "🚄 Renfe" };
+    if (TRAIN[c]) return { u: TRAIN[c][0], w: "🚄 " + TRAIN[c][1] };
+    if (!gmapsOk(c)) return { u: "", w: "기차", none: "이 나라의 기차 예매 사이트가 등록돼 있지 않아요." };
     return { u: "https://www.google.com/maps/dir/?api=1&travelmode=transit&destination=" + E(q), w: "🚄 Google Maps 대중교통" };
   }
   function delivery(q, c) {
     if (c === "KR") return { u: /배민|배달의민족/.test(q) ? "https://www.baemin.com/" : /쿠팡이츠|이츠/.test(q) ? "https://www.coupangeats.com/" : "https://www.yogiyo.co.kr/", w: "🛵 배달" };
     var food = clean(q.replace(/(doordash|uber\s*eats|grubhub|order|deliver(y|ed)?|from|배달|시켜|주문|줘)/gi, ""));
-    if (/uber\s*eats/i.test(q)) return { u: "https://www.ubereats.com/search?q=" + E(food), w: "🛵 Uber Eats" };
+    if (/uber\s*eats/i.test(q) && UBEREATS[c]) return { u: "https://www.ubereats.com/search?q=" + E(food), w: "🛵 Uber Eats" };
     if (c === "US" || c === "CA" || c === "AU") return { u: "https://www.doordash.com/search/store/" + E(food) + "/", w: "🛵 DoorDash" };
-    return { u: "https://www.ubereats.com/search?q=" + E(food), w: "🛵 Uber Eats" };
+    if (GRABFOOD[c]) return { u: "https://food.grab.com/" + GRABFOOD[c] + "/en/", w: "🛵 GrabFood", note: "GrabFood 는 검색어를 받는 공개 주소가 없어 나라 첫 화면으로 엽니다." };
+    if (UBEREATS[c]) return { u: "https://www.ubereats.com/search?q=" + E(food), w: "🛵 Uber Eats" };
+    if (c === "IN") return { u: "https://www.zomato.com/", w: "🛵 Zomato" };
+    if (c === "TR") return { u: "https://www.yemeksepeti.com/", w: "🛵 Yemeksepeti" };
+    if (c === "AR") return { u: "https://www.pedidosya.com.ar/", w: "🛵 PedidosYa" };
+    if (c === "CN") return { u: "", w: "배달", none: "중국은 메이퇀(美团) 공개 링크가 없어 앱에서 직접 주문해 주세요." };
+    return { u: "https://www.google.com/maps/search/?api=1&query=" + E(food + " delivery"), w: "📍 Google Maps (배달 가능한 곳)" };
   }
-  function music(q) {
+  function music(q, c) {
     var t = String(q || "").replace(/유튜브에서|유튜브|유툽|유투브|youtube|on youtube/gi, "").replace(/틀어\s*줘?|들려\s*줘?|재생\s*해?\s*줘?|재생|플레이\s*해?\s*줘?|\bplay\b|listen\s*to|좀|해\s*줘?|켜\s*줘?|찾아\s*줘?|\b(the|a|some)\s*(song|music|video)\b/gi, "").replace(/\s+/g, " ").trim() || q;
+    if (c === "CN") return { u: "https://search.bilibili.com/all?keyword=" + E(t), w: "▶ bilibili", note: "중국은 유튜브가 막혀 있어 bilibili 검색으로 엽니다." };
     return { u: "https://www.youtube.com/results?search_query=" + E(t), w: "▶ YouTube" };
   }
   /* 송금·페이: 앱이 받는 사람·금액을 채운 채 열린다. 비밀번호·확인은 본인이 (각 회사 공개 링크 형식) */
@@ -199,7 +226,7 @@
     var q = r.q, k = r.kind;
     if (k === "place") return mapsSearch(r.query || clean(q), c);
     if (k === "navi") return mapsDir(r.query || naviDest(q), c);
-    if (k === "music") return music(r.query || q);
+    if (k === "music") return music(r.query || q, c);
     if (k === "shop") return shop(r.query || shopTopic(q), c);
     if (k === "call") { var n = numIn(q); return n ? { u: "tel:" + n, w: "📞 전화" } : { u: "", w: "전화", none: "전화번호를 같이 말해 주세요 (예: 010-1234-5678로 전화)" }; }
     if (k === "sms") { var n2 = numIn(q), body = (r.body || String(q).replace(/(\+?\d[\d\-\s]{6,}\d)/g, " ").replace(/^\s*.+?(에게|한테|께서|께)/, "").replace(/(문자|메시지|메세지|sms|전송|발신|보내\s*줘?|보내|써\s*줘?|작성|줘|해\s*줘?|해|좀|부탁(해|해줘)?|\btext\b|\bsend\b|\bmessage\b|\bto\b)/gi, " ").replace(/\s+/g, " ").trim().replace(/고\s*$/, "")); return { u: "sms:" + n2 + (body ? "?body=" + E(body) : ""), w: "💬 문자" }; }
@@ -254,5 +281,8 @@
   }
   try { fetch("/api/quick-intent").then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j && j.cost != null) AI_COST = Number(j.cost) || 0; })["catch"](function () {}); } catch (e) {}
   window.cfQuick = { country: country, setCountry: setCountry, isOverride: isOverride, classify: classify, build: build, decide: decide, stayInfo: stayInfo, amountOf: amountOf, aiCost: function () { return AI_COST; }, onAI: null,
-    COUNTRIES: [["AUTO", "🌐 자동(시간대)"], ["KR", "🇰🇷 대한민국"], ["US", "🇺🇸 미국"], ["JP", "🇯🇵 일본"], ["CN", "🇨🇳 중국"], ["IN", "🇮🇳 인도"], ["GB", "🇬🇧 영국"], ["DE", "🇩🇪 독일"], ["FR", "🇫🇷 프랑스"], ["ES", "🇪🇸 스페인"], ["TH", "🇹🇭 태국"], ["VN", "🇻🇳 베트남"], ["CA", "🇨🇦 캐나다"], ["AU", "🇦🇺 호주"]] };
+    /* 세계 주요 경제국 30 (관리자 시험 칩·확인표에 쓰임) */
+    COUNTRIES: [["AUTO", "🌐 자동(시간대)"], ["KR", "🇰🇷 대한민국"], ["US", "🇺🇸 미국"], ["JP", "🇯🇵 일본"], ["CN", "🇨🇳 중국"], ["IN", "🇮🇳 인도"], ["GB", "🇬🇧 영국"], ["DE", "🇩🇪 독일"], ["FR", "🇫🇷 프랑스"], ["ES", "🇪🇸 스페인"], ["IT", "🇮🇹 이탈리아"],
+      ["CA", "🇨🇦 캐나다"], ["AU", "🇦🇺 호주"], ["BR", "🇧🇷 브라질"], ["MX", "🇲🇽 멕시코"], ["NL", "🇳🇱 네덜란드"], ["CH", "🇨🇭 스위스"], ["SE", "🇸🇪 스웨덴"], ["BE", "🇧🇪 벨기에"], ["AT", "🇦🇹 오스트리아"], ["PL", "🇵🇱 폴란드"], ["TR", "🇹🇷 튀르키예"],
+      ["SA", "🇸🇦 사우디"], ["AE", "🇦🇪 UAE"], ["SG", "🇸🇬 싱가포르"], ["HK", "🇭🇰 홍콩"], ["TW", "🇹🇼 대만"], ["TH", "🇹🇭 태국"], ["VN", "🇻🇳 베트남"], ["ID", "🇮🇩 인도네시아"], ["MY", "🇲🇾 말레이시아"], ["AR", "🇦🇷 아르헨티나"]] };
 })();
