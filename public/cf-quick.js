@@ -91,7 +91,7 @@
     if (c === "KR") return isIOS() ? { u: "https://apps.apple.com/kr/app/id981110422", w: "🚕 카카오T (앱스토어)", note: "아이폰은 카카오T 공개 링크가 없어 앱 설치/열기 화면으로 갑니다." } : { u: "intent://launch#Intent;scheme=kakaot;package=com.kakao.taxi;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kakao.taxi;end", w: "🚕 카카오T" };
     /* Uber 공식 유니버설 링크 (목적지만 채워짐 · 호출 확인은 본인이) */
     var u = "https://m.uber.com/ul/?action=setPickup&pickup=my_location" + (dest ? "&dropoff[formatted_address]=" + E(dest) : "");
-    return { u: u, w: "🚕 Uber", alt: { u: "https://ride.lyft.com/?destination" + (dest ? "[address]=" + E(dest) : "") , w: "Lyft" } };
+    return { u: u, w: "🚕 Uber", alt: { u: "https://ride.lyft.com/", w: "Lyft (홈)" } };   /* Lyft 공식 SDK 링크는 위도·경도만 받고 주소 형식은 확인 안 됨 → 홈만 */
   }
   function train(q, c) {
     if (c === "KR") return { u: /srt|수서/i.test(q) ? "https://etk.srail.kr/main.do" : "https://www.letskorail.com/", w: "🚄 기차 예매" };
