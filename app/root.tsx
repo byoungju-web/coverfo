@@ -69,7 +69,7 @@ export const Head = createHead(() => (
     <Links />
     <script dangerouslySetInnerHTML={{ __html: inlineThemeCode }} />
     {/* coverfo 화면 언어 — 홈과 같은 파일. 한국어가 아니면 화면 글자를 번역해 바꿔 넣습니다 */}
-    <script src="/cf-ui-lang.js?v=3" defer />
+    <script src="/cf-ui-lang.js?v=4" defer />
   </>
 ));
 
