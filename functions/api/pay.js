@@ -5,7 +5,7 @@
 //   TOSS_CLIENT_KEY   토스 클라이언트 키 (test_ck_… 로 시작하면 테스트 결제)
 //   TOSS_SECRET_KEY   토스 시크릿 키   (test_sk_… / live_sk_…)
 //   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY  (gen.js 와 동일)
-// 선택: PACKAGES  예) "starter:100:9900,plus:300:27000,pro:1000:79000"  (이름:크레딧:원)
+// 선택: PACKAGES  예) "starter:100:9900,plus:550:49000,pro:1200:99000"  (이름:크레딧:원) — Cloudflare 변수에 PACKAGES 가 있으면 그 값이 우선
 //
 //   GET  /api/pay?config=1                       → { url, anonKey, clientKey, packages, testMode }
 //   GET  /api/pay?me=1                           → { email, free, paid, orders:[...] }   (로그인 필요)
@@ -20,7 +20,7 @@ function redirect(url) {
   return new Response(null, { status: 302, headers: { Location: url, 'Cache-Control': 'no-store' } });
 }
 function cfg(env) {
-  const raw = String(env.PACKAGES || 'starter:100:9900,plus:300:27000,pro:1000:79000');
+  const raw = String(env.PACKAGES || 'starter:100:9900,plus:550:49000,pro:1200:99000');   /* 1크레딧 99원 · 550은 10% 더 · 1,200은 20% 더 (포도톡 상품과 같은 값) */
   const packages = raw.split(',').map((s) => s.trim()).filter(Boolean).map((s) => {
     const p = s.split(':');
     return { id: p[0], credits: parseInt(p[1], 10), amount: parseInt(p[2], 10) };
