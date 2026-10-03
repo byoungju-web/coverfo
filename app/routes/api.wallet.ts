@@ -12,6 +12,7 @@
  *     {op:'unlink'}          로그인만               → { ok }                     코드 삭제 (연결 끊기)
  *     {op:'spend', item, qty?, ownKey?, ref?, note?} → { ok, id, cost, paid } | 402 { error:'insufficient', need, paid }
  *     {op:'refund', id}                             → { ok, paid }
+ *     {op:'give', item, qty?, ref?, note?}          → { ok, paid }   돌려주기(포도톡 서버가 번역 실패 등으로 되돌릴 때 — sql/cf_wallet_give.sql 필요)
  *   무료 크레딧(free_balance)은 여기서 쓰지 않습니다 — coverfo 안 채팅에만 (월 선착순 규칙이 거기 있음).
  *   필요한 것: sql/cf_wallet.sql 1회 실행
  */
@@ -35,6 +36,7 @@ const PRICES: Record<string, number> = {
   video: 25,
   engine_app: 30,
   engine_asset: 25,
+  pt: 0.1, /* 포도톡 자체 단위 1크레딧 (표에 없는 종류를 포도톡 서버가 보낼 때) */
 };
 const HALF_WITH_OWN_KEY = ['fast', 'quality', 'search']; /* 내 AI 키를 넣으면 절반 */
 
@@ -301,6 +303,27 @@ export async function action({ request, context }: ActionFunctionArgs) {
       }
 
       return reply(request, { ok: true, id: r.id, cost, paid: Number(r.paid || 0), won: WON, dup: !!r.dup });
+    }
+
+    if (op === 'give') {
+      const item = String(body.item || '');
+      const qty = Math.max(0, Number(body.qty || 1)) || 1;
+      const amount = costOf(item, qty, false);
+
+      if (amount === null) {
+        return reply(request, { error: '모르는 item 입니다', items: Object.keys(PRICES) }, 400);
+      }
+
+      const r = await rpc(c, 'cf_wallet_give', {
+        p_user: who.id,
+        p_amount: amount,
+        p_item: item,
+        p_source: sourceOf(request, body.source),
+        p_ref: body.ref ? String(body.ref).slice(0, 120) : null,
+        p_note: body.note ? String(body.note).slice(0, 200) : null,
+      });
+
+      return reply(request, { ok: !!r?.ok, paid: Number(r?.paid || 0), won: WON, dup: !!r?.dup });
     }
 
     if (op === 'refund') {
