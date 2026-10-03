@@ -448,6 +448,29 @@ node server.js
 
     useEffect(() => {
       chatStore.setKey('started', initialMessages.length > 0);
+
+      /*
+       * coverfo: 목록에서 지난 대화를 다시 열면 ?mode= 가 없어 기본값 'build'(앱 생성)가 됩니다.
+       * 그러면 글로만 묻던 대화(파리 볼 만한 곳…)에서 이어서 질문하고 Enter 를 누른 순간 앱 생성으로 넘어가
+       * "앱을 만들고 있어요…" 카드가 떴습니다. 저장된 메시지에 앱 생성 흔적('[제작 지시]'·boltArtifact)이 하나도 없으면
+       * 그 대화는 글 대화이므로 'discuss' 로 이어 갑니다. (주소에 ?mode= 가 있으면 그 값이 우선)
+       */
+      try {
+        const urlMode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('mode') : null;
+
+        if (!urlMode && initialMessages.length > 0) {
+          const wasBuild = initialMessages.some((m) => {
+            const c = typeof m.content === 'string' ? m.content : '';
+            return c.includes('[제작 지시]') || c.includes('<boltArtifact');
+          });
+
+          if (!wasBuild) {
+            setChatMode('discuss');
+          }
+        }
+      } catch {
+        // 판별이 안 되면 기본값 그대로
+      }
     }, []);
 
     // 왼쪽 목록에서 지난 채팅을 열면 채팅 화면이 먼저 보이게 합니다.

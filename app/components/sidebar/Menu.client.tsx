@@ -163,6 +163,32 @@ export const Menu = () => {
     };
   }, []);
 
+  // 화면 언어 칩 — 홈 사이드바와 같은 /cf-ui-lang.js (root.tsx 가 불러옴) 가 그립니다
+  const uiLangRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!footOpen) {
+      return undefined;
+    }
+
+    let tries = 0;
+    const t = setInterval(() => {
+      const w = window as any;
+
+      if (uiLangRef.current && w.cfUiLang && typeof w.cfUiLang.mount === 'function') {
+        try {
+          w.cfUiLang.mount(uiLangRef.current);
+        } catch {
+          // 칩을 못 그리면 빈 칸으로 둡니다
+        }
+        clearInterval(t);
+      } else if (++tries > 20) {
+        clearInterval(t);
+      }
+    }, 150);
+
+    return () => clearInterval(t);
+  }, [footOpen]);
+
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
@@ -828,9 +854,11 @@ export const Menu = () => {
             >
               <span className="i-ph:user-circle h-4 w-4 shrink-0" />
               <span className="truncate font-medium" title={myEmail || undefined}>{myEmail || '설정'}</span>
+              <span className={'ml-auto text-xs text-gray-400 transition-transform ' + (footOpen ? '-rotate-90' : '')}>›</span>
             </button>
             {footOpen && (
               <div className="pl-3 space-y-0.5">
+                {/* 홈(coverfo.com) 사이드바와 같은 항목·순서. 약관·개인정보·탈퇴·나라 시험은 홈의 창(#terms 등)으로 엽니다 */}
                 {!myEmail && (
                   <a
                     href="/"
@@ -846,50 +874,71 @@ export const Menu = () => {
                     onClick={handleLogout}
                     className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                   >
-                    <span className="i-ph:sign-out h-4 w-4 shrink-0" />
+                    <span className="i-ph:power h-4 w-4 shrink-0" />
                     <span>로그아웃</span>
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={handleSettingsClick}
+                  className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <span className="i-ph:key h-4 w-4 shrink-0" />
+                  <span>API 키 · 모델</span>
+                  <span className="ml-auto text-xs text-gray-400">›</span>
+                </button>
+                <div className="w-full flex flex-col items-start gap-1 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="i-ph:globe h-4 w-4 shrink-0" />
+                    <span>화면 언어</span>
+                  </div>
+                  <div className="text-[11.5px] leading-snug text-gray-500 dark:text-gray-400">
+                    국가를 고르면 화면이 그 나라 말로 바뀌어요. <b>자동</b>이면 폰 시간대(현재 위치)로 알아서 골라요.
+                  </div>
+                  <div ref={uiLangRef} className="cf-ui-lang w-full" data-cf-noui="1" />
+                </div>
                 {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={handleSettingsClick}
+                  <a
+                    href="/#quickc"
                     className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                   >
-                    <span className="i-ph:key h-4 w-4 shrink-0" />
-                    <span>API 키 · 모델 (운영자)</span>
-                  </button>
+                    <span className="i-ph:compass h-4 w-4 shrink-0" />
+                    <span>빠른 실행 나라 (관리자 시험용)</span>
+                    <span className="ml-auto text-xs text-gray-400">›</span>
+                  </a>
                 )}
-                <label className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer">
-                  <span className="i-ph:globe h-4 w-4 shrink-0" />
-                  <span>답변 언어</span>
-                  <select
-                    value={answerLang}
-                    onChange={(event) => handleAnswerLangChange(event.target.value)}
-                    className="ml-auto bg-transparent text-xs text-gray-600 dark:text-gray-300 focus:outline-none cursor-pointer"
-                    aria-label="답변 언어"
-                  >
-                    {ANSWER_LANGS.map((l) => (
-                      <option key={l.value} value={l.value}>
-                        {l.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
                 <a
-                  href="/pricing"
+                  href="/pricing#charge"
                   className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
                   <span className="i-ph:credit-card h-4 w-4 shrink-0" />
-                  <span>이용료 · 요금제</span>
+                  <span>이용료 · 충전 · 포도톡 연결</span>
+                  <span className="ml-auto text-xs text-gray-400">›</span>
                 </a>
-                <div className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2">
-                  <span className="i-ph:moon h-4 w-4 shrink-0" />
-                  <span>화면 모드</span>
-                  <div className="ml-auto">
-                    <ThemeSwitch />
-                  </div>
-                </div>
+                <a
+                  href="/#terms"
+                  className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <span className="i-ph:scroll h-4 w-4 shrink-0" />
+                  <span>이용약관</span>
+                  <span className="ml-auto text-xs text-gray-400">›</span>
+                </a>
+                <a
+                  href="/#privacy"
+                  className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <span className="i-ph:lock h-4 w-4 shrink-0" />
+                  <span>개인정보 처리방침</span>
+                  <span className="ml-auto text-xs text-gray-400">›</span>
+                </a>
+                <a
+                  href="/#withdraw"
+                  className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <span className="i-ph:door-open h-4 w-4 shrink-0" />
+                  <span>계정 탈퇴</span>
+                  <span className="ml-auto text-xs text-gray-400">›</span>
+                </a>
               </div>
             )}
         </div>
