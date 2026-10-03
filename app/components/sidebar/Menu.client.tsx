@@ -85,12 +85,16 @@ function useStudioRecent(limit = 6) {
   return items;
 }
 
-/* 사이드바 '화면 언어' — public/cf-ui-lang.js(포도톡과 같은 방식)가 칩을 그리고, 고르면 화면 번역 + 답변 언어(cf-answer-lang)를 함께 바꿉니다 */
-declare global {
-  interface Window {
-    cfUiLang?: { mount: (el: HTMLElement | null) => void; set: (v: string) => void; pick: () => string };
-  }
-}
+/* 사이드바 '답변 언어' 선택지 (값은 Chat.client 의 ANSWER_LANG_NAMES 와 같아야 합니다) */
+const ANSWER_LANG_KEY = 'cf-answer-lang';
+const ANSWER_LANGS = [
+  { value: 'auto', label: '자동 (질문 언어)' },
+  { value: 'ko', label: '한국어' },
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: '日本語' },
+  { value: 'zh', label: '中文' },
+  { value: 'th', label: 'ไทย' },
+];
 
 type DialogContent =
   | { type: 'delete'; item: ChatHistoryItem }
@@ -169,28 +173,23 @@ export const Menu = () => {
     window.location.href = '/';
   };
 
-  // 사이드바 하단 '화면 언어' 칩 — cf-ui-lang.js 가 그립니다 (스크립트가 늦게 오면 잠시 뒤 다시 시도)
-  const uiLangRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    let tries = 0;
-    const t = setInterval(() => {
-      if (window.cfUiLang && uiLangRef.current && !uiLangRef.current.hasChildNodes()) {
-        window.cfUiLang.mount(uiLangRef.current);
-        clearInterval(t);
-      } else if (++tries > 50) {
-        clearInterval(t);
-      }
-    }, 200);
-
-    return () => clearInterval(t);
-  }, []);
+  // 사이드바 하단 '답변 언어' — AI 가 어떤 언어로 답할지 (채팅 전송 시 Chat.client 가 읽습니다)
+  const [answerLang, setAnswerLang] = useState<string>(() => {
+    try {
+      return (typeof window !== 'undefined' && window.localStorage.getItem(ANSWER_LANG_KEY)) || 'auto';
+    } catch {
+      return 'auto';
+    }
+  });
 
   // 홈화면 사이드바의 '설정' 은 /chat?settings=1 로 들어옵니다 → 설정 창을 바로 엽니다
+  const fromHomeRef = useRef(false);
   useEffect(() => {
     try {
       const url = new URL(window.location.href);
 
       if (url.searchParams.get('settings') === '1') {
+        fromHomeRef.current = true; // 홈에서 왔으면 닫을 때 홈으로 돌아갑니다
         setIsSettingsOpen(true);
         url.searchParams.delete('settings');
         window.history.replaceState(window.history.state, '', url.toString());
@@ -199,6 +198,19 @@ export const Menu = () => {
       // 주소를 읽지 못하면 아무것도 하지 않습니다
     }
   }, []);
+
+  const handleAnswerLangChange = (value: string) => {
+    setAnswerLang(value);
+
+    try {
+      window.localStorage.setItem(ANSWER_LANG_KEY, value);
+    } catch {
+      // 저장이 안 되는 브라우저(사생활 보호 모드 등)에서는 이번 화면에서만 적용됩니다
+    }
+
+    const label = ANSWER_LANGS.find((l) => l.value === value)?.label || value;
+    toast.success(`답변 언어: ${label}`);
+  };
 
   const { filteredItems: filteredList, handleSearchChange } = useSearchFilter({
     items: list,
@@ -544,6 +556,14 @@ export const Menu = () => {
   const handleSettingsClose = () => {
     setIsSettingsOpen(false);
 
+    // 홈 사이드바 → API 키 · 모델 로 들어온 경우: X 를 누르면 채팅 화면이 아니라 홈으로 돌아갑니다
+    if (fromHomeRef.current) {
+      fromHomeRef.current = false;
+      window.location.replace('/');
+
+      return;
+    }
+
     if (isDesktop) {
       setOpen(true);
     }
@@ -869,17 +889,22 @@ export const Menu = () => {
                     <span>API 키 · 모델 (운영자)</span>
                   </button>
                 )}
-                <div className="w-full flex flex-col gap-1 rounded-lg px-3 py-2">
-                  <div className="flex items-center gap-2.5">
-                    <span className="i-ph:globe h-4 w-4 shrink-0" />
-                    <span>화면 언어</span>
-                  </div>
-                  <div className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">
-                    국가를 고르면 화면이 그 나라 말로 바뀌어요. <b>자동</b>이면 폰 시간대(현재 위치)로 알아서 골라요. AI 답변·사진
-                    분석·음성도 같은 말을 씁니다.
-                  </div>
-                  <div ref={uiLangRef} data-cf-noui="1" />
-                </div>
+                <label className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer">
+                  <span className="i-ph:globe h-4 w-4 shrink-0" />
+                  <span>답변 언어</span>
+                  <select
+                    value={answerLang}
+                    onChange={(event) => handleAnswerLangChange(event.target.value)}
+                    className="ml-auto bg-transparent text-xs text-gray-600 dark:text-gray-300 focus:outline-none cursor-pointer"
+                    aria-label="답변 언어"
+                  >
+                    {ANSWER_LANGS.map((l) => (
+                      <option key={l.value} value={l.value}>
+                        {l.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <a
                   href="/pricing"
                   className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"

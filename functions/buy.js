@@ -51,8 +51,6 @@ th{color:#666;font-weight:600}
 .wl-row{display:flex;gap:8px;margin-top:8px}
 .wl-row .wl-btn{flex:1}
 .wl-note{font-size:12.5px;color:#666;line-height:1.6;margin:6px 0 0}
-body.embed header,body.embed .foot,body.embed .card h1{display:none}
-body.embed .wrap{padding:4px 0 8px}
 .testbar{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:12px;padding:8px 12px;font-size:12.5px;margin-top:10px;display:none}
 </style>
 </head>
@@ -107,11 +105,6 @@ body.embed .wrap{padding:4px 0 8px}
   var $ = function(id){ return document.getElementById(id); };
   var q = new URLSearchParams(location.search);
   var CFG = null, client = null, token = null, me = null, pkg = null, method = 'CARD', busy = false;
-  var EMBED = q.get('embed') === '1';           /* 요금제 페이지(/pricing) 안에 iframe 으로 들어온 경우 */
-  if (EMBED) document.body.className = 'embed';
-  /* iframe 높이를 바깥(요금제 페이지)에 알려 준다 */
-  function tellHeight(){ if (!EMBED) return; try { window.parent.postMessage({ cfBuy: 'height', h: document.documentElement.scrollHeight }, location.origin); } catch (e) {} }
-  if (EMBED) { try { new ResizeObserver(tellHeight).observe(document.body); } catch (e) { setInterval(tellHeight, 800); } }
   /* 포도톡 연결 코드 (서버 /api/wallet) */
   function wapi(body){ return fetch('/api/wallet', { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token }, body: JSON.stringify(body) }).then(function(r){ return r.json().then(function(j){ j.__status = r.status; return j; }); }); }
   function wlShow(j){ var c = $('wlcode'), nw = $('wlnew'), un = $('wlunlink'); if ('code' in j) { c.value = j.code || ''; un.style.display = j.code ? '' : 'none'; nw.textContent = j.code ? '코드 다시 만들기' : '코드 만들기'; } }
@@ -173,7 +166,6 @@ body.embed .wrap{padding:4px 0 8px}
   });
   $('go').addEventListener('click', function(){
     if (busy || !pkg || !token) return;
-    if (EMBED) { try { window.top.location.href = '/buy?pkg=' + encodeURIComponent(pkg.id) + '&m=' + encodeURIComponent(method); } catch (e) { location.href = '/buy'; } return; }   /* 결제창은 전체 화면(/buy)에서 */
     busy = true; $('go').disabled = true; show('info', '결제창을 여는 중입니다…');
     api('POST', '', { op:'create', package: pkg.id }).then(function(j){
       if (j.__status !== 200) { busy=false; $('go').disabled=false; show('err', j.error || '주문 생성 실패'); return; }
@@ -211,7 +203,7 @@ body.embed .wrap{padding:4px 0 8px}
       return api('GET', '?me=1').then(function(j){ if (j.__status===200) { me = j; renderMe(); } });
     });
   }).then(function(){
-    if (q.get('done')) { show('ok', '충전됐습니다! +' + (q.get('credits')||'') + ' 크레딧. <a href="/engine">엔진으로 가기</a> · <a href="/studio">스튜디오로 가기</a>'); history.replaceState({}, '', EMBED ? '/buy?embed=1' : '/buy'); }
+    if (q.get('done')) { show('ok', '충전됐습니다! +' + (q.get('credits')||'') + ' 크레딧. <a href="/engine">엔진으로 가기</a> · <a href="/studio">스튜디오로 가기</a>'); history.replaceState({}, '', '/buy'); }
     else if (q.get('fail')) { show('err', q.get('fail')); history.replaceState({}, '', '/buy'); }
   }).catch(function(e){ show('err', '설정을 불러오지 못했습니다: ' + e); });
 })();
