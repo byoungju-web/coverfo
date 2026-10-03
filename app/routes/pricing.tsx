@@ -1,4 +1,5 @@
 import { json, type MetaFunction } from '@remix-run/cloudflare';
+import { useEffect, useState } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { Header } from '~/components/header/Header';
 
@@ -93,7 +94,7 @@ function PlanCard({ plan }: { plan: Plan }) {
       <div className="mt-6">
         {plan.highlight ? (
           <a
-            href="/buy"
+            href="#charge"
             className="block rounded-lg bg-accent-500 px-4 py-2.5 text-center text-sm font-medium text-white"
           >
             충전하기 (카드 · 계좌이체 · 간편결제)
@@ -108,6 +109,36 @@ function PlanCard({ plan }: { plan: Plan }) {
         )}
       </div>
     </div>
+  );
+}
+
+/* 충전 · 포도톡 연결 — /buy 페이지를 그대로 안에 넣는다 (결제창은 /buy 전체 화면에서 열림). 높이는 /buy 가 postMessage 로 알려 준다 */
+function ChargeBox() {
+  const [h, setH] = useState(900);
+
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) {
+        return;
+      }
+
+      const d: any = e.data || {};
+
+      if (d.cfBuy === 'height' && Number(d.h) > 200) {
+        setH(Math.min(2400, Math.ceil(Number(d.h)) + 8));
+      }
+    };
+    window.addEventListener('message', onMsg);
+
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  return (
+    <iframe
+      title="크레딧 충전 · 포도톡 연결"
+      src="/buy?embed=1"
+      style={{ width: '100%', height: h, border: 0, display: 'block', background: 'transparent' }}
+    />
   );
 }
 
@@ -128,6 +159,16 @@ export default function Pricing() {
           {PLANS.map((plan) => (
             <PlanCard key={plan.name} plan={plan} />
           ))}
+        </div>
+
+        <div id="charge" className="mt-10 rounded-xl border border-bolt-elements-borderColor p-4 sm:p-6">
+          <h2 className="text-base font-semibold text-bolt-elements-textPrimary">충전 · 포도톡 연결</h2>
+          <p className="mt-1 text-sm text-bolt-elements-textSecondary">
+            여기서 바로 충전하고, 포도톡·포도야에 연결하는 코드도 만듭니다. 1크레딧 = 99원, 세 서비스가 같은 지갑을 씁니다.
+          </p>
+          <div className="mt-4">
+            <ClientOnly>{() => <ChargeBox />}</ClientOnly>
+          </div>
         </div>
 
         <div className="mt-10 rounded-xl border border-bolt-elements-borderColor p-6">

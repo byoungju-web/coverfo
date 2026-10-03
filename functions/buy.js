@@ -44,6 +44,15 @@ th{color:#666;font-weight:600}
 .st.paid,.st.manual{background:#ecfdf5;color:#047857}.st.pending{background:#fffbeb;color:#92400e}.st.failed,.st.canceled{background:#fef2f2;color:#b91c1c}
 .foot{margin-top:18px;font-size:12px;color:#777;line-height:1.6;text-align:center}
 .foot a{color:#5B6CFF;font-weight:600;text-decoration:none}
+.wl-code{display:flex;gap:8px;align-items:center;margin:8px 0}
+.wl-code input{flex:1;height:44px;border:1px solid rgba(0,0,0,.12);border-radius:12px;text-align:center;font-weight:800;font-size:17px;letter-spacing:1px;font-family:inherit;background:#fafafa}
+.wl-btn{height:44px;padding:0 14px;border-radius:12px;border:0;background:#6D28D9;color:#fff;font-weight:700;cursor:pointer;font-family:inherit;font-size:13.5px}
+.wl-btn.sec{background:#111}.wl-btn.gray{background:#e5e5ea;color:#333}
+.wl-row{display:flex;gap:8px;margin-top:8px}
+.wl-row .wl-btn{flex:1}
+.wl-note{font-size:12.5px;color:#666;line-height:1.6;margin:6px 0 0}
+body.embed header,body.embed .foot,body.embed .card h1{display:none}
+body.embed .wrap{padding:4px 0 8px}
 .testbar{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:12px;padding:8px 12px;font-size:12.5px;margin-top:10px;display:none}
 </style>
 </head>
@@ -74,6 +83,15 @@ th{color:#666;font-weight:600}
     <a class="chip" href="/" style="display:inline-block;line-height:34px;background:#111;color:#fff;border-color:#111;text-decoration:none">홈으로 가서 로그인</a>
   </div>
 
+  <div class="card" id="wlbox" style="display:none">
+    <div style="font-size:16px;font-weight:800">🍇 포도톡 · 포도야에 연결</div>
+    <p class="sub" style="margin-top:4px">아래 코드를 포도톡 <b>설정 → 크레딧 지갑 → 연결 코드</b> 칸에 넣으면 포도톡(포도야 포함)이 이 크레딧을 같이 씁니다. 계정마다 코드는 하나이고, 다시 만들면 옛 코드는 꺼집니다. coverfo 홈 안에서 포도톡을 열면 코드 없이 자동 연결됩니다.</p>
+    <div class="wl-code"><input id="wlcode" readonly placeholder="아직 코드가 없습니다"><button type="button" class="wl-btn" id="wlcopy">복사</button></div>
+    <div class="wl-row"><button type="button" class="wl-btn sec" id="wlnew">코드 만들기</button><button type="button" class="wl-btn gray" id="wlunlink" style="display:none">연결 끊기</button></div>
+    <div class="wl-note" id="wlmsg"></div>
+    <div class="wl-note">1크레딧 = 99원 · 받아쓰기 0.1 · 빠른 답 0.2 · 웹검색 0.4 · 고품질 답 1 · 전화통역 6/분 — 어디서 써도 같은 지갑입니다.</div>
+  </div>
+
   <h3>충전 내역</h3>
   <div class="card" style="margin-top:0;padding:8px 12px">
     <table><thead><tr><th>날짜</th><th>크레딧</th><th>금액</th><th>상태</th></tr></thead><tbody id="orders"><tr><td colspan="4" style="color:#888">아직 없습니다.</td></tr></tbody></table>
@@ -89,6 +107,36 @@ th{color:#666;font-weight:600}
   var $ = function(id){ return document.getElementById(id); };
   var q = new URLSearchParams(location.search);
   var CFG = null, client = null, token = null, me = null, pkg = null, method = 'CARD', busy = false;
+  var EMBED = q.get('embed') === '1';           /* 요금제 페이지(/pricing) 안에 iframe 으로 들어온 경우 */
+  if (EMBED) document.body.className = 'embed';
+  /* iframe 높이를 바깥(요금제 페이지)에 알려 준다 */
+  function tellHeight(){ if (!EMBED) return; try { window.parent.postMessage({ cfBuy: 'height', h: document.documentElement.scrollHeight }, location.origin); } catch (e) {} }
+  if (EMBED) { try { new ResizeObserver(tellHeight).observe(document.body); } catch (e) { setInterval(tellHeight, 800); } }
+  /* 포도톡 연결 코드 (서버 /api/wallet) */
+  function wapi(body){ return fetch('/api/wallet', { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token }, body: JSON.stringify(body) }).then(function(r){ return r.json().then(function(j){ j.__status = r.status; return j; }); }); }
+  function wlShow(j){ var c = $('wlcode'), nw = $('wlnew'), un = $('wlunlink'); if ('code' in j) { c.value = j.code || ''; un.style.display = j.code ? '' : 'none'; nw.textContent = j.code ? '코드 다시 만들기' : '코드 만들기'; } }
+  function wlInit(){
+    if (!token) return;
+    $('wlbox').style.display = '';
+    wapi({ op:'balance' }).then(wlShow).catch(function(){});
+    $('wlnew').addEventListener('click', function(){
+      var has = !!$('wlcode').value;
+      if (has && !confirm('새 코드를 만들면 지금 코드로 연결된 포도톡은 끊깁니다. 다시 넣어야 해요. 계속할까요?')) return;
+      $('wlnew').disabled = true; $('wlmsg').textContent = '';
+      wapi({ op: has ? 'newcode' : 'code' }).then(function(j){ if (j.__status !== 200) throw new Error(j.error || '실패'); wlShow(j); $('wlmsg').textContent = '코드를 만들었습니다. 포도톡 설정에 넣어 주세요.'; })
+        .catch(function(e){ $('wlmsg').textContent = String(e && e.message || e); }).then(function(){ $('wlnew').disabled = false; });
+    });
+    $('wlunlink').addEventListener('click', function(){
+      if (!confirm('연결을 끊으면 포도톡은 다시 자체 지갑을 씁니다. 계속할까요?')) return;
+      wapi({ op:'unlink' }).then(function(j){ if (j.__status !== 200) throw new Error(j.error || '실패'); wlShow({ code:null }); $('wlmsg').textContent = '연결을 끊었습니다.'; }).catch(function(e){ $('wlmsg').textContent = String(e && e.message || e); });
+    });
+    $('wlcopy').addEventListener('click', function(){
+      var v = $('wlcode').value; if (!v) { $('wlmsg').textContent = '먼저 코드를 만들어 주세요.'; return; }
+      var done = function(){ $('wlmsg').textContent = '복사했습니다: ' + v; };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(done, function(){ $('wlcode').select(); document.execCommand('copy'); done(); });
+      else { $('wlcode').select(); document.execCommand('copy'); done(); }
+    });
+  }
   function show(t, h){ var m=$('msg'); m.className='msg on '+t; m.innerHTML=h; }
   function won(n){ return Number(n).toLocaleString('ko-KR') + '원'; }
   function api(method, qs, body){
@@ -125,6 +173,7 @@ th{color:#666;font-weight:600}
   });
   $('go').addEventListener('click', function(){
     if (busy || !pkg || !token) return;
+    if (EMBED) { try { window.top.location.href = '/buy?pkg=' + encodeURIComponent(pkg.id) + '&m=' + encodeURIComponent(method); } catch (e) { location.href = '/buy'; } return; }   /* 결제창은 전체 화면(/buy)에서 */
     busy = true; $('go').disabled = true; show('info', '결제창을 여는 중입니다…');
     api('POST', '', { op:'create', package: pkg.id }).then(function(j){
       if (j.__status !== 200) { busy=false; $('go').disabled=false; show('err', j.error || '주문 생성 실패'); return; }
@@ -153,11 +202,16 @@ th{color:#666;font-weight:600}
     return client.auth.getSession().then(function(r){
       var s = r && r.data && r.data.session;
       if (!s) { $('loginbox').style.display='block'; $('credit').innerHTML='<i style="background:#ccc"></i>로그인 필요'; renderPk(); return; }
-      token = s.access_token; renderPk();
+      token = s.access_token;
+      var want = q.get('pkg'); if (want) { var found = (c.packages||[]).filter(function(p){ return p.id === want; })[0]; if (found) pkg = found; }
+      var wm = q.get('m'); if (wm && /^(CARD|TRANSFER|MOBILE_PHONE)$/.test(wm)) { method = wm; Array.prototype.forEach.call(document.querySelectorAll('#methods .chip'), function(b){ b.classList.toggle('on', b.getAttribute('data-m') === wm); }); }
+      renderPk();
+      try { wlInit(); } catch (e) {}
+      if (want) { show('info', '아래 <b>결제하기</b>를 누르면 결제창이 열립니다.'); try { $('go').scrollIntoView({ block:'center' }); } catch (e) {} history.replaceState({}, '', '/buy'); }
       return api('GET', '?me=1').then(function(j){ if (j.__status===200) { me = j; renderMe(); } });
     });
   }).then(function(){
-    if (q.get('done')) { show('ok', '충전됐습니다! +' + (q.get('credits')||'') + ' 크레딧. <a href="/engine">엔진으로 가기</a> · <a href="/studio">스튜디오로 가기</a>'); history.replaceState({}, '', '/buy'); }
+    if (q.get('done')) { show('ok', '충전됐습니다! +' + (q.get('credits')||'') + ' 크레딧. <a href="/engine">엔진으로 가기</a> · <a href="/studio">스튜디오로 가기</a>'); history.replaceState({}, '', EMBED ? '/buy?embed=1' : '/buy'); }
     else if (q.get('fail')) { show('err', q.get('fail')); history.replaceState({}, '', '/buy'); }
   }).catch(function(e){ show('err', '설정을 불러오지 못했습니다: ' + e); });
 })();
