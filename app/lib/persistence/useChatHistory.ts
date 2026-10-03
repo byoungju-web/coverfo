@@ -91,6 +91,17 @@ export function useChatHistory() {
               startingIdx = -1;
             }
 
+            /*
+             * coverfo: 글만 주고받은 대화(파일이 하나도 없는 스냅샷)는 '복구' 과정을 건너뜁니다.
+             * 복구를 거치면 대화 전체가 숨겨지고 "앱을 만들고 있어요…" 카드 하나만 남는데, 파일이 없으니 끝나지도 않습니다
+             * (휴대폰에서 chat 대화를 다시 열면 그 카드만 보이던 원인). 파일이 있는 앱 대화는 지금처럼 복구합니다.
+             */
+            const snapshotHasFiles = Object.values(validSnapshot.files || {}).some((v: any) => v?.type === 'file');
+
+            if (!snapshotHasFiles) {
+              startingIdx = -1;
+            }
+
             let filteredMessages = storedMessages.messages.slice(startingIdx + 1, endingIdx);
             let archivedMessages: Message[] = [];
 
