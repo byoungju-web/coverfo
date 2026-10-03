@@ -108,7 +108,21 @@ export const Workbench = memo(
 
       const hasMark = () => !!(window.history.state && (window.history.state as any).cfWb);
 
-      if (showWorkbench && !hasMark()) {
+      /*
+       * 홈(coverfo.com) 사이드바에서 대화를 열고 들어온 경우에는 기록을 깔지 않습니다.
+       * 깔아 두면 뒤로가기 한 번에 결과 화면만 닫히고 채팅 화면이 남아, 홈으로 가려면 두 번 눌러야 했습니다.
+       * (홈에서 왔는지는 referrer 가 이 사이트의 '/' 인지로 봅니다)
+       */
+      let fromHome = false;
+
+      try {
+        const ref = document.referrer ? new URL(document.referrer) : null;
+        fromHome = !!ref && ref.origin === window.location.origin && ref.pathname === '/';
+      } catch {
+        fromHome = false;
+      }
+
+      if (showWorkbench && !hasMark() && !fromHome) {
         window.history.pushState({ ...(window.history.state || {}), cfWb: 1 }, '');
       } else if (!showWorkbench && hasMark()) {
         window.history.back();
