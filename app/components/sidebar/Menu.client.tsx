@@ -216,7 +216,6 @@ export const Menu = () => {
     items: list,
     searchFields: ['description'],
   });
-  const studioItems = useStudioRecent(6);
 
   const loadEntries = useCallback(() => {
     if (db) {
@@ -669,35 +668,7 @@ export const Menu = () => {
               />
             </div>
           </div>
-          {studioItems.length > 0 && (
-            <div className="px-4 pb-2">
-              <div className="flex items-center justify-between text-sm py-1">
-                <div className="font-medium text-gray-600 dark:text-gray-400">최근 이미지 · 영상</div>
-                <a href="/studio" className="text-xs text-purple-600 dark:text-purple-300 hover:underline">
-                  스튜디오 열기
-                </a>
-              </div>
-              <div className="grid grid-cols-3 gap-1.5">
-                {studioItems.map((it) => (
-                  <a
-                    key={it.id}
-                    href={`/studio?show=${it.id}`}
-                    title={it.prompt || ''}
-                    className="relative block aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
-                  >
-                    {it.kind === 'video' ? (
-                      <video src={it.result_url || ''} crossOrigin="anonymous" muted playsInline preload="metadata" className="w-full h-full object-cover" />
-                    ) : (
-                      <img src={it.result_url || ''} crossOrigin="anonymous" alt="" loading="lazy" className="w-full h-full object-cover" />
-                    )}
-                    <span className="absolute bottom-0.5 right-0.5 text-[10px] leading-none px-1 py-0.5 rounded bg-black/60 text-white">
-                      {it.kind === 'video' ? '영상' : '이미지'}
-                    </span>
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* 최근 이미지·영상 띠는 뺐습니다 (홈 사이드바와 같게) */}
           <div className="flex items-center justify-between text-sm px-4 py-2">
             <div className="font-medium text-gray-600 dark:text-gray-400">내 대화</div>
             {selectionMode && (

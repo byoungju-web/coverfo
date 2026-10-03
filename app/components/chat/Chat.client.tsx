@@ -42,10 +42,6 @@ const ANSWER_LANG_NAMES: Record<string, string> = {
   ja: '日本語',
   zh: '中文(简体)',
   th: 'ภาษาไทย',
-  hi: 'हिन्दी (Hindi)',
-  es: 'Español',
-  fr: 'Français',
-  de: 'Deutsch',
 };
 
 function getAnswerLangInstruction(): string {
@@ -461,9 +457,24 @@ node server.js
         return;
       }
 
+      /*
+       * 폰에서는 저장된 파일을 다시 푸는 데 1.2초보다 오래 걸려 그 뒤에 결과 화면이 켜지는 일이 있었습니다.
+       * → 처음 4초 동안은 결과 화면이 켜지는 즉시 다시 끕니다 (그 뒤부터는 평소대로 열림).
+       */
+      const until = Date.now() + 4000;
+      const unsub = workbenchStore.showWorkbench.subscribe((on) => {
+        if (on && Date.now() < until) {
+          workbenchStore.showWorkbench.set(false);
+        }
+      });
       const timers = [200, 600, 1200].map((ms) => setTimeout(() => workbenchStore.showWorkbench.set(false), ms));
+      const stop = setTimeout(unsub, 4000);
 
-      return () => timers.forEach((t) => clearTimeout(t));
+      return () => {
+        timers.forEach((t) => clearTimeout(t));
+        clearTimeout(stop);
+        unsub();
+      };
     }, []);
 
     useEffect(() => {
