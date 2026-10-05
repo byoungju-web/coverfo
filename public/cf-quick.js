@@ -3,7 +3,8 @@
      taxiIntent·trainIntent·deliveryIntent·tossIntent·bookingInfo)을 그대로 + 같은 뜻의 영어 규칙
    · 어느 나라인지: cf-ui-lang.js 의 시간대 → 나라 (관리자 시험용 덮어쓰기: ?cf_country=US 또는 localStorage cf_country)
    · 여는 곳: 각 회사가 공개한 주소 형식만 (Google Maps URLs, Google 쇼핑 검색, YouTube 검색, Uber 딥링크(개발자 문서), Booking.com·Airbnb 검색,
-     PayPal.me / UPI(NPCI 규격) / supertoss 송금 링크, tel:/sms:). 확인 안 된 형식(Venmo·Cash App·Zelle·Amazon 검색 링크)은 쓰지 않는다.
+     PayPal.me / UPI(NPCI 규격) / supertoss 송금 링크, tel:/sms:). 확인 안 된 형식(Venmo·Cash App·Zelle)은 쓰지 않는다.
+   · 쇼핑(v7): 판별되면 홈 화면의 쇼핑 화면(cf-shop)이 쇼핑몰별 공개 검색 주소를 보여 준다. 제재국·개인정보는 shop() 에서 먼저 막는다.
      비공식 스킴·자동 결제 없음 — 송금·예약은 앱이 채워진 채 열리고 비밀번호/결제는 본인이 누른다.
    · 규칙에 안 걸리면 /api/quick-intent (Claude Fable 5.1, 크레딧 소액 차감) 에게 한 번 물어보고, 그래도 아니면 채팅으로.
    홈(landing-html.ts)과 시험 페이지(quick-test.html)가 같이 쓴다. */
@@ -102,11 +103,32 @@
     if (c === "CN") return { u: "https://uri.amap.com/search?keyword=" + E(dest) + "&view=map&src=coverfo", w: "🧭 高德地图", note: "중국은 구글 지도가 막혀 있어 高德 검색으로 엽니다. 길안내는 지도 안에서 눌러 주세요." };
     return { u: "https://www.google.com/maps/dir/?api=1&destination=" + E(dest) + "&travelmode=driving", w: "🧭 Google Maps 내비" };
   }
-  function shop(q, c) {
-    if (c === "KR") return { u: "https://search.shopping.naver.com/search/all?query=" + E(q) + "&sort=rel", w: "🛒 네이버쇼핑" };
+  /* ── 쇼핑 법적 안전 (2026-10 v7) ──
+     · 제재 대상국(RU IR KP SY CU VE BY): 검색어 낱말이 아니라 '나라 값'으로만 막는다 ("노트북이란" 같은 문장이 걸리지 않게)
+     · 개인정보: 카드번호·주민번호·전화·이메일·여권·주소의 '실제 형식'이 보이면 검색하지 않는다 ("phone", "이름" 같은 낱말로는 안 막음)
+     · 검색어는 서버로 보내지 않는다 — 링크는 브라우저(홈 화면 cf-shop)에서 만든다 */
+  var SANCTIONED = { RU: 1, IR: 1, KP: 1, SY: 1, CU: 1, VE: 1, BY: 1 };
+  function luhn(d) { var s = 0, alt = false; for (var i = d.length - 1; i >= 0; i--) { var n = d.charCodeAt(i) - 48; if (alt) { n *= 2; if (n > 9) n -= 9; } s += n; alt = !alt; } return s % 10 === 0; }
+  function piiKind(t) {
+    t = String(t || "");
+    if (/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/.test(t)) return "이메일";
+    var cm = t.match(/(?:\d[ \-]?){14,18}\d/g) || [];
+    for (var i = 0; i < cm.length; i++) { var d = cm[i].replace(/\D/g, ""); if ((d.length === 15 || d.length === 16) && luhn(d)) return "카드번호"; }
+    /* 주민번호: 앞 6자리(생년월일)-뒤 7자리. 붙여 쓴 13자리는 상품 바코드(880…)와 같아 '-' 나 띄어쓰기가 있을 때만 */
+    if (/(^|[^\d])\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[ \-][1-8]\d{6}([^\d]|$)/.test(t)) return "주민등록번호";
+    if (/(^|[^\d])01[016789][ \-.]?\d{3,4}[ \-.]?\d{4}([^\d]|$)/.test(t) || /(^|[^\d])0\d{1,2}-\d{3,4}-\d{4}([^\d]|$)/.test(t) || /\+\d{1,3}[ \-]?\d[\d \-]{6,}\d/.test(t)) return "전화번호";
+    if (/(^|[^A-Za-z0-9])[MSRGD]\d{8}([^A-Za-z0-9]|$)/.test(t) || /(^|[^A-Za-z0-9])[MSRGD]\d{3}[A-Z]\d{4}([^A-Za-z0-9]|$)/.test(t) || /(여권|passport)\s*(번호|no\.?|number)?\s*[:：]?\s*[A-Za-z0-9]{7,9}/i.test(t)) return "여권번호";
+    if (/(구|군)\s+[가-힣0-9]+(로|길)\s*\d+/.test(t) || /\d+\s*동\s*\d+\s*호/.test(t) || /주소\s*[:：]/.test(t) || /\b\d{1,5}\s+[A-Za-z0-9.' ]{2,30}\s(street|st\.?|avenue|ave\.?|road|rd\.?|boulevard|blvd\.?|lane|ln\.?|drive|dr\.?)(\s|,|$)/i.test(t)) return "주소";
+    return "";
+  }
+  function shop(q, c, raw) {
+    if (SANCTIONED[c]) return { u: "", w: "쇼핑", none: "이 지역에서는 쇼핑 연결을 제공하지 않습니다 (국제 제재 대상 지역)." };
+    var pk = piiKind(raw || q) || piiKind(q);
+    if (pk) return { u: "", w: "쇼핑", none: pk + " 같은 개인정보가 들어 있어 검색하지 않았어요. 상품 이름만 적어 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
+    if (c === "KR") return { u: "https://search.shopping.naver.com/search/all?query=" + E(q) + "&sort=rel", w: "🛒 네이버쇼핑", shop: { q: q, c: c } };
     if (c === "CN") return { u: "", w: "쇼핑", none: "중국 본토에서는 구글 쇼핑을 열 수 없어요. 타오바오·징둥 앱에서 직접 검색해 주세요." };
-    /* 한국 밖: Google 쇼핑 탭 (구글 자체 검색 주소). 나라별 쇼핑몰 검색 링크는 약관 확인이 안 돼 쓰지 않는다 */
-    return { u: "https://www.google.com/search?tbm=shop&q=" + E(q), w: "🛒 Google 쇼핑" };
+    /* 한국 밖: Google 쇼핑 탭 (구글 자체 검색 주소). 쇼핑 화면(cf-shop)이 있으면 그 화면에서 여러 곳을 고르게 한다 */
+    return { u: "https://www.google.com/search?tbm=shop&q=" + E(q), w: "🛒 Google 쇼핑", shop: { q: q, c: c } };
   }
   function taxi(dest, c) {
     if (c === "KR") return isIOS() ? { u: "https://apps.apple.com/kr/app/id981110422", w: "🚕 카카오T (앱스토어)", note: "아이폰은 카카오T 공개 링크가 없어 앱 설치/열기 화면으로 갑니다." } : { u: "intent://launch#Intent;scheme=kakaot;package=com.kakao.taxi;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kakao.taxi;end", w: "🚕 카카오T" };
@@ -186,7 +208,8 @@
   function stay(q, c) {
     var i = stayInfo(q);
     if (c === "KR") return { u: "https://www.yeogi.com/domestic-accommodations?keyword=" + E(i.stay) + (i.ci ? "&checkIn=" + i.ci + "&checkOut=" + i.co : "") + "&personal=" + i.ppl + "&freeForm=true", w: "🏨 여기어때", alt: { u: "https://www.yanolja.com/search/" + E(i.stay), w: "야놀자" }, info: i };
-    return { u: "https://www.booking.com/searchresults.html?ss=" + E(i.stay) + (i.ci ? "&checkin=" + i.ci + "&checkout=" + i.co : "") + "&group_adults=" + i.ppl + "&no_rooms=1", w: "🏨 Booking.com", alt: { u: "https://www.airbnb.com/s/" + E(i.stay) + "/homes" + (i.ci ? "?checkin=" + i.ci + "&checkout=" + i.co + "&adults=" + i.ppl : ""), w: "Airbnb" }, info: i };
+    var baid = ""; try { baid = (window.cfShopIds && window.cfShopIds.booking) || ""; } catch (e) {}
+    return { u: "https://www.booking.com/searchresults.html?ss=" + E(i.stay) + (i.ci ? "&checkin=" + i.ci + "&checkout=" + i.co : "") + "&group_adults=" + i.ppl + "&no_rooms=1" + (baid ? "&aid=" + E(baid) : ""), w: "🏨 Booking.com", alt: { u: "https://www.airbnb.com/s/" + E(i.stay) + "/homes" + (i.ci ? "?checkin=" + i.ci + "&checkout=" + i.co + "&adults=" + i.ppl : ""), w: "Airbnb" }, info: i };
   }
 
   /* ── 규칙으로 판별 → {kind, q} ── */
@@ -334,7 +357,7 @@
     if (k === "place") { var pq = r.query || clean(q); if (/^(근처|주변|여기|가까운|이\s*근방|근방)?$/.test(pq.trim())) pq = (pq.trim() || "근처") + " 맛집"; return mapsSearch(pq, c); }   /* "배고파 근처 뭐 먹지" → 근처 맛집 */
     if (k === "navi") return mapsDir(r.query || naviDest(q), c);
     if (k === "music") return music(r.query || q, c);
-    if (k === "shop") return shop(r.query || shopTopic(q), c);
+    if (k === "shop") return shop(r.query || shopTopic(q), c, q);
     if (k === "call") { var n = numIn(q); return n ? { u: "tel:" + n, w: "📞 전화" } : { u: "", w: "전화", none: "전화번호를 같이 말해 주세요 (예: 010-1234-5678로 전화)" }; }
     if (k === "sms") { var n2 = numIn(q), body = (r.body || String(q).replace(/(\+?\d[\d\-\s]{6,}\d)/g, " ").replace(/^\s*.+?(에게|한테|께서|께)/, "").replace(/(문자|메시지|메세지|sms|전송|발신|보내\s*줘?|보내|써\s*줘?|작성|줘|해\s*줘?|해|좀|부탁(해|해줘)?|\btext\b|\bsend\b|\bmessage\b|\bto\b)/gi, " ").replace(/\s+/g, " ").trim().replace(/고\s*$/, "")); return { u: "sms:" + n2 + (body ? "?body=" + E(body) : ""), w: "💬 문자" }; }
     if (k === "taxi") return taxi(r.query || taxiDest(q), c);
