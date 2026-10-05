@@ -125,7 +125,8 @@
     if (SANCTIONED[c]) return { u: "", w: "쇼핑", none: "이 지역에서는 쇼핑 연결을 제공하지 않습니다 (국제 제재 대상 지역)." };
     var pk = piiKind(raw || q) || piiKind(q);
     if (pk) return { u: "", w: "쇼핑", none: pk + " 같은 개인정보가 들어 있어 검색하지 않았어요. 상품 이름만 적어 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
-    if (c === "KR") return { u: "https://search.shopping.naver.com/search/all?query=" + E(q) + "&sort=rel", w: "🛒 네이버쇼핑", shop: { q: q, c: c } };
+    /* 네이버쇼핑(search.shopping.naver.com)은 로그인하지 않으면 로그인·보안확인 화면으로 돌려보냄이 실측으로 확인돼(2026-10-05) 쓰지 않는다. 막힌 곳을 우회하지 않고, 누구나 여는 네이버 통합검색으로 연결한다 */
+    if (c === "KR") return { u: "https://search.naver.com/search.naver?where=nexearch&query=" + E(q + " 최저가"), w: "🛒 네이버 검색", shop: { q: q, c: c } };
     if (c === "CN") return { u: "", w: "쇼핑", none: "중국 본토에서는 구글 쇼핑을 열 수 없어요. 타오바오·징둥 앱에서 직접 검색해 주세요." };
     /* 한국 밖: Google 쇼핑 탭 (구글 자체 검색 주소). 쇼핑 화면(cf-shop)이 있으면 그 화면에서 여러 곳을 고르게 한다 */
     return { u: "https://www.google.com/search?tbm=shop&q=" + E(q), w: "🛒 Google 쇼핑", shop: { q: q, c: c } };
