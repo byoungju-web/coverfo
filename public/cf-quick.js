@@ -4,7 +4,7 @@
    · 어느 나라인지: cf-ui-lang.js 의 시간대 → 나라 (관리자 시험용 덮어쓰기: ?cf_country=US 또는 localStorage cf_country)
    · 여는 곳: 각 회사가 공개한 주소 형식만 (Google Maps URLs, Google 쇼핑 검색, YouTube 검색, Uber 딥링크(개발자 문서), Booking.com·Airbnb 검색,
      PayPal.me / UPI(NPCI 규격) / supertoss 송금 링크, tel:/sms:). 확인 안 된 형식(Venmo·Cash App·Zelle)은 쓰지 않는다.
-   · 쇼핑(v7): 판별되면 홈 화면의 쇼핑 화면(cf-shop)이 쇼핑몰별 공개 검색 주소를 보여 준다. 제재국·개인정보는 shop() 에서 먼저 막는다.
+   · 쇼핑(v7·v8): 판별되면 홈 화면의 쇼핑 화면(cf-shop)이 쇼핑몰별 공개 검색 주소를 보여 준다. 제재국·개인정보는 shop() 에서 먼저 막는다.
      비공식 스킴·자동 결제 없음 — 송금·예약은 앱이 채워진 채 열리고 비밀번호/결제는 본인이 누른다.
    · 규칙에 안 걸리면 /api/quick-intent (Claude Fable 5.1, 크레딧 소액 차감) 에게 한 번 물어보고, 그래도 아니면 채팅으로.
    홈(landing-html.ts)과 시험 페이지(quick-test.html)가 같이 쓴다. */
@@ -336,7 +336,27 @@
       .replace(/(까지|으로|로|에)\s*$/, "").replace(/\s+/g, " ").trim();
     return t.length >= 2 ? t : "";
   }
+  /* 쇼핑 검색어 다듬기 (v8): 낱말 단위로 군더더기("리뷰 좋은 순으로 알려줘" 등)를 빼고 상품 이름만 남긴다.
+     · 앞부분이 같으면 빼는 말(PRE) — "추천해줘·리뷰순·인기많은" 처럼 어미가 붙어도 빠진다
+     · 통째로 같아야 빼는 말(EXACT) — "순·싼·모델" 은 "순두부·싼타페·모델Y" 를 지키려고 낱말 전체가 같을 때만
+     · 다 빠져서 두 글자도 안 남으면 예전 방식(shopTopicOld) 결과를 쓴다 */
+  var SHOP_PRE = ["추천", "알려", "골라", "비교", "최저가", "가성비", "리뷰", "후기", "평점", "별점", "구매", "판매", "팔린", "인기", "베스트", "랭킹", "쇼핑", "판매처", "어디서", "검색", "가격", "얼마", "저렴", "싸게", "싸고", "싼거", "싼걸", "살까", "사고", "사는", "사줘", "살래", "나오게", "해줘", "찾아", "보여", "순으로", "순서", "정렬", "좋은", "좋고", "좋다", "좋게", "제일", "가장", "많은", "많이", "높은", "낮은", "할인", "세일", "특가",
+    "cheapest", "cheap", "buy", "best", "price", "review", "recommend", "deal", "compare", "shopping", "purchase", "lowest", "rated"];
+  var SHOP_EXACT = ["뭐", "뭐가", "어떤", "좀", "정도", "바로", "순", "싼", "제품", "상품", "모델", "브랜드", "살", "것", "거", "잘", "줘", "해", "요",
+    "find", "show", "please", "me", "i", "want", "the", "a", "an", "some", "order", "sort", "sorted", "by", "in", "of"];
   function shopTopic(q) {
+    var toks = String(q || "").replace(/[?？!！.,]/g, " ").split(/\s+/), out = [];
+    for (var i = 0; i < toks.length; i++) {
+      var w = toks[i], lw = w.toLowerCase(), drop = false; if (!w) continue;
+      if (SHOP_EXACT.indexOf(lw) >= 0) drop = true;
+      for (var k = 0; !drop && k < SHOP_PRE.length; k++) if (lw.indexOf(SHOP_PRE[k]) === 0) drop = true;
+      if (/^\d+\s*개$/.test(w)) drop = true;
+      if (!drop) out.push(w);
+    }
+    var core = out.join(" ").trim();
+    return core.length >= 2 ? core : shopTopicOld(q);
+  }
+  function shopTopicOld(q) {
     var cut = ["추천", "알려", "골라", "비교", "어떤", "뭐가", "뭐 ", "살까", "사고", "최저가", "가성비", "쇼핑", "구매", "얼마", " recommend", " cheapest", " best price", " under", " buy"], idx = q.length;
     for (var k = 0; k < cut.length; k++) { var p = q.toLowerCase().indexOf(cut[k]); if (p > 0 && p < idx) idx = p; }
     var core = q.slice(0, idx).replace(/\d+\s*개/g, "").replace(/\b(i\s*want\s*to|where\s*can\s*i|find|me|a|the|some)\b/gi, "").replace(/\s+/g, " ").trim();
