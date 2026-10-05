@@ -4,6 +4,7 @@
    · 어느 나라인지: cf-ui-lang.js 의 시간대 → 나라 (관리자 시험용 덮어쓰기: ?cf_country=US 또는 localStorage cf_country)
    · 여는 곳: 각 회사가 공개한 주소 형식만 (Google Maps URLs, Google 쇼핑 검색, YouTube 검색, Uber 딥링크(개발자 문서), Booking.com·Airbnb 검색,
      PayPal.me / UPI(NPCI 규격) / supertoss 송금 링크, tel:/sms:). 확인 안 된 형식(Venmo·Cash App·Zelle)은 쓰지 않는다.
+   · 길안내(v11): 홈 화면의 길안내 화면(cf-navi)이 Google Maps·Apple 지도(출발·도착 채움)와 네이버지도·카카오맵(도착지 검색)을 보여 준다.
    · 맛집(v10): 음식점·맛집이면 홈 화면의 맛집 화면(cf-food)이 네이버지도·카카오맵·Google Maps(·Yelp) 공개 검색 주소를 보여 준다.
    · 숙소(v9): 판별되면 홈 화면의 숙소 화면(cf-stay)이 여기어때·야놀자·Booking.com·Airbnb 공개 검색 주소를 보여 준다.
    · 쇼핑(v7·v8): 판별되면 홈 화면의 쇼핑 화면(cf-shop)이 쇼핑몰별 공개 검색 주소를 보여 준다. 제재국·개인정보는 shop() 에서 먼저 막는다.
@@ -358,9 +359,27 @@
     return res;
   }
   function naviDest(q) {
-    return String(q || "").replace(/(으?로\s*)?(길\s*안내|내비게이션|내비|네비게이션|네비|길\s*찾기|길찾기|가는\s*길|가는\s*법|어떻게\s*가(는|요|줘)?|찾아\s*가(줘|기)?|까지\s*가(줘|는|기)?|데려다\s*(줘)?|목적지|운전|틀어\s*줘?|켜\s*줘?|실행(해|해줘)?|알려\s*줘?|해\s*줘?|줘|좀)/g, " ")
+    return String(q || "").replace(/(으?로\s*)?(길\s*안내|내비게이션|내비|네비게이션|네비|길\s*찾기|길찾기|가는\s*길|가는\s*법|어떻게\s*가(는|요|줘)?|찾아\s*가(줘|기)?|까지\s*가(줘|는|기)?|가는\s*방법|가려면|경로|루트|데려다\s*(줘)?|목적지|운전|틀어\s*줘?|켜\s*줘?|실행(해|해줘)?|알려\s*줘?|해\s*줘|(^|\s)해(?=\s|$)|줘|좀)/g, " ").replace(/(^|\s)길(?=\s|$)/g, " ")
       .replace(/\b(directions?\s*to|navigate\s*to|how\s*(do\s*i|to)\s*get\s*to|route\s*to|take\s*me\s*to|drive\s*to|way\s*to|please|the)\b/gi, " ")
       .replace(/(까지|으로|로|에)\s*$/, "").replace(/\s+/g, " ").trim() || q;
+  }
+  /* ── 길안내(v11): "A에서 B까지" 면 출발지 A·도착지 B, 아니면 도착지만(출발은 현재 위치) ──
+     · 여는 곳(2026-10-06 실측): Google Maps·Apple 지도 = 출발·도착이 채워진 경로가 나옴.
+       네이버지도·카카오맵 = 경로 주소로는 칸이 비어 나와, 도착지 '장소 검색'으로 열고 화면에서 길찾기를 누르게 한다.
+       Waze 는 PC 에서 앱 설치 안내만 나와 쓰지 않는다. 티맵·카카오내비는 웹 공개 주소가 없어 쓰지 않는다.
+     · 제재국·개인정보 확인은 쇼핑·숙소·맛집과 같다. 목적지로 쓰는 도로명 주소는 막지 않는다. */
+  function naviFromTo(q) {
+    var s = String(q || "").trim(), m = s.match(/^(.*?\S)\s*에서\s+(.+)$/) || s.match(/\bfrom\s+(.+?)\s+to\s+(.+)$/i);
+    if (m) { var f = naviDest(m[1]), t = naviDest(m[2]); if (f && t && f !== m[1] + m[2]) return { from: f, to: t }; }
+    return { from: "", to: naviDest(s) };
+  }
+  function navi(dest, from, c, raw) {
+    if (SANCTIONED[c]) return { u: "", w: "길안내", none: "이 지역에서는 길안내 연결을 제공하지 않습니다 (국제 제재 대상 지역)." };
+    var pk = piiKind(raw, true);
+    if (pk) return { u: "", w: "길안내", none: pk + " 같은 개인정보가 들어 있어 길안내를 열지 않았어요. 출발지·도착지 이름만 적어 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
+    var res = mapsDir(dest, c);
+    if (c !== "CN") res.navi = { to: dest, from: from || "", c: c };   /* 중국은 구글이 막혀 지금처럼 高德 하나만 바로 연다 */
+    return res;
   }
   /* 택시 목적지: "택시 불러줘 타임스퀘어로" → 타임스퀘어, "call a cab to Central Park" → Central Park. 없으면 "" (앱만 연다) */
   function taxiDest(q) {
@@ -408,7 +427,7 @@
       if (k === "place" && r.lang && !r.query) r.query = q;
     }
     if (k === "place") { var pq = r.query || clean(q); if (/^(근처|주변|여기|가까운|이\s*근방|근방)?$/.test(pq.trim())) pq = (pq.trim() || "근처") + " 맛집"; if (isFood(q)) return food(pq, c, q); return mapsSearch(pq, c); }   /* "배고파 근처 뭐 먹지" → 근처 맛집 */
-    if (k === "navi") return mapsDir(r.query || naviDest(q), c);
+    if (k === "navi") { if (r.query) return navi(r.query, "", c, q); var ft = naviFromTo(q); return navi(ft.to, ft.from, c, q); }
     if (k === "music") return music(r.query || q, c);
     if (k === "shop") return shop(r.query || shopTopic(q), c, q);
     if (k === "call") { var n = numIn(q); return n ? { u: "tel:" + n, w: "📞 전화" } : { u: "", w: "전화", none: "전화번호를 같이 말해 주세요 (예: 010-1234-5678로 전화)" }; }
@@ -450,6 +469,7 @@
       /* 쇼핑·숙소: 제재국이거나 개인정보 형식이 보이면 번역기로 보내기 전에 바로 막는다 (문장이 밖으로 나가지 않게) */
       if ((rr.kind === "shop" || rr.kind === "stay") && (SANCTIONED[c] || piiKind(rr.q, rr.kind === "stay"))) { finish(build(rr, c)); return; }
       if (rr.kind === "place" && isFood(rr.q) && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
+      if (rr.kind === "navi" && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
       /* 한국 밖 + 한국어 검색어 → 지도·쇼핑·숙소 검색어만 영어로 바꿔 넣는다 (그 나라 서비스가 한국어를 못 알아듣는 경우가 많다) */
       if ((rr.kind === "place" || rr.kind === "navi" || rr.kind === "shop" || rr.kind === "stay" || rr.kind === "taxi") && c !== "KR" && KO.test(rr.query || rr.q)) {
         var base = rr.query || (rr.kind === "place" ? clean(rr.q) : rr.kind === "navi" ? naviDest(rr.q) : rr.kind === "shop" ? shopTopic(rr.q) : rr.kind === "taxi" ? taxiDest(rr.q) : stayInfo(rr.q).stay);
