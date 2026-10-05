@@ -4,6 +4,7 @@
    · 어느 나라인지: cf-ui-lang.js 의 시간대 → 나라 (관리자 시험용 덮어쓰기: ?cf_country=US 또는 localStorage cf_country)
    · 여는 곳: 각 회사가 공개한 주소 형식만 (Google Maps URLs, Google 쇼핑 검색, YouTube 검색, Uber 딥링크(개발자 문서), Booking.com·Airbnb 검색,
      PayPal.me / UPI(NPCI 규격) / supertoss 송금 링크, tel:/sms:). 확인 안 된 형식(Venmo·Cash App·Zelle)은 쓰지 않는다.
+   · 맛집(v10): 음식점·맛집이면 홈 화면의 맛집 화면(cf-food)이 네이버지도·카카오맵·Google Maps(·Yelp) 공개 검색 주소를 보여 준다.
    · 숙소(v9): 판별되면 홈 화면의 숙소 화면(cf-stay)이 여기어때·야놀자·Booking.com·Airbnb 공개 검색 주소를 보여 준다.
    · 쇼핑(v7·v8): 판별되면 홈 화면의 쇼핑 화면(cf-shop)이 쇼핑몰별 공개 검색 주소를 보여 준다. 제재국·개인정보는 shop() 에서 먼저 막는다.
      비공식 스킴·자동 결제 없음 — 송금·예약은 앱이 채워진 채 열리고 비밀번호/결제는 본인이 누른다.
@@ -32,7 +33,7 @@
   /* ── 검색어 정리 (포도톡 그대로 + 영어) ── */
   function clean(q) {
     return String(q || "")
-      .replace(/알려\s*줘?|추천\s*해?\s*줘?|좀|해\s*줘?|찾아\s*줘?|보여\s*줘?|어디(야|있어|에|있나|있을까)?|쫙|배고파|배고픈데|뭐\s*먹(지|을까|을지)|있나요?|있을까요?|있어요?|알려주세요|주세요|부탁(해|해요|합니다)?/g, "")
+      .replace(/알려\s*줘?|추천\s*해?\s*줘?|좀|해\s*줘|(^|\s)해(?=\s|$)|찾아\s*줘?|보여\s*줘?|어디(야|있어|에|있나|있을까)?|쫙|배고파|배고픈데|뭐\s*먹(지|을까|을지)|있나요?|있을까요?|있어요?|알려주세요|주세요|부탁(해|해요|합니다)?/g, "")
       .replace(/(^|\s)(please|find|show|me|recommend|tell|search|for|some|good|best|any|a|the|near\s*me|nearby|around\s*here|where\s*(is|are|can\s*i)|can\s*you|i\s*want|i'd\s*like|looking\s*for)(?=\s|$)/gi, "$1")
       .replace(/\s+/g, " ").trim() || q;
   }
@@ -332,6 +333,30 @@
     }
     return null;
   }
+  /* ── 맛집(v10): 음식점·맛집 요청만 맛집 화면(cf-food)으로. 약국·관광지 등 다른 장소는 지금처럼 지도를 바로 연다 ──
+     · 여는 곳: 네이버지도·카카오맵·Google Maps(한국) / Google Maps·Yelp(미국·캐나다) — 2026-10-06 직접 열어 식당 목록 확인.
+       캐치테이블·망고플레이트는 검색 주소로 목록이 나오지 않아(실측) 쓰지 않는다. 제휴 프로그램 없음.
+     · 그 밖의 나라는 버튼이 하나(Google Maps)뿐이라 화면 없이 지금처럼 바로 연다.
+     · 제재국·개인정보 확인은 쇼핑·숙소와 같다. 가게 위치로 쓰는 도로명 주소는 막지 않는다(찾는 장소이므로). */
+  var FOOD_KO = /(맛집|맛짐|먹을\s*(곳|데|만한)|먹거리|음식점|식당|밥집|맛있는\s*(곳|집|데)|뭐\s*먹|배고파|배고픈|카페|술집|호프|포차|디저트|브런치|치킨|피자|분식|국밥|고기집|횟집|초밥|중국집|일식|한식|양식|빵집|베이커리|파스타|라멘|냉면|삼겹살|족발|보쌈|떡볶이|돈까스|돈가스|커피)/;
+  var FOOD_EN = /\b(restaurants?|food|eat|eats|dinner|lunch|brunch|breakfast|cafe|cafes|coffee|pizza|sushi|burgers?|ramen|bbq|steak(house)?|bakery|diner)\b/i;
+  var YELP = { US: 1, CA: 1 };
+  function isFood(q) { return FOOD_KO.test(String(q || "")) || FOOD_EN.test(String(q || "")); }
+  function foodQuery(pq) {
+    /* "오늘 저녁 뭐 먹지" 처럼 때를 나타내는 말만 남으면 '맛집' 을 붙인다 */
+    var t = String(pq || "").replace(/(^|\s)(오늘|내일|지금|이따|저녁|점심|아침|야식)(?=\s|$)/g, " ").replace(/\s+/g, " ").trim();
+    if (!t) return "근처 맛집";
+    if (!isFood(t) && !/(근처|주변)/.test(t)) return t + " 맛집";
+    return t;
+  }
+  function food(pq, c, raw) {
+    if (SANCTIONED[c]) return { u: "", w: "맛집", none: "이 지역에서는 맛집 연결을 제공하지 않습니다 (국제 제재 대상 지역)." };
+    var pk = piiKind(raw, true);
+    if (pk) return { u: "", w: "맛집", none: pk + " 같은 개인정보가 들어 있어 검색하지 않았어요. 지역·음식 이름만 적어 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
+    var fq = foodQuery(pq), res = mapsSearch(fq, c);
+    if (c === "KR" || YELP[c]) res.food = { q: fq, c: c };
+    return res;
+  }
   function naviDest(q) {
     return String(q || "").replace(/(으?로\s*)?(길\s*안내|내비게이션|내비|네비게이션|네비|길\s*찾기|길찾기|가는\s*길|가는\s*법|어떻게\s*가(는|요|줘)?|찾아\s*가(줘|기)?|까지\s*가(줘|는|기)?|데려다\s*(줘)?|목적지|운전|틀어\s*줘?|켜\s*줘?|실행(해|해줘)?|알려\s*줘?|해\s*줘?|줘|좀)/g, " ")
       .replace(/\b(directions?\s*to|navigate\s*to|how\s*(do\s*i|to)\s*get\s*to|route\s*to|take\s*me\s*to|drive\s*to|way\s*to|please|the)\b/gi, " ")
@@ -382,7 +407,7 @@
       else if (k === "delivery") r.query = stripL(q, r.lang, ["delivery"]);
       if (k === "place" && r.lang && !r.query) r.query = q;
     }
-    if (k === "place") { var pq = r.query || clean(q); if (/^(근처|주변|여기|가까운|이\s*근방|근방)?$/.test(pq.trim())) pq = (pq.trim() || "근처") + " 맛집"; return mapsSearch(pq, c); }   /* "배고파 근처 뭐 먹지" → 근처 맛집 */
+    if (k === "place") { var pq = r.query || clean(q); if (/^(근처|주변|여기|가까운|이\s*근방|근방)?$/.test(pq.trim())) pq = (pq.trim() || "근처") + " 맛집"; if (isFood(q)) return food(pq, c, q); return mapsSearch(pq, c); }   /* "배고파 근처 뭐 먹지" → 근처 맛집 */
     if (k === "navi") return mapsDir(r.query || naviDest(q), c);
     if (k === "music") return music(r.query || q, c);
     if (k === "shop") return shop(r.query || shopTopic(q), c, q);
@@ -424,6 +449,7 @@
       if (!rr) { cb(null); return; }
       /* 쇼핑·숙소: 제재국이거나 개인정보 형식이 보이면 번역기로 보내기 전에 바로 막는다 (문장이 밖으로 나가지 않게) */
       if ((rr.kind === "shop" || rr.kind === "stay") && (SANCTIONED[c] || piiKind(rr.q, rr.kind === "stay"))) { finish(build(rr, c)); return; }
+      if (rr.kind === "place" && isFood(rr.q) && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
       /* 한국 밖 + 한국어 검색어 → 지도·쇼핑·숙소 검색어만 영어로 바꿔 넣는다 (그 나라 서비스가 한국어를 못 알아듣는 경우가 많다) */
       if ((rr.kind === "place" || rr.kind === "navi" || rr.kind === "shop" || rr.kind === "stay" || rr.kind === "taxi") && c !== "KR" && KO.test(rr.query || rr.q)) {
         var base = rr.query || (rr.kind === "place" ? clean(rr.q) : rr.kind === "navi" ? naviDest(rr.q) : rr.kind === "shop" ? shopTopic(rr.q) : rr.kind === "taxi" ? taxiDest(rr.q) : stayInfo(rr.q).stay);
