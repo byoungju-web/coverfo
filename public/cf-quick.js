@@ -4,7 +4,7 @@
    · 어느 나라인지: cf-ui-lang.js 의 시간대 → 나라 (관리자 시험용 덮어쓰기: ?cf_country=US 또는 localStorage cf_country)
    · 여는 곳: 각 회사가 공개한 주소 형식만 (Google Maps URLs, Google 쇼핑 검색, YouTube 검색, Uber 딥링크(개발자 문서), Booking.com·Airbnb 검색,
      PayPal.me / UPI(NPCI 규격) / supertoss 송금 링크, tel:/sms:). 확인 안 된 형식(Venmo·Cash App·Zelle)은 쓰지 않는다.
-   · 길안내(v11): 홈 화면의 길안내 화면(cf-navi)이 Google Maps·Apple 지도(출발·도착 채움)와 네이버지도·카카오맵(도착지 검색)을 보여 준다.
+   · 길안내(v12): 한국은 홈 화면의 길안내 화면(cf-navi)이 카카오맵·네이버지도를 보여 준다(카카오 키가 있으면 현재 위치에서 바로 안내). 해외는 Google Maps 를 바로 연다.
    · 맛집(v10): 음식점·맛집이면 홈 화면의 맛집 화면(cf-food)이 네이버지도·카카오맵·Google Maps(·Yelp) 공개 검색 주소를 보여 준다.
    · 숙소(v9): 판별되면 홈 화면의 숙소 화면(cf-stay)이 여기어때·야놀자·Booking.com·Airbnb 공개 검색 주소를 보여 준다.
    · 쇼핑(v7·v8): 판별되면 홈 화면의 쇼핑 화면(cf-shop)이 쇼핑몰별 공개 검색 주소를 보여 준다. 제재국·개인정보는 shop() 에서 먼저 막는다.
@@ -378,7 +378,8 @@
     var pk = piiKind(raw, true);
     if (pk) return { u: "", w: "길안내", none: pk + " 같은 개인정보가 들어 있어 길안내를 열지 않았어요. 출발지·도착지 이름만 적어 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
     var res = mapsDir(dest, c);
-    if (c !== "CN") res.navi = { to: dest, from: from || "", c: c };   /* 중국은 구글이 막혀 지금처럼 高德 하나만 바로 연다 */
+    /* 한국만 길안내 화면(카카오맵·네이버지도). 해외는 Google Maps 하나라 화면 없이 바로, 중국은 高德 하나 (2026-10-06 결정: 애플 삭제, 한국 구글 삭제) */
+    if (c === "KR") res.navi = { to: dest, from: from || "", c: c };
     return res;
   }
   /* 택시 목적지: "택시 불러줘 타임스퀘어로" → 타임스퀘어, "call a cab to Central Park" → Central Park. 없으면 "" (앱만 연다) */

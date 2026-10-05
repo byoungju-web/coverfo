@@ -4,6 +4,7 @@
        AMAZON_TAGS  : 아마존 어소시에이트 태그. "나라:태그" 를 쉼표로 (예: US:coverfo-20,JP:coverfo-22)
        BOOKING_AID  : Booking.com 제휴 숫자 ID (예: 1234567)
        COUPANG_ACCESS_KEY + COUPANG_SECRET_KEY : 쿠팡 파트너스 API 키 (값은 절대 내보내지 않고 "켜짐" 여부만)
+       KAKAO_REST_KEY : 카카오 REST API 키 — 길안내 좌표용(/api/geo). 값은 내보내지 않고 "켜짐" 여부만
    · 결제는 각 쇼핑몰에서 이용자가 직접 — coverfo 는 링크만 연결한다. */
 const CC = /^[A-Z]{2}$/;
 
@@ -23,6 +24,7 @@ export async function onRequestGet({ env }) {
     amazon: amazonTags(env),
     booking: /^[0-9]{3,12}$/.test(booking) ? booking : '',
     coupang: !!(env.COUPANG_ACCESS_KEY && env.COUPANG_SECRET_KEY),
+    geo: !!String(env.KAKAO_REST_KEY || '').trim(),
   };
   return new Response(JSON.stringify(body), {
     headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' },
