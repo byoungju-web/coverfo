@@ -4,6 +4,7 @@
    · 어느 나라인지: cf-ui-lang.js 의 시간대 → 나라 (관리자 시험용 덮어쓰기: ?cf_country=US 또는 localStorage cf_country)
    · 여는 곳: 각 회사가 공개한 주소 형식만 (Google Maps URLs, Google 쇼핑 검색, YouTube 검색, Uber 딥링크(개발자 문서), Booking.com·Airbnb 검색,
      PayPal.me / UPI(NPCI 규격) / supertoss 송금 링크, tel:/sms:). 확인 안 된 형식(Venmo·Cash App·Zelle)은 쓰지 않는다.
+   · 숙소(v9): 판별되면 홈 화면의 숙소 화면(cf-stay)이 여기어때·야놀자·Booking.com·Agoda·Airbnb 공개 검색 주소를 보여 준다.
    · 쇼핑(v7·v8): 판별되면 홈 화면의 쇼핑 화면(cf-shop)이 쇼핑몰별 공개 검색 주소를 보여 준다. 제재국·개인정보는 shop() 에서 먼저 막는다.
      비공식 스킴·자동 결제 없음 — 송금·예약은 앱이 채워진 채 열리고 비밀번호/결제는 본인이 누른다.
    · 규칙에 안 걸리면 /api/quick-intent (Claude Fable 5.1, 크레딧 소액 차감) 에게 한 번 물어보고, 그래도 아니면 채팅으로.
@@ -109,7 +110,7 @@
      · 검색어는 서버로 보내지 않는다 — 링크는 브라우저(홈 화면 cf-shop)에서 만든다 */
   var SANCTIONED = { RU: 1, IR: 1, KP: 1, SY: 1, CU: 1, VE: 1, BY: 1 };
   function luhn(d) { var s = 0, alt = false; for (var i = d.length - 1; i >= 0; i--) { var n = d.charCodeAt(i) - 48; if (alt) { n *= 2; if (n > 9) n -= 9; } s += n; alt = !alt; } return s % 10 === 0; }
-  function piiKind(t) {
+  function piiKind(t, forStay) {
     t = String(t || "");
     if (/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/.test(t)) return "이메일";
     var cm = t.match(/(?:\d[ \-]?){14,18}\d/g) || [];
@@ -118,6 +119,8 @@
     if (/(^|[^\d])\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[ \-][1-8]\d{6}([^\d]|$)/.test(t)) return "주민등록번호";
     if (/(^|[^\d])01[016789][ \-.]?\d{3,4}[ \-.]?\d{4}([^\d]|$)/.test(t) || /(^|[^\d])0\d{1,2}-\d{3,4}-\d{4}([^\d]|$)/.test(t) || /\+\d{1,3}[ \-]?\d[\d \-]{6,}\d/.test(t)) return "전화번호";
     if (/(^|[^A-Za-z0-9])[MSRGD]\d{8}([^A-Za-z0-9]|$)/.test(t) || /(^|[^A-Za-z0-9])[MSRGD]\d{3}[A-Z]\d{4}([^A-Za-z0-9]|$)/.test(t) || /(여권|passport)\s*(번호|no\.?|number)?\s*[:：]?\s*[A-Za-z0-9]{7,9}/i.test(t)) return "여권번호";
+    if (forStay && (/\d+\s*동\s*\d+\s*호/.test(t) || /주소\s*[:：]/.test(t))) return "주소";
+    if (forStay) return "";   /* 숙소: 호텔·지역의 도로명 주소는 찾으려는 장소이지 개인정보가 아님 */
     if (/(구|군)\s+[가-힣0-9]+(로|길)\s*\d+/.test(t) || /\d+\s*동\s*\d+\s*호/.test(t) || /주소\s*[:：]/.test(t) || /\b\d{1,5}\s+[A-Za-z0-9.' ]{2,30}\s(street|st\.?|avenue|ave\.?|road|rd\.?|boulevard|blvd\.?|lane|ln\.?|drive|dr\.?)(\s|,|$)/i.test(t)) return "주소";
     return "";
   }
@@ -201,16 +204,20 @@
     if (md) { d0 = new Date(now.getFullYear(), parseInt(md[1], 10) - 1, parseInt(md[2], 10)); }
     else { var me = q.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*(\d{1,2})\b/i) || q.match(/\b(\d{1,2})\/(\d{1,2})\b/); if (me) { var mo = isNaN(me[1]) ? "janfebmaraprmayjunjulaugsepoctnovdec".indexOf(me[1].slice(0, 3).toLowerCase()) / 3 : parseInt(me[1], 10) - 1; d0 = new Date(now.getFullYear(), mo, parseInt(me[2], 10)); } }
     if (d0) { if (d0 < t0) d0 = new Date(d0.getFullYear() + 1, d0.getMonth(), d0.getDate()); ci = fmt(d0); co = fmt(new Date(d0.getTime() + nights * 86400000)); }
-    var name = q.replace(/\d{1,2}\s*월\s*\d{1,2}\s*일?/g, " ").replace(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*\d{1,2}\b/gi, " ").replace(/\b\d{1,2}\/\d{1,2}\b/g, " ")
-      .replace(/\d+\s*(박|nights?|명|인원|인|사람|people|persons?|adults?|guests?)/gi, " ").replace(/(예약|숙박|묵을|묵고|체크인|빈\s*방|객실|방\s*잡아?|해\s*줘?|줘|좀|알려|찾아)/g, " ")
+    var name = q.replace(/\d+\s*박\s*\d+\s*일/g, " ").replace(/\d{1,2}\s*월\s*\d{1,2}\s*일?/g, " ").replace(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*\d{1,2}\b/gi, " ").replace(/\b\d{1,2}\/\d{1,2}\b/g, " ")
+      .replace(/\d+\s*(박|nights?|명|인원|인|사람|people|persons?|adults?|guests?)/gi, " ").replace(/(예약|숙박|묵을|묵고|체크인|빈\s*방|객실|방\s*잡아?|해\s*줘|줘|좀|알려|찾아)/g, " ")
       .replace(/(^|\s)(book(ing|ed)?|reserve|find|get|me|a|an|the|room|rooms|for|in|at|on|to|near|stay|nights?|please|from|until|till|people|persons?|adults?|guests?|and)(?=\s|$)/gi, "$1").replace(/\s+/g, " ").trim();
     return { stay: name || clean(q), ci: ci, co: co, ppl: ppl, nights: nights };
   }
   function stay(q, c) {
-    var i = stayInfo(q);
-    if (c === "KR") return { u: "https://www.yeogi.com/domestic-accommodations?keyword=" + E(i.stay) + (i.ci ? "&checkIn=" + i.ci + "&checkOut=" + i.co : "") + "&personal=" + i.ppl + "&freeForm=true", w: "🏨 여기어때", alt: { u: "https://www.yanolja.com/search/" + E(i.stay), w: "야놀자" }, info: i };
+    var i = stayInfo(q); i.c = c;
+    /* 숙소(v9): 쇼핑과 같은 법적 안전 — 제재국은 나라 값으로, 개인정보는 실제 형식으로. info 는 남겨 둔다(번역 경로가 info.stay 를 씀) */
+    if (SANCTIONED[c]) return { u: "", w: "숙소", none: "이 지역에서는 숙소 연결을 제공하지 않습니다 (국제 제재 대상 지역).", info: i };
+    var pk = piiKind(q, true);
+    if (pk) return { u: "", w: "숙소", none: pk + " 같은 개인정보가 들어 있어 검색하지 않았어요. 지역·숙소 이름과 날짜·인원만 적어 주세요. (coverfo는 개인정보를 저장하지 않습니다)", info: i };
+    if (c === "KR") return { u: "https://www.yeogi.com/domestic-accommodations?keyword=" + E(i.stay) + (i.ci ? "&checkIn=" + i.ci + "&checkOut=" + i.co : "") + "&personal=" + i.ppl + "&freeForm=true", w: "🏨 여기어때", alt: { u: "https://www.yanolja.com/search/" + E(i.stay), w: "야놀자" }, info: i, stay: i };
     var baid = ""; try { baid = (window.cfShopIds && window.cfShopIds.booking) || ""; } catch (e) {}
-    return { u: "https://www.booking.com/searchresults.html?ss=" + E(i.stay) + (i.ci ? "&checkin=" + i.ci + "&checkout=" + i.co : "") + "&group_adults=" + i.ppl + "&no_rooms=1" + (baid ? "&aid=" + E(baid) : ""), w: "🏨 Booking.com", alt: { u: "https://www.airbnb.com/s/" + E(i.stay) + "/homes" + (i.ci ? "?checkin=" + i.ci + "&checkout=" + i.co + "&adults=" + i.ppl : ""), w: "Airbnb" }, info: i };
+    return { u: "https://www.booking.com/searchresults.html?ss=" + E(i.stay) + (i.ci ? "&checkin=" + i.ci + "&checkout=" + i.co : "") + "&group_adults=" + i.ppl + "&no_rooms=1" + (baid ? "&aid=" + E(baid) : ""), w: "🏨 Booking.com", alt: { u: "https://www.airbnb.com/s/" + E(i.stay) + "/homes" + (i.ci ? "?checkin=" + i.ci + "&checkout=" + i.co + "&adults=" + i.ppl : ""), w: "Airbnb" }, info: i, stay: i };
   }
 
   /* ── 규칙으로 판별 → {kind, q} ── */
@@ -415,6 +422,8 @@
     var finish = function (res) { if (!res) { cb(null); return; } if (res.none) { cb({ none: res.none, w: res.w }); return; } cb(res); };
     var go = function (rr) {
       if (!rr) { cb(null); return; }
+      /* 쇼핑·숙소: 제재국이거나 개인정보 형식이 보이면 번역기로 보내기 전에 바로 막는다 (문장이 밖으로 나가지 않게) */
+      if ((rr.kind === "shop" || rr.kind === "stay") && (SANCTIONED[c] || piiKind(rr.q, rr.kind === "stay"))) { finish(build(rr, c)); return; }
       /* 한국 밖 + 한국어 검색어 → 지도·쇼핑·숙소 검색어만 영어로 바꿔 넣는다 (그 나라 서비스가 한국어를 못 알아듣는 경우가 많다) */
       if ((rr.kind === "place" || rr.kind === "navi" || rr.kind === "shop" || rr.kind === "stay" || rr.kind === "taxi") && c !== "KR" && KO.test(rr.query || rr.q)) {
         var base = rr.query || (rr.kind === "place" ? clean(rr.q) : rr.kind === "navi" ? naviDest(rr.q) : rr.kind === "shop" ? shopTopic(rr.q) : rr.kind === "taxi" ? taxiDest(rr.q) : stayInfo(rr.q).stay);
