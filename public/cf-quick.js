@@ -4,7 +4,7 @@
    · 어느 나라인지: cf-ui-lang.js 의 시간대 → 나라 (관리자 시험용 덮어쓰기: ?cf_country=US 또는 localStorage cf_country)
    · 여는 곳: 각 회사가 공개한 주소 형식만 (Google Maps URLs, Google 쇼핑 검색, YouTube 검색, Uber 딥링크(개발자 문서), Booking.com·Airbnb 검색,
      PayPal.me / UPI(NPCI 규격) / supertoss 송금 링크, tel:/sms:). 확인 안 된 형식(Venmo·Cash App·Zelle)은 쓰지 않는다.
-   · 숙소(v9): 판별되면 홈 화면의 숙소 화면(cf-stay)이 여기어때·야놀자·Booking.com·Agoda·Airbnb 공개 검색 주소를 보여 준다.
+   · 숙소(v9): 판별되면 홈 화면의 숙소 화면(cf-stay)이 여기어때·야놀자·Booking.com·Airbnb 공개 검색 주소를 보여 준다.
    · 쇼핑(v7·v8): 판별되면 홈 화면의 쇼핑 화면(cf-shop)이 쇼핑몰별 공개 검색 주소를 보여 준다. 제재국·개인정보는 shop() 에서 먼저 막는다.
      비공식 스킴·자동 결제 없음 — 송금·예약은 앱이 채워진 채 열리고 비밀번호/결제는 본인이 누른다.
    · 규칙에 안 걸리면 /api/quick-intent (Claude Fable 5.1, 크레딧 소액 차감) 에게 한 번 물어보고, 그래도 아니면 채팅으로.
