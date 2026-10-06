@@ -104,7 +104,8 @@
   function mapsDir(dest, c) {
     if (c === "KR") return { u: "https://map.naver.com/p/search/" + E(dest), w: "🧭 네이버지도 길찾기" };
     if (c === "CN") return { u: "https://uri.amap.com/search?keyword=" + E(dest) + "&view=map&src=coverfo", w: "🧭 高德地图", note: "중국은 구글 지도가 막혀 있어 高德 검색으로 엽니다. 길안내는 지도 안에서 눌러 주세요." };
-    return { u: "https://www.google.com/maps/dir/?api=1&destination=" + E(dest) + "&travelmode=driving", w: "🧭 Google Maps 내비" };
+    /* 기본은 자동차(2026-10-06 결정). dir_action=navigate = Google 공개 Maps URLs 의 '바로 길안내 시작' 값 */
+    return { u: "https://www.google.com/maps/dir/?api=1&destination=" + E(dest) + "&travelmode=driving&dir_action=navigate", w: "🧭 Google Maps 내비" };
   }
   /* ── 쇼핑 법적 안전 (2026-10 v7) ──
      · 제재 대상국(RU IR KP SY CU VE BY): 검색어 낱말이 아니라 '나라 값'으로만 막는다 ("노트북이란" 같은 문장이 걸리지 않게)
