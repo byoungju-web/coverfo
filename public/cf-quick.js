@@ -58,6 +58,7 @@
     delivery: [/배민|배달의민족|요기요|쿠팡이츠|배달|배달\s*시켜|시켜\s*먹|시켜먹/, /\b(doordash|uber\s*eats|grubhub|deliver(y|ed)?|order\s*(food|pizza|takeout))\b/i],
     pay: [/토스|송금|이체|카카오\s*페이|네이버\s*페이/, /\b(send|pay|transfer|venmo|paypal|cash\s*app|zelle|upi|wire)\b/i],
     stay: [/(예약|숙박|묵을|묵고|\d+\s*박|체크인|빈\s*방|객실|방\s*잡)/, /\b(hotel|hostel|airbnb|book(ing)?\s*(a\s*)?(room|hotel|stay)|stay|nights?|check[- ]?in|accommodation|lodging|resort|motel)\b/i],
+    flight: [/(항공권|비행기\s*(표|티켓|편|예약|예매|값|요금|최저가)|항공편|비행편|항공\s*(예약|예매)|비행기.*(예약|예매|끊어|알아봐|찾아|최저가)|비행기\s*타고)/, /\b(flights?|airfare|plane\s*tickets?|air\s*tickets?|fly\s+(to|from))\b/i],
     stayWord: [/(콘도|리조트|펜션|호텔|모텔|민박|게스트하우스|글램핑|캠핑|숙소|풀빌라|롯지|료칸)/, /\b(hotel|hostel|airbnb|resort|motel|inn|lodge|guesthouse|villa|cabin|apartment)\b/i]
   };
   function any(list, q) { var qn = String(q || "").replace(/\s+/g, ""); for (var i = 0; i < list.length; i++) if (list[i].test(q) || list[i].test(qn)) return true; return false; }
@@ -198,6 +199,72 @@
     if (TRAIN[c]) return { u: TRAIN[c][0], w: "🚄 " + TRAIN[c][1] };
     if (!gmapsOk(c)) return { u: "", w: "기차", none: "이 나라의 기차 예매 사이트가 등록돼 있지 않아요." };
     return { u: "https://www.google.com/maps/dir/?api=1&travelmode=transit&destination=" + E(q), w: "🚄 Google Maps 대중교통" };
+  }
+  /* ── 항공권(v18): 항공권 화면(cf-flight)에서 검색 사이트를 고른다 (전에는 규칙이 없어 채팅으로 넘어갔음) ──
+     · 네이버 항공권(한국): flight.naver.com/flights/{international|domestic}/출발-도착-YYYYMMDD[/도착-출발-YYYYMMDD]?adult=N&fareType=Y|YC (네이버가 쓰는 공개 주소 형식)
+     · Expedia: /go/flight/search/{oneway|roundtrip}/시작일/종료일?load=1&FromAirport&ToAirport&NumAdult (Expedia Group 공식 deeplink 문서)
+     · Skyscanner: /transport/flights/출발/도착/YYMMDD[/YYMMDD]/?adultsv2=N · Google 항공편: travel/flights?q=문장 — 널리 쓰이는 공개 형식(폰 확인 필요)
+     · 제휴(나중에): Secret SKYSCANNER_AFF_LINK·EXPEDIA_AFF_LINK ({url} 규칙). 예약·결제·여권·생년월일·카드 입력은 각 사이트에서 직접(coverfo 는 예약 정보 PNR 포함 아무것도 저장 안 함).
+     · 제재국·개인정보(여권·전화·이메일·카드 등)는 번역기로 보내기 전에 막는다. */
+  var IATA = { "서울": "SEL", "인천": "ICN", "김포": "GMP", "제주": "CJU", "제주도": "CJU", "부산": "PUS", "김해": "PUS", "대구": "TAE", "광주": "KWJ", "청주": "CJJ", "여수": "RSU", "울산": "USN", "포항": "KPO", "양양": "YNY", "무안": "MWX", "군산": "KUV", "원주": "WJU", "사천": "HIN", "진주": "HIN",
+    "도쿄": "TYO", "동경": "TYO", "나리타": "NRT", "하네다": "HND", "오사카": "OSA", "간사이": "KIX", "후쿠오카": "FUK", "삿포로": "CTS", "오키나와": "OKA", "나고야": "NGO", "교토": "OSA", "마쓰야마": "MYJ", "구마모토": "KMJ",
+    "베이징": "BJS", "북경": "BJS", "상하이": "SHA", "상해": "SHA", "칭다오": "TAO", "청도": "TAO", "홍콩": "HKG", "마카오": "MFM", "타이베이": "TPE", "대만": "TPE", "가오슝": "KHH",
+    "방콕": "BKK", "치앙마이": "CNX", "푸켓": "HKT", "다낭": "DAD", "하노이": "HAN", "호치민": "SGN", "나트랑": "CXR", "냐짱": "CXR", "푸꾸옥": "PQC", "달랏": "DLI", "세부": "CEB", "마닐라": "MNL", "보라카이": "KLO", "보홀": "TAG", "클락": "CRK",
+    "싱가포르": "SIN", "쿠알라룸푸르": "KUL", "코타키나발루": "BKI", "발리": "DPS", "자카르타": "JKT", "비엔티안": "VTE", "프놈펜": "PNH", "씨엠립": "SAI", "울란바토르": "UBN",
+    "뉴욕": "NYC", "로스앤젤레스": "LAX", "엘에이": "LAX", "샌프란시스코": "SFO", "시애틀": "SEA", "하와이": "HNL", "호놀룰루": "HNL", "괌": "GUM", "사이판": "SPN", "라스베이거스": "LAS", "시카고": "CHI", "워싱턴": "WAS", "보스턴": "BOS", "애틀랜타": "ATL", "댈러스": "DFW", "밴쿠버": "YVR", "토론토": "YTO",
+    "런던": "LON", "파리": "PAR", "로마": "ROM", "프랑크푸르트": "FRA", "바르셀로나": "BCN", "마드리드": "MAD", "이스탄불": "IST", "암스테르담": "AMS", "프라하": "PRG", "취리히": "ZRH", "뮌헨": "MUC", "베를린": "BER", "밀라노": "MIL", "비엔나": "VIE", "빈": "VIE",
+    "시드니": "SYD", "멜버른": "MEL", "브리즈번": "BNE", "오클랜드": "AKL", "두바이": "DXB", "델리": "DEL", "뭄바이": "BOM",
+    "seoul": "SEL", "incheon": "ICN", "gimpo": "GMP", "jeju": "CJU", "busan": "PUS", "tokyo": "TYO", "osaka": "OSA", "fukuoka": "FUK", "sapporo": "CTS", "okinawa": "OKA", "beijing": "BJS", "shanghai": "SHA", "hong kong": "HKG", "taipei": "TPE",
+    "bangkok": "BKK", "chiang mai": "CNX", "phuket": "HKT", "da nang": "DAD", "danang": "DAD", "hanoi": "HAN", "ho chi minh": "SGN", "saigon": "SGN", "cebu": "CEB", "manila": "MNL", "singapore": "SIN", "kuala lumpur": "KUL", "bali": "DPS", "jakarta": "JKT",
+    "new york": "NYC", "nyc": "NYC", "los angeles": "LAX", "la": "LAX", "san francisco": "SFO", "seattle": "SEA", "honolulu": "HNL", "hawaii": "HNL", "guam": "GUM", "las vegas": "LAS", "chicago": "CHI", "washington": "WAS", "boston": "BOS", "atlanta": "ATL", "dallas": "DFW", "miami": "MIA", "orlando": "MCO", "vancouver": "YVR", "toronto": "YTO",
+    "london": "LON", "paris": "PAR", "rome": "ROM", "frankfurt": "FRA", "barcelona": "BCN", "madrid": "MAD", "istanbul": "IST", "amsterdam": "AMS", "prague": "PRG", "zurich": "ZRH", "munich": "MUC", "berlin": "BER", "milan": "MIL", "vienna": "VIE",
+    "sydney": "SYD", "melbourne": "MEL", "brisbane": "BNE", "auckland": "AKL", "dubai": "DXB", "delhi": "DEL", "mumbai": "BOM" };
+  var KR_AIR = { SEL: 1, ICN: 1, GMP: 1, CJU: 1, PUS: 1, TAE: 1, KWJ: 1, CJJ: 1, RSU: 1, USN: 1, KPO: 1, YNY: 1, MWX: 1, KUV: 1, WJU: 1, HIN: 1 };
+  function iata(name) {
+    var n = String(name || "").trim(), l = n.toLowerCase().replace(/\s+/g, " ");
+    if (/^[A-Z]{3}$/.test(n)) return n;
+    if (IATA[l]) return IATA[l];
+    var k = l.replace(/(국제)?공항$|\s*airport$|도$|시$/, "").trim();
+    return IATA[k] || "";
+  }
+  function flightDates(q) {
+    var s = String(q || ""), out = [], now = new Date(); now.setHours(0, 0, 0, 0);
+    var p2 = function (n) { return (n < 10 ? "0" : "") + n; }, fmt = function (d) { return d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate()); };
+    var add = function (n) { var d = new Date(now); d.setDate(d.getDate() + n); out.push(fmt(d)); };
+    var MON = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+    s = s.replace(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*(\d{1,2})\b/gi, function (x, mo, d) { return MON[mo.toLowerCase()] + "/" + d; });
+    var re = /(오늘|내일|모레|글피|(\d{1,2})\s*월\s*(\d{1,2})\s*일|(\d{1,2})\s*\/\s*(\d{1,2}))/g, m;
+    while ((m = re.exec(s)) && out.length < 2) {
+      if (m[1] === "오늘") add(0); else if (m[1] === "내일") add(1); else if (m[1] === "모레") add(2); else if (m[1] === "글피") add(3);
+      else { var mo = +(m[2] || m[4]) - 1, da = +(m[3] || m[5]), d = new Date(now.getFullYear(), mo, da); if (d < now) d.setFullYear(d.getFullYear() + 1); if (d.getMonth() === mo) out.push(fmt(d)); }
+    }
+    var nights = s.match(/(\d{1,2})\s*박/);
+    if (out.length === 1 && nights) { var r = new Date(out[0] + "T00:00:00"); r.setDate(r.getDate() + +nights[1]); out.push(fmt(r)); }
+    var guessed = false;
+    if (!out.length) { add(7); guessed = true; }   /* "다음주" 등 날짜가 정확하지 않으면 일주일 뒤로 채우고 화면에 "날짜는 사이트에서 확인" 표시 */
+    if (out.length === 2 && out[1] < out[0]) out.pop();
+    var ppl = s.match(/(어른|성인|adults?)?\s*(\d{1,2})\s*(명|인|사람|adults?|people|persons?|pax)/i);
+    return { dep: out[0], ret: out[1] || "", guessed: guessed, adults: ppl && +ppl[2] > 0 && +ppl[2] <= 9 ? +ppl[2] : 1, round: !!out[1] || /왕복|round\s*trip|return/i.test(s) };
+  }
+  function flightRoute(q) {
+    var t = String(q || "").replace(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*\d{1,2}\b/gi, " ").replace(/(다음\s*주(말)?|이번\s*주(말)?|다음\s*달|주말|오늘|내일|모레|글피|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*\/\s*\d{1,2}|\d{1,2}\s*박(\s*\d{1,2}\s*일)?|(어른|성인)?\s*\d{1,2}\s*(명|인|사람)|\d{1,2}\s*(adults?|people|persons?|pax))/gi, " ")
+      .replace(/(항공권|비행기\s*(표|티켓|편)?|항공편|비행편|항공|예약|예매|최저가|가장\s*싼|싼|저렴한|편도|왕복|끊어\s*줘?|알아\s*봐\s*줘?|찾아\s*줘?|알려\s*줘?|해\s*줘?|줘|좀|타고|가는|가고\s*싶어|값|요금)/g, " ")
+      .replace(/\b(cheap(est)?|flights?|airfare|plane|air|tickets?|book(ing)?|a|the|please|one[- ]way|round[- ]?trip|return|find|me|search|for|fly)\b/gi, " ").replace(/(^|\s)(부터|까지|에|에서부터)(?=\s|$)/g, " ").replace(/\s+/g, " ").trim();
+    var m = t.match(/^(.*?\S)\s*에서\s+(.+?)(까지|행|으로|로)?$/) || t.match(/^from\s+(.+?)\s+to\s+(.+)$/i) || t.match(/^(.+?)\s+to\s+(.+)$/i) || t.match(/^(\S+)\s*(?:→|->|-|~)\s*(\S+)$/);
+    if (m) return { from: m[1].trim(), to: String(m[2]).replace(/(까지|행|으로|로)$/, "").trim() };
+    var d = t.replace(/(까지|행|으로|로)$/, "").replace(/^(to|from)\s+/i, "").trim();
+    return { from: "", to: d };
+  }
+  function flight(q, c, raw) {
+    if (SANCTIONED[c]) return { u: "", w: "항공권", none: "이 지역에서는 항공권 연결을 제공하지 않습니다 (국제 제재 대상 지역)." };
+    var pk = piiKind(raw || q, true);
+    if (pk) return { u: "", w: "항공권", none: pk + " 같은 개인정보가 들어 있어 열지 않았어요. 출발·도착 도시만 적어 주세요. 여권·연락처·결제 정보는 예약 사이트에서 직접 입력해 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
+    var rt = flightRoute(q), dt = flightDates(q), to = iata(rt.to), fr = iata(rt.from);
+    if (!fr && c === "KR") fr = KR_AIR[to] ? "GMP" : "ICN";   /* 출발지를 안 말하면 한국은 국내선=김포, 국제선=인천 */
+    if (fr === "SEL" && to && !KR_AIR[to]) fr = "ICN"; if (to === "SEL" && fr && !KR_AIR[fr]) to = "ICN";
+    if (fr === "SEL" && KR_AIR[to]) fr = "GMP"; if (to === "SEL" && KR_AIR[fr]) to = "GMP";
+    var info = { from: rt.from, to: rt.to, fc: fr, tc: to, dep: dt.dep, ret: dt.round ? dt.ret : "", guessed: dt.guessed, adults: dt.adults, c: c, dom: !!(KR_AIR[fr] && KR_AIR[to]) };
+    return { u: "https://www.google.com/travel/flights", w: "✈️ 항공권", flight: info };
   }
   /* ── 배달(v13) ──
      · 한국: 배민·쿠팡이츠·요기요·네이버지도 '근처 ○○ 배달' 화면(cf-dlv). 한국 배달 앱은 검색어를 받는 공개 주소가 없어 앱을 열고 메뉴 이름을 복사해 둔다.
@@ -389,6 +456,8 @@
     var en = classifyKE(t), lr = classifyL(t);
     /* 배달 앱 이름(uber eats·doordash·grubhub)이 있으면 현지어 규칙(예: 'uber' → 택시)보다 배달 판정을 먼저 쓴다 (v13) */
     if (en && en.kind === "delivery" && /uber\s*eats|doordash|door\s*dash|grubhub/i.test(t)) return en;
+    /* 항공권(v18): 영어·한국어 항공권 문장은 현지어 규칙보다 먼저 */
+    if (en && en.kind === "flight") return en;
     /* 영어 명소 표현(things to do·attractions·sightseeing 등)이면 현지어 규칙(예: 'do' → 슬로베니아어 길안내)보다 명소 판정을 먼저 쓴다 (v14) */
     if (en && en.kind === "place" && ATTR_EN.test(t)) return en;
     if (lr && (!en || lr.n >= 2 || isCjk(lr.lang) || /^(ar|hi|vi)$/.test(lr.lang) || (en.kind === "place" && lr.kind !== "place"))) return lr;
@@ -400,6 +469,7 @@
     if (any(R.pay, q) && notQuestion(q) && !/문자|메시지|카톡/.test(q) && (amountOf(q) || /토스|송금|이체|venmo|paypal|cash\s*app|zelle|upi|transfer/i.test(q))) return { kind: "pay", q: q };
     if (any(R.call, q) && notQuestion(q) && /(걸|연결|통화|해\s*줘|해줘|줘|콜|call|dial|ring)/i.test(q) && !/번호\s*(뭐|알려|찾|등록|저장)/.test(q) && !any(R.taxi, q)) return { kind: "call", q: q };
     if (any(R.sms, q) && notQuestion(q) && /(보내|전송|발신|써\s*줘|작성|해\s*줘|줘|에게|한테|께|send|text\s+\w+|message\s+\w+)/i.test(q)) return { kind: "sms", q: q };
+    if (any(R.flight, q) && notQuestion(q) && !/(모드|종이\s*비행기|장난감|드론|환불|수하물|마일리지|몇\s*시간|얼마나\s*걸|flight\s*(mode|status|time))/i.test(q)) return { kind: "flight", q: q };
     if (any(R.taxi, q) && !/uber\s*eats/i.test(q) && !/(요금|얼마|시세|몇\s*분|후기|리뷰|뭐야|차이|언제\s*오|how\s*much|price)/i.test(q)) return { kind: "taxi", q: q };
     if (any(R.train, q) && /(예매|예약|표|승차권|끊어|타고\s*가|편도|왕복|자리|좌석|에서.*(까지|행|가는|도착)|book|ticket|from\s+.+\s+to\s+|schedule|to\s+\w+)/i.test(q) && notQuestion(q)) return { kind: "train", q: q };
     if (any(R.delivery, q) && /(시켜|시키|주문|배달|order|deliver|get|doordash|uber\s*eats|grubhub|grab\s*food|배민|쿠팡\s*이츠|요기요)/i.test(q) && !/(배달비|배달료|얼마|몇\s*분|언제\s*오|환불|취소|후기|리뷰|how\s*much|how\s*long)/i.test(q)) return { kind: "delivery", q: q };
@@ -537,6 +607,7 @@
     if (k === "sms") { var n2 = numIn(q), body = (r.body || String(q).replace(/(\+?\d[\d\-\s]{6,}\d)/g, " ").replace(/^\s*.+?(에게|한테|께서|께)/, "").replace(/(문자|메시지|메세지|sms|전송|발신|보내\s*줘?|보내|써\s*줘?|작성|줘|해\s*줘?|해|좀|부탁(해|해줘)?|\btext\b|\bsend\b|\bmessage\b|\bto\b)/gi, " ").replace(/\s+/g, " ").trim().replace(/고\s*$/, "")); return { u: "sms:" + n2 + (body ? "?body=" + E(body) : ""), w: "💬 문자" }; }
     if (k === "taxi") return taxi(r.query || taxiDest(q), c, q);
     if (k === "train") return train(q, c, q);
+    if (k === "flight") return flight(q, c, q);
     if (k === "delivery") return delivery(r.query || q, c, q);
     if (k === "pay") return pay(q, c);
     if (k === "stay") { if (r.lang) { var sres = stay(q, c), nm = stripL(stayInfo(q).stay, r.lang, ["stay", "book"]); if (nm && nm !== sres.info.stay) { sres.u = sres.u.split(E(sres.info.stay)).join(E(nm)); if (sres.alt) sres.alt.u = sres.alt.u.split(E(sres.info.stay)).join(E(nm)); sres.info.stay = nm; } return sres; } return stay(q, c); }
@@ -577,6 +648,7 @@
       if (rr.kind === "delivery" && (SANCTIONED[c] || piiKind(rr.q))) { finish(build(rr, c)); return; }
       if (rr.kind === "taxi" && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
       if (rr.kind === "train" && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
+      if (rr.kind === "flight") { finish(build(rr, c)); return; }   /* 항공권: 번역기를 쓰지 않음(도시 이름 → 공항 코드 표) */
       /* 한국 밖 + 한국어 검색어 → 지도·쇼핑·숙소 검색어만 영어로 바꿔 넣는다 (그 나라 서비스가 한국어를 못 알아듣는 경우가 많다) */
       if ((rr.kind === "place" || rr.kind === "navi" || rr.kind === "shop" || rr.kind === "stay" || rr.kind === "taxi") && c !== "KR" && KO.test(rr.query || rr.q)) {
         var base = rr.query || (rr.kind === "place" ? clean(rr.q) : rr.kind === "navi" ? naviDest(rr.q) : rr.kind === "shop" ? shopTopic(rr.q) : rr.kind === "taxi" ? taxiDest(rr.q) : stayInfo(rr.q).stay);
