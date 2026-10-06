@@ -162,8 +162,28 @@
     /* 99(브라질) 등 그 밖은 공개 호출 링크가 없음 → 목적지까지 길찾기만 */
     return dest ? { u: "https://www.google.com/maps/dir/?api=1&destination=" + E(dest), w: "🧭 Google Maps 길찾기", note: "이 나라는 택시 앱 공개 링크가 없어 길찾기로 엽니다. 호출은 Grab 등 현지 앱에서." } : { u: "", w: "택시", none: "이 나라는 택시 앱 공개 링크가 없어요. Grab 등 현지 앱에서 불러 주세요." };
   }
-  function train(q, c) {
-    if (c === "KR") return { u: /srt|수서/i.test(q) ? "https://etk.srail.kr/main.do" : "https://www.letskorail.com/", w: "🚄 기차 예매" };
+  /* ── 기차(v17): 한국·유럽·동남아는 기차 화면(cf-train)에서 예매 사이트를 고른다. 그 밖은 지금처럼 그 나라 공식 사이트(또는 지도)를 바로 연다 ──
+     · 한국: 코레일·SRT 공식 예매 사이트(구간을 주소로 받는 공개 링크가 없어 첫 화면) + 도착역 지도.
+     · 유럽·영국: 그 나라 공식 철도 사이트 + Trainline + Google Maps 대중교통. 동남아: 공식 철도 사이트 + 12Go + Google Maps 대중교통.
+     · 제휴(나중에): Secret TRAINLINE_AFF_LINK·TWELVEGO_AFF_LINK 를 넣으면 그 링크로 연다(배달·택시와 같은 규칙, /api/shop-ids).
+     · 예매·결제·승객 정보 입력은 각 사이트에서 이용자가 직접. 제재국·개인정보(전화·이메일·카드·여권 등)는 먼저 막는다. */
+  var TRAIN_EU = { GB:1, IE:1, DE:1, FR:1, ES:1, IT:1, NL:1, BE:1, CH:1, AT:1, SE:1, PL:1, PT:1, CZ:1, DK:1, NO:1 };
+  var TRAIN_SEA = { TH:1, VN:1, MY:1, ID:1, KH:1, LA:1, PH:1, SG:1, MM:1 };
+  function trainRoute(q) {
+    var t = String(q || "").replace(/(srt|ktx|itx|기차|열차|코레일|고속철도?|무궁화호?|새마을호?|예매|예약|승차권|기차표|표|끊어\s*줘?|타고\s*가(자|고|줘)?|알려\s*줘?|해\s*줘?|줘|좀|시간표|편도|왕복)/gi, " ")
+      .replace(/\b(train|trains|amtrak|rail(way)?|eurostar|shinkansen|tickets?|book(ing)?|buy|a|the|please|one[- ]way|return)\b/gi, " ").replace(/\s+/g, " ").trim();
+    var m = t.match(/^(.*?\S)\s*에서\s+(.+?)(까지|행|가는|으로|로)?$/) || t.match(/\bfrom\s+(.+?)\s+to\s+(.+)$/i) || t.match(/^(.+?)\s+to\s+(.+)$/i) || t.match(/^(\S+)\s*(?:→|->|-|~)\s*(\S+)$/);
+    if (m) return { from: m[1].trim(), to: String(m[2]).replace(/(까지|행|가는|으로|로)$/, "").trim() };
+    var d = t.replace(/(까지|행|가는|으로|로)$/, "").replace(/^(to|for)\s+/i, "").trim();
+    return { from: "", to: d.length >= 2 ? d : "" };
+  }
+  function train(q, c, raw) {
+    if (SANCTIONED[c]) return { u: "", w: "기차", none: "이 지역에서는 기차 예매 연결을 제공하지 않습니다 (국제 제재 대상 지역)." };
+    var pk = piiKind(raw || q, true);
+    if (pk) return { u: "", w: "기차", none: pk + " 같은 개인정보가 들어 있어 열지 않았어요. 출발역·도착역만 적어 주세요. 이름·연락처·결제 정보는 예매 사이트에서 직접 입력해 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
+    var rt = trainRoute(q), res;
+    if (c === "KR") { res = { u: /srt|수서/i.test(q) ? "https://etk.srail.kr/main.do" : "https://www.letskorail.com/", w: "🚄 기차 예매" }; res.train = { from: rt.from, to: rt.to, c: c, srt: /srt|수서/i.test(q) }; return res; }
+    if (TRAIN_EU[c] || TRAIN_SEA[c]) return { u: TRAIN[c] ? TRAIN[c][0] : (TRAIN_EU[c] ? "https://www.thetrainline.com/" : "https://12go.asia/en"), w: "🚄 " + (TRAIN[c] ? TRAIN[c][1] : TRAIN_EU[c] ? "Trainline" : "12Go"), train: { from: rt.from, to: rt.to, c: c, eu: !!TRAIN_EU[c], sea: !!TRAIN_SEA[c], off: TRAIN[c] || null } };
     if (TRAIN[c]) return { u: TRAIN[c][0], w: "🚄 " + TRAIN[c][1] };
     if (!gmapsOk(c)) return { u: "", w: "기차", none: "이 나라의 기차 예매 사이트가 등록돼 있지 않아요." };
     return { u: "https://www.google.com/maps/dir/?api=1&travelmode=transit&destination=" + E(q), w: "🚄 Google Maps 대중교통" };
@@ -505,7 +525,7 @@
     if (k === "call") { var n = numIn(q); return n ? { u: "tel:" + n, w: "📞 전화" } : { u: "", w: "전화", none: "전화번호를 같이 말해 주세요 (예: 010-1234-5678로 전화)" }; }
     if (k === "sms") { var n2 = numIn(q), body = (r.body || String(q).replace(/(\+?\d[\d\-\s]{6,}\d)/g, " ").replace(/^\s*.+?(에게|한테|께서|께)/, "").replace(/(문자|메시지|메세지|sms|전송|발신|보내\s*줘?|보내|써\s*줘?|작성|줘|해\s*줘?|해|좀|부탁(해|해줘)?|\btext\b|\bsend\b|\bmessage\b|\bto\b)/gi, " ").replace(/\s+/g, " ").trim().replace(/고\s*$/, "")); return { u: "sms:" + n2 + (body ? "?body=" + E(body) : ""), w: "💬 문자" }; }
     if (k === "taxi") return taxi(r.query || taxiDest(q), c, q);
-    if (k === "train") return train(q, c);
+    if (k === "train") return train(q, c, q);
     if (k === "delivery") return delivery(r.query || q, c, q);
     if (k === "pay") return pay(q, c);
     if (k === "stay") { if (r.lang) { var sres = stay(q, c), nm = stripL(stayInfo(q).stay, r.lang, ["stay", "book"]); if (nm && nm !== sres.info.stay) { sres.u = sres.u.split(E(sres.info.stay)).join(E(nm)); if (sres.alt) sres.alt.u = sres.alt.u.split(E(sres.info.stay)).join(E(nm)); sres.info.stay = nm; } return sres; } return stay(q, c); }
@@ -545,6 +565,7 @@
       if (rr.kind === "place" && !isFood(rr.q) && isAttr(rr.q) && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
       if (rr.kind === "delivery" && (SANCTIONED[c] || piiKind(rr.q))) { finish(build(rr, c)); return; }
       if (rr.kind === "taxi" && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
+      if (rr.kind === "train" && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
       /* 한국 밖 + 한국어 검색어 → 지도·쇼핑·숙소 검색어만 영어로 바꿔 넣는다 (그 나라 서비스가 한국어를 못 알아듣는 경우가 많다) */
       if ((rr.kind === "place" || rr.kind === "navi" || rr.kind === "shop" || rr.kind === "stay" || rr.kind === "taxi") && c !== "KR" && KO.test(rr.query || rr.q)) {
         var base = rr.query || (rr.kind === "place" ? clean(rr.q) : rr.kind === "navi" ? naviDest(rr.q) : rr.kind === "shop" ? shopTopic(rr.q) : rr.kind === "taxi" ? taxiDest(rr.q) : stayInfo(rr.q).stay);
