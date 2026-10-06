@@ -202,10 +202,20 @@
     if (c === "CN") return { u: "", w: "배달", none: "중국은 메이퇀(美团) 공개 링크가 없어 앱에서 직접 주문해 주세요." };
     return { u: "https://www.google.com/maps/search/?api=1&query=" + E(food + " delivery"), w: "📍 Google Maps (배달 가능한 곳)" };
   }
-  function music(q, c) {
-    var t = String(q || "").replace(/유튜브에서|유튜브|유툽|유투브|youtube|on youtube/gi, "").replace(/틀어\s*줘?|들려\s*줘?|재생\s*해?\s*줘?|재생|플레이\s*해?\s*줘?|\bplay\b|listen\s*to|좀|해\s*줘?|켜\s*줘?|찾아\s*줘?|\b(the|a|some)\s*(song|music|video)\b/gi, "").replace(/\s+/g, " ").trim() || q;
+  /* ── 음악(v16): 음악 화면(cf-music)에서 고른다. 중국은 지금처럼 bilibili 검색을 바로 연다 ──
+     · ▶ 바로 재생: YouTube 공식 Data API(서버 /api/yt-top, Secret YOUTUBE_API_KEY)로 첫 영상을 찾아 YouTube 에서 연다 — 로그인 + 크레딧 차감(무료 없음, 실패 시 환불).
+     · 무료 버튼: YouTube·YouTube Music·Spotify 공개 검색 주소. 크롤링 없음. 영상은 각 서비스에서 재생(coverfo 는 내려받거나 저장하지 않음).
+     · 제재국·개인정보 확인은 쇼핑·숙소·맛집과 같다. */
+  function music(q, c, raw) {
+    if (SANCTIONED[c]) return { u: "", w: "음악", none: "이 지역에서는 음악 연결을 제공하지 않습니다 (국제 제재 대상 지역)." };
+    var pk = piiKind(raw || q, true);
+    if (pk) return { u: "", w: "음악", none: pk + " 같은 개인정보가 들어 있어 열지 않았어요. 노래 제목·가수 이름만 적어 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
+    var t = String(q || "").replace(/(on\s+)?(유튜브|유툽|유투브|youtube)\s*(에서|으로|로)?/gi, " ").replace(/틀어\s*줘?|들려\s*줘?|재생\s*해?\s*줘?|재생|플레이\s*해?\s*줘?|\bplay\b|listen\s*to|좀|해\s*줘?|켜\s*줘?|찾아\s*줘?|\b(the|a|some)\s*(song|music|video)\b/gi, "").replace(/\s+/g, " ").trim();
+    /* 곡·가수 이름이 없으면("유튜브 켜줘"·"노래 틀어줘") 바로 재생(크레딧)은 숨기고 검색 버튼만 */
+    var generic = !t || /^(노래|음악|뮤직|곡|가요|songs?|music|videos?)$/i.test(t);
+    t = t || q;
     if (c === "CN") return { u: "https://search.bilibili.com/all?keyword=" + E(t), w: "▶ bilibili", note: "중국은 유튜브가 막혀 있어 bilibili 검색으로 엽니다." };
-    return { u: "https://www.youtube.com/results?search_query=" + E(t), w: "▶ YouTube" };
+    return { u: "https://www.youtube.com/results?search_query=" + E(t), w: "▶ YouTube", music: { q: t, c: c, generic: generic } };
   }
   /* 송금·페이: 앱이 받는 사람·금액을 채운 채 열린다. 비밀번호·확인은 본인이 (각 회사 공개 링크 형식) */
   function pay(q, c) {
@@ -490,7 +500,7 @@
     }
     if (k === "place") { var pq = r.query || clean(q); if (/^(근처|주변|여기|가까운|이\s*근방|근방)?$/.test(pq.trim())) pq = (pq.trim() || "근처") + " 맛집"; if (isFood(q)) return food(pq, c, q); if (isAttr(q)) return attr(pq, c, q); return mapsSearch(pq, c); }   /* "배고파 근처 뭐 먹지" → 근처 맛집 */
     if (k === "navi") { if (r.query) return navi(r.query, "", c, q); var ft = naviFromTo(q); return navi(ft.to, ft.from, c, q); }
-    if (k === "music") return music(r.query || q, c);
+    if (k === "music") return music(r.query || q, c, q);
     if (k === "shop") return shop(r.query || shopTopic(q), c, q);
     if (k === "call") { var n = numIn(q); return n ? { u: "tel:" + n, w: "📞 전화" } : { u: "", w: "전화", none: "전화번호를 같이 말해 주세요 (예: 010-1234-5678로 전화)" }; }
     if (k === "sms") { var n2 = numIn(q), body = (r.body || String(q).replace(/(\+?\d[\d\-\s]{6,}\d)/g, " ").replace(/^\s*.+?(에게|한테|께서|께)/, "").replace(/(문자|메시지|메세지|sms|전송|발신|보내\s*줘?|보내|써\s*줘?|작성|줘|해\s*줘?|해|좀|부탁(해|해줘)?|\btext\b|\bsend\b|\bmessage\b|\bto\b)/gi, " ").replace(/\s+/g, " ").trim().replace(/고\s*$/, "")); return { u: "sms:" + n2 + (body ? "?body=" + E(body) : ""), w: "💬 문자" }; }
