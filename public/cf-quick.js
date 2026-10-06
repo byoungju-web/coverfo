@@ -335,6 +335,8 @@
     var en = classifyKE(t), lr = classifyL(t);
     /* 배달 앱 이름(uber eats·doordash·grubhub)이 있으면 현지어 규칙(예: 'uber' → 택시)보다 배달 판정을 먼저 쓴다 (v13) */
     if (en && en.kind === "delivery" && /uber\s*eats|doordash|door\s*dash|grubhub/i.test(t)) return en;
+    /* 영어 명소 표현(things to do·attractions·sightseeing 등)이면 현지어 규칙(예: 'do' → 슬로베니아어 길안내)보다 명소 판정을 먼저 쓴다 (v14) */
+    if (en && en.kind === "place" && ATTR_EN.test(t)) return en;
     if (lr && (!en || lr.n >= 2 || isCjk(lr.lang) || /^(ar|hi|vi)$/.test(lr.lang) || (en.kind === "place" && lr.kind !== "place"))) return lr;
     return en;
   }
@@ -379,6 +381,28 @@
     if (pk) return { u: "", w: "맛집", none: pk + " 같은 개인정보가 들어 있어 검색하지 않았어요. 지역·음식 이름만 적어 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
     var fq = foodQuery(pq), res = mapsSearch(fq, c);
     if (c === "KR" || YELP[c]) res.food = { q: fq, c: c };
+    return res;
+  }
+  /* ── 가볼만한곳·명소(v14): 관광지·명소 요청은 명소 화면(cf-attr)으로. 지도 + 투어·입장권(Klook·KKday) 검색 링크 ──
+     · 크롤링 없음: 각 서비스가 공개한 검색 주소만 연다. 결제는 그 사이트에서 이용자가 직접(coverfo 는 결제를 받지 않음).
+     · 제휴 ID 는 Cloudflare Secret(KLOOK_AID·KKDAY_CID)을 넣었을 때만 링크에 붙는다(/api/shop-ids). 없으면 일반 링크.
+     · 제재국·개인정보 확인은 쇼핑·숙소·맛집과 같다(번역기로 보내기 전에 막음). 중국은 지금처럼 高德 지도를 바로 연다. */
+  var ATTR_EN = /(things\s*to\s*do|attractions?|sightseeing|places\s*to\s*(visit|see|go)|tourist|landmarks?|must[- ]see|tours?\b)/i;
+  function isAttr(q) { q = String(q || ""); return R.place[1].test(q) || ATTR_EN.test(q); }
+  function attrArea(pq) {
+    /* "부산 가볼만한곳" → "부산" (투어·입장권 사이트 검색어). 지역 이름이 없으면 "" */
+    return String(pq || "")
+      .replace(/(가\s*볼\s*만\s*한\s*(곳|데)?|가볼만한\s*(곳|데)?|볼\s*만\s*한\s*(곳|데)|관광\s*지|관광|명소|여행\s*지|여행|놀\s*(거리|데|곳)|갈\s*(만\s*한|데|곳)\s*(곳|데)?|볼\s*거리|구경\s*(거리|할\s*(곳|데)?|갈\s*(곳|데)?)|핫플(레이스)?|유명한\s*(곳|데)|데이트\s*(코스|장소)|나들이|놀러\s*(갈|가)\s*(곳|데)?|산책\s*(길|코스)|코스|추천|근처|주변|여기|가까운)/g, " ")
+      .replace(/\b(things\s*to\s*do|attractions?|sightseeing|places\s*to\s*(visit|see|go)|tourist(\s*(spots?|places?|attractions?))?|landmarks?|must[- ]see|tours?|top|in|near\s*me|nearby|best|visit|the|to|do|of)\b/gi, " ")
+      .replace(/(^|\s)(곳|데)(?=\s|$)/g, " ").replace(/(\S{2,})(에서|에|의)(?=\s|$)/g, "$1")
+      .replace(/\s+/g, " ").trim();
+  }
+  function attr(pq, c, raw) {
+    if (SANCTIONED[c]) return { u: "", w: "명소", none: "이 지역에서는 명소·관광 연결을 제공하지 않습니다 (국제 제재 대상 지역)." };
+    var pk = piiKind(raw, true);
+    if (pk) return { u: "", w: "명소", none: pk + " 같은 개인정보가 들어 있어 검색하지 않았어요. 지역·장소 이름만 적어 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
+    var res = mapsSearch(pq, c);
+    if (c !== "CN") res.attr = { q: pq, area: attrArea(pq), c: c };
     return res;
   }
   function naviDest(q) {
@@ -450,7 +474,7 @@
       else if (k === "delivery") r.query = stripL(q, r.lang, ["delivery"]);
       if (k === "place" && r.lang && !r.query) r.query = q;
     }
-    if (k === "place") { var pq = r.query || clean(q); if (/^(근처|주변|여기|가까운|이\s*근방|근방)?$/.test(pq.trim())) pq = (pq.trim() || "근처") + " 맛집"; if (isFood(q)) return food(pq, c, q); return mapsSearch(pq, c); }   /* "배고파 근처 뭐 먹지" → 근처 맛집 */
+    if (k === "place") { var pq = r.query || clean(q); if (/^(근처|주변|여기|가까운|이\s*근방|근방)?$/.test(pq.trim())) pq = (pq.trim() || "근처") + " 맛집"; if (isFood(q)) return food(pq, c, q); if (isAttr(q)) return attr(pq, c, q); return mapsSearch(pq, c); }   /* "배고파 근처 뭐 먹지" → 근처 맛집 */
     if (k === "navi") { if (r.query) return navi(r.query, "", c, q); var ft = naviFromTo(q); return navi(ft.to, ft.from, c, q); }
     if (k === "music") return music(r.query || q, c);
     if (k === "shop") return shop(r.query || shopTopic(q), c, q);
@@ -494,6 +518,7 @@
       if ((rr.kind === "shop" || rr.kind === "stay") && (SANCTIONED[c] || piiKind(rr.q, rr.kind === "stay"))) { finish(build(rr, c)); return; }
       if (rr.kind === "place" && isFood(rr.q) && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
       if (rr.kind === "navi" && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
+      if (rr.kind === "place" && !isFood(rr.q) && isAttr(rr.q) && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
       if (rr.kind === "delivery" && (SANCTIONED[c] || piiKind(rr.q))) { finish(build(rr, c)); return; }
       /* 한국 밖 + 한국어 검색어 → 지도·쇼핑·숙소 검색어만 영어로 바꿔 넣는다 (그 나라 서비스가 한국어를 못 알아듣는 경우가 많다) */
       if ((rr.kind === "place" || rr.kind === "navi" || rr.kind === "shop" || rr.kind === "stay" || rr.kind === "taxi") && c !== "KR" && KO.test(rr.query || rr.q)) {
