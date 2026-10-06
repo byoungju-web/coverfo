@@ -163,7 +163,7 @@
     return dest ? { u: "https://www.google.com/maps/dir/?api=1&destination=" + E(dest), w: "🧭 Google Maps 길찾기", note: "이 나라는 택시 앱 공개 링크가 없어 길찾기로 엽니다. 호출은 Grab 등 현지 앱에서." } : { u: "", w: "택시", none: "이 나라는 택시 앱 공개 링크가 없어요. Grab 등 현지 앱에서 불러 주세요." };
   }
   /* ── 기차(v17): 한국·유럽·동남아는 기차 화면(cf-train)에서 예매 사이트를 고른다. 그 밖은 지금처럼 그 나라 공식 사이트(또는 지도)를 바로 연다 ──
-     · 한국: 코레일·SRT 공식 예매 사이트(구간을 주소로 받는 공개 링크가 없어 첫 화면) + 도착역 지도.
+     · 한국: KTX·SRT 통합(2026-09-01) — 코레일+ 앱(com.korail.talk · iOS id1000558562) + korail.com 예매 화면. 구간을 채우는 공개 링크가 없어 앱·사이트에서 선택. 도착역 길안내.
      · 유럽·영국: 그 나라 공식 철도 사이트 + Trainline + Google Maps 대중교통. 동남아: 공식 철도 사이트 + 12Go + Google Maps 대중교통.
      · 제휴(나중에): Secret TRAINLINE_AFF_LINK·TWELVEGO_AFF_LINK 를 넣으면 그 링크로 연다(배달·택시와 같은 규칙, /api/shop-ids).
      · 예매·결제·승객 정보 입력은 각 사이트에서 이용자가 직접. 제재국·개인정보(전화·이메일·카드·여권 등)는 먼저 막는다. */
@@ -193,7 +193,7 @@
     var pk = piiKind(raw || q, true);
     if (pk) return { u: "", w: "기차", none: pk + " 같은 개인정보가 들어 있어 열지 않았어요. 출발역·도착역만 적어 주세요. 이름·연락처·결제 정보는 예매 사이트에서 직접 입력해 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
     var rt = trainRoute(q), wh = trainWhen(q), res;
-    if (c === "KR") { res = { u: /srt|수서/i.test(q) ? "https://etk.srail.kr/main.do" : "https://www.letskorail.com/", w: "🚄 기차 예매" }; res.train = { from: rt.from, to: rt.to, c: c, srt: /srt|수서/i.test(q), date: wh.date, people: wh.people }; return res; }
+    if (c === "KR") { res = { u: "https://www.korail.com/ticket/search/general", w: "🚄 기차 예매" };   /* 2026-09-01 KTX·SRT 통합: SRT 홈페이지·앱 종료, 예매는 코레일+ 앱·korail.com */ res.train = { from: rt.from, to: rt.to, c: c, srt: /srt|수서/i.test(q), date: wh.date, people: wh.people }; return res; }
     if (TRAIN_EU[c] || TRAIN_SEA[c]) return { u: TRAIN[c] ? TRAIN[c][0] : (TRAIN_EU[c] ? "https://www.thetrainline.com/" : "https://12go.asia/en"), w: "🚄 " + (TRAIN[c] ? TRAIN[c][1] : TRAIN_EU[c] ? "Trainline" : "12Go"), train: { from: rt.from, to: rt.to, c: c, eu: !!TRAIN_EU[c], sea: !!TRAIN_SEA[c], off: TRAIN[c] || null, date: wh.date, people: wh.people } };
     if (TRAIN[c]) return { u: TRAIN[c][0], w: "🚄 " + TRAIN[c][1] };
     if (!gmapsOk(c)) return { u: "", w: "기차", none: "이 나라의 기차 예매 사이트가 등록돼 있지 않아요." };
