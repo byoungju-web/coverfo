@@ -59,6 +59,9 @@
     pay: [/토스|송금|이체|카카오\s*페이|네이버\s*페이/, /\b(send|pay|transfer|venmo|paypal|cash\s*app|zelle|upi|wire)\b/i],
     stay: [/(예약|숙박|묵을|묵고|\d+\s*박|체크인|빈\s*방|객실|방\s*잡)/, /\b(hotel|hostel|airbnb|book(ing)?\s*(a\s*)?(room|hotel|stay)|stay|nights?|check[- ]?in|accommodation|lodging|resort|motel)\b/i],
     flight: [/(항공권|비행기\s*(표|티켓|편|예약|예매|값|요금|최저가)|항공편|비행편|항공\s*(예약|예매)|비행기.*(예약|예매|끊어|알아봐|찾아|최저가)|비행기\s*타고)/, /\b(flights?|airfare|plane\s*tickets?|air\s*tickets?|fly\s+(to|from))\b/i],
+    weather: [/(날씨|기온|일기\s*예보|강수|미세\s*먼지|초미세\s*먼지|자외선|체감\s*온도|비\s*(와|올까|오나|올래|소식)|눈\s*(와|올까|오나|소식)|우산\s*(챙|필요|가져))/, /\b(weather|forecast|temperature|will\s+it\s+rain|is\s+it\s+raining)\b/i],
+    used: [/(중고(?!\s*등|생|교)|당근\s*마켓|당근\s*(에서|에|으로)|번개\s*장터|번장|중고\s*나라|리퍼\s*(제품|폰|상품)?)/, /\b(used|second[- ]?hand|pre[- ]?owned|refurbished)\b/i],
+    rental: [/(렌터카|렌트카|렌트\s*카|차\s*렌트|차량\s*(렌트|대여)|자동차\s*대여|쏘카|그린카|카\s*셰어링)/, /\b(car\s*rental|rental\s*car|rent\s*a\s*car|car\s*hire|hire\s*a\s*car)\b/i],
     stayWord: [/(콘도|리조트|펜션|호텔|모텔|민박|게스트하우스|글램핑|캠핑|숙소|풀빌라|롯지|료칸)/, /\b(hotel|hostel|airbnb|resort|motel|inn|lodge|guesthouse|villa|cabin|apartment)\b/i]
   };
   function any(list, q) { var qn = String(q || "").replace(/\s+/g, ""); for (var i = 0; i < list.length; i++) if (list[i].test(q) || list[i].test(qn)) return true; return false; }
@@ -266,6 +269,63 @@
     var info = { from: rt.from, to: rt.to, fc: fr, tc: to, dep: dt.dep, ret: dt.round ? dt.ret : "", guessed: dt.guessed, adults: dt.adults, c: c, dom: !!(KR_AIR[fr] && KR_AIR[to]) };
     return { u: "https://www.google.com/travel/flights", w: "✈️ 항공권", flight: info };
   }
+  /* ── 날씨(v19): 한국은 날씨 화면(cf-weather: 네이버 날씨·기상청 날씨누리·Google), 그 밖의 나라는 Google 날씨 검색을 바로 연다 ──
+     · 공개 검색 주소만 연다(크롤링 없음). 지역 이름만 검색어로 쓰고 저장하지 않는다. 위치(GPS)는 받지 않는다 — 지역을 안 말하면 각 서비스가 직접 판단.
+     · 제재국·개인정보는 다른 기능과 같이 먼저 막는다. */
+  function weatherInfo(q) {
+    var s = String(q || ""), when = /모레/.test(s) ? "모레" : /내일|tomorrow/i.test(s) ? "내일" : /주말|weekend/i.test(s) ? "주말" : /이번\s*주|this\s*week|주간/i.test(s) ? "이번 주" : "";
+    var place = s.replace(/(날씨|기온|일기\s*예보|강수(량|확률)?|초?미세\s*먼지|자외선|체감\s*온도|비|눈|우산|와\?*|올까\?*|오나\?*|올래\?*|소식|챙겨야\s*(해|돼|할까)\?*|필요해\?*|가져가야\s*(해|돼|할까)?\?*|어때\?*|어떄|알려\s*줘?|좀|해\s*줘?|오늘|내일|모레|주말|이번\s*주|주간|지금|현재|\?)/g, " ")
+      .replace(/\b(weather|forecast|temperature|will|it|rain|raining|is|in|for|the|today|tomorrow|weekend|this|week|what's|whats|how's|hows|what|how|now)\b/gi, " ")
+      .replace(/(^|\s)(의|에|은|는|도)(?=\s|$)/g, " ").replace(/(\S{2,})(의|에서|에)(?=\s|$)/g, "$1").replace(/\s+/g, " ").trim();
+    return { place: place, when: when, dust: /미세\s*먼지/.test(s) };
+  }
+  function weather(q, c, raw) {
+    if (SANCTIONED[c]) return { u: "", w: "날씨", none: "이 지역에서는 날씨 연결을 제공하지 않습니다 (국제 제재 대상 지역)." };
+    var pk = piiKind(raw || q, true);
+    if (pk) return { u: "", w: "날씨", none: pk + " 같은 개인정보가 들어 있어 열지 않았어요. 지역 이름만 적어 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
+    var wi = weatherInfo(q);
+    if (c === "KR") return { u: "https://search.naver.com/search.naver?query=" + E((wi.place ? wi.place + " " : "") + (wi.when ? wi.when + " " : "") + (wi.dust ? "미세먼지" : "날씨")), w: "🌤 네이버 날씨", weather: { place: wi.place, when: wi.when, dust: wi.dust, c: c } };
+    if (c === "CN") return { u: "", w: "날씨", none: "중국은 구글이 막혀 있어 휴대폰 날씨 앱을 써 주세요." };
+    return { u: "https://www.google.com/search?q=" + E("weather " + (wi.place || "") + (wi.when === "내일" ? " tomorrow" : wi.when === "주말" ? " weekend" : "")), w: "🌤 Google 날씨" };
+  }
+  /* ── 중고거래(v20): 중고 화면(cf-used)에서 여러 중고 앱을 같은 검색어로 비교 ──
+     · 한국: 당근(daangn.com/kr/buy-sell/?search=) · 번개장터(m.bunjang.co.kr/search/products?q=) · 중고나라(web.joongna.com/search/검색어) — 각 사이트가 쓰는 공개 검색 주소.
+     · 해외: eBay 검색(_nkw). 제휴는 Secret EBAY_AFF_LINK({url} 규칙, eBay Partner Network)을 넣었을 때만.
+     · 거래·채팅·결제는 각 앱에서 직접(coverfo 는 중개하지 않음). 전화·계좌·주소 등 개인정보와 제재국은 먼저 막는다. */
+  var EBAY = { US: "www.ebay.com", GB: "www.ebay.co.uk", DE: "www.ebay.de", FR: "www.ebay.fr", IT: "www.ebay.it", ES: "www.ebay.es", CA: "www.ebay.ca", AU: "www.ebay.com.au", AT: "www.ebay.at", CH: "www.ebay.ch", BE: "www.befr.ebay.be", NL: "www.ebay.nl", IE: "www.ebay.ie", PL: "www.ebay.pl", SG: "www.ebay.com.sg", MY: "www.ebay.com.my", PH: "www.ebay.ph", HK: "www.ebay.com.hk" };
+  function usedItem(q) {
+    return String(q || "").replace(/(중고\s*나라|중고\s*거래|중고\s*(로|를|를로)?|당근\s*마켓|당근\s*(에서|에|으로)|번개\s*장터(에서)?|번장(에서)?|리퍼\s*(제품|폰|상품)?|매물|싸게|저렴하게|사고\s*싶어|살래|찾아\s*줘?|알아\s*봐\s*줘?|있어\??|있나\??|구해\s*줘?|검색\s*해?\s*줘?|보여\s*줘?|알려\s*줘?|좀|해\s*줘?|줘)/g, " ")
+      .replace(/\b(used|second[- ]?hand|pre[- ]?owned|refurbished|buy|find|search|for|a|an|the|cheap|me|please|on|ebay)\b/gi, " ").replace(/\s+/g, " ").trim();
+  }
+  function used(q, c, raw) {
+    if (SANCTIONED[c]) return { u: "", w: "중고", none: "이 지역에서는 중고거래 연결을 제공하지 않습니다 (국제 제재 대상 지역)." };
+    var pk = piiKind(raw || q);
+    if (pk) return { u: "", w: "중고", none: pk + " 같은 개인정보가 들어 있어 열지 않았어요. 물건 이름만 적어 주세요. 연락처·계좌·주소는 거래 앱에서 직접 주고받으세요. (coverfo는 개인정보를 저장하지 않습니다)" };
+    var it = usedItem(q);
+    if (c === "KR") return { u: "https://www.daangn.com/kr/buy-sell/?search=" + E(it), w: "🥕 중고거래", used: { item: it, c: c } };
+    if (EBAY[c]) return { u: "https://" + EBAY[c] + "/sch/i.html?_nkw=" + E(it), w: "🛒 eBay", used: { item: it, c: c, ebay: EBAY[c] } };
+    if (c === "CN") return { u: "", w: "중고", none: "중국은 이 기능의 공개 연결 주소가 없어요. 현지 중고 앱에서 직접 찾아 주세요." };
+    return { u: "https://www.google.com/search?q=" + E("used " + it), w: "🔎 Google 중고 검색" };
+  }
+  /* ── 렌터카(v21): 렌터카 화면(cf-rental) ──
+     · 한국: 쏘카 앱(안드로이드 socar.Socar · 아이폰 App Store id515173864) · 네이버 '지역 렌터카' 검색 · Expedia 렌터카.
+     · 해외: Expedia 렌터카(/go/car/search/Airport/시작일/종료일?PickUpLoc=공항코드 — Expedia Group 공식 deeplink 문서) · Google 검색.
+     · 제휴: Expedia 는 항공권과 같은 Secret EXPEDIA_AFF_LINK({url} 규칙). 예약·결제·면허·여권 입력은 각 사이트에서 직접. 제재국·개인정보는 먼저 막는다. */
+  function rental(q, c, raw) {
+    if (SANCTIONED[c]) return { u: "", w: "렌터카", none: "이 지역에서는 렌터카 연결을 제공하지 않습니다 (국제 제재 대상 지역)." };
+    var pk = piiKind(raw || q, true);
+    if (pk) return { u: "", w: "렌터카", none: pk + " 같은 개인정보가 들어 있어 열지 않았어요. 지역·날짜만 적어 주세요. 면허·연락처·결제 정보는 예약 사이트에서 직접 입력해 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
+    var s = String(q || ""), dt = flightDates(s), guessRet = false;
+    var days = s.match(/부터\s*(\d{1,2})\s*일(간|동안)?/) || s.match(/(\d{1,2})\s*일\s*(간|동안)/) || s.match(/\bfor\s+(\d{1,2})\s+days?\b/i);
+    var dep = dt.dep, ret = dt.ret;
+    if (!ret) { var r0 = new Date(dep + "T00:00:00"); r0.setDate(r0.getDate() + (days ? +days[1] : 3)); var p2 = function (n) { return (n < 10 ? "0" : "") + n; }; ret = r0.getFullYear() + "-" + p2(r0.getMonth() + 1) + "-" + p2(r0.getDate()); guessRet = !days; }
+    var place = s.replace(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*\d{1,2}\b/gi, " ")
+      .replace(/(렌터카|렌트카|렌트\s*카|차\s*렌트|차량\s*(렌트|대여)|자동차\s*대여|쏘카|그린카|카\s*셰어링|다음\s*주(말)?|이번\s*주(말)?|주말|오늘|내일|모레|글피|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*\/\s*\d{1,2}|부터|까지|\d{1,2}\s*일\s*(간|동안)?|\d{1,2}\s*박|예약|빌려\s*줘?|빌리고\s*싶어|찾아\s*줘?|알아\s*봐\s*줘?|알려\s*줘?|싼|저렴한|최저가|해\s*줘?|줘|좀)/g, " ")
+      .replace(/\b(car|rental|rent|hire|a|in|at|for|from|to|the|cheap|please|find|me|days?|\d+)\b/gi, " ").replace(/(\S{2,})(에서|에)(?=\s|$)/g, "$1").replace(/\s+/g, " ").trim();
+    var code = iata(place);
+    var info = { place: place, code: code, dep: dep, ret: ret, guessed: dt.guessed, guessRet: guessRet, c: c };
+    return { u: code ? "https://www.expedia.com/go/car/search/Airport/" + dep + "/" + ret + "?PickUpLoc=" + code.toLowerCase() + "&DiffDropLoc=0&PickUpTime=10AM&DropTime=10AM&Class=NoPreference" : "https://www.expedia.com/Cars", w: "🚗 렌터카", rental: info };
+  }
   /* ── 배달(v13) ──
      · 한국: 배민·쿠팡이츠·요기요·네이버지도 '근처 ○○ 배달' 화면(cf-dlv). 한국 배달 앱은 검색어를 받는 공개 주소가 없어 앱을 열고 메뉴 이름을 복사해 둔다.
        (2026-10-06 폰 실측: 요기요 웹=메뉴 목록 / 배민·쿠팡이츠 웹=앱 설치 안내 / 네이버지도=근처 가게 목록)
@@ -458,6 +518,9 @@
     if (en && en.kind === "delivery" && /uber\s*eats|doordash|door\s*dash|grubhub/i.test(t)) return en;
     /* 항공권(v18): 영어·한국어 항공권 문장은 현지어 규칙보다 먼저 */
     if (en && en.kind === "flight") return en;
+    if (en && en.kind === "weather") return en;   /* 날씨(v19) */
+    if (en && en.kind === "used") return en;   /* 중고거래(v20) */
+    if (en && en.kind === "rental") return en;   /* 렌터카(v21) */
     /* 영어 명소 표현(things to do·attractions·sightseeing 등)이면 현지어 규칙(예: 'do' → 슬로베니아어 길안내)보다 명소 판정을 먼저 쓴다 (v14) */
     if (en && en.kind === "place" && ATTR_EN.test(t)) return en;
     if (lr && (!en || lr.n >= 2 || isCjk(lr.lang) || /^(ar|hi|vi)$/.test(lr.lang) || (en.kind === "place" && lr.kind !== "place"))) return lr;
@@ -470,6 +533,9 @@
     if (any(R.call, q) && notQuestion(q) && /(걸|연결|통화|해\s*줘|해줘|줘|콜|call|dial|ring)/i.test(q) && !/번호\s*(뭐|알려|찾|등록|저장)/.test(q) && !any(R.taxi, q)) return { kind: "call", q: q };
     if (any(R.sms, q) && notQuestion(q) && /(보내|전송|발신|써\s*줘|작성|해\s*줘|줘|에게|한테|께|send|text\s+\w+|message\s+\w+)/i.test(q)) return { kind: "sms", q: q };
     if (any(R.flight, q) && notQuestion(q) && !/(모드|종이\s*비행기|장난감|드론|환불|수하물|마일리지|몇\s*시간|얼마나\s*걸|flight\s*(mode|status|time))/i.test(q)) return { kind: "flight", q: q };
+    if (any(R.rental, q) && notQuestion(q) && !/(보험\s*(료|비교)|면허|사고\s*(처리|났)|환불|취소\s*(방법|규정))/.test(q)) return { kind: "rental", q: q };
+    if (any(R.used, q) && notQuestion(q) && !/(중고\s*등|중고생|중고교|중고차\s*(시세|보험|등록|이전)|중고\s*거래\s*(사기|방법))/.test(q) && !/\bused\s+(to|for|by|in|as)\b/i.test(q)) return { kind: "used", q: q };
+    if (any(R.weather, q) && !/(틀어|재생|들려|노래|play|맛집|가볼만|갈\s*만한|추천|여행지|관광)/i.test(q)) return { kind: "weather", q: q };
     if (any(R.taxi, q) && !/uber\s*eats/i.test(q) && !/(요금|얼마|시세|몇\s*분|후기|리뷰|뭐야|차이|언제\s*오|how\s*much|price)/i.test(q)) return { kind: "taxi", q: q };
     if (any(R.train, q) && /(예매|예약|표|승차권|끊어|타고\s*가|편도|왕복|자리|좌석|에서.*(까지|행|가는|도착)|book|ticket|from\s+.+\s+to\s+|schedule|to\s+\w+)/i.test(q) && notQuestion(q)) return { kind: "train", q: q };
     if (any(R.delivery, q) && /(시켜|시키|주문|배달|order|deliver|get|doordash|uber\s*eats|grubhub|grab\s*food|배민|쿠팡\s*이츠|요기요)/i.test(q) && !/(배달비|배달료|얼마|몇\s*분|언제\s*오|환불|취소|후기|리뷰|how\s*much|how\s*long)/i.test(q)) return { kind: "delivery", q: q };
@@ -608,6 +674,9 @@
     if (k === "taxi") return taxi(r.query || taxiDest(q), c, q);
     if (k === "train") return train(q, c, q);
     if (k === "flight") return flight(q, c, q);
+    if (k === "weather") return weather(q, c, q);
+    if (k === "used") return used(q, c, q);
+    if (k === "rental") return rental(q, c, q);
     if (k === "delivery") return delivery(r.query || q, c, q);
     if (k === "pay") return pay(q, c);
     if (k === "stay") { if (r.lang) { var sres = stay(q, c), nm = stripL(stayInfo(q).stay, r.lang, ["stay", "book"]); if (nm && nm !== sres.info.stay) { sres.u = sres.u.split(E(sres.info.stay)).join(E(nm)); if (sres.alt) sres.alt.u = sres.alt.u.split(E(sres.info.stay)).join(E(nm)); sres.info.stay = nm; } return sres; } return stay(q, c); }
@@ -648,7 +717,10 @@
       if (rr.kind === "delivery" && (SANCTIONED[c] || piiKind(rr.q))) { finish(build(rr, c)); return; }
       if (rr.kind === "taxi" && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
       if (rr.kind === "train" && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
-      if (rr.kind === "flight") { finish(build(rr, c)); return; }   /* 항공권: 번역기를 쓰지 않음(도시 이름 → 공항 코드 표) */
+      if (rr.kind === "flight") { finish(build(rr, c)); return; }
+      if (rr.kind === "weather") { finish(build(rr, c)); return; }   /* 날씨: 번역기를 쓰지 않음 */
+      if (rr.kind === "used" && (SANCTIONED[c] || piiKind(rr.q))) { finish(build(rr, c)); return; }
+      if (rr.kind === "rental") { finish(build(rr, c)); return; }   /* 렌터카: 번역기를 쓰지 않음(도시 이름 → 공항 코드 표) */   /* 항공권: 번역기를 쓰지 않음(도시 이름 → 공항 코드 표) */
       /* 한국 밖 + 한국어 검색어 → 지도·쇼핑·숙소 검색어만 영어로 바꿔 넣는다 (그 나라 서비스가 한국어를 못 알아듣는 경우가 많다) */
       if ((rr.kind === "place" || rr.kind === "navi" || rr.kind === "shop" || rr.kind === "stay" || rr.kind === "taxi") && c !== "KR" && KO.test(rr.query || rr.q)) {
         var base = rr.query || (rr.kind === "place" ? clean(rr.q) : rr.kind === "navi" ? naviDest(rr.q) : rr.kind === "shop" ? shopTopic(rr.q) : rr.kind === "taxi" ? taxiDest(rr.q) : stayInfo(rr.q).stay);
