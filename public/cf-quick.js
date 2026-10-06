@@ -169,8 +169,19 @@
      · 예매·결제·승객 정보 입력은 각 사이트에서 이용자가 직접. 제재국·개인정보(전화·이메일·카드·여권 등)는 먼저 막는다. */
   var TRAIN_EU = { GB:1, IE:1, DE:1, FR:1, ES:1, IT:1, NL:1, BE:1, CH:1, AT:1, SE:1, PL:1, PT:1, CZ:1, DK:1, NO:1 };
   var TRAIN_SEA = { TH:1, VN:1, MY:1, ID:1, KH:1, LA:1, PH:1, SG:1, MM:1 };
+  /* 날짜(오늘·내일·모레·글피·N월 N일·N일)와 인원(N명·N인·어른 N) — 예매 사이트 주소에 채울 수 있는 곳(SRT)만 쓴다 */
+  function trainWhen(q) {
+    var s = String(q || ""), d = new Date(), y, m, dd, people = 0, w;
+    d.setHours(0, 0, 0, 0);
+    if (/글피/.test(s)) d.setDate(d.getDate() + 3); else if (/모레/.test(s)) d.setDate(d.getDate() + 2); else if (/내일/.test(s)) d.setDate(d.getDate() + 1);
+    if ((w = s.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/))) { m = +w[1] - 1; dd = +w[2]; y = d.getFullYear(); var t1 = new Date(y, m, dd); if (t1 < new Date(new Date().setHours(0, 0, 0, 0))) t1 = new Date(y + 1, m, dd); d = t1; }
+    else if ((w = s.match(/(^|\s)(\d{1,2})\s*일(?=\s|$|에|날)/))) { var t2 = new Date(d.getFullYear(), new Date().getMonth(), +w[2]); if (t2 < new Date(new Date().setHours(0, 0, 0, 0))) t2.setMonth(t2.getMonth() + 1); d = t2; }
+    if ((w = s.match(/(어른|성인|adults?)?\s*(\d{1,2})\s*(명|인|사람|adults?|people|persons?|pax)/i))) people = +w[2];
+    var p2 = function (n) { return (n < 10 ? "0" : "") + n; };
+    return { date: d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate()), people: people > 0 && people <= 9 ? people : 1, dated: /(오늘|내일|모레|글피|\d\s*일)/.test(s) };
+  }
   function trainRoute(q) {
-    var t = String(q || "").replace(/(srt|ktx|itx|기차|열차|코레일|고속철도?|무궁화호?|새마을호?|예매|예약|승차권|기차표|표|끊어\s*줘?|타고\s*가(자|고|줘)?|알려\s*줘?|해\s*줘?|줘|좀|시간표|편도|왕복)/gi, " ")
+    var t = String(q || "").replace(/(오늘|내일|모레|글피|\d{1,2}\s*월\s*\d{1,2}\s*일|(^|\s)\d{1,2}\s*일(?=\s|$)|(어른|성인)?\s*\d{1,2}\s*(명|인|사람)|\d{1,2}\s*(adults?|people|persons?|pax))/gi, " ").replace(/(srt|ktx|itx|기차|열차|코레일|고속철도?|무궁화호?|새마을호?|예매|예약|승차권|기차표|표|끊어\s*줘?|타고\s*가(자|고|줘)?|알려\s*줘?|해\s*줘?|줘|좀|시간표|편도|왕복)/gi, " ")
       .replace(/\b(train|trains|amtrak|rail(way)?|eurostar|shinkansen|tickets?|book(ing)?|buy|a|the|please|one[- ]way|return)\b/gi, " ").replace(/\s+/g, " ").trim();
     var m = t.match(/^(.*?\S)\s*에서\s+(.+?)(까지|행|가는|으로|로)?$/) || t.match(/\bfrom\s+(.+?)\s+to\s+(.+)$/i) || t.match(/^(.+?)\s+to\s+(.+)$/i) || t.match(/^(\S+)\s*(?:→|->|-|~)\s*(\S+)$/);
     if (m) return { from: m[1].trim(), to: String(m[2]).replace(/(까지|행|가는|으로|로)$/, "").trim() };
@@ -181,9 +192,9 @@
     if (SANCTIONED[c]) return { u: "", w: "기차", none: "이 지역에서는 기차 예매 연결을 제공하지 않습니다 (국제 제재 대상 지역)." };
     var pk = piiKind(raw || q, true);
     if (pk) return { u: "", w: "기차", none: pk + " 같은 개인정보가 들어 있어 열지 않았어요. 출발역·도착역만 적어 주세요. 이름·연락처·결제 정보는 예매 사이트에서 직접 입력해 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
-    var rt = trainRoute(q), res;
-    if (c === "KR") { res = { u: /srt|수서/i.test(q) ? "https://etk.srail.kr/main.do" : "https://www.letskorail.com/", w: "🚄 기차 예매" }; res.train = { from: rt.from, to: rt.to, c: c, srt: /srt|수서/i.test(q) }; return res; }
-    if (TRAIN_EU[c] || TRAIN_SEA[c]) return { u: TRAIN[c] ? TRAIN[c][0] : (TRAIN_EU[c] ? "https://www.thetrainline.com/" : "https://12go.asia/en"), w: "🚄 " + (TRAIN[c] ? TRAIN[c][1] : TRAIN_EU[c] ? "Trainline" : "12Go"), train: { from: rt.from, to: rt.to, c: c, eu: !!TRAIN_EU[c], sea: !!TRAIN_SEA[c], off: TRAIN[c] || null } };
+    var rt = trainRoute(q), wh = trainWhen(q), res;
+    if (c === "KR") { res = { u: /srt|수서/i.test(q) ? "https://etk.srail.kr/main.do" : "https://www.letskorail.com/", w: "🚄 기차 예매" }; res.train = { from: rt.from, to: rt.to, c: c, srt: /srt|수서/i.test(q), date: wh.date, people: wh.people }; return res; }
+    if (TRAIN_EU[c] || TRAIN_SEA[c]) return { u: TRAIN[c] ? TRAIN[c][0] : (TRAIN_EU[c] ? "https://www.thetrainline.com/" : "https://12go.asia/en"), w: "🚄 " + (TRAIN[c] ? TRAIN[c][1] : TRAIN_EU[c] ? "Trainline" : "12Go"), train: { from: rt.from, to: rt.to, c: c, eu: !!TRAIN_EU[c], sea: !!TRAIN_SEA[c], off: TRAIN[c] || null, date: wh.date, people: wh.people } };
     if (TRAIN[c]) return { u: TRAIN[c][0], w: "🚄 " + TRAIN[c][1] };
     if (!gmapsOk(c)) return { u: "", w: "기차", none: "이 나라의 기차 예매 사이트가 등록돼 있지 않아요." };
     return { u: "https://www.google.com/maps/dir/?api=1&travelmode=transit&destination=" + E(q), w: "🚄 Google Maps 대중교통" };
