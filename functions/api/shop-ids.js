@@ -5,8 +5,15 @@
        BOOKING_AID  : Booking.com 제휴 숫자 ID (예: 1234567)
        COUPANG_ACCESS_KEY + COUPANG_SECRET_KEY : 쿠팡 파트너스 API 키 (값은 절대 내보내지 않고 "켜짐" 여부만)
        KAKAO_REST_KEY : 카카오 REST API 키 — 길안내 좌표용(/api/geo). 값은 내보내지 않고 "켜짐" 여부만
+       DOORDASH_AFF_LINK · UBEREATS_AFF_LINK · GRAB_AFF_LINK : 배달 제휴 가입 후 받은 제휴 링크(https 로 시작).
+         링크 안에 {url} 을 넣으면 그 자리에 실제 검색 주소가 들어가고, 없으면 받은 링크를 그대로 연다.
    · 결제는 각 쇼핑몰에서 이용자가 직접 — coverfo 는 링크만 연결한다. */
 const CC = /^[A-Z]{2}$/;
+
+function affLink(v) {
+  const s = String(v || '').trim();
+  return /^https:\/\/[^\s"'<>]{4,500}$/.test(s) ? s : '';
+}
 
 function amazonTags(env) {
   const out = {};
@@ -25,6 +32,7 @@ export async function onRequestGet({ env }) {
     booking: /^[0-9]{3,12}$/.test(booking) ? booking : '',
     coupang: !!(env.COUPANG_ACCESS_KEY && env.COUPANG_SECRET_KEY),
     geo: !!String(env.KAKAO_REST_KEY || '').trim(),
+    dl: { doordash: affLink(env.DOORDASH_AFF_LINK), ubereats: affLink(env.UBEREATS_AFF_LINK), grab: affLink(env.GRAB_AFF_LINK) },
   };
   return new Response(JSON.stringify(body), {
     headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' },

@@ -4,6 +4,7 @@
    · 어느 나라인지: cf-ui-lang.js 의 시간대 → 나라 (관리자 시험용 덮어쓰기: ?cf_country=US 또는 localStorage cf_country)
    · 여는 곳: 각 회사가 공개한 주소 형식만 (Google Maps URLs, Google 쇼핑 검색, YouTube 검색, Uber 딥링크(개발자 문서), Booking.com·Airbnb 검색,
      PayPal.me / UPI(NPCI 규격) / supertoss 송금 링크, tel:/sms:). 확인 안 된 형식(Venmo·Cash App·Zelle)은 쓰지 않는다.
+   · 배달(v13): 한국·미국·캐나다·호주는 홈 화면의 배달 화면(cf-dlv)에서 배달 앱을 고른다. 제휴 링크는 Secret 에 넣었을 때만.
    · 길안내(v12): 한국은 홈 화면의 길안내 화면(cf-navi)이 카카오맵·네이버지도를 보여 준다(카카오 키가 있으면 현재 위치에서 바로 안내). 해외는 Google Maps 를 바로 연다.
    · 맛집(v10): 음식점·맛집이면 홈 화면의 맛집 화면(cf-food)이 네이버지도·카카오맵·Google Maps(·Yelp) 공개 검색 주소를 보여 준다.
    · 숙소(v9): 판별되면 홈 화면의 숙소 화면(cf-stay)이 여기어때·야놀자·Booking.com·Airbnb 공개 검색 주소를 보여 준다.
@@ -154,15 +155,34 @@
     if (!gmapsOk(c)) return { u: "", w: "기차", none: "이 나라의 기차 예매 사이트가 등록돼 있지 않아요." };
     return { u: "https://www.google.com/maps/dir/?api=1&travelmode=transit&destination=" + E(q), w: "🚄 Google Maps 대중교통" };
   }
-  function delivery(q, c) {
-    if (c === "KR") return { u: /배민|배달의민족/.test(q) ? "https://www.baemin.com/" : /쿠팡이츠|이츠/.test(q) ? "https://www.coupangeats.com/" : "https://www.yogiyo.co.kr/", w: "🛵 배달" };
+  /* ── 배달(v13) ──
+     · 한국: 배민·쿠팡이츠·요기요·네이버지도 '근처 ○○ 배달' 화면(cf-dlv). 한국 배달 앱은 검색어를 받는 공개 주소가 없어 앱을 열고 메뉴 이름을 복사해 둔다.
+       (2026-10-06 폰 실측: 요기요 웹=메뉴 목록 / 배민·쿠팡이츠 웹=앱 설치 안내 / 네이버지도=근처 가게 목록)
+     · 미국·캐나다·호주: DoorDash 검색(목록 실측)·Uber Eats 검색 화면(cf-dlv). 그 밖의 나라는 지금처럼 그 나라 앱 하나를 바로 연다.
+     · 제휴(나중에): Secret DOORDASH_AFF_LINK·UBEREATS_AFF_LINK·GRAB_AFF_LINK 에 받은 제휴 링크를 넣으면 그 링크로 연다. 링크 안 {url} 자리에 실제 주소가 들어간다.
+     · 제재국은 나라 값으로, 개인정보(집 주소·전화 등)는 실제 형식으로 막는다. 주문·결제는 각 앱에서 이용자가 직접. */
+  function deliveryFood(q) {
+    var t = String(q || "").replace(/(배달의\s*민족|배민|쿠팡\s*이츠|요기요)\s*(에서|으로|로)?/g, " ").replace(/(doordash|door\s*dash|uber\s*eats|grubhub|grab\s*food|order|deliver(y|ed)?|from|배달|시켜\s*먹(자|을까|어|고\s*싶어)?|시켜|시키|주문\s*해?|에서|으로|줘)/gi, " ");
+    return clean(t).replace(/\s+/g, " ").trim();
+  }
+  function affWrap(kind, url) {
+    var t = ""; try { t = (window.cfShopIds && window.cfShopIds.dl && window.cfShopIds.dl[kind]) || ""; } catch (e) {}
+    if (!t) return url;
+    return t.indexOf("{url}") >= 0 ? t.split("{url}").join(E(url)) : t;
+  }
+  function delivery(q, c, raw) {
+    if (SANCTIONED[c]) return { u: "", w: "배달", none: "이 지역에서는 배달 연결을 제공하지 않습니다 (국제 제재 대상 지역)." };
+    var pk = piiKind(raw || q);
+    if (pk) return { u: "", w: "배달", none: pk + " 같은 개인정보가 들어 있어 열지 않았어요. 메뉴 이름만 적어 주세요. 배달 주소는 배달 앱에서 직접 입력해 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
+    var app = /배민|배달의\s*민족/.test(q) ? "baemin" : /쿠팡\s*이츠|이츠/.test(q) ? "coupangeats" : /요기요/.test(q) ? "yogiyo" : /uber\s*eats/i.test(q) ? "ubereats" : /doordash|door\s*dash/i.test(q) ? "doordash" : "";
+    if (c === "KR") return { u: app === "baemin" ? "https://www.baemin.com/" : app === "coupangeats" ? "https://www.coupangeats.com/" : "https://www.yogiyo.co.kr/", w: "🛵 배달", dlv: { food: deliveryFood(q), app: app, c: c } };
     var food = clean(q.replace(/(doordash|uber\s*eats|grubhub|order|deliver(y|ed)?|from|배달|시켜|주문|줘)/gi, ""));
-    if (/uber\s*eats/i.test(q) && UBEREATS[c]) return { u: "https://www.ubereats.com/search?q=" + E(food), w: "🛵 Uber Eats" };
-    if (c === "US" || c === "CA" || c === "AU") return { u: "https://www.doordash.com/search/store/" + E(food) + "/", w: "🛵 DoorDash" };
-    if (GRABFOOD[c]) return { u: "https://food.grab.com/" + GRABFOOD[c] + "/en/", w: "🛵 GrabFood", note: "GrabFood 는 검색어를 받는 공개 주소가 없어 나라 첫 화면으로 엽니다." };
+    if (/uber\s*eats/i.test(q) && UBEREATS[c]) return { u: affWrap("ubereats", "https://www.ubereats.com/search?q=" + E(food)), w: "🛵 Uber Eats", dlv: (c === "US" || c === "CA" || c === "AU") ? { food: food, app: app, c: c } : undefined };
+    if (c === "US" || c === "CA" || c === "AU") return { u: affWrap("doordash", "https://www.doordash.com/search/store/" + E(food) + "/"), w: "🛵 DoorDash", dlv: { food: food, app: app, c: c } };
+    if (GRABFOOD[c]) return { u: affWrap("grab", "https://food.grab.com/" + GRABFOOD[c] + "/en/"), w: "🛵 GrabFood", note: "GrabFood 는 검색어를 받는 공개 주소가 없어 나라 첫 화면으로 엽니다." };
     if (WOLT[c]) return { u: "https://wolt.com/en/" + WOLT[c], w: "🛵 Wolt", note: "Wolt 는 나라 첫 화면으로 엽니다. 도시를 고르면 가게가 나와요." };
     if (GLOVO[c]) return { u: "https://glovoapp.com/" + GLOVO[c] + "/", w: "🛵 Glovo", note: "Glovo 나라 첫 화면으로 엽니다." };
-    if (UBEREATS[c]) return { u: "https://www.ubereats.com/search?q=" + E(food), w: "🛵 Uber Eats" };
+    if (UBEREATS[c]) return { u: affWrap("ubereats", "https://www.ubereats.com/search?q=" + E(food)), w: "🛵 Uber Eats" };
     if (c === "IN") return { u: "https://www.zomato.com/", w: "🛵 Zomato" };
     if (c === "TR") return { u: "https://www.yemeksepeti.com/", w: "🛵 Yemeksepeti" };
     if (c === "AR") return { u: "https://www.pedidosya.com.ar/", w: "🛵 PedidosYa" };
@@ -313,6 +333,8 @@
   function classify(t) {
     t = String(t || "").trim(); if (!t) return null;
     var en = classifyKE(t), lr = classifyL(t);
+    /* 배달 앱 이름(uber eats·doordash·grubhub)이 있으면 현지어 규칙(예: 'uber' → 택시)보다 배달 판정을 먼저 쓴다 (v13) */
+    if (en && en.kind === "delivery" && /uber\s*eats|doordash|door\s*dash|grubhub/i.test(t)) return en;
     if (lr && (!en || lr.n >= 2 || isCjk(lr.lang) || /^(ar|hi|vi)$/.test(lr.lang) || (en.kind === "place" && lr.kind !== "place"))) return lr;
     return en;
   }
@@ -322,9 +344,9 @@
     if (any(R.pay, q) && notQuestion(q) && !/문자|메시지|카톡/.test(q) && (amountOf(q) || /토스|송금|이체|venmo|paypal|cash\s*app|zelle|upi|transfer/i.test(q))) return { kind: "pay", q: q };
     if (any(R.call, q) && notQuestion(q) && /(걸|연결|통화|해\s*줘|해줘|줘|콜|call|dial|ring)/i.test(q) && !/번호\s*(뭐|알려|찾|등록|저장)/.test(q) && !any(R.taxi, q)) return { kind: "call", q: q };
     if (any(R.sms, q) && notQuestion(q) && /(보내|전송|발신|써\s*줘|작성|해\s*줘|줘|에게|한테|께|send|text\s+\w+|message\s+\w+)/i.test(q)) return { kind: "sms", q: q };
-    if (any(R.taxi, q) && !/(요금|얼마|시세|몇\s*분|후기|리뷰|뭐야|차이|언제\s*오|how\s*much|price)/i.test(q)) return { kind: "taxi", q: q };
+    if (any(R.taxi, q) && !/uber\s*eats/i.test(q) && !/(요금|얼마|시세|몇\s*분|후기|리뷰|뭐야|차이|언제\s*오|how\s*much|price)/i.test(q)) return { kind: "taxi", q: q };
     if (any(R.train, q) && /(예매|예약|표|승차권|끊어|타고\s*가|편도|왕복|자리|좌석|에서.*(까지|행|가는|도착)|book|ticket|from\s+.+\s+to\s+|schedule|to\s+\w+)/i.test(q) && notQuestion(q)) return { kind: "train", q: q };
-    if (any(R.delivery, q) && /(시켜|시키|주문|배달|order|deliver|get)/i.test(q) && !/(배달비|배달료|얼마|몇\s*분|언제\s*오|환불|취소|후기|리뷰|how\s*much|how\s*long)/i.test(q)) return { kind: "delivery", q: q };
+    if (any(R.delivery, q) && /(시켜|시키|주문|배달|order|deliver|get|doordash|uber\s*eats|grubhub|grab\s*food|배민|쿠팡\s*이츠|요기요)/i.test(q) && !/(배달비|배달료|얼마|몇\s*분|언제\s*오|환불|취소|후기|리뷰|how\s*much|how\s*long)/i.test(q)) return { kind: "delivery", q: q };
     if (any(R.stay, q) && any(R.stayWord, q) && notQuestion(q)) return { kind: "stay", q: q };
     if (any(R.navi, q)) return { kind: "navi", q: q };
     if (any(R.music, q)) return { kind: "music", q: q };
@@ -436,7 +458,7 @@
     if (k === "sms") { var n2 = numIn(q), body = (r.body || String(q).replace(/(\+?\d[\d\-\s]{6,}\d)/g, " ").replace(/^\s*.+?(에게|한테|께서|께)/, "").replace(/(문자|메시지|메세지|sms|전송|발신|보내\s*줘?|보내|써\s*줘?|작성|줘|해\s*줘?|해|좀|부탁(해|해줘)?|\btext\b|\bsend\b|\bmessage\b|\bto\b)/gi, " ").replace(/\s+/g, " ").trim().replace(/고\s*$/, "")); return { u: "sms:" + n2 + (body ? "?body=" + E(body) : ""), w: "💬 문자" }; }
     if (k === "taxi") return taxi(r.query || taxiDest(q), c);
     if (k === "train") return train(q, c);
-    if (k === "delivery") return delivery(r.query || q, c);
+    if (k === "delivery") return delivery(r.query || q, c, q);
     if (k === "pay") return pay(q, c);
     if (k === "stay") { if (r.lang) { var sres = stay(q, c), nm = stripL(stayInfo(q).stay, r.lang, ["stay", "book"]); if (nm && nm !== sres.info.stay) { sres.u = sres.u.split(E(sres.info.stay)).join(E(nm)); if (sres.alt) sres.alt.u = sres.alt.u.split(E(sres.info.stay)).join(E(nm)); sres.info.stay = nm; } return sres; } return stay(q, c); }
     return null;
@@ -472,6 +494,7 @@
       if ((rr.kind === "shop" || rr.kind === "stay") && (SANCTIONED[c] || piiKind(rr.q, rr.kind === "stay"))) { finish(build(rr, c)); return; }
       if (rr.kind === "place" && isFood(rr.q) && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
       if (rr.kind === "navi" && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
+      if (rr.kind === "delivery" && (SANCTIONED[c] || piiKind(rr.q))) { finish(build(rr, c)); return; }
       /* 한국 밖 + 한국어 검색어 → 지도·쇼핑·숙소 검색어만 영어로 바꿔 넣는다 (그 나라 서비스가 한국어를 못 알아듣는 경우가 많다) */
       if ((rr.kind === "place" || rr.kind === "navi" || rr.kind === "shop" || rr.kind === "stay" || rr.kind === "taxi") && c !== "KR" && KO.test(rr.query || rr.q)) {
         var base = rr.query || (rr.kind === "place" ? clean(rr.q) : rr.kind === "navi" ? naviDest(rr.q) : rr.kind === "shop" ? shopTopic(rr.q) : rr.kind === "taxi" ? taxiDest(rr.q) : stayInfo(rr.q).stay);
