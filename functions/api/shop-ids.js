@@ -7,6 +7,7 @@
        KAKAO_REST_KEY : 카카오 REST API 키 — 길안내 좌표용(/api/geo). 값은 내보내지 않고 "켜짐" 여부만
        DOORDASH_AFF_LINK · UBEREATS_AFF_LINK · GRAB_AFF_LINK : 배달 제휴 가입 후 받은 제휴 링크(https 로 시작).
          링크 안에 {url} 을 넣으면 그 자리에 실제 검색 주소가 들어가고, 없으면 받은 링크를 그대로 연다.
+       UBER_AFF_LINK : Uber 제휴 가입 후 받은 제휴 링크(https) — 택시 화면 Uber 버튼에 쓰인다({url} 규칙 같음). GRAB_AFF_LINK 는 배달·택시 화면 Grab 버튼에 함께 쓰인다
        KLOOK_AID : Klook 제휴(Affiliate) 가입 후 받은 aid 값 — 가볼만한곳 화면의 Klook 링크에 aid= 로 붙는다
        KKDAY_CID : KKday 제휴(KKpartners) 가입 후 받은 cid 값 — 가볼만한곳 화면의 KKday 링크에 cid= 로 붙는다
    · 결제는 각 쇼핑몰에서 이용자가 직접 — coverfo 는 링크만 연결한다. */
@@ -41,7 +42,7 @@ export async function onRequestGet({ env }) {
     geo: !!String(env.KAKAO_REST_KEY || '').trim(),
     klook: pubId(env.KLOOK_AID),
     kkday: pubId(env.KKDAY_CID),
-    dl: { doordash: affLink(env.DOORDASH_AFF_LINK), ubereats: affLink(env.UBEREATS_AFF_LINK), grab: affLink(env.GRAB_AFF_LINK) },
+    dl: { doordash: affLink(env.DOORDASH_AFF_LINK), ubereats: affLink(env.UBEREATS_AFF_LINK), grab: affLink(env.GRAB_AFF_LINK), uber: affLink(env.UBER_AFF_LINK) },
   };
   return new Response(JSON.stringify(body), {
     headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' },

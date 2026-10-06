@@ -138,15 +138,28 @@
     /* 한국 밖: Google 쇼핑 탭 (구글 자체 검색 주소). 쇼핑 화면(cf-shop)이 있으면 그 화면에서 여러 곳을 고르게 한다 */
     return { u: "https://www.google.com/search?tbm=shop&q=" + E(q), w: "🛒 Google 쇼핑", shop: { q: q, c: c } };
   }
-  function taxi(dest, c) {
-    if (c === "KR") return isIOS() ? { u: "https://apps.apple.com/kr/app/id981110422", w: "🚕 카카오T (앱스토어)", note: "아이폰은 카카오T 공개 링크가 없어 앱 설치/열기 화면으로 갑니다." } : { u: "intent://launch#Intent;scheme=kakaot;package=com.kakao.taxi;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kakao.taxi;end", w: "🚕 카카오T" };
+  /* ── 택시(v15): 한국·Uber 나라·동남아 Grab 나라는 택시 화면(cf-taxi)에서 앱을 고른다. 그 밖은 지금처럼 바로 연다 ──
+     · 크롤링 없음: 각 회사가 공개한 앱 링크만 연다. 호출·결제는 각 앱에서 이용자가 직접(coverfo 는 요금을 받지 않음).
+     · coverfo 는 이용자 위치를 받지 않는다. 출발지는 각 앱이 잡고, 도착지 이름만 링크에 넣는다(Uber 공식 유니버설 링크).
+     · 제휴(나중에): Secret UBER_AFF_LINK·GRAB_AFF_LINK 를 넣으면 그 링크로 연다(배달과 같은 규칙, /api/shop-ids).
+     · 제재국은 나라 값으로, 개인정보(전화·이메일·카드·"○동 ○호" 등)는 실제 형식으로 막는다. 도착지 도로명·장소 이름은 막지 않는다. */
+  var GRAB_RIDE = { SG:1, MY:1, TH:1, VN:1, ID:1, PH:1, KH:1, MM:1 };
+  function taxi(dest, c, raw) {
+    if (SANCTIONED[c]) return { u: "", w: "택시", none: "이 지역에서는 택시 연결을 제공하지 않습니다 (국제 제재 대상 지역)." };
+    var pk = piiKind(raw || dest, true);
+    if (pk) return { u: "", w: "택시", none: pk + " 같은 개인정보가 들어 있어 열지 않았어요. 도착지(장소 이름)만 적어 주세요. 출발지·연락처는 택시 앱에서 직접 입력해 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
+    dest = String(dest || "").replace(/^\s*(to|for)\s+/i, "").trim();   /* "taxi to Tokyo Tower" → "Tokyo Tower" */
+    var res;
+    if (c === "KR") { res = isIOS() ? { u: "https://apps.apple.com/kr/app/id981110422", w: "🚕 카카오T (앱스토어)", note: "아이폰은 카카오T 공개 링크가 없어 앱 설치/열기 화면으로 갑니다." } : { u: "intent://launch#Intent;scheme=kakaot;package=com.kakao.taxi;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kakao.taxi;end", w: "🚕 카카오T" }; res.taxi = { dest: dest, c: c }; return res; }
     if (UBER[c]) {
       /* Uber 공식 유니버설 링크 (목적지만 채워짐 · 호출 확인은 본인이) */
       var u = "https://m.uber.com/ul/?action=setPickup&pickup=my_location" + (dest ? "&dropoff[formatted_address]=" + E(dest) : "");
-      return { u: u, w: "🚕 Uber", alt: c === "US" ? { u: "https://ride.lyft.com/", w: "Lyft (홈)" } : undefined };
+      return { u: u, w: "🚕 Uber", alt: c === "US" ? { u: "https://ride.lyft.com/", w: "Lyft (홈)" } : undefined, taxi: { dest: dest, c: c } };
     }
     if (c === "CN") return { u: "", w: "택시", none: "중국은 디디(滴滴) 공개 링크가 없어 앱에서 직접 불러 주세요." };
-    /* Grab(동남아)·99(브라질) 등은 공개 호출 링크가 없음 → 목적지까지 길찾기만 */
+    /* Grab(동남아): 공개 호출 링크가 없어 앱을 연다(안드로이드 com.grabtaxi.passenger · 아이폰 App Store id647268330). 도착지는 앱에서 */
+    if (GRAB_RIDE[c]) return { u: isIOS() ? "https://apps.apple.com/app/id647268330" : isAndroid() ? "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.grabtaxi.passenger;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.grabtaxi.passenger;end" : "https://www.grab.com/", w: "🚕 Grab", taxi: { dest: dest, c: c, grab: 1 } };
+    /* 99(브라질) 등 그 밖은 공개 호출 링크가 없음 → 목적지까지 길찾기만 */
     return dest ? { u: "https://www.google.com/maps/dir/?api=1&destination=" + E(dest), w: "🧭 Google Maps 길찾기", note: "이 나라는 택시 앱 공개 링크가 없어 길찾기로 엽니다. 호출은 Grab 등 현지 앱에서." } : { u: "", w: "택시", none: "이 나라는 택시 앱 공개 링크가 없어요. Grab 등 현지 앱에서 불러 주세요." };
   }
   function train(q, c) {
@@ -431,8 +444,9 @@
   }
   /* 택시 목적지: "택시 불러줘 타임스퀘어로" → 타임스퀘어, "call a cab to Central Park" → Central Park. 없으면 "" (앱만 연다) */
   function taxiDest(q) {
-    var t = String(q || "").replace(/(택시|카카오\s*t|카카오티|불러\s*줘?|호출\s*해?\s*줘?|잡아\s*줘?|콜\s*해?\s*줘?|태워\s*줘?|보내\s*줘?|와\s*줘?|타고\s*가(자|고|줘)?|해\s*줘?|줘|좀|지금|빨리)/gi, " ")
-      .replace(/\b(call|get|hail|book|order|me|a|an|the|taxi|cab|uber|lyft|ride|to|please|now|from\s+here)\b/gi, " ")
+    var t = String(q || "").replace(/(택시|카카오\s*t|카카오티|우버|그랩|리프트|불러\s*줘?|호출\s*해?\s*줘?|잡아\s*줘?|콜\s*해?\s*줘?|태워\s*줘?|보내\s*줘?|와\s*줘?|타고\s*가(자|고|줘)?|해\s*줘?|줘|좀|지금|빨리)/gi, " ")
+      .replace(/\b(call|get|hail|book|order|me|a|an|the|taxi|cab|uber|lyft|grab|ride|to|please|now|from\s+here)\b/gi, " ")
+      .replace(/(^|\s)(으로|로|에서)(?=\s)/g, " ").replace(/(^|\s)가(는|\s*(자|줘|요))?(?=\s|$)/g, " ")
       .replace(/(까지|으로|로|에)\s*$/, "").replace(/\s+/g, " ").trim();
     return t.length >= 2 ? t : "";
   }
@@ -480,7 +494,7 @@
     if (k === "shop") return shop(r.query || shopTopic(q), c, q);
     if (k === "call") { var n = numIn(q); return n ? { u: "tel:" + n, w: "📞 전화" } : { u: "", w: "전화", none: "전화번호를 같이 말해 주세요 (예: 010-1234-5678로 전화)" }; }
     if (k === "sms") { var n2 = numIn(q), body = (r.body || String(q).replace(/(\+?\d[\d\-\s]{6,}\d)/g, " ").replace(/^\s*.+?(에게|한테|께서|께)/, "").replace(/(문자|메시지|메세지|sms|전송|발신|보내\s*줘?|보내|써\s*줘?|작성|줘|해\s*줘?|해|좀|부탁(해|해줘)?|\btext\b|\bsend\b|\bmessage\b|\bto\b)/gi, " ").replace(/\s+/g, " ").trim().replace(/고\s*$/, "")); return { u: "sms:" + n2 + (body ? "?body=" + E(body) : ""), w: "💬 문자" }; }
-    if (k === "taxi") return taxi(r.query || taxiDest(q), c);
+    if (k === "taxi") return taxi(r.query || taxiDest(q), c, q);
     if (k === "train") return train(q, c);
     if (k === "delivery") return delivery(r.query || q, c, q);
     if (k === "pay") return pay(q, c);
@@ -520,6 +534,7 @@
       if (rr.kind === "navi" && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
       if (rr.kind === "place" && !isFood(rr.q) && isAttr(rr.q) && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
       if (rr.kind === "delivery" && (SANCTIONED[c] || piiKind(rr.q))) { finish(build(rr, c)); return; }
+      if (rr.kind === "taxi" && (SANCTIONED[c] || piiKind(rr.q, true))) { finish(build(rr, c)); return; }
       /* 한국 밖 + 한국어 검색어 → 지도·쇼핑·숙소 검색어만 영어로 바꿔 넣는다 (그 나라 서비스가 한국어를 못 알아듣는 경우가 많다) */
       if ((rr.kind === "place" || rr.kind === "navi" || rr.kind === "shop" || rr.kind === "stay" || rr.kind === "taxi") && c !== "KR" && KO.test(rr.query || rr.q)) {
         var base = rr.query || (rr.kind === "place" ? clean(rr.q) : rr.kind === "navi" ? naviDest(rr.q) : rr.kind === "shop" ? shopTopic(rr.q) : rr.kind === "taxi" ? taxiDest(rr.q) : stayInfo(rr.q).stay);
