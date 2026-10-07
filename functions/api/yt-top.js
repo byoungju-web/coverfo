@@ -7,7 +7,9 @@
    · 받는 것은 곡 이름(검색어 100자까지)과 나라 코드뿐. 검색어·결과를 저장하거나 기록(로그)하지 않는다.
    · 영상은 YouTube 앱·사이트에서 재생된다(coverfo 는 영상을 내려받거나 보관하지 않음).
    · 필요한 Secret: YOUTUBE_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (뒤의 둘은 스튜디오·렌즈와 같은 것)
-   · 차감량: 변수 COST_MUSIC (없으면 1 크레딧 = 99원) */
+   · 차감량: 변수 COST_MUSIC (없으면 1 크레딧 = 99원)
+   · 고르는 순서(v2): 말한 가수·곡명이 다 들어간 영상 중 조회수 1위 → 없으면 관련 결과 중 조회수 1위(대표곡). 커버·노래방·MR 등은 뒤로.
+     YouTube API 사용량: 검색 1번 100 + 조회수 확인 1 = 101 포인트(하루 무료 10,000) */
 const SANCTIONED = { RU: 1, IR: 1, KP: 1, SY: 1, CU: 1, VE: 1, BY: 1 };
 
 function json(body, status = 200) {
@@ -106,28 +108,48 @@ export async function onRequestPost({ request, env }) {
   if (!s || !s.ok) return json({ ok: false, reason: 'insufficient', need: cost, free: s && s.free, paid: s && s.paid }, 402);
   const job = s.job_id;
 
-  /* 2) YouTube 공식 API — 검색 결과 첫 영상 1개 */
+  /* 2) YouTube 공식 API — 아무 영상이나 틀지 않도록 고른다 (v2, 2026-10-07)
+        ① search.list(음악 분류 10, 관련도 순 상위 15개) → ② videos.list 로 조회수(statistics) 확인(1 포인트)
+        ③ 순서: 말한 단어(가수·곡명)가 제목·채널에 다 들어간 영상 중 조회수 1위 → 없으면 관련 결과 중 조회수 1위(대표곡)
+           커버·노래방·MR·리액션·쇼츠 같은 영상은 뒤로 미룬다(검색어에 그 말이 있으면 미루지 않음). */
+  const un = (t) => String(t || '').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const norm = (t) => un(t).toLowerCase().replace(/[\s\-_|:·,.!?'"()\[\]{}/]+/g, '');
+  const quotaOf = (j) => { const e = j && j.error && Array.isArray(j.error.errors) && j.error.errors[0] ? String(j.error.errors[0].reason || '') : ''; return /quota/i.test(e); };
   try {
-    const u = 'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&safeSearch=moderate'
+    const base = 'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=15&safeSearch=moderate'
       + '&q=' + encodeURIComponent(q) + (region ? '&regionCode=' + region : '') + '&key=' + encodeURIComponent(key);
-    const r = await fetch(u);
-    const j = await r.json().catch(() => null);
-    if (!r.ok) {
-      await refund(c, job);
-      const why = j && j.error && Array.isArray(j.error.errors) && j.error.errors[0] ? String(j.error.errors[0].reason || '') : '';
-      return json({ ok: false, reason: /quota/i.test(why) ? 'quota' : 'api', refunded: true }, 502);
+    let r = await fetch(base + '&videoCategoryId=10');
+    let j = await r.json().catch(() => null);
+    if (r.ok && (!j || !Array.isArray(j.items) || !j.items.length)) {   /* 음악 분류로 하나도 없으면 분류 없이 한 번 더 */
+      r = await fetch(base); j = await r.json().catch(() => null);
     }
-    const it = j && Array.isArray(j.items) ? j.items[0] : null;
-    const id = it && it.id && it.id.videoId ? String(it.id.videoId) : '';
-    if (!/^[A-Za-z0-9_-]{6,20}$/.test(id)) {
-      await refund(c, job);
-      return json({ ok: false, reason: 'not_found', refunded: true });
-    }
+    if (!r.ok) { await refund(c, job); return json({ ok: false, reason: quotaOf(j) ? 'quota' : 'api', refunded: true }, 502); }
+    const items = (j && Array.isArray(j.items) ? j.items : []).filter((it) => it && it.id && /^[A-Za-z0-9_-]{6,20}$/.test(String(it.id.videoId || '')));
+    if (!items.length) { await refund(c, job); return json({ ok: false, reason: 'not_found', refunded: true }); }
+
+    /* 조회수 — videos.list(part=statistics) */
+    const ids = items.map((it) => it.id.videoId);
+    const views = {};
+    try {
+      const vr = await fetch('https://www.googleapis.com/youtube/v3/videos?part=statistics&id=' + ids.join(',') + '&key=' + encodeURIComponent(key));
+      const vj = await vr.json().catch(() => null);
+      (vj && Array.isArray(vj.items) ? vj.items : []).forEach((v) => { views[v.id] = Number(v.statistics && v.statistics.viewCount) || 0; });
+    } catch (e) { /* 조회수를 못 받으면 관련도 순서를 그대로 쓴다 */ }
+
+    const words = q.split(/\s+/).map(norm).filter((w) => w.length >= 1);
+    const BAD = /(cover|커버|노래방|karaoke|inst(rumental)?|mr\b|리액션|reaction|shorts|#shorts|가사\s*없|반주|연주|lesson|강좌|tutorial|remix|리믹스|8d|1시간|1hour|연속\s*듣기|모음|playlist|플레이리스트)/i;
+    const qBad = BAD.test(q);
+    const scored = items.map((it, rank) => {
+      const sn = it.snippet || {}, hay = norm(sn.title) + '|' + norm(sn.channelTitle);
+      const all = words.length ? words.every((w) => hay.indexOf(w) >= 0) : false;
+      const bad = !qBad && BAD.test(un(sn.title));
+      return { it, all, bad, v: views[it.id.videoId] || 0, rank };
+    });
+    scored.sort((a, b) => (b.all - a.all) || (a.bad - b.bad) || (b.v - a.v) || (a.rank - b.rank));
+    const best = scored[0].it, sn = best.snippet || {};
+
     await jobDone(c, job);
-    const sn = it.snippet || {};
-    /* API 가 주는 제목은 &amp; &#39; 같은 HTML 글자로 와서 보통 글자로 되돌린다 */
-    const un = (t) => String(t || '').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-    return json({ ok: true, id, title: un(sn.title), channel: un(sn.channelTitle), cost, free: s.free, paid: s.paid });
+    return json({ ok: true, id: String(best.id.videoId), title: un(sn.title), channel: un(sn.channelTitle), views: views[best.id.videoId] || null, cost, free: s.free, paid: s.paid });
   } catch (e) {
     await refund(c, job);
     return json({ ok: false, reason: 'api', refunded: true }, 502);

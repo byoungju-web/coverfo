@@ -154,15 +154,17 @@
     if (pk) return { u: "", w: "택시", none: pk + " 같은 개인정보가 들어 있어 열지 않았어요. 도착지(장소 이름)만 적어 주세요. 출발지·연락처는 택시 앱에서 직접 입력해 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
     dest = String(dest || "").replace(/^\s*(to|for)\s+/i, "").trim();   /* "taxi to Tokyo Tower" → "Tokyo Tower" */
     var res;
-    if (c === "KR") { res = isIOS() ? { u: "https://apps.apple.com/kr/app/id981110422", w: "🚕 카카오T (앱스토어)", note: "아이폰은 카카오T 공개 링크가 없어 앱 설치/열기 화면으로 갑니다." } : { u: "intent://launch#Intent;scheme=kakaot;package=com.kakao.taxi;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kakao.taxi;end", w: "🚕 카카오T" }; res.taxi = { dest: dest, c: c }; return res; }
+    if (c === "KR") { res = isIOS() ? { u: "https://apps.apple.com/kr/app/id981110422", w: "🚕 카카오T (앱스토어)", note: "아이폰은 카카오T 공개 링크가 없어 앱 설치/열기 화면으로 갑니다." } : { u: "intent://launch#Intent;scheme=kakaot;package=com.kakao.taxi;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kakao.taxi;end", w: "🚕 카카오T" }; /* v23: 휴대폰이면 택시 화면 없이 카카오T 앱을 바로 연다(자동화 열기). 카카오T 는 도착지를 채우는 공개 링크가 없어 앱의 "어디로 갈까요?"에서 입력. PC 는 앱이 없으므로 화면을 보여 준다 */ if (isAndroid() || isIOS()) { if (dest) res.note = "앱의 '어디로 갈까요?'에 도착지(" + dest + ")를 입력해 주세요"; return res; } res.taxi = { dest: dest, c: c }; return res; }
     if (UBER[c]) {
       /* Uber 공식 유니버설 링크 (목적지만 채워짐 · 호출 확인은 본인이) */
       var u = "https://m.uber.com/ul/?action=setPickup&pickup=my_location" + (dest ? "&dropoff[formatted_address]=" + E(dest) : "");
+      /* v24: 휴대폰이면 화면 없이 Uber 를 바로 연다(도착지 채움). 단 제휴 링크(UBER_AFF_LINK)가 켜져 있으면 제휴 표시가 필요하므로 화면을 보여 준다 */
+      if ((isAndroid() || isIOS()) && !affOn("uber")) return { u: u, w: "🚕 Uber", note: dest ? "도착지(" + dest + ")가 채워져 열려요. 확인 후 호출해 주세요" : "앱에서 도착지를 입력해 주세요" };
       return { u: u, w: "🚕 Uber", alt: c === "US" ? { u: "https://ride.lyft.com/", w: "Lyft (홈)" } : undefined, taxi: { dest: dest, c: c } };
     }
     if (c === "CN") return { u: "", w: "택시", none: "중국은 디디(滴滴) 공개 링크가 없어 앱에서 직접 불러 주세요." };
     /* Grab(동남아): 공개 호출 링크가 없어 앱을 연다(안드로이드 com.grabtaxi.passenger · 아이폰 App Store id647268330). 도착지는 앱에서 */
-    if (GRAB_RIDE[c]) return { u: isIOS() ? "https://apps.apple.com/app/id647268330" : isAndroid() ? "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.grabtaxi.passenger;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.grabtaxi.passenger;end" : "https://www.grab.com/", w: "🚕 Grab", taxi: { dest: dest, c: c, grab: 1 } };
+    if (GRAB_RIDE[c]) return { u: isIOS() ? "https://apps.apple.com/app/id647268330" : isAndroid() ? "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.grabtaxi.passenger;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.grabtaxi.passenger;end" : "https://www.grab.com/", w: "🚕 Grab", note: dest ? "앱에서 도착지(" + dest + ")를 입력해 주세요" : "앱에서 도착지를 입력해 주세요", taxi: (isAndroid() || isIOS()) && !affOn("grab") ? undefined : { dest: dest, c: c, grab: 1 } };   /* v24: 휴대폰이면 Grab 앱 바로 열기(제휴가 켜져 있으면 표시를 위해 화면) */
     /* 99(브라질) 등 그 밖은 공개 호출 링크가 없음 → 목적지까지 길찾기만 */
     return dest ? { u: "https://www.google.com/maps/dir/?api=1&destination=" + E(dest), w: "🧭 Google Maps 길찾기", note: "이 나라는 택시 앱 공개 링크가 없어 길찾기로 엽니다. 호출은 Grab 등 현지 앱에서." } : { u: "", w: "택시", none: "이 나라는 택시 앱 공개 링크가 없어요. Grab 등 현지 앱에서 불러 주세요." };
   }
@@ -336,6 +338,7 @@
     var t = String(q || "").replace(/(배달의\s*민족|배민|쿠팡\s*이츠|요기요)\s*(에서|으로|로)?/g, " ").replace(/(doordash|door\s*dash|uber\s*eats|grubhub|grab\s*food|order|deliver(y|ed)?|from|배달|시켜\s*먹(자|을까|어|고\s*싶어)?|시켜|시키|주문\s*해?|에서|으로|줘)/gi, " ");
     return clean(t).replace(/\s+/g, " ").trim();
   }
+  function affOn(kind) { try { return !!(window.cfShopIds && window.cfShopIds.dl && window.cfShopIds.dl[kind]); } catch (e) { return false; } }
   function affWrap(kind, url) {
     var t = ""; try { t = (window.cfShopIds && window.cfShopIds.dl && window.cfShopIds.dl[kind]) || ""; } catch (e) {}
     if (!t) return url;
