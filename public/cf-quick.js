@@ -201,6 +201,7 @@
     var rt = trainRoute(q), wh = trainWhen(q), res;
     if (c === "KR") { res = { u: "https://www.korail.com/ticket/search/general", w: "🚄 기차 예매" };   /* 2026-09-01 KTX·SRT 통합: SRT 홈페이지·앱 종료, 예매는 코레일+ 앱·korail.com */ res.train = { from: rt.from, to: rt.to, c: c, srt: /srt|수서/i.test(q), date: wh.date, people: wh.people }; return res; }
     if (TRAIN_EU[c] || TRAIN_SEA[c]) return { u: TRAIN[c] ? TRAIN[c][0] : (TRAIN_EU[c] ? "https://www.thetrainline.com/" : "https://12go.asia/en"), w: "🚄 " + (TRAIN[c] ? TRAIN[c][1] : TRAIN_EU[c] ? "Trainline" : "12Go"), train: { from: rt.from, to: rt.to, c: c, eu: !!TRAIN_EU[c], sea: !!TRAIN_SEA[c], off: TRAIN[c] || null, date: wh.date, people: wh.people } };
+    /* v28: 해외는 앱을 열지 않고 공식 사이트만 연다(입력·예매·결제는 이용자가 그 사이트에서 직접) */
     if (TRAIN[c]) return { u: TRAIN[c][0], w: "🚄 " + TRAIN[c][1] };
     if (!gmapsOk(c)) return { u: "", w: "기차", none: "이 나라의 기차 예매 사이트가 등록돼 있지 않아요." };
     return { u: "https://www.google.com/maps/dir/?api=1&travelmode=transit&destination=" + E(q), w: "🚄 Google Maps 대중교통" };
