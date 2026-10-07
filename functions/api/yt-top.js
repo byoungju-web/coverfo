@@ -8,9 +8,12 @@
    · 영상은 YouTube 앱·사이트에서 재생된다(coverfo 는 영상을 내려받거나 보관하지 않음).
    · 필요한 Secret: YOUTUBE_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (뒤의 둘은 스튜디오·렌즈와 같은 것)
    · 차감량: 변수 COST_MUSIC (없으면 1 크레딧 = 99원)
-   · 고르는 순서(v2): 말한 가수·곡명이 다 들어간 영상 중 조회수 1위 → 없으면 관련 결과 중 조회수 1위(대표곡). 커버·노래방·MR 등은 뒤로.
+   · 고르는 순서(v3): 노래방·가라오케(TJ·금영 등)는 제외 → 커버·리액션 등은 뒤로 → 말한 가수·곡명이 다 들어간 영상 중 조회수 1위 → 없으면 관련 결과 중 조회수 1위(대표곡).
+     '노래·음악' 같은 일반어는 검색어에서 뺀다.
      YouTube API 사용량: 검색 1번 100 + 조회수 확인 1 = 101 포인트(하루 무료 10,000) */
 const SANCTIONED = { RU: 1, IR: 1, KP: 1, SY: 1, CU: 1, VE: 1, BY: 1 };
+/* 노래방·가라오케(반주) 영상 — 원곡이 아니고 가사·원곡 음성이 없는 경우가 많아 바로 재생 후보에서 뺀다 (TJ·금영·KY 등) */
+const KARAOKE = /(노래방|가라오케|karaoke|\bTJ\b|TJ\s*media|티제이|금영|\bKY\b|반주\s*(곡|음악)?|\bMR\b|inst(rumental)?\b|sing\s*along|노래\s*연습)/i;
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
@@ -116,8 +119,13 @@ export async function onRequestPost({ request, env }) {
   const norm = (t) => un(t).toLowerCase().replace(/[\s\-_|:·,.!?'"()\[\]{}/]+/g, '');
   const quotaOf = (j) => { const e = j && j.error && Array.isArray(j.error.errors) && j.error.errors[0] ? String(j.error.errors[0].reason || '') : ''; return /quota/i.test(e); };
   try {
+    /* v3: '노래·음악·곡' 같은 일반어는 검색·비교에서 뺀다(노래방의 '노래'에 걸리던 문제). 노래방·가라오케는 검색 단계에서부터 제외
+       (YouTube search.list 의 q 는 NOT(-) 연산자를 지원 — 공식 문서) */
+    const GENERIC = /^(노래|음악|뮤직|곡|가요|song|songs|music|mv|뮤비|뮤직비디오|official|공식)$/i;
+    const core = q.split(/\s+/).filter((w) => w && !GENERIC.test(w));
+    const sq = (core.length ? core.join(' ') : q) + (KARAOKE.test(q) ? '' : ' -노래방 -karaoke -가라오케 -MR');
     const base = 'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=15&safeSearch=moderate'
-      + '&q=' + encodeURIComponent(q) + (region ? '&regionCode=' + region : '') + '&key=' + encodeURIComponent(key);
+      + '&q=' + encodeURIComponent(sq) + (region ? '&regionCode=' + region : '') + '&key=' + encodeURIComponent(key);
     let r = await fetch(base + '&videoCategoryId=10');
     let j = await r.json().catch(() => null);
     if (r.ok && (!j || !Array.isArray(j.items) || !j.items.length)) {   /* 음악 분류로 하나도 없으면 분류 없이 한 번 더 */
@@ -136,17 +144,20 @@ export async function onRequestPost({ request, env }) {
       (vj && Array.isArray(vj.items) ? vj.items : []).forEach((v) => { views[v.id] = Number(v.statistics && v.statistics.viewCount) || 0; });
     } catch (e) { /* 조회수를 못 받으면 관련도 순서를 그대로 쓴다 */ }
 
-    const words = q.split(/\s+/).map(norm).filter((w) => w.length >= 1);
+    const words = (core.length ? core : q.split(/\s+/)).map(norm).filter((w) => w.length >= 1);
     const BAD = /(cover|커버|노래방|karaoke|inst(rumental)?|mr\b|리액션|reaction|shorts|#shorts|가사\s*없|반주|연주|lesson|강좌|tutorial|remix|리믹스|8d|1시간|1hour|연속\s*듣기|모음|playlist|플레이리스트)/i;
-    const qBad = BAD.test(q);
+    const qBad = BAD.test(q), qKar = KARAOKE.test(q);
     const scored = items.map((it, rank) => {
       const sn = it.snippet || {}, hay = norm(sn.title) + '|' + norm(sn.channelTitle);
       const all = words.length ? words.every((w) => hay.indexOf(w) >= 0) : false;
       const bad = !qBad && BAD.test(un(sn.title));
-      return { it, all, bad, v: views[it.id.videoId] || 0, rank };
+      const kara = !qKar && (KARAOKE.test(un(sn.title)) || KARAOKE.test(un(sn.channelTitle)));
+      return { it, all, bad, kara, v: views[it.id.videoId] || 0, rank };
     });
-    scored.sort((a, b) => (b.all - a.all) || (a.bad - b.bad) || (b.v - a.v) || (a.rank - b.rank));
-    const best = scored[0].it, sn = best.snippet || {};
+    const pool = scored.filter((x) => !x.kara);   /* 노래방·가라오케 영상은 후보에서 뺀다 — 그것밖에 없으면 틀지 않고 환불 */
+    if (!pool.length) { await refund(c, job); return json({ ok: false, reason: 'not_found', refunded: true }); }
+    pool.sort((a, b) => (a.bad - b.bad) || (b.all - a.all) || (b.v - a.v) || (a.rank - b.rank));   /* 커버 등 → 뒤로, 그다음 단어 일치, 그다음 조회수 */
+    const best = pool[0].it, sn = best.snippet || {};
 
     await jobDone(c, job);
     return json({ ok: true, id: String(best.id.videoId), title: un(sn.title), channel: un(sn.channelTitle), views: views[best.id.videoId] || null, cost, free: s.free, paid: s.paid });
