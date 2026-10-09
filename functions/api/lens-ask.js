@@ -4,7 +4,11 @@
    POST /api/lens-ask  multipart   → { ok, answer, description, cost, free, paid }  또는  { ok:false, reason }
         필드: image(사진, 선택) · question(질문, 필수) · context(앞에서 받은 사진 설명, 추가 질문 때)
         헤더: Authorization: Bearer <Supabase 로그인 토큰>
-   · AI: Cloudflare Workers AI (wrangler.toml 의 [ai] binding = "AI")
+   · AI: Cloudflare Workers AI 를 공식 REST API 로 부른다 (v2, 2026-10-09)
+       wrangler.toml 에 [ai] 를 넣으면 빌드 때 Remix 가 원격 연결(로그인 필요)을 시도해 빌드가 실패한다(실제 빌드 기록으로 확인).
+       그래서 연결(binding) 대신 API 토큰으로 부른다.  필요한 Secret: CF_AI_TOKEN (Workers AI 권한 토큰)
+       계정 ID: Secret/변수 CF_ACCOUNT_ID (없으면 아래 기본값 — 대시보드 주소에 보이는 계정 ID)
+       env.AI 연결이 생기면 그것을 먼저 쓴다.
        사진 읽기  @cf/meta/llama-3.2-11b-vision-instruct  (Meta 라이선스 — 처음 한 번 "agree" 를 보내야 함: Cloudflare 문서)
        답변       @cf/meta/llama-3.3-70b-instruct-fp8-fast
    · 무료 없음: 질문 1번마다 로그인한 사용자의 coverfo 크레딧에서 차감(cf_spend). AI 오류면 자동 환불(cf_refund).
@@ -15,7 +19,29 @@
 const SANCTIONED = { RU: 1, IR: 1, KP: 1, SY: 1, CU: 1, VE: 1, BY: 1 };
 const VISION = '@cf/meta/llama-3.2-11b-vision-instruct';
 const CHAT = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
-const MAX_IMG = 4 * 1024 * 1024;   /* 화면에서 1280px 로 줄여 보내므로 보통 0.3~1MB */
+const MAX_IMG = 4 * 1024 * 1024;
+const ACCOUNT_DEFAULT = '8e3361d320715cc98e7b66cb3127ca76';
+
+/* Workers AI 부르기: 연결(env.AI)이 있으면 그것, 없으면 REST API (api.cloudflare.com/client/v4/accounts/{id}/ai/run/{model}) */
+function aiOf(env) {
+  if (env.AI && typeof env.AI.run === 'function') return env.AI;
+  const token = String(env.CF_AI_TOKEN || '').trim();
+  const acct = String(env.CF_ACCOUNT_ID || ACCOUNT_DEFAULT).trim();
+  if (!token || !acct) return null;
+  return {
+    run: async (model, input) => {
+      const r = await fetch('https://api.cloudflare.com/client/v4/accounts/' + acct + '/ai/run/' + model, {
+        method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || j.success === false) {
+        const m = j && j.errors && j.errors[0] ? (j.errors[0].message || JSON.stringify(j.errors[0])) : ('HTTP ' + r.status);
+        throw new Error(String(m));
+      }
+      return j.result || {};
+    },
+  };
+}   /* 화면에서 1280px 로 줄여 보내므로 보통 0.3~1MB */
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
@@ -93,12 +119,12 @@ async function answer(ai, description, question) {
 }
 
 export async function onRequestGet({ env }) {
-  return json({ on: !!(env.AI && sb(env)), cost: costOf(env) });
+  return json({ on: !!(aiOf(env) && sb(env)), cost: costOf(env) });
 }
 
 export async function onRequestPost({ request, env }) {
-  const c = sb(env);
-  if (!env.AI || !c) return json({ ok: false, reason: 'off' }, 503);
+  const c = sb(env), ai = aiOf(env);
+  if (!ai || !c) return json({ ok: false, reason: 'off' }, 503);
   if (!originOk(request)) return json({ ok: false }, 403);
   const cc = String((request.cf && request.cf.country) || '').toUpperCase();
   if (SANCTIONED[cc]) return json({ ok: false, reason: 'sanctioned' }, 403);
@@ -128,8 +154,8 @@ export async function onRequestPost({ request, env }) {
   /* 2) 사진 읽기(새 사진일 때만) → 답변. 실패하면 환불 */
   try {
     let description = context;
-    if (image) description = await describe(env.AI, new Uint8Array(await image.arrayBuffer()), question);
-    const text = await answer(env.AI, description, question);
+    if (image) description = await describe(ai, new Uint8Array(await image.arrayBuffer()), question);
+    const text = await answer(ai, description, question);
     if (!text) throw new Error('empty');
     await jobDone(c, job);
     return json({ ok: true, answer: text, description, cost, free: s.free, paid: s.paid });
