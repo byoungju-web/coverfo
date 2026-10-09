@@ -379,6 +379,17 @@
     if (c === "CN") return { u: "https://search.bilibili.com/all?keyword=" + E(t), w: "▶ bilibili", note: "중국은 유튜브가 막혀 있어 bilibili 검색으로 엽니다." };
     return { u: "https://www.youtube.com/results?search_query=" + E(t), w: "▶ YouTube", music: { q: t, c: c, generic: generic } };
   }
+  /* 카톡(v32): 카카오톡은 외부에서 받는 사람·내용을 채워 보내는 공개 링크가 없다.
+     그래서 ① 보낼 말을 복사해 두고 ② 카카오톡 앱만 연다. 받는 사람 고르기·붙여넣기·보내기는 본인이.
+     안드로이드 = 앱 실행(없으면 구글 플레이), 아이폰·PC = 앱스토어의 카카오톡 화면(설치돼 있으면 '열기'). */
+  function kakao(q) {
+    var s = String(q || ""), m = s.match(/(?:에게|한테|께)\s*(.+?)\s*(?:이?라고|라구)?\s*(?:카톡|카카오톡)/) || s.match(/^(.+?(?:다고|이?라고|라구))\s*(?:카톡|카카오톡)/);
+    var body = m ? m[1].replace(/^["'“‘\s]+|["'”’\s]+$/g, "").trim() : "";
+    body = body.replace(/(이?라고|라구)$/, "").replace(/다고$/, "다").trim();   /* "늦는다고" → "늦는다", "안녕이라고" → "안녕" */
+    var u = isAndroid() ? "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.kakao.talk;S.browser_fallback_url=" + E("https://play.google.com/store/apps/details?id=com.kakao.talk") + ";end"
+                        : "https://apps.apple.com/kr/app/id362057947";
+    return { u: u, w: "💛 카톡", copy: body, note: body ? "보낼 말(" + body.slice(0, 20) + ")을 복사했어요. 카톡에서 받는 사람을 고른 뒤 붙여넣기 하세요." : "받는 사람·내용은 카톡에서 직접 입력해 주세요." };
+  }
   /* 송금·페이: 앱이 받는 사람·금액을 채운 채 열린다. 비밀번호·확인은 본인이 (각 회사 공개 링크 형식) */
   function pay(q, c) {
     var amt = amountOf(q), s = String(q);
@@ -532,6 +543,8 @@
   /* 한국어·영어 규칙 */
   function classifyKE(t) {
     var q = t;
+    /* 카톡(v32): "OO한테 안녕이라고 카톡" → 메시지 복사 + 카카오톡 열기. 받는 사람은 카톡에서 본인이 고른다(연락처를 받거나 저장하지 않음) */
+    if (/(카톡|카카오톡)/.test(q) && notQuestion(q) && (/(보내|전송|해\s*줘|줘|열어)/.test(q) || /(이?라고|다고|라구)\s*(카톡|카카오톡)\s*$/.test(q.trim())) && !/(오픈\s*(채팅|카톡|톡)|선물|이모티콘|송금|친구\s*추가|방법|어떻게)/.test(q)) return { kind: "kakao", q: q };
     if (any(R.pay, q) && notQuestion(q) && !/문자|메시지|카톡/.test(q) && (amountOf(q) || /토스|송금|이체|venmo|paypal|cash\s*app|zelle|upi|transfer/i.test(q))) return { kind: "pay", q: q };
     if (any(R.call, q) && notQuestion(q) && /(걸|연결|통화|해\s*줘|해줘|줘|콜|call|dial|ring)/i.test(q) && !/번호\s*(뭐|알려|찾|등록|저장)/.test(q) && !any(R.taxi, q)) return { kind: "call", q: q };
     if (any(R.sms, q) && notQuestion(q) && /(보내|전송|발신|써\s*줘|작성|해\s*줘|줘|에게|한테|께|send|text\s+\w+|message\s+\w+)/i.test(q)) return { kind: "sms", q: q };
@@ -682,6 +695,7 @@
     if (k === "rental") return rental(q, c, q);
     if (k === "delivery") return delivery(r.query || q, c, q);
     if (k === "pay") return pay(q, c);
+    if (k === "kakao") return kakao(q);
     if (k === "stay") { if (r.lang) { var sres = stay(q, c), nm = stripL(stayInfo(q).stay, r.lang, ["stay", "book"]); if (nm && nm !== sres.info.stay) { sres.u = sres.u.split(E(sres.info.stay)).join(E(nm)); if (sres.alt) sres.alt.u = sres.alt.u.split(E(sres.info.stay)).join(E(nm)); sres.info.stay = nm; } return sres; } return stay(q, c); }
     return null;
   }
