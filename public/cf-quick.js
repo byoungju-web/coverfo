@@ -386,9 +386,13 @@
     var s = String(q || ""), m = s.match(/(?:에게|한테|께)\s*(.+?)\s*(?:이?라고|라구)?\s*(?:카톡|카카오톡)/) || s.match(/^(.+?(?:다고|이?라고|라구))\s*(?:카톡|카카오톡)/);
     var body = m ? m[1].replace(/^["'“‘\s]+|["'”’\s]+$/g, "").trim() : "";
     body = body.replace(/(이?라고|라구)$/, "").replace(/다고$/, "다").trim();   /* "늦는다고" → "늦는다", "안녕이라고" → "안녕" */
-    var u = isAndroid() ? "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.kakao.talk;S.browser_fallback_url=" + E("https://play.google.com/store/apps/details?id=com.kakao.talk") + ";end"
-                        : "https://apps.apple.com/kr/app/id362057947";
-    return { u: u, w: "💛 카톡", copy: body, note: body ? "보낼 말(" + body.slice(0, 20) + ")을 복사했어요. 카톡에서 받는 사람을 고른 뒤 붙여넣기 하세요." : "받는 사람·내용은 카톡에서 직접 입력해 주세요." };
+    /* v33: 크롬은 웹에서 앱 '첫 화면 실행(LAUNCHER)' 요청을 막아 구글 플레이로 넘어갔다.
+       카카오톡이 웹에서 열도록 허락한 kakaotalk 주소(포도야 ai.html 과 같은 형식)로 연다.
+       아이폰은 kakaotalk:// → 1.8초 안에 안 열리면 앱스토어. PC 는 앱스토어 화면. */
+    var store = "https://apps.apple.com/kr/app/id362057947";
+    var u = isAndroid() ? "intent://#Intent;scheme=kakaotalk;package=com.kakao.talk;S.browser_fallback_url=" + E("https://play.google.com/store/apps/details?id=com.kakao.talk") + ";end"
+                        : isIOS() ? "kakaotalk://" : store;
+    return { u: u, fallback: isIOS() ? store : "", w: "💛 카톡", copy: body, note: body ? "보낼 말(" + body.slice(0, 20) + ")을 복사했어요. 카톡에서 받는 사람을 고른 뒤 붙여넣기 하세요." : "받는 사람·내용은 카톡에서 직접 입력해 주세요." };
   }
   /* 송금·페이: 앱이 받는 사람·금액을 채운 채 열린다. 비밀번호·확인은 본인이 (각 회사 공개 링크 형식) */
   function pay(q, c) {
