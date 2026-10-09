@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#ffffff">
+<title>사진으로 물어보기 — coverfo</title>
+<!-- coverfo 📷 사진으로 물어보기 v2 (구글 렌즈 방식, 2026-10-09)
+     홈의 "사진으로 물어보기" 탭을 누르면 새 창(탭)으로 열리는 화면. 닫으면 원래 홈 탭이 그대로 남는다.
+     흐름: 사진 찍기/고르기 → 질문 없이 바로 분석(/api/lens-snap op:analyze) → ① 결과 ② 쇼핑몰 ③ 이어서 질문(op:ask)
+     · 사진은 1280px JPEG 로 줄여 보낸다. 서버는 사진 원본을 저장하지 않는다.
+     · 쇼핑몰은 공개 검색 주소(딥링크)만 연다 — 크롤링 없음, 결제는 해당 쇼핑몰에서.
+       제휴 ID 는 기존 /api/shop-ids, 쿠팡 파트너스 변환은 기존 /api/shop-link 를 그대로 쓴다(키가 없으면 딥링크).
+     · 로그인 토큰은 홈과 같은 방법(localStorage 의 sb-…-auth-token)으로 읽는다. -->
+<style>
+:root{--ink:#111;--sub:#6b6480;--line:#ece7f7;--soft:#f6f4fb;--pri:#5b3fd6;--pri2:#3d2a8c;--ok:#0f7b4b;--warn:#b54708;--err:#b42318}
+*{box-sizing:border-box}
+html,body{margin:0;background:#fff;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;-webkit-text-size-adjust:100%}
+body{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+button{font-family:inherit}
+.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;height:54px;padding:0 12px;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.top h1{flex:1;margin:0;font-size:16px;font-weight:800;letter-spacing:-.02em}
+.top .x{height:36px;padding:0 14px;border-radius:18px;border:1.5px solid #ddd6ee;background:#fff;font-size:13.5px;font-weight:700;color:var(--pri2);cursor:pointer}
+.wrap{max-width:560px;margin:0 auto;padding:14px 16px 0}
+.photo{position:relative;border-radius:20px;overflow:hidden;background:var(--soft);border:1.5px dashed #d8cff0;min-height:180px;display:flex;align-items:center;justify-content:center}
+.photo.has{border:0;background:#111}
+.photo img{display:block;width:100%;max-height:46vh;object-fit:contain}
+.ph{text-align:center;color:var(--sub);font-size:14px;line-height:1.7;padding:24px 16px}
+.ph b{display:block;font-size:34px;margin-bottom:6px}
+.scan{position:absolute;inset:0;display:none;pointer-events:none}
+.photo.busy .scan{display:block}
+.scan:before{content:"";position:absolute;left:0;right:0;height:3px;top:0;background:linear-gradient(90deg,transparent,#a996ff,transparent);box-shadow:0 0 18px 4px rgba(169,150,255,.6);animation:sc 1.6s ease-in-out infinite}
+.scan:after{content:"사진을 읽는 중…";position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:rgba(0,0,0,.6);color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;white-space:nowrap}
+@keyframes sc{0%{top:0}50%{top:calc(100% - 3px)}100%{top:0}}
+@media (prefers-reduced-motion:reduce){.scan:before{animation:none;top:50%}}
+.btns{display:flex;gap:8px;margin-top:10px}
+.btn{flex:1;height:48px;border-radius:14px;border:1.5px solid #ddd6ee;background:#fff;font-size:14.5px;font-weight:700;color:var(--pri2);cursor:pointer}
+.btn.main{background:var(--pri);border-color:var(--pri);color:#fff}
+.btn:disabled{opacity:.45}
+.price{font-size:12px;color:var(--sub);text-align:center;margin:8px 0 0}
+.sec{margin-top:16px}
+.sec h2{font-size:13px;font-weight:800;color:var(--sub);margin:0 4px 8px;letter-spacing:-.01em}
+.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 6px 24px -14px rgba(61,42,140,.25)}
+.nm{font-size:20px;font-weight:800;line-height:1.35;letter-spacing:-.02em;word-break:keep-all;overflow-wrap:anywhere}
+.meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tag{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--soft);color:var(--pri2)}
+.tag.ok{background:#e9f7ef;color:var(--ok)}
+.tag.warn{background:#fff4e5;color:var(--warn)}
+.sum{font-size:15px;line-height:1.7;margin:12px 0 0;word-break:keep-all;overflow-wrap:anywhere}
+.facts{margin:10px 0 0;padding:0 0 0 18px;font-size:14px;line-height:1.7;color:#333}
+.caut{margin-top:10px;background:#fff8f0;border:1px solid #fbe3c8;border-radius:12px;padding:10px 12px;font-size:13.5px;line-height:1.6;color:#7a3e00}
+.disc{margin-top:10px;font-size:12.5px;color:var(--sub);line-height:1.6}
+details{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--pri2)}
+.ocr{white-space:pre-wrap;font-size:13px;line-height:1.6;background:var(--soft);border-radius:10px;padding:10px;margin-top:8px;overflow-wrap:anywhere}
+.kw{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.kw input{flex:1;min-width:0;height:42px;border:1.5px solid #ddd6ee;border-radius:12px;padding:0 12px;font-size:14.5px}
+.kw small{flex:none;font-size:11.5px;color:var(--sub)}
+.shops{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.shop{display:flex;align-items:center;justify-content:center;gap:6px;height:48px;border-radius:14px;border:1.5px solid #ddd6ee;background:#fff;font-size:14px;font-weight:800;color:var(--ink);text-decoration:none;cursor:pointer}
+.shop i{font-style:normal;font-size:16px}
+.web a{display:block;padding:10px 2px;border-top:1px solid var(--line);color:var(--ink);text-decoration:none;font-size:14px;line-height:1.5;overflow-wrap:anywhere}
+.web a:first-child{border-top:0}
+.web a small{display:block;color:var(--sub);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note{font-size:11.5px;color:#8a8496;line-height:1.6;margin:8px 4px 0}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1.5px solid #d8cff0;background:var(--soft);color:var(--pri2);border-radius:999px;padding:8px 14px;font-size:13.5px;font-weight:700;cursor:pointer;text-align:left}
+.chip:disabled{opacity:.45}
+.chat{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.u,.a{max-width:88%;padding:10px 12px;border-radius:14px;font-size:14.5px;line-height:1.65;white-space:pre-wrap;word-break:break-word}
+.u{align-self:flex-end;background:var(--pri);color:#fff}
+.a{align-self:flex-start;background:var(--soft);border:1px solid var(--line)}
+.a.err{background:#fff4f2;border-color:#f3d0cc;color:var(--err)}
+.a a{color:var(--pri)}
+.left{font-size:12px;color:var(--sub);margin:10px 4px 0}
+.ask{position:fixed;left:0;right:0;bottom:0;z-index:6;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:none}
+.ask.on{display:block}
+.ask .in{max-width:560px;margin:0 auto;display:flex;gap:8px}
+.ask input{flex:1;min-width:0;height:46px;border:1.5px solid #ddd6ee;border-radius:23px;padding:0 16px;font-size:15px}
+.ask button{flex:none;width:46px;height:46px;border-radius:50%;border:0;background:var(--ink);color:#fff;font-size:18px;cursor:pointer}
+.ask button:disabled{opacity:.4}
+.msg{margin-top:14px;padding:14px;border-radius:14px;background:#fff4f2;border:1px solid #f3d0cc;color:var(--err);font-size:14px;line-height:1.6}
+.msg a{color:var(--pri);font-weight:700}
+.hide{display:none !important}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>📷 사진으로 물어보기</h1>
+  <button type="button" class="x" id="close">✕ 닫기</button>
+</header>
+
+<main class="wrap">
+  <div class="photo" id="photo"><div class="ph" id="ph"><b>📷</b>사진을 찍으면<br>질문하지 않아도 바로 알려 드려요</div><div class="scan"></div></div>
+  <div class="btns">
+    <button type="button" class="btn main" id="cam">📸 사진 찍기</button>
+    <button type="button" class="btn" id="alb">🖼 앨범에서 고르기</button>
+  </div>
+  <input type="file" id="f1" accept="image/*" capture="environment" hidden>
+  <input type="file" id="f2" accept="image/*" hidden>
+  <p class="price" id="price"></p>
+  <div id="msg"></div>
+
+  <div id="out" class="hide">
+    <!-- ① 결과 -->
+    <section class="sec">
+      <h2>① 이게 뭐예요</h2>
+      <div class="card" id="res"></div>
+    </section>
+    <!-- ② 쇼핑몰 -->
+    <section class="sec" id="shopSec">
+      <h2>② 관련 쇼핑몰</h2>
+      <div class="card">
+        <div class="kw"><input id="kw" maxlength="80" aria-label="쇼핑 검색어" enterkeyhint="done"><small>검색어 고치기 가능</small></div>
+        <div class="shops" id="shops"></div>
+        <p class="note">각 쇼핑몰의 검색 결과로 이동해요. 결제는 그 쇼핑몰에서 직접 해요.</p>
+      </div>
+    </section>
+    <section class="sec hide" id="webSec">
+      <h2>🔎 웹에서 찾은 정보</h2>
+      <div class="card web" id="web"></div>
+    </section>
+    <!-- ③ 이어서 질문 -->
+    <section class="sec">
+      <h2>③ 이어서 질문하기</h2>
+      <div class="chips" id="chips"></div>
+      <div class="chat" id="chat"></div>
+      <p class="left" id="left"></p>
+    </section>
+    <p class="note">🔒 사진 원본은 저장하지 않아요. 같은 사진을 다시 고르면 저장된 결과를 0크레딧으로 보여 드려요(개인정보가 보이는 사진은 결과도 저장하지 않아요). 답을 못 받으면 크레딧을 돌려드려요.</p>
+  </div>
+</main>
+
+<div class="ask" id="ask"><div class="in">
+  <input id="q" maxlength="500" placeholder="더 궁금한 것을 물어보세요" autocomplete="off" enterkeyhint="send">
+  <button type="button" id="go" aria-label="보내기">↑</button>
+</div></div>
+
+<script>
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var LANG="ko";
+  var P={cost:1,freeQ:3,packQ:5,packCost:1};
+  var R=null;          /* 지금 결과 */
+  var hist=[];         /* 이어서 질문 기록 (최근 몇 개만 서버로) */
+  var busy=false;
+  var IDS=null;
+
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(m){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m];}); }
+
+  /* 로그인 토큰 — 홈(coverfo.com)과 같은 방법 */
+  function auth(){ try{ for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf("sb-")===0&&k.indexOf("-auth-token")>0){ var v=JSON.parse(localStorage.getItem(k)||"null"); var t=v&&(v.access_token||(v.currentSession&&v.currentSession.access_token)); if(t) return t; } } }catch(e){} return ""; }
+
+  /* 닫기: 새 창(탭)이면 닫고, 닫을 수 없으면 홈으로 */
+  $("close").onclick=function(){
+    try{ window.close(); }catch(e){}
+    setTimeout(function(){ if(!window.closed) location.href="/"; },250);
+  };
+
+  /* 가격 표시 */
+  function priceText(){ $("price").textContent="사진 1장 "+P.cost+"크레딧 · 질문 "+P.freeQ+"개 포함 · 그 뒤 "+P.packCost+"크레딧에 질문 "+P.packQ+"개"; }
+  priceText();
+  fetch("/api/lens-snap",{cache:"no-store"}).then(function(r){ return r.ok?r.json():null; }).then(function(j){
+    if(!j) return;
+    ["cost","freeQ","packQ","packCost"].forEach(function(k){ if(typeof j[k]==="number") P[k]=j[k]; });
+    priceText();
+    if(!j.on) say("지금은 사용할 수 없어요. 잠시 뒤 다시 해 주세요.");
+  })["catch"](function(){});
+
+  var WHY={
+    login:'로그인 후 사용할 수 있어요. <a href="/" target="_self">홈에서 로그인 ›</a>',
+    insufficient:'크레딧이 부족해요. <a href="/pricing#charge">충전하기 ›</a>',
+    off:"지금은 사용할 수 없어요. 잠시 뒤 다시 해 주세요.",
+    too_big:"사진이 너무 커요. 다른 사진으로 해 주세요.",
+    not_image:"사진 파일만 올릴 수 있어요.",
+    sanctioned:"이 지역에서는 사용할 수 없어요.",
+    ai:"분석하지 못했어요. 크레딧은 돌려드렸어요. 다시 해 주세요.",
+    net:"연결이 끊겼어요. 다시 해 주세요."
+  };
+  function say(html){ $("msg").innerHTML=html?'<div class="msg">'+html+'</div>':""; }
+
+  /* 사진: 1280px JPEG 로 줄이기 */
+  function shrink(file,cb){
+    try{
+      var u=URL.createObjectURL(file), im=new Image();
+      im.onload=function(){ var M=1280,w=im.naturalWidth,h=im.naturalHeight,k=Math.min(1,M/Math.max(w,h)); var cv=document.createElement("canvas"); cv.width=Math.round(w*k); cv.height=Math.round(h*k);
+        cv.getContext("2d").drawImage(im,0,0,cv.width,cv.height); URL.revokeObjectURL(u); cb(cv.toDataURL("image/jpeg",0.85)); };
+      im.onerror=function(){ URL.revokeObjectURL(u); cb(""); };
+      im.src=u;
+    }catch(e){ cb(""); }
+  }
+
+  function setBusy(b){ busy=b; $("cam").disabled=b; $("alb").disabled=b; $("go").disabled=b; Array.prototype.forEach.call(document.querySelectorAll(".chip"),function(c){ c.disabled=b; }); }
+
+  function pick(f){
+    if(!f||busy) return;
+    if(!/^image\//.test(f.type||"")){ say(WHY.not_image); return; }
+    say(""); $("out").classList.add("hide"); $("ask").classList.remove("on");
+    shrink(f,function(dataUrl){
+      if(!dataUrl){ say(WHY.not_image); return; }
+      var ph=$("photo"); ph.classList.add("has");
+      ph.innerHTML='<img alt="고른 사진" src="'+dataUrl+'"><div class="scan"></div>';
+      analyze(dataUrl);
+    });
+  }
+  $("cam").onclick=function(){ $("f1").click(); };
+  $("alb").onclick=function(){ $("f2").click(); };
+  $("f1").onchange=function(e){ pick(e.target.files&&e.target.files[0]); e.target.value=""; };
+  $("f2").onchange=function(e){ pick(e.target.files&&e.target.files[0]); e.target.value=""; };
+
+  function post(body){
+    var t=auth();
+    if(!t) return Promise.resolve({ok:false,reason:"login"});
+    return fetch("/api/lens-snap",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+t},body:JSON.stringify(body)})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false,reason:"ai"}; }); })
+      ["catch"](function(){ return {ok:false,reason:"net"}; });
+  }
+
+  function analyze(dataUrl){
+    setBusy(true); $("photo").classList.add("busy");
+    post({op:"analyze",imageBase64:dataUrl,mimeType:"image/jpeg",lang:LANG}).then(function(j){
+      $("photo").classList.remove("busy"); setBusy(false);
+      if(!j||!j.ok){ say(WHY[(j&&j.reason)||"ai"]||WHY.ai); return; }
+      R=j; hist=[]; show(j);
+    });
+  }
+
+  /* ① 결과 */
+  function show(j){
+    var h='<div class="nm">'+esc(j.name||j.category||"알 수 없음")+'</div><div class="meta">';
+    if(j.brand) h+='<span class="tag">'+esc(j.brand)+'</span>';
+    if(j.category) h+='<span class="tag">'+esc(j.category)+'</span>';
+    if(j.web&&j.web.verified) h+='<span class="tag ok">✓ 웹 검색으로 이름 확인</span>';
+    else if(j.name&&(j.nameSure===false||(j.web&&j.web.checked))) h+='<span class="tag warn">이름 확인 필요</span>';
+    if(j.cached) h+='<span class="tag">저장된 결과 · 0크레딧</span>';
+    h+='</div>';
+    if(j.summary) h+='<p class="sum">'+esc(j.summary)+'</p>';
+    if(j.facts&&j.facts.length) h+='<ul class="facts">'+j.facts.map(function(x){ return "<li>"+esc(x)+"</li>"; }).join("")+'</ul>';
+    if(j.cautions&&j.cautions.length) h+='<div class="caut">⚠ '+j.cautions.map(esc).join("<br>⚠ ")+'</div>';
+    if(j.sensitive&&j.sensitive!=="none") h+='<p class="disc">참고용 정보예요. 정확한 판단은 전문가(약사·의사 등)에게 확인하세요.</p>';
+    if(j.ocr) h+='<details><summary>사진 속 글자 보기</summary><div class="ocr">'+esc(j.ocr)+'</div></details>';
+    $("res").innerHTML=h;
+
+    /* ② 쇼핑몰 */
+    var kw=j.shopping||"";
+    $("shopSec").classList.toggle("hide",!kw);
+    $("kw").value=kw; shops(j.region||"kr");
+
+    /* 웹 정보 (Brave 공식 검색 API 결과) */
+    var links=(j.web&&j.web.links)||[];
+    $("webSec").classList.toggle("hide",!links.length);
+    $("web").innerHTML=links.map(function(l){ var host=""; try{ host=new URL(l.url).hostname; }catch(e){} return '<a href="'+esc(l.url)+'" target="_blank" rel="noopener noreferrer">'+esc(l.title||host)+'<small>'+esc(host)+'</small></a>'; }).join("");
+
+    /* ③ 추천 질문 */
+    $("chips").innerHTML=(j.questions||[]).map(function(q){ return '<button type="button" class="chip">'+esc(q)+'</button>'; }).join("");
+    Array.prototype.forEach.call(document.querySelectorAll(".chip"),function(c){ c.onclick=function(){ ask(c.textContent); }; });
+    $("chat").innerHTML=""; leftText(j);
+    $("out").classList.remove("hide"); $("ask").classList.add("on");
+    try{ $("res").scrollIntoView({behavior:"smooth",block:"start"}); }catch(e){}
+  }
+
+  /* 쇼핑몰 링크 — 공개 검색 주소(딥링크)만. 제휴 ID 는 기존 /api/shop-ids 에서 */
+  function loadIds(cb){
+    if(IDS){ cb(IDS); return; }
+    try{ var c=sessionStorage.getItem("cf_shop_ids"); if(c){ IDS=JSON.parse(c); cb(IDS); return; } }catch(e){}
+    fetch("/api/shop-ids").then(function(r){ return r.ok?r.json():null; }).then(function(j){ IDS=j||{}; try{ sessionStorage.setItem("cf_shop_ids",JSON.stringify(IDS)); }catch(e){} cb(IDS); })["catch"](function(){ IDS={}; cb(IDS); });
+  }
+  function shopList(region,k){
+    var E=encodeURIComponent(k);
+    if(region==="kr") return [
+      {n:"네이버쇼핑",i:"🟢",u:"https://search.shopping.naver.com/search/all?query="+E},
+      {n:"쿠팡",i:"🚀",u:"https://www.coupang.com/np/search?q="+E,cp:1},
+      {n:"11번가",i:"🔴",u:"https://search.11st.co.kr/Search.tmall?kwd="+E}];
+    var tag=IDS&&IDS.amazon&&IDS.amazon.US;
+    return [
+      {n:"Amazon",i:"📦",u:"https://www.amazon.com/s?k="+E+(tag?"&tag="+encodeURIComponent(tag):"")},
+      {n:"Google 쇼핑",i:"🔎",u:"https://www.google.com/search?udm=28&q="+E}];
+  }
+  var REGION="kr";
+  function shops(region){
+    REGION=region;
+    loadIds(function(){ draw(); });
+    draw();
+  }
+  function draw(){
+    var k=($("kw").value||"").trim(), box=$("shops");
+    if(!k){ box.innerHTML=""; return; }
+    var L=shopList(REGION,k);
+    box.innerHTML=L.map(function(s,ix){ return '<a class="shop" data-ix="'+ix+'" href="'+esc(s.u)+'" target="_blank" rel="noopener noreferrer"><i>'+s.i+'</i>'+esc(s.n)+'</a>'; }).join("");
+    Array.prototype.forEach.call(box.querySelectorAll(".shop"),function(a){
+      var s=L[+a.getAttribute("data-ix")];
+      if(!s.cp||!(IDS&&IDS.coupang)) return;
+      /* 쿠팡 파트너스 키가 있을 때만: 누른 순간 그 쿠팡 주소만 기존 /api/shop-link 로 바꿈(저장 안 함). 실패하면 원래 주소 */
+      a.onclick=function(e){
+        e.preventDefault();
+        var w=null; try{ w=window.open("about:blank","_blank"); if(w) w.opener=null; }catch(x){ w=null; }
+        var go=function(link){ try{ if(w&&!w.closed) w.location.href=link; else location.href=link; }catch(x){ location.href=link; } };
+        var done=false, t=setTimeout(function(){ if(!done){ done=true; go(s.u); } },3500);
+        fetch("/api/shop-link",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url:s.u})})
+          .then(function(r){ return r.ok?r.json():null; })
+          .then(function(j){ if(done) return; done=true; clearTimeout(t); go((j&&j.url)||s.u); })
+          ["catch"](function(){ if(done) return; done=true; clearTimeout(t); go(s.u); });
+      };
+    });
+  }
+  $("kw").addEventListener("input",draw);
+
+  /* ③ 이어서 질문 */
+  function leftText(j){
+    var q=j&&j.q; if(!q) return;
+    var n=Math.max(0,(q.allow||0)-(q.used||0));
+    var t=n>0?"이 사진으로 남은 질문 "+n+"개":"다음 질문부터 "+P.packCost+"크레딧에 질문 "+P.packQ+"개";
+    if(j.free!=null||j.paid!=null) t+=" · 남은 크레딧 무료 "+(j.free||0)+" · 충전 "+(j.paid||0);
+    $("left").textContent=t;
+  }
+  function bubble(cls,html){ var d=document.createElement("div"); d.className=cls; d.innerHTML=html; $("chat").appendChild(d); return d; }
+  function ask(text){
+    var t=String(text||"").trim(); if(!t||busy||!R) return;
+    bubble("u",esc(t)); $("q").value="";
+    var wait=bubble("a","생각하는 중…");
+    setBusy(true);
+    post({op:"ask",hash:R.hash,lang:LANG,question:t,context:JSON.stringify({name:R.name,brand:R.brand,category:R.category,summary:R.summary,facts:R.facts,cautions:R.cautions,ocr:R.ocr}),history:hist.slice(-4)}).then(function(j){
+      setBusy(false);
+      if(j&&j.ok){ wait.innerHTML=esc(j.answer); hist.push({q:t,a:String(j.answer||"").slice(0,600)}); leftText(j); }
+      else { wait.className="a err"; wait.innerHTML=(j&&j.reason==="ai")?"답을 받지 못했어요. "+(j.refunded?"크레딧은 돌려드렸어요. ":"")+"다시 해 주세요.":(WHY[(j&&j.reason)||"ai"]||WHY.ai); if(j&&j.q) leftText(j); }
+      try{ wait.scrollIntoView({behavior:"smooth",block:"nearest"}); }catch(e){}
+    });
+  }
+  $("go").onclick=function(){ ask($("q").value); };
+  $("q").addEventListener("keydown",function(e){ if(e.key==="Enter"&&!e.isComposing){ e.preventDefault(); ask($("q").value); } });
+})();
+</script>
+</body>
+</html>
