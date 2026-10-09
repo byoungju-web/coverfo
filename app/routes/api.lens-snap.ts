@@ -1,12 +1,15 @@
 /*
- * coverfo 📷 사진으로 물어보기 v2 (구글 렌즈 방식) — 서버 라우트 (Remix + Cloudflare Pages)   2026-10-09
+ * coverfo 📷 사진으로 물어보기 v2 (구글 렌즈 방식) — 서버 라우트 (Remix + Cloudflare Pages)   2026-10-09 · v197 속도 개선
  *   주소: /api/lens-snap   (예전 /api/lens-ask · /api/lens 와 겹치지 않는 새 이름)
  *
  *   GET  /api/lens-snap
  *        → { on, cost, freeQ, packQ, packCost }  화면이 켜짐 여부·가격 표시용 (키 값은 내보내지 않음)
  *   POST /api/lens-snap  {op:'analyze', imageBase64, mimeType, lang}
  *        → 사진을 찍으면 질문 없이 바로 분석: 이름·브랜드·종류·사진 속 글자·설명·주의·쇼핑 검색어·추천 질문
- *          + Brave 검색으로 이름 확인(웹 정보 3개). 같은 사진(서버가 직접 계산한 SHA-256)이면 저장된 결과를 0크레딧으로.
+ *          같은 사진(서버가 직접 계산한 SHA-256)이면 저장된 결과를 0크레딧으로.
+ *   POST /api/lens-snap  {op:'web', hash, lang}
+ *        → (v197) 결과 화면이 먼저 뜬 뒤 따로 부름: Brave 검색으로 이름 확인 + 웹 정보 3개. 크레딧 없음.
+ *          이 사진을 분석한 사용자만 부를 수 있음(질문 횟수 기록이 있어야 함). 결과는 같은 사진 저장본에 붙여 둠.
  *   POST /api/lens-snap  {op:'ask', hash, lang, question, context, history}
  *        → 이어서 질문. 사진은 다시 보내지 않고 분석 결과(글)만 써서 답함.
  *
@@ -184,7 +187,7 @@ Return ONLY one JSON object, all explanations in ${L}:
 {"kind":"<product|food|plant|animal|place|document|sign|object|scene|other>",
  "name":"<what this is — for a product, the product name exactly as printed>","nameSure":<true|false>,
  "brand":"<brand or maker as printed, else empty>","category":"<short category in ${L}>",
- "ocr":"<visible text verbatim in its original language, line breaks as \\n, max 800 chars, empty if none>",
+ "ocr":"<visible text verbatim in its original language, line breaks as \\n, max 400 chars (most important lines first), empty if none>",
  "summary":"<2-3 short sentences in ${L}: what it is and what it is for>",
  "facts":["<up to 4 short facts printed on it or clearly visible, in ${L}>"],
  "cautions":["<up to 3: allergen, expiry, dosage, warning — only if printed or clearly relevant, in ${L}>"],
@@ -260,7 +263,7 @@ async function readPhoto(env: Env, lang: string, imageBase64: string, mimeType: 
   const prompt = analyzePrompt(lang);
 
   try {
-    const parsed = extractJson(await googleText(env, [{ text: prompt }, { inlineData: { mimeType, data: imageBase64 } }], 2000));
+    const parsed = extractJson(await googleText(env, [{ text: prompt }, { inlineData: { mimeType, data: imageBase64 } }], 1500));
 
     if (parsed) {
       return parsed;
@@ -322,7 +325,22 @@ function norm(s: string) {
     .replace(/[\s\p{P}\p{S}]+/gu, '');
 }
 
-async function webCheck(env: Env, x: ReturnType<typeof clean>) {
+/* 이름을 낱말로 나눠, 검색 결과 안에 낱말 절반 이상(최소 2개, 낱말이 1개면 1개)이 나오면 "확인됨"
+   (v196 은 이름 전체가 한 덩어리로 들어 있어야 해서 "에브리타임 EVERYTIME 소프트 SOFT" 처럼 두 언어가 섞인 이름이 늘 "확인 필요"로 나왔음) */
+function nameFound(name: string, results: any[]) {
+  const words = [...new Set(String(name || '').split(/[\s\p{P}\p{S}]+/u).map(norm).filter((w) => w.length >= 2))];
+
+  if (!words.length) {
+    return false;
+  }
+
+  const text = norm(results.map((r) => `${r.title} ${r.description}`).join(' '));
+  const hit = words.filter((w) => text.includes(w)).length;
+
+  return hit >= Math.min(2, words.length) && hit * 2 >= words.length;
+}
+
+async function webCheck(env: Env, x: { name: string; brand: string; personal?: boolean }) {
   const q = [x.brand, x.name].filter(Boolean).join(' ').trim();
 
   if (!env.BRAVE_API_KEY || !q || x.personal) {
@@ -331,8 +349,7 @@ async function webCheck(env: Env, x: ReturnType<typeof clean>) {
 
   try {
     const rs: any[] = await braveSearch(env, q, 5);
-    const n = norm(x.name);
-    const verified = n.length >= 2 && rs.some((r) => norm(`${r.title} ${r.description}`).includes(n));
+    const verified = nameFound(x.name, rs);
 
     return {
       checked: true,
@@ -374,13 +391,24 @@ export async function action({ request, context }: ActionFunctionArgs) {
   // 쇼핑몰 묶음: 한국(또는 나라를 알 수 없을 때)은 네이버쇼핑·쿠팡·11번가, 그 밖은 Amazon·Google 쇼핑
   const region = !country || country === 'KR' ? 'kr' : 'global';
 
-  const user = await getUserId(request, env);
+  // 로그인 확인과 본문 읽기를 동시에 (속도)
+  const [user, body] = await Promise.all([getUserId(request, env), readJson<any>(request)]);
 
   if (!user) {
     return no('login', 401);
   }
 
-  const body = await readJson<any>(request);
+  // 응답을 먼저 보내고 뒤에서 마무리할 일 (Cloudflare waitUntil, 없으면 그냥 기다림)
+  const later = (p: Promise<any>) => {
+    const w = context && (context as any).cloudflare && (context as any).cloudflare.ctx;
+
+    if (w && typeof w.waitUntil === 'function') {
+      w.waitUntil(p.catch(() => undefined));
+      return Promise.resolve();
+    }
+
+    return p.catch(() => undefined);
+  };
   const op = String(body.op || '');
   const lang = LANG_NAME[String(body.lang || '')] ? String(body.lang) : 'ko';
   const P = prices(env);
@@ -414,8 +442,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     // 사진 지문은 서버가 직접 계산 (화면이 보낸 값을 믿지 않음)
     const hash = await sha256Hex(bytes);
     const qKey = await countKey(user.id, hash);
-    const count = (await r2Get(env, qKey)) || null;
-    const cached = await r2Get(env, cacheKey(hash, lang));
+    const [count, cached] = await Promise.all([r2Get(env, qKey), r2Get(env, cacheKey(hash, lang))]);
 
     if (cached && cached.result) {
       // 같은 사진: 0크레딧. 포함 질문은 크레딧을 낸 사진에만 붙으므로 여기서는 새로 주지 않음
@@ -437,22 +464,53 @@ export async function action({ request, context }: ActionFunctionArgs) {
         throw new Error('빈 결과');
       }
 
-      const web = await webCheck(env, x);
-      const result = { ...x, web };
-
-      if (!x.personal) {
-        await r2Put(env, cacheKey(hash, lang), { result, at: new Date().toISOString() }).catch(() => undefined);
-      }
-
+      // 웹 확인(Brave)은 기다리지 않음 — 화면이 결과를 먼저 보여 준 뒤 op:'web' 으로 따로 받음 (속도)
+      const result = { ...x, web: null };
       const q = { used: count?.used || 0, allow: (count?.allow || 0) + P.freeQ };
-      await r2Put(env, qKey, q).catch(() => undefined);
-      await jobDone(c, s.job_id);
+
+      await Promise.all([
+        x.personal ? Promise.resolve() : r2Put(env, cacheKey(hash, lang), { result, at: new Date().toISOString() }).catch(() => undefined),
+        r2Put(env, qKey, q).catch(() => undefined),
+      ]);
+      await later(jobDone(c, s.job_id));
 
       return ok({ ok: true, cached: false, cost: P.cost, free: s.free, paid: s.paid, hash, region, ...result, q });
     } catch {
       await refund(c, s.job_id);
       return no('ai', 502, { refunded: true });
     }
+  }
+
+  /* ── 웹 확인 (Brave, 크레딧 없음, 이 사진을 분석한 사람만) ── */
+  if (op === 'web') {
+    const hash = String(body.hash || '').toLowerCase();
+
+    if (!/^[a-f0-9]{64}$/.test(hash)) {
+      return no('bad_request', 400);
+    }
+
+    const [count, cached] = await Promise.all([r2Get(env, await countKey(user.id, hash)), r2Get(env, cacheKey(hash, lang))]);
+
+    if (!count) {
+      return no('bad_request', 403);
+    }
+
+    if (cached && cached.result && cached.result.web) {
+      return ok({ ok: true, web: cached.result.web });
+    }
+
+    // 저장본이 없으면(개인정보가 보이는 사진) 검색하지 않음
+    if (!cached || !cached.result) {
+      return ok({ ok: true, web: { checked: false, verified: false, links: [] } });
+    }
+
+    const web = await webCheck(env, cached.result);
+
+    if (web.checked) {
+      await later(r2Put(env, cacheKey(hash, lang), { result: { ...cached.result, web }, at: cached.at || new Date().toISOString() }));
+    }
+
+    return ok({ ok: true, web });
   }
 
   /* ── 이어서 질문 ───────────────────────────────────── */
@@ -468,7 +526,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
       return no('empty', 400);
     }
 
-    const cached = await r2Get(env, cacheKey(hash, lang));
+    const qKey = await countKey(user.id, hash);
+    const [cached, qSaved] = await Promise.all([r2Get(env, cacheKey(hash, lang)), r2Get(env, qKey)]);
     const ctx = cached && cached.result ? JSON.stringify(cached.result) : str(body.context, 4000);
 
     if (!ctx) {
@@ -480,8 +539,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
       .map((h: any) => ({ q: str(h?.q, 300), a: str(h?.a, 600) }))
       .filter((h: any) => h.q && h.a);
 
-    const qKey = await countKey(user.id, hash);
-    const q = (await r2Get(env, qKey)) || { used: 0, allow: 0 };
+    const q = qSaved || { used: 0, allow: 0 };
     let job: any = null;
     let paidNow = 0;
 
@@ -510,7 +568,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
         throw new Error('빈 답');
       }
 
-      await jobDone(c, job);
+      await later(jobDone(c, job));
 
       return ok({ ok: true, answer: text.slice(0, 3000), cost: paidNow, free: q.free, paid: q.paid, q: { used: q.used, allow: q.allow } });
     } catch {
