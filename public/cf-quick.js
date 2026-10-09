@@ -81,6 +81,20 @@
     return 0;
   }
   function numIn(q) { var m = (q || "").match(/(\+?\d[\d\-\s]{6,}\d)/); return m ? m[1].replace(/[^0-9+]/g, "") : ""; }
+  /* 📒 내 연락처(v34): "김씨한테 …" 의 이름을 이 기기 수첩(window.cfBook, 랜딩 cf-book-js)에서 찾는다.
+     수첩은 이 브라우저 안에만 있고 서버로 보내지 않는다. 여기서도 번호를 어디로 보내지 않고, 전화·문자·토스 앱 주소에만 넣는다. */
+  function whoIn(q) {
+    var m = String(q || "").match(/^\s*(.+?)\s*(?:에게|한테|께)(?=\s|$)/);
+    if (!m) return "";
+    var pre = m[1].trim(), w = pre.split(/\s+/);
+    return (w.length <= 2 && !/(으로|로)$/.test(w[0])) ? pre : w[w.length - 1];
+  }
+  function bookFind(q) {
+    var name = whoIn(q); if (!name) return { name: "" };
+    var e = null;
+    try { if (window.cfBook) e = window.cfBook.find(name) || window.cfBook.find(name.split(/\s+/).pop()); } catch (x) {}
+    return { name: name, e: e };
+  }
 
   /* ── 여는 곳: 나라별 ── */
   /* ── 나라별 서비스 표 (30개 주요 경제국) — 각 회사가 공개한 주소 형식·공개 페이지만 ──
@@ -407,6 +421,7 @@
     if (c === "KR") {
       var acc = numIn(s.replace(/\d+\s*(만|천|원)/g, " ")), bank = (s.match(/(국민|KB|신한|우리|하나|농협|NH|기업|IBK|카카오뱅크|카뱅|토스뱅크|토뱅|케이뱅크|케뱅|새마을금고|새마을|우체국|부산|대구|아이엠뱅크|경남|광주|전북|수협|신협|산업|SC제일|SC|씨티)/) || [])[1] || "";
       if (acc && acc.length < 9) acc = "";
+      if (!acc) { var bp = bookFind(s); if (bp.e && bp.e.acc) { acc = bp.e.acc; bank = bank || bp.e.bank || ""; } else if (bp.name) return { u: "", w: "송금", need: { kind: "pay", name: bp.name, q: q } }; }
       var qs = "send?bank=" + E(bank) + "&accountNo=" + E(acc) + (amt ? "&amount=" + amt : "");
       var web = "https://toss.im/";
       var u = isAndroid() ? "intent://" + qs + "#Intent;scheme=supertoss;package=viva.republica.toss;S.browser_fallback_url=" + E("https://play.google.com/store/apps/details?id=viva.republica.toss") + ";end" : "supertoss://" + qs;
@@ -689,8 +704,13 @@
     if (k === "navi") { if (r.query) return navi(r.query, "", c, q); var ft = naviFromTo(q); return navi(ft.to, ft.from, c, q); }
     if (k === "music") return music(r.query || q, c, q);
     if (k === "shop") return shop(r.query || shopTopic(q), c, q);
-    if (k === "call") { var n = numIn(q); return n ? { u: "tel:" + n, w: "📞 전화" } : { u: "", w: "전화", none: "전화번호를 같이 말해 주세요 (예: 010-1234-5678로 전화)" }; }
-    if (k === "sms") { var n2 = numIn(q), body = (r.body || String(q).replace(/(\+?\d[\d\-\s]{6,}\d)/g, " ").replace(/^\s*.+?(에게|한테|께서|께)/, "").replace(/(문자|메시지|메세지|sms|전송|발신|보내\s*줘?|보내|써\s*줘?|작성|줘|해\s*줘?|해|좀|부탁(해|해줘)?|\btext\b|\bsend\b|\bmessage\b|\bto\b)/gi, " ").replace(/\s+/g, " ").trim().replace(/고\s*$/, "")); return { u: "sms:" + n2 + (body ? "?body=" + E(body) : ""), w: "💬 문자" }; }
+    if (k === "call") { var n = numIn(q); if (n) return { u: "tel:" + n, w: "📞 전화" };
+      var bf = bookFind(q); if (bf.e && bf.e.tel) return { u: "tel:" + bf.e.tel, w: "📞 " + bf.e.name + " 전화" };
+      if (bf.name) return { u: "", w: "전화", need: { kind: "call", name: bf.name, q: q } };
+      return { u: "", w: "전화", none: "전화번호나 이름을 같이 말해 주세요 (예: 김씨한테 전화해줘)" }; }
+    if (k === "sms") { var n2 = numIn(q), body = (r.body || String(q).replace(/(\+?\d[\d\-\s]{6,}\d)/g, " ").replace(/^\s*.+?(에게|한테|께서|께)/, "").replace(/(문자|메시지|메세지|sms|전송|발신|보내\s*줘?|보내|써\s*줘?|작성|줘|해\s*줘?|해|좀|부탁(해|해줘)?|\btext\b|\bsend\b|\bmessage\b|\bto\b)/gi, " ").replace(/\s+/g, " ").trim().replace(/고\s*$/, ""));
+      if (!n2) { var bs = bookFind(q); if (bs.e && bs.e.tel) n2 = bs.e.tel; else if (bs.name) return { u: "", w: "문자", need: { kind: "sms", name: bs.name, q: q } }; }
+      return { u: "sms:" + n2 + (body ? "?body=" + E(body) : ""), w: "💬 문자" }; }
     if (k === "taxi") return taxi(r.query || taxiDest(q), c, q);
     if (k === "train") return train(q, c, q);
     if (k === "flight") return flight(q, c, q);
