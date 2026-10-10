@@ -141,7 +141,7 @@ th{color:#666;font-weight:600}
     (CFG.packages || []).forEach(function(p, i){
       var b = document.createElement('button'); b.type='button'; b.className = (pkg && pkg.id===p.id) ? 'on' : '';
       var unit = Math.round(p.amount / p.credits);
-      b.innerHTML = (i===1 ? '<span class="tag">가장 많이 선택</span><br>' : '') + '<span class="n">' + p.credits + '<small>크레딧</small></span><div class="p">' + won(p.amount) + '</div><div class="u">1크레딧당 ' + unit + '원</div>';
+      b.innerHTML = ((p.id==='plus' || (!(CFG.packages||[]).some(function(x){return x.id==='plus';}) && i===1)) ? '<span class="tag">가장 많이 선택</span><br>' : '') + '<span class="n">' + p.credits + '<small>크레딧</small></span><div class="p">' + won(p.amount) + '</div><div class="u">1크레딧당 ' + unit + '원</div>';
       b.addEventListener('click', function(){ pkg = p; renderPk(); });
       box.appendChild(b);
     });
@@ -188,7 +188,7 @@ th{color:#666;font-weight:600}
     CFG = c;
     if (c.testMode) $('testbar').style.display = 'block';
     if (!c.enabled) show('info', '결제 준비 중입니다. 지금은 <a href="mailto:hasin7jk@gmail.com?subject=coverfo 크레딧 충전 문의">이메일 문의</a>로 충전해 드립니다.');
-    pkg = (c.packages||[])[1] || (c.packages||[])[0] || null;
+    pkg = (c.packages||[]).filter(function(p){ return p.id==='plus'; })[0] || (c.packages||[])[1] || (c.packages||[])[0] || null;   /* 기본 선택: 550(plus) */
     renderPk();
     if (!c.url || !c.anonKey || !window.supabase) return;
     client = window.supabase.createClient(c.url, c.anonKey);

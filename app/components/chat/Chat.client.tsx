@@ -57,8 +57,8 @@ function getAnswerLangInstruction(): string {
 
 /*
  * coverfo 요금 게이트 (2026-10-10 변경)
- *  무료 횟수·크레딧 확인은 이제 서버(/api/chat → app/lib/.server/chat-gate.ts)가 요청마다 직접 합니다.
- *   · chat(discuss, 글 답변) : 한 달 15회 무료, 16번째부터 1회 1크레딧 (하루 제한 없음)
+ *  크레딧 확인은 서버(/api/chat → app/lib/engine/chat-gate.ts)가 요청마다 직접 합니다.
+ *   · chat(discuss, 글 답변) : 1회 1크레딧 (v206: 무료 횟수 없음). 무료 크레딧(가입 4)부터 쓰고, 다 쓰면 충전 크레딧
  *   · 앱 생성(build)         : 매번 크레딧 차감 (기본 8, Cloudflare 변수 COST_CHAT_BUILD)
  *  화면은 여기서 로그인만 확인합니다 (횟수를 화면에서도 세면 두 번 세지므로 세지 않음).
  */
@@ -132,20 +132,39 @@ function cfGateNotice(e: any): boolean {
   return false;
 }
 
-/* coverfo: 요금 결과 안내 (서버가 응답 머리말 X-CF-* 로 알려 줌) */
+/*
+ * coverfo: 요금 결과 안내 (서버가 응답 머리말 X-CF-* 로 알려 줌) — v206
+ *   · 무료 크레딧으로 처리: "무료 크레딧 1 사용 · 남은 무료 크레딧 N"
+ *   · 무료 크레딧을 이번에 다 씀: "다음부터 충전 크레딧이 차감돼요" (새 가입자 기준 4번째 답)
+ *   · 충전 크레딧으로 처리(5번째 답부터): "충전 크레딧 1 차감 · 남은 충전 크레딧 N"
+ *   · 이달 무료 한도 소진·무료 기간 종료로 충전 크레딧이 쓰였으면 그 이유도 함께
+ */
 function cfChargeNotice(res: Response) {
   try {
-    const charged = Number(res.headers.get('X-CF-Charged') || '0');
-    const leftRaw = res.headers.get('X-CF-Free-Left');
-    const left = leftRaw === null ? null : Number(leftRaw);
-    const bal = res.headers.get('X-CF-Balance');
+    const h = (k: string) => res.headers.get(k);
 
-    if (charged > 0) {
-      toast.info(`${charged}크레딧이 차감됐어요.` + (bal !== null ? ` (남은 크레딧 ${bal})` : ''), { autoClose: 3500 });
-    } else if (left !== null && left <= 3) {
-      toast.info(left > 0 ? `이번 달 무료 대화가 ${left}회 남았어요. 그 뒤로는 1회 1크레딧이에요.` : '이번 달 무료 대화 15회를 다 썼어요. 다음 대화부터 1회 1크레딧이 차감돼요.', {
-        autoClose: 4500,
-      });
+    if (h('X-CF-Charged') === null) {
+      return;
+    }
+
+    const usedFree = Number(h('X-CF-Used-Free') || '0');
+    const usedPaid = Number(h('X-CF-Used-Paid') || '0');
+    const free = Number(h('X-CF-Free') || '0');
+    const paid = Number(h('X-CF-Paid') || '0');
+    const note = h('X-CF-Note') || '';
+    const why =
+      note === 'pool_exhausted'
+        ? ' (이번 달 무료 크레딧 한도가 다 차서 충전 크레딧에서 차감됐어요)'
+        : note === 'free_closed'
+          ? ' (무료 크레딧 제공 기간이 끝나 충전 크레딧에서 차감됐어요)'
+          : '';
+
+    if (usedPaid > 0) {
+      toast.info(`충전 크레딧 ${usedPaid} 차감 · 남은 충전 크레딧 ${paid}${why}`, { autoClose: 4000 });
+    } else if (usedFree > 0 && free <= 0) {
+      toast.info('무료 크레딧을 모두 썼어요. 다음 답변부터는 충전 크레딧이 1회 1크레딧씩 차감돼요.', { autoClose: 6000 });
+    } else if (usedFree > 0) {
+      toast.info(`무료 크레딧 ${usedFree} 사용 · 남은 무료 크레딧 ${free}`, { autoClose: 3000 });
     }
   } catch {
     // 안내 실패는 무시

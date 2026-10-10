@@ -412,10 +412,9 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
           </div>
           {/* coverfo: 휴대폰에서는 chat 버튼과 앱·3D·영상 버튼을 같은 크기(남는 폭을 반씩)로 */}
           <div className="flex gap-1 sm:gap-1.5 items-center flex-1 sm:flex-none min-w-0 ml-auto justify-end">
-            {/* chat 버튼 — 파일 없이 글로만 답하는 무료 대화 모드 (discuss). 무료 하루 4회 */}
+            {/* chat 버튼 — 파일 없이 글로만 답하는 대화 모드 (discuss). 1회 1크레딧 (v206) · 마우스 설명(title)은 표시하지 않음 */}
             <button
               type="button"
-              title="파일을 만들지 않고 글로만 답합니다 (무료 하루 4회)"
               disabled={props.input.trim().length === 0 || props.isStreaming}
               className={classNames(
                 'inline-flex items-center justify-center h-8 sm:h-7 flex-1 sm:flex-none px-2 sm:px-5 min-w-0 sm:min-w-[5.5rem] rounded-full text-[13px] sm:text-xs font-semibold tracking-[0.06em] sm:tracking-[0.35em] whitespace-nowrap transition active:scale-95',

@@ -24,8 +24,13 @@ const PLANS: Plan[] = [
     name: '무료',
     price: '0원',
     period: '',
-    description: '가입하면 무료 크레딧 4가 한 번 지급됩니다. 무료 크레딧은 한 달 1,000분 선착순, 매달 1일 초기화됩니다.',
-    features: ['무료 크레딧 4 (가입 시 1회)', '앱 생성 · 대화 1크레딧, 이미지 2크레딧', '한 달 1,000분 선착순 · 매달 1일 초기화', '영상은 충전 크레딧으로만 가능'],
+    description: '가입하면 무료 크레딧 4가 한 번 지급됩니다. 무료 크레딧을 다 쓰면 그다음부터는 충전 크레딧이 차감됩니다.',
+    features: [
+      '무료 크레딧 4 (가입 시 1회) — chat 답변 4번',
+      '무료 크레딧은 매달 전체 4,000크레딧 한도(약 1,000명분) 안에서 선착순 · 매달 1일 다시 열림',
+      '무료 크레딧 제공은 2027년 1월 31일까지',
+      '영상은 충전 크레딧으로만 가능',
+    ],
     highlight: false,
   },
   {
@@ -34,13 +39,15 @@ const PLANS: Plan[] = [
     period: '/ 100크레딧',
     description: '충전한 크레딧으로 쓴 만큼만 차감됩니다. 기간 제한 없이 남은 크레딧은 그대로 남습니다.',
     features: [
-      '앱 생성 · 대화 1크레딧',
+      'chat 답변 1회 1크레딧',
+      '앱 생성(chat) 1회 8크레딧',
+      '사진으로 물어보기 1장 1크레딧 (이어서 질문 3개 포함, 그 뒤 1크레딧에 5개)',
       '이미지 2K 생성 2크레딧',
       '영상 8초 25크레딧',
       'coverfo 엔진 · 앱 만들기 30크레딧',
       'coverfo 엔진 · 3D 에셋(이미지·영상·3D 모델) 25크레딧',
       '엔진 결과 수정 5크레딧부터 (이미지 8 · 3D 모델 15 · 영상 15)',
-      '550크레딧 49,000원 (10% 더) · 1,200크레딧 99,000원 (20% 더)',
+      '300크레딧 29,000원 · 550크레딧 49,000원 (10% 더) · 1,200크레딧 99,000원 (20% 더)',
       '포도톡 · 포도야에 연결하면 같은 크레딧으로 씁니다 (1크레딧 = 99원)',
     ],
     highlight: true,
@@ -179,7 +186,7 @@ function ChargeBox() {
         }
 
         setCfg(c);
-        setPkg((c.packages || [])[1]?.id || (c.packages || [])[0]?.id || '');
+        setPkg((c.packages || []).find((x) => x.id === 'plus')?.id || (c.packages || [])[1]?.id || (c.packages || [])[0]?.id || ''); // 기본 선택: 550(plus)
 
         if (!c.enabled) {
           setMsg({ t: 'info', h: '결제 준비 중입니다. 지금은 이메일(hasin7jk@gmail.com) 문의로 충전해 드립니다.' });
@@ -317,7 +324,7 @@ function ChargeBox() {
         )}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {(cfg?.packages || []).map((p, i) => (
           <button
             key={p.id}
@@ -328,7 +335,7 @@ function ChargeBox() {
               (pkg === p.id ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-bolt-elements-borderColor')
             }
           >
-            {i === 1 ? (
+            {p.id === 'plus' || (!(cfg?.packages || []).some((x) => x.id === 'plus') && i === 1) ? (
               <span className="mb-1 inline-block rounded-full bg-indigo-600 px-2 py-0.5 text-[11px] font-semibold text-white">가장 많이 선택</span>
             ) : null}
             <div className="text-2xl font-bold text-bolt-elements-textPrimary">
@@ -473,9 +480,10 @@ export default function Pricing() {
             <div>
               <dt className="text-sm font-medium text-bolt-elements-textPrimary">무료 크레딧은 어떻게 쓰이나요?</dt>
               <dd className="mt-1 text-sm text-bolt-elements-textSecondary">
-                계정을 만들면 무료 크레딧 4가 한 번 지급됩니다. 무엇인가를 만들어달라고 요청할 때마다 차감되고(앱 생성 1,
-                이미지 2, 엔진 앱 30 · 3D 에셋 25), 만든 결과물을 보는 것은 차감되지 않습니다. 무료 크레딧은 한 달 1,000분 선착순으로
-                제공되며, 매달 1일 초기화됩니다. 영상은 충전한 크레딧으로만 만들 수 있습니다.
+                계정을 만들면 무료 크레딧 4가 한 번 지급됩니다. 기능을 쓸 때마다 무료 크레딧부터 차감되고(chat 답변 1, 사진으로
+                물어보기 1, 이미지 2, 앱 생성 8, 엔진 앱 30 · 3D 에셋 25), 다 쓰면 충전 크레딧에서 차감됩니다. 만든 결과물을 보는 것은
+                차감되지 않습니다. 무료 크레딧은 매달 전체 4,000크레딧 한도(약 1,000명분) 안에서 선착순으로 쓰이며 매달 1일 다시 열리고,
+                2027년 1월 31일까지 제공됩니다. 영상은 충전한 크레딧으로만 만들 수 있습니다.
               </dd>
             </div>
             <div>
@@ -494,7 +502,7 @@ export default function Pricing() {
         </div>
 
         <p className="mt-8 text-center text-xs text-bolt-elements-textSecondary">
-          문의: hasin7jk@gmail.com · 표시된 금액은 부가세 별도입니다.
+          문의: hasin7jk@gmail.com · 표시된 금액은 부가세 포함입니다.
         </p>
       </main>
     </div>

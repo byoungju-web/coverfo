@@ -70,7 +70,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
     }>();
 
   /*
-   * coverfo 요금 문지기 (2026-10-10): 로그인 · 무료 횟수(한 달 15회) · 크레딧을 서버가 직접 확인합니다.
+   * coverfo 요금 문지기 (2026-10-10): 로그인 · 크레딧(글 답변 1회 1, 앱 생성 8 — v206 부터 무료 횟수 없음)을 서버가 직접 확인합니다.
    * 화면을 거치지 않고 이 주소를 직접 불러도 같은 확인을 거치므로, 로그인 없이·한도 없이 쓸 수 없습니다.
    */
   const gateMode: 'discuss' | 'build' = chatMode === 'discuss' ? 'discuss' : 'build';
@@ -507,6 +507,15 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
       if (gate.charge.balance) {
         cfHeaders['X-CF-Balance'] = String(gate.charge.balance.free + gate.charge.balance.paid);
+        cfHeaders['X-CF-Free'] = String(gate.charge.balance.free); // 남은 무료 크레딧
+        cfHeaders['X-CF-Paid'] = String(gate.charge.balance.paid); // 남은 충전 크레딧
+      }
+
+      cfHeaders['X-CF-Used-Free'] = String(gate.charge.usedFree || 0);
+      cfHeaders['X-CF-Used-Paid'] = String(gate.charge.usedPaid || 0);
+
+      if (gate.charge.note) {
+        cfHeaders['X-CF-Note'] = gate.charge.note.replace(/[^a-z_]/gi, '').slice(0, 40);
       }
     }
 
