@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#ffffff">
 <title>사진으로 물어보기 — coverfo</title>
-<!-- coverfo 📷 사진으로 물어보기 v2 (구글 렌즈 방식, 2026-10-09) · v197: 사각 프레임 카메라·확대, 기다리는 동안 아이콘 카드, 속도 개선 · v198: 프레임 크기 조절, 아이콘만 왼쪽 아래, 답에 참고 링크
+<!-- coverfo 📷 사진으로 물어보기 v2 (구글 렌즈 방식, 2026-10-09) · v197: 사각 프레임 카메라·확대, 기다리는 동안 아이콘 카드, 속도 개선 · v198: 프레임 크기 조절, 아이콘만 왼쪽 아래, 답에 참고 링크 · v199: 홈 chat 으로 이어서 묻기 버튼
      홈의 "사진으로 물어보기" 탭을 누르면 새 창(탭)으로 열리는 화면. 닫으면 원래 홈 탭이 그대로 남는다.
      흐름: 사진 찍기/고르기 → 질문 없이 바로 분석(/api/lens-snap op:analyze) → ① 결과 ② 쇼핑몰 ③ 이어서 질문(op:ask)
      · 사진은 1280px JPEG 로 줄여 보낸다. 서버는 사진 원본을 저장하지 않는다.
@@ -98,6 +98,8 @@ summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--pri2)}
 .a a{color:var(--pri)}
 .a .srcs{display:block;margin-top:8px;font-size:11.5px;color:var(--sub);white-space:normal}
 .left{font-size:12px;color:var(--sub);margin:10px 4px 0}
+.tochat{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;height:46px;margin-top:12px;border-radius:14px;border:1.5px solid #ddd6ee;background:#fff;font-size:14px;font-weight:800;color:var(--pri2);cursor:pointer}
+.tochat small{font-weight:500;color:var(--sub);font-size:11.5px}
 .ask{position:fixed;left:0;right:0;bottom:0;z-index:6;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:none}
 .ask.on{display:block}
 .ask .in{max-width:560px;margin:0 auto;display:flex;gap:8px}
@@ -151,6 +153,7 @@ summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--pri2)}
       <div class="chips" id="chips"></div>
       <div class="chat" id="chat"></div>
       <p class="left" id="left"></p>
+      <button type="button" class="tochat" id="toChat">💬 홈 chat에서 이어서 물어보기 <small>(한 달 15회 무료)</small></button>
     </section>
     <p class="note">🔒 사진 원본은 저장하지 않아요. 같은 사진을 다시 고르면 저장된 결과를 0크레딧으로 보여 드려요(개인정보가 보이는 사진은 결과도 저장하지 않아요). 답을 못 받으면 크레딧을 돌려드려요.</p>
   </div>
@@ -490,6 +493,20 @@ summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--pri2)}
       try{ wait.scrollIntoView({behavior:"smooth",block:"nearest"}); }catch(e){}
     });
   }
+  /* 홈 chat(/chat, 무엇이든 물어보기와 같은 곳)으로 이 사진의 분석 결과를 넘겨 이어서 묻기 (v199)
+     입력칸에 쓴 질문이 있으면 그 질문을, 없으면 "자세히 알려 줘" 를 보낸다. 요금은 chat 기준: 한 달 15회 무료, 그 뒤 1회 1크레딧 (이 화면의 포함 질문과 별개). */
+  $("toChat").onclick=function(){
+    if(!R) return;
+    var qv=($("q").value||"").trim()||"이 제품에 대해 자세히 알려 줘 (어디에 좋은지, 먹는 방법, 주의할 점).";
+    var lines=["[사진으로 물어보기에서 찾은 물건]","이름: "+(R.name||"")];
+    if(R.brand) lines.push("브랜드: "+R.brand);
+    if(R.category) lines.push("종류: "+R.category);
+    if(R.summary) lines.push("설명: "+R.summary);
+    if(R.facts&&R.facts.length) lines.push("표시된 내용: "+R.facts.join(" / "));
+    if(R.ocr) lines.push("사진 속 글자: "+String(R.ocr).replace(/\s+/g," ").slice(0,300));
+    var prompt=(lines.join("\n")+"\n\n질문: "+qv).slice(0,1500);
+    location.href="/chat?prompt="+encodeURIComponent(prompt)+"&mode=discuss";   /* 홈의 '무엇이든 물어보기' 와 같은 주소 규칙 */
+  };
   $("go").onclick=function(){ ask($("q").value); };
   $("q").addEventListener("keydown",function(e){ if(e.key==="Enter"&&!e.isComposing){ e.preventDefault(); ask($("q").value); } });
 })();

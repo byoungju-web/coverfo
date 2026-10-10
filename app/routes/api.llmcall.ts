@@ -8,6 +8,7 @@ import { LLMManager } from '~/lib/modules/llm/manager';
 import type { ModelInfo } from '~/lib/modules/llm/types';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
 import { createScopedLogger } from '~/utils/logger';
+import { getUserId, supabaseAuthConfig } from '~/lib/engine/server';
 
 export async function action(args: ActionFunctionArgs) {
   return llmCallAction(args);
@@ -65,6 +66,18 @@ function validateTokenLimits(modelDetails: ModelInfo, requestedTokens: number): 
 }
 
 async function llmCallAction({ context, request }: ActionFunctionArgs) {
+  // coverfo 2026-10-10: 로그인한 사람만 (화면을 거치지 않고 직접 불러 coverfo 의 AI 키를 쓰지 못하게)
+  {
+    const env: any = context.cloudflare?.env || {};
+
+    if (supabaseAuthConfig(env) && !(await getUserId(request, env).catch(() => null))) {
+      return new Response(JSON.stringify({ error: true, code: 'login', message: '로그인이 필요합니다.', statusCode: 401, isRetryable: false }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      });
+    }
+  }
+
   const { system, message, model, provider, streamOutput } = await request.json<{
     system: string;
     message: string;

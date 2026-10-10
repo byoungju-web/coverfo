@@ -15,6 +15,7 @@ import type { DesignScheme } from '~/types/design-scheme';
 import { MCPService } from '~/lib/services/mcpService';
 import { StreamRecoveryManager } from '~/lib/.server/llm/stream-recovery';
 import { autoSearchQuery, braveSearch, formatBraveResults } from '~/lib/.server/brave'; // coverfo Brave 자동 검색
+import { chatGate, chatGateDone, chatGateUndoer, forceDiscussModel } from '~/lib/engine/chat-gate'; // coverfo 로그인·무료 횟수·크레딧 (서버 확인)
 
 export async function action(args: ActionFunctionArgs) {
   return chatAction(args);
@@ -67,6 +68,37 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       };
       maxLLMSteps: number;
     }>();
+
+  /*
+   * coverfo 요금 문지기 (2026-10-10): 로그인 · 무료 횟수(한 달 15회) · 크레딧을 서버가 직접 확인합니다.
+   * 화면을 거치지 않고 이 주소를 직접 불러도 같은 확인을 거치므로, 로그인 없이·한도 없이 쓸 수 없습니다.
+   */
+  const gateMode: 'discuss' | 'build' = chatMode === 'discuss' ? 'discuss' : 'build';
+  const gate = await chatGate(request, (context.cloudflare?.env || {}) as any, gateMode);
+
+  if (gate.deny) {
+    return gate.deny;
+  }
+
+  const gateEnv: any = context.cloudflare?.env || {};
+  const undoOnce = chatGateUndoer(gateEnv, gate.charge);
+
+  // 응답이 끝난 뒤에도 되돌리기가 끝까지 실행되게 (Cloudflare waitUntil)
+  const undoCharge = () => {
+    const p = undoOnce();
+    const w = (context as any).cloudflare?.ctx;
+
+    if (w && typeof w.waitUntil === 'function') {
+      w.waitUntil(p);
+    }
+
+    return p;
+  };
+
+  // 글 답변은 서버가 정한 저가 모델로만 (직접 호출로 비싼 모델을 쓰지 못하게)
+  if (gateMode === 'discuss') {
+    forceDiscussModel(messages as any[], gateEnv);
+  }
 
   const cookieHeader = request.headers.get('Cookie');
   const apiKeys = JSON.parse(parseCookies(cookieHeader || '').apiKeys || '{}');
@@ -268,6 +300,8 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             }
 
             if (finishReason !== 'length') {
+              await chatGateDone(gateEnv, gate.charge); // coverfo: 크레딧 작업 기록 '완료'
+
               dataStream.writeMessageAnnotation({
                 type: 'usage',
                 value: {
@@ -371,6 +405,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
               const error: any = part.error;
               logger.error('Streaming error:', error);
               streamRecovery.stop();
+              await undoCharge(); // coverfo: 답을 못 만들었으면 크레딧·무료 횟수 되돌림
 
               // Enhanced error handling for common streaming issues
               if (error.message?.includes('Invalid JSON response')) {
@@ -387,6 +422,8 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
         result.mergeIntoDataStream(dataStream);
       },
       onError: (error: any) => {
+        undoCharge(); // coverfo: 답을 못 만들었으면 크레딧·무료 횟수 되돌림
+
         // Provide more specific error messages for common issues
         const errorMessage = error.message || 'Unknown error';
 
@@ -458,6 +495,21 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       }),
     );
 
+    // coverfo: 이번 요청의 요금 결과를 화면에 알려 줌 (안내 문구용)
+    const cfHeaders: Record<string, string> = {};
+
+    if (gate.charge) {
+      cfHeaders['X-CF-Charged'] = String(gate.charge.cost);
+
+      if (gate.charge.freeLeft !== null) {
+        cfHeaders['X-CF-Free-Left'] = String(gate.charge.freeLeft);
+      }
+
+      if (gate.charge.balance) {
+        cfHeaders['X-CF-Balance'] = String(gate.charge.balance.free + gate.charge.balance.paid);
+      }
+    }
+
     return new Response(dataStream, {
       status: 200,
       headers: {
@@ -465,10 +517,12 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
         Connection: 'keep-alive',
         'Cache-Control': 'no-cache',
         'Text-Encoding': 'chunked',
+        ...cfHeaders,
       },
     });
   } catch (error: any) {
     logger.error(error);
+    await undoCharge(); // coverfo: 시작도 못 했으면 크레딧·무료 횟수 되돌림
 
     const errorResponse = {
       error: true,

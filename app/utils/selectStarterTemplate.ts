@@ -3,6 +3,28 @@ import type { ProviderInfo } from '~/types/model';
 import type { Template } from '~/types/template';
 import { STARTER_TEMPLATES } from './constants';
 
+/* coverfo: 브라우저에 저장된 Supabase 로그인 토큰 (홈 화면 sbAuth 와 같은 방법 — supabase 모듈을 불러오지 않음) */
+function cfLoginToken(): string {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+
+      if (k && k.indexOf('sb-') === 0 && k.indexOf('-auth-token') > 0) {
+        const v = JSON.parse(localStorage.getItem(k) || 'null');
+        const t = v && (v.access_token || (v.currentSession && v.currentSession.access_token));
+
+        if (t) {
+          return String(t);
+        }
+      }
+    }
+  } catch {
+    // 저장소를 못 읽으면 토큰 없이 (서버가 로그인 필요로 안내)
+  }
+
+  return '';
+}
+
 const starterTemplateSelectionPrompt = (templates: Template[]) => `
 You are an experienced developer who helps people choose the best starter template for their projects.
 IMPORTANT: Vite is preferred
@@ -90,8 +112,12 @@ export const selectStarterTemplate = async (options: { message: string; model: s
     provider,
     system: starterTemplateSelectionPrompt(templates),
   };
+  // coverfo: 로그인 토큰을 붙여 보냄 (서버가 로그인한 사람만 받음)
+  const cfToken = cfLoginToken();
+
   const response = await fetch('/api/llmcall', {
     method: 'POST',
+    headers: cfToken ? { Authorization: 'Bearer ' + cfToken } : undefined,
     body: JSON.stringify(requestBody),
   });
   const respJson: { text: string } = await response.json();
