@@ -10,6 +10,7 @@
        TRAINLINE_AFF_LINK · TWELVEGO_AFF_LINK : Trainline·12Go 제휴 가입 후 받은 제휴 링크(https) — 기차 화면 버튼에 쓰인다({url} 규칙 같음)
        SKYSCANNER_AFF_LINK · EXPEDIA_AFF_LINK : Skyscanner·Expedia 제휴 가입 후 받은 제휴 링크(https) — 항공권 화면 버튼에 쓰인다({url} 규칙 같음)
        EBAY_AFF_LINK : eBay Partner Network 가입 후 만든 제휴 링크(https) — 중고거래 화면 eBay 버튼에 쓰인다({url} 규칙 같음)
+       COUPANG_AFF_LINK : 쿠팡 파트너스 사이트에서 만든 링크(https://link.coupang.com/a/… ) — 기능종류 쇼핑 카드의 쿠팡 배너가 이 링크로 열린다(v207)
        UBER_AFF_LINK : Uber 제휴 가입 후 받은 제휴 링크(https) — 택시 화면 Uber 버튼에 쓰인다({url} 규칙 같음). GRAB_AFF_LINK 는 배달·택시 화면 Grab 버튼에 함께 쓰인다
        KLOOK_AID : Klook 제휴(Affiliate) 가입 후 받은 aid 값 — 가볼만한곳 화면의 Klook 링크에 aid= 로 붙는다
        KKDAY_CID : KKday 제휴(KKpartners) 가입 후 받은 cid 값 — 가볼만한곳 화면의 KKday 링크에 cid= 로 붙는다
@@ -45,7 +46,7 @@ export async function onRequestGet({ env }) {
     geo: !!String(env.KAKAO_REST_KEY || '').trim(),
     klook: pubId(env.KLOOK_AID),
     kkday: pubId(env.KKDAY_CID),
-    dl: { doordash: affLink(env.DOORDASH_AFF_LINK), ubereats: affLink(env.UBEREATS_AFF_LINK), grab: affLink(env.GRAB_AFF_LINK), uber: affLink(env.UBER_AFF_LINK), trainline: affLink(env.TRAINLINE_AFF_LINK), twelvego: affLink(env.TWELVEGO_AFF_LINK), skyscanner: affLink(env.SKYSCANNER_AFF_LINK), expedia: affLink(env.EXPEDIA_AFF_LINK), ebay: affLink(env.EBAY_AFF_LINK) },
+    dl: { coupang: affLink(env.COUPANG_AFF_LINK), doordash: affLink(env.DOORDASH_AFF_LINK), ubereats: affLink(env.UBEREATS_AFF_LINK), grab: affLink(env.GRAB_AFF_LINK), uber: affLink(env.UBER_AFF_LINK), trainline: affLink(env.TRAINLINE_AFF_LINK), twelvego: affLink(env.TWELVEGO_AFF_LINK), skyscanner: affLink(env.SKYSCANNER_AFF_LINK), expedia: affLink(env.EXPEDIA_AFF_LINK), ebay: affLink(env.EBAY_AFF_LINK) },
   };
   return new Response(JSON.stringify(body), {
     headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' },

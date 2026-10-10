@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#ffffff">
 <title>사진으로 물어보기 — coverfo</title>
-<!-- coverfo 📷 사진으로 물어보기 v2 (구글 렌즈 방식, 2026-10-09) · v197: 사각 프레임 카메라·확대, 기다리는 동안 아이콘 카드, 속도 개선 · v198: 프레임 크기 조절, 아이콘만 왼쪽 아래, 답에 참고 링크 · v201: 홈 chat 으로 넘기는 버튼 삭제(이 화면 질문 하나로)
+<!-- coverfo 📷 사진으로 물어보기 v2 (구글 렌즈 방식, 2026-10-09) · v197: 사각 프레임 카메라·확대, 기다리는 동안 아이콘 카드, 속도 개선 · v198: 프레임 크기 조절, 아이콘만 왼쪽 아래, 답에 참고 링크 · v201: 홈 chat 으로 넘기는 버튼 삭제(이 화면 질문 하나로) · v207: 한국 쇼핑몰은 쿠팡·11번가만(네이버쇼핑 삭제)
      홈의 "사진으로 물어보기" 탭을 누르면 새 창(탭)으로 열리는 화면. 닫으면 원래 홈 탭이 그대로 남는다.
      흐름: 사진 찍기/고르기 → 질문 없이 바로 분석(/api/lens-snap op:analyze) → ① 결과 ② 쇼핑몰 ③ 이어서 질문(op:ask)
      · 사진은 1280px JPEG 로 줄여 보낸다. 서버는 사진 원본을 저장하지 않는다.
@@ -258,10 +258,10 @@ summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--pri2)}
       ic("#4c8dff","#2457d6",'<path d="M9 25l5-14 5 14M10.8 20.5h6.4"/><path d="M22 16.5c1-1 4.5-1.3 4.5 1.5v7m0-4c-3-.6-5 .3-5 2.1 0 2.3 3.6 2.3 5-.1"/>',"글자 읽는 중"),
       ic("#ffb547","#f07b12",'<path d="M10 10h8l9 9-8 8-9-9z"/><circle cx="14.2" cy="14.2" r="1.7" fill="#fff"/>',"이름 정리 중")
     ];
-    var shop=[
-      ic("#3ddc84","#14a85a",'<path d="M10 14h16l-1.3 12H11.3z"/><path d="M14 14v-1.5a4 4 0 0 1 8 0V14"/>',kr?"네이버쇼핑":"Amazon"),
-      ic("#ff6b6b","#d63a3a",'<path d="M8 10h3l2.6 11h10.2L26 13H12.4"/><circle cx="15" cy="25.5" r="1.5" fill="#fff"/><circle cx="22.5" cy="25.5" r="1.5" fill="#fff"/>',kr?"쿠팡":"Google 쇼핑")
-    ];
+    var shop=[];
+    if(!kr) shop.push(ic("#3ddc84","#14a85a",'<path d="M10 14h16l-1.3 12H11.3z"/><path d="M14 14v-1.5a4 4 0 0 1 8 0V14"/>',"Amazon"));   /* v207: 한국은 네이버쇼핑 빼고 쿠팡·11번가만 */
+    shop.push(
+      ic("#ff6b6b","#d63a3a",'<path d="M8 10h3l2.6 11h10.2L26 13H12.4"/><circle cx="15" cy="25.5" r="1.5" fill="#fff"/><circle cx="22.5" cy="25.5" r="1.5" fill="#fff"/>',kr?"쿠팡":"Google 쇼핑"));
     if(kr) shop.push(ic("#ff8a3d","#e8452c",'<path d="M9 15l9-5 9 5v10l-9 5-9-5z"/><path d="M9 15l9 5 9-5M18 20v10"/>',"11번가"));
     L=L.concat(shop);
     L.push(ic("#29c4e0","#1287b8",'<circle cx="18" cy="18" r="8"/><path d="M10 18h16M18 10c2.6 2.4 2.6 13.6 0 16M18 10c-2.6 2.4-2.6 13.6 0 16"/>',"웹 검색"),
@@ -427,7 +427,6 @@ summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--pri2)}
   function shopList(region,k){
     var E=encodeURIComponent(k);
     if(region==="kr") return [
-      {n:"네이버쇼핑",i:"🟢",u:"https://search.shopping.naver.com/search/all?query="+E},
       {n:"쿠팡",i:"🚀",u:"https://www.coupang.com/np/search?q="+E,cp:1},
       {n:"11번가",i:"🔴",u:"https://search.11st.co.kr/Search.tmall?kwd="+E}];
     var tag=IDS&&IDS.amazon&&IDS.amazon.US;
