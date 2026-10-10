@@ -41,7 +41,7 @@ table{width:100%;border-collapse:collapse;font-size:12.5px}
 th,td{padding:8px 6px;border-bottom:1px solid rgba(0,0,0,.06);text-align:left;white-space:nowrap}
 th{color:#666;font-weight:600}
 .st{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
-.st.paid,.st.manual{background:#ecfdf5;color:#047857}.st.pending{background:#fffbeb;color:#92400e}.st.failed,.st.canceled{background:#fef2f2;color:#b91c1c}
+.st.paid,.st.manual{background:#ecfdf5;color:#047857}.st.refunded{background:#eef2ff;color:#4338ca}.st.pending{background:#fffbeb;color:#92400e}.st.failed,.st.canceled{background:#fef2f2;color:#b91c1c}
 .foot{margin-top:18px;font-size:12px;color:#777;line-height:1.6;text-align:center}
 .foot a{color:#5B6CFF;font-weight:600;text-decoration:none}
 .wl-code{display:flex;gap:8px;align-items:center;margin:8px 0}
@@ -156,7 +156,8 @@ th{color:#666;font-weight:600}
     me.orders.forEach(function(o){
       var tr = document.createElement('tr');
       var d = new Date(o.paid_at || o.created_at);
-      var label = { paid:'완료', manual:'수동 충전', pending:'미완료', failed:'실패', canceled:'취소' }[o.status] || o.status;
+      var label = { paid:'완료', manual:'수동 충전', pending:'미완료', failed:'실패', canceled:'취소', refunded:'환불 완료' }[o.status] || o.status;
+      if (o.status === 'refunded' && o.fee > 0) label += ' (수수료 ' + won(o.fee) + ')';
       tr.innerHTML = '<td>' + d.toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' }) + '</td><td>' + (o.credits>0?'+':'') + o.credits + '</td><td>' + (o.amount ? won(o.amount) : '-') + '</td><td><span class="st ' + o.status + '">' + label + '</span></td>';
       tb.appendChild(tr);
     });

@@ -125,7 +125,19 @@ async function handleGet(context) {
     const cr = await getCredits(c, user.id);
     const r = await fetch(c.sbUrl + '/rest/v1/cf_orders?select=order_id,package,credits,amount,status,method,created_at,paid_at&user_id=eq.' + encodeURIComponent(user.id) + '&order=created_at.desc&limit=30', { headers: sbHeaders(c) });
     const orders = r.ok ? await r.json() : [];
-    return json({ email: user.email, free: cr.free, paid: cr.paid, orders });
+    /* 2026-10-10: 환불 완료 기록(cf_refunds, status=done)도 충전 내역에 한 줄씩 같이 보여 줌
+       → { credits:-550, amount:-49000, status:'refunded', created_at:환불 시각 }.  표가 없거나 실패하면 결제 줄만 */
+    let refunds = [];
+    try {
+      const rr = await fetch(c.sbUrl + '/rest/v1/cf_refunds?select=order_id,credits,amount,fee,created_at&user_id=eq.' + encodeURIComponent(user.id) + '&status=eq.done&order=created_at.desc&limit=30', { headers: sbHeaders(c) });
+      refunds = rr.ok ? await rr.json() : [];
+    } catch (e) { refunds = []; }
+    const rows = orders.concat((refunds || []).map((x) => ({
+      order_id: x.order_id, package: 'refund', credits: -Math.abs(Number(x.credits) || 0), amount: -Math.abs(Number(x.amount) || 0),
+      fee: Number(x.fee) || 0, status: 'refunded', method: null, created_at: x.created_at, paid_at: x.created_at,
+    })));
+    rows.sort((a, b) => new Date(b.paid_at || b.created_at).getTime() - new Date(a.paid_at || a.created_at).getTime());
+    return json({ email: user.email, free: cr.free, paid: cr.paid, orders: rows.slice(0, 40) });
   }
   return json({ error: 'unknown' }, 400);
 }

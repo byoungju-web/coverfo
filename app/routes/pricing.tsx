@@ -416,7 +416,9 @@ function ChargeBox() {
             <tbody>
               {me.orders.map((o: any, i: number) => {
                 const d = new Date(o.paid_at || o.created_at);
-                const label = ({ paid: '완료', manual: '수동 충전', pending: '미완료', failed: '실패', canceled: '취소' } as any)[o.status] || o.status;
+                const label =
+                  (({ paid: '완료', manual: '수동 충전', pending: '미완료', failed: '실패', canceled: '취소', refunded: '환불 완료' } as any)[o.status] || o.status) +
+                  (o.status === 'refunded' && o.fee > 0 ? ` (수수료 ${won(o.fee)})` : '');
 
                 return (
                   <tr key={i} className="border-t border-bolt-elements-borderColor text-bolt-elements-textPrimary">
