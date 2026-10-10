@@ -203,6 +203,12 @@ export default class OpenAIProvider extends BaseProvider {
     const openai = createOpenAI({
       apiKey,
       fetch: patchedFetch,
+      /*
+       * coverfo 2026-10-10: 'strict' 로 해야 답을 흘려보낼 때 OpenAI 에 사용량(stream_options.include_usage)을 요청합니다.
+       * 기본값 'compatible' 은 요청하지 않아 chat 화면에 실제로 쓴 토큰이 "Tokens: 0" 으로 표시됐습니다.
+       * (@ai-sdk/openai 1.1.2 에서 이 값이 바꾸는 것은 stream_options 하나뿐 — 라이브러리 코드로 확인)
+       */
+      compatibility: 'strict',
     });
 
     return openai(model);
