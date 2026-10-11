@@ -58,7 +58,7 @@ function getAnswerLangInstruction(): string {
 /*
  * coverfo 요금 게이트 (2026-10-10 변경)
  *  크레딧 확인은 서버(/api/chat → app/lib/engine/chat-gate.ts)가 요청마다 직접 합니다.
- *   · chat(discuss, 글 답변) : 1회 1크레딧 (v206: 무료 횟수 없음). 무료 크레딧(가입 4)부터 쓰고, 다 쓰면 충전 크레딧
+ *   · chat(discuss, 글 답변) : 1회 0.2크레딧 (v210: 1크레딧 차감 → 답변 5회, 웹검색 비용 포함). 무료 크레딧(가입 4 = 20회)부터 쓰고, 다 쓰면 충전 크레딧
  *   · 앱 생성(build)         : 매번 크레딧 차감 (기본 8, Cloudflare 변수 COST_CHAT_BUILD)
  *  화면은 여기서 로그인만 확인합니다 (횟수를 화면에서도 세면 두 번 세지므로 세지 않음).
  */
@@ -152,12 +152,36 @@ function cfChargeNotice(res: Response) {
     const free = Number(h('X-CF-Free') || '0');
     const paid = Number(h('X-CF-Paid') || '0');
     const note = h('X-CF-Note') || '';
+    const packLeft = h('X-CF-Pack-Left');
+    const packSize = Number(h('X-CF-Pack-Size') || '5');
+    const packBought = h('X-CF-Pack-Bought') === '1';
     const why =
       note === 'pool_exhausted'
         ? ' (이번 달 무료 크레딧 한도가 다 차서 충전 크레딧에서 차감됐어요)'
         : note === 'free_closed'
           ? ' (무료 크레딧 제공 기간이 끝나 충전 크레딧에서 차감됐어요)'
           : '';
+
+    // v210 글 답변 묶음 (1크레딧 = 답변 5회)
+    if (packLeft !== null) {
+      const left = Number(packLeft);
+
+      if (packBought) {
+        toast.info(
+          (usedPaid > 0 ? `충전 크레딧 ${usedPaid}` : '무료 크레딧 1') +
+            ` 사용 → chat 답변 ${packSize}회 (1회 ${Math.round(100 / packSize) / 100}크레딧) · 남은 답변 ${left}회 · ` +
+            (usedPaid > 0 ? `남은 충전 크레딧 ${paid}` : `남은 무료 크레딧 ${free}`) +
+            why,
+          { autoClose: 5000 },
+        );
+      } else if (left === 0) {
+        toast.info(`이번 ${packSize}회를 다 썼어요. 다음 답변에서 크레딧 1이 차감되고 다시 ${packSize}회를 씁니다.`, {
+          autoClose: 5000,
+        });
+      }
+
+      return;
+    }
 
     if (usedPaid > 0) {
       toast.info(`충전 크레딧 ${usedPaid} 차감 · 남은 충전 크레딧 ${paid}${why}`, { autoClose: 4000 });

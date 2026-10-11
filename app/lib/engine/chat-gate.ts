@@ -11,6 +11,14 @@
  *   · 글 답변(discuss): 1회마다 크레딧 COST_CHAT(기본 1) 차감. 무료 횟수는 없음.
  *       크레딧은 Supabase 함수 cf_spend 가 무료 크레딧(가입 4)부터 쓰고, 없으면 충전 크레딧에서 뺌
  *       → 새 가입자는 4번째 답까지 무료 크레딧, 5번째부터 충전 크레딧 (화면에 안내 문구)
+ *   · v210 (2026-10-11): 글 답변은 1회 0.2크레딧 (≈20원).
+ *       글 답변은 저가 모델(gpt-6-luna)이라 1회 원가가 2~4원, 웹검색(Brave)이 붙으면 약 7원 더 (≈ 최대 11원).
+ *       1크레딧(99원)은 너무 비쌌고, 0.1(≈10원)은 웹검색 답에서 밑지므로 0.2 로 정함.
+ *       크레딧은 정수로만 차감되므로 "묶음" 으로 처리: 1크레딧을 차감하면 답변 5회(CHAT_PACK) 가 열리고,
+ *       묶음이 남아 있는 동안은 차감 없이 하나씩 씀 → 결과적으로 1회 0.2크레딧. 가입 무료 4크레딧 = 답변 20회.
+ *       횟수는 Cloudflare 변수 CHAT_PACK 으로 바꿀 수 있음 (기본 5).
+ *       답을 못 만들면 묶음 1회를 되돌려 줌 (크레딧 손해 없음).
+ *       표·함수는 sql/cf_chat_pack.sql (Supabase 에서 Run 1회). 아직 안 돌렸으면 예전처럼 1회 1크레딧으로 동작.
  *   · 앱 생성(build)  : 매번 크레딧 COST_CHAT_BUILD(기본 8) 차감
  *   · 크레딧이 부족하면 402 로 막습니다. 답을 만들다 실패하면 크레딧을 돌려줍니다(cf_refund).
  *   · Supabase 설정이 아예 없는 개발 환경에서만 검사 없이 통과합니다.
@@ -29,6 +37,7 @@ export type ChatCharge = {
   usedPaid: number; // 이번에 쓴 충전 크레딧
   note: string; // cf_spend 가 알려 준 사유 (free_closed: 무료 기간 끝 · pool_exhausted: 이달 무료 한도 소진)
   cost: number; // 이번에 차감한 크레딧 (무료면 0)
+  pack: { bought: boolean; left: number; size: number; src: string } | null; // v210 답변 묶음 (없으면 null = 예전 방식)
   jobId: string | null;
   balance: { free: number; paid: number } | null;
 };
@@ -118,7 +127,37 @@ export async function chatGate(
     return { charge: null, deny: deny(401, 'login', '로그인이 필요합니다. 홈에서 로그인한 뒤 다시 보내 주세요.') };
   }
 
-  // ── 크레딧 차감 (글 답변 1 / 앱 생성 8) — 무료 크레딧부터 쓰는 것은 cf_spend 가 정함 ──
+  // ── v210 글 답변 묶음: 남은 묶음이 있으면 차감 없이 1회 사용 ──
+  const packSize = Math.max(1, num(env, 'CHAT_PACK', 5));
+  let packOn = false; // 묶음 표·함수가 있는지 (sql/cf_chat_pack.sql)
+
+  if (mode === 'discuss') {
+    const t: any = await rpc(c, 'cf_chat_pack_take', { p_user: user.id }).catch(() => null);
+
+    if (t && typeof t === 'object' && 'ok' in t) {
+      packOn = true;
+
+      if (t.ok) {
+        return {
+          charge: {
+            userId: user.id,
+            mode,
+            free: false,
+            freeLeft: null,
+            cost: 0,
+            jobId: null,
+            balance: await balanceOf(c, user.id),
+            usedFree: 0,
+            usedPaid: 0,
+            note: '',
+            pack: { bought: false, left: Number(t.left || 0), size: packSize, src: String(t.src || '') },
+          },
+        };
+      }
+    }
+  }
+
+  // ── 크레딧 차감 (글 답변 1 = 묶음 5회 / 앱 생성 8) — 무료 크레딧부터 쓰는 것은 cf_spend 가 정함 ──
   const cost = mode === 'build' ? num(env, 'COST_CHAT_BUILD', 8) : num(env, 'COST_CHAT', 1);
   const kind = mode === 'build' ? 'chat_build' : 'chat';
   const before = await balanceOf(c, user.id); // 무료·충전 중 무엇을 썼는지 안내하려고 차감 전 잔액을 봐 둠
@@ -132,9 +171,21 @@ export async function chatGate(
     const msg =
       mode === 'build'
         ? `크레딧이 부족해요. 앱 생성은 1회 ${cost}크레딧이에요. 충전 후 이용해 주세요. (coverfo.com/pricing)`
-        : `크레딧이 부족해요. chat 답변은 1회 ${cost}크레딧이에요(무료 크레딧을 다 쓰면 충전 크레딧에서 차감). 충전 후 이용해 주세요. (coverfo.com/pricing)`;
+        : packOn
+          ? `크레딧이 부족해요. chat 답변은 크레딧 ${cost}로 ${packSize}회(1회 ${Math.round((cost / packSize) * 100) / 100}크레딧)예요. 충전 후 이용해 주세요. (coverfo.com/pricing)`
+          : `크레딧이 부족해요. chat 답변은 1회 ${cost}크레딧이에요(무료 크레딧을 다 쓰면 충전 크레딧에서 차감). 충전 후 이용해 주세요. (coverfo.com/pricing)`;
 
     return { charge: null, deny: deny(402, 'insufficient', msg, { need: cost, free: s.free ?? 0, paid: s.paid ?? 0 }) };
+  }
+
+  const usedFree = before ? Math.max(0, before.free - Number(s.free || 0)) : 0;
+  let pack: ChatCharge['pack'] = null;
+
+  // v210 묶음을 새로 엶: 이번 답 1회는 지금 쓰고 나머지(packSize-1)를 넣어 둠
+  if (packOn && mode === 'discuss') {
+    const src = usedFree > 0 ? 'free' : 'paid';
+    const f: any = await rpc(c, 'cf_chat_pack_fill', { p_user: user.id, p_n: packSize - 1, p_src: src }).catch(() => null);
+    pack = { bought: true, left: f && f.ok ? Number(f.left || 0) : 0, size: packSize, src };
   }
 
   return {
@@ -144,9 +195,10 @@ export async function chatGate(
       free: false,
       freeLeft: null,
       cost,
-      jobId: s.job_id ?? null,
+      pack,
+      jobId: s.job_id ?? null, // 묶음(pack)이 있으면 실패 때 크레딧 대신 묶음 1회를 되돌림 (chatGateUndoer)
       balance: { free: Number(s.free || 0), paid: Number(s.paid || 0) },
-      usedFree: before ? Math.max(0, before.free - Number(s.free || 0)) : 0,
+      usedFree,
       usedPaid: before ? Math.max(0, before.paid - Number(s.paid || 0)) : 0,
       note: String(s.note || ''),
     },
@@ -171,7 +223,9 @@ export function chatGateUndoer(env: Env, charge: ChatCharge | null) {
     }
 
     try {
-      if (charge.jobId) {
+      if (charge.pack) {
+        await rpc(c, 'cf_chat_pack_undo', { p_user: charge.userId }); // v210 묶음 1회 되돌림
+      } else if (charge.jobId) {
         await rpc(c, 'cf_refund', { p_job: charge.jobId });
       } else if (charge.free && charge.mode === 'discuss') {
         await rpc(c, 'cf_chat_quota_undo', { p_user: charge.userId });
