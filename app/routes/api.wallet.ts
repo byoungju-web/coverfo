@@ -11,8 +11,10 @@
  *     {op:'newcode'}         로그인만               → { ok, code }               다시 만듦 (옛 코드는 꺼짐)
  *     {op:'unlink'}          로그인만               → { ok }                     코드 삭제 (연결 끊기)
  *     {op:'spend', item, qty?, ownKey?, ref?, note?} → { ok, id, cost, paid } | 402 { error:'insufficient', need, paid }
- *     {op:'refund', id}                             → { ok, paid }
- *     {op:'give', item, qty?, ref?, note?}          → { ok, paid }   돌려주기(포도톡 서버가 번역 실패 등으로 되돌릴 때 — sql/cf_wallet_give.sql 필요)
+ *     {op:'refund', id}              서버 열쇠만    → { ok, paid }
+ *     {op:'give', item, qty?, ref?, note?}  서버 열쇠만 → { ok, paid }   돌려주기 (sql/cf_wallet_give.sql 필요)
+ *   v209: refund·give 는 헤더 X-Wallet-Key 가 Secret WALLET_KEY 와 같을 때만 됩니다.
+ *         (전에는 로그인/연결 코드만 있으면 누구나 자기에게 크레딧을 넣을 수 있었습니다)
  *   무료 크레딧(free_balance)은 여기서 쓰지 않습니다 — coverfo 안 채팅에만 (월 선착순 규칙이 거기 있음).
  *   필요한 것: sql/cf_wallet.sql 1회 실행
  */
@@ -21,22 +23,23 @@ import { envOf, getUserId, readJson } from '~/lib/engine/server';
 
 const WON = 99;
 
-/* 일 → 크레딧 (1 = 99원). 바꾸면 세 서비스가 같이 바뀝니다 */
+/* 일 → 크레딧 (1 = 99원). 포도톡에서 쓰는 것은 포도톡 서버 단가(CD) ÷ 10 과 같아야 합니다 —
+   포도톡 서버는 'pt' 로 실제 차감하고, 이 표는 화면에 보여주는 값입니다 (v209 에서 맞춤) */
 const PRICES: Record<string, number> = {
   stt: 0.1, /* 말하기(받아쓰기) 1줄 */
   room_ai: 0.1, /* 채팅방 AI 답 */
   fast: 0.2, /* 빠른 답 (가벼운 모델) */
-  multi: 0.3, /* 다중 동시통역 · 한 마디·언어당 */
+  multi: 0.1, /* 다중 동시통역 · 한 마디·언어 하나당 (포도톡 1 = 0.1) */
   face: 0.3, /* 마주보기 통역 1분 */
   search: 0.4, /* 웹검색 1회 */
-  quality: 1, /* 고품질 답 (Fable급) = coverfo 대화와 같은 값 */
+  quality: 0.8, /* 고품질 답 (포도톡 8 = 0.8) */
   phone: 6, /* 전화통역 1분 */
   chat: 1, /* coverfo 앱 생성 · 대화 */
   image: 2,
   video: 25,
   engine_app: 30,
   engine_asset: 25,
-  pt: 0.1, /* 포도톡 자체 단위 1크레딧 (표에 없는 종류를 포도톡 서버가 보낼 때) */
+  pt: 0.1, /* 포도톡 크레딧 1개 = coverfo 0.1 (같은 금액 9.9원). 포도톡 서버는 늘 이것으로 보냅니다 */
 };
 const HALF_WITH_OWN_KEY = ['fast', 'quality', 'search']; /* 내 AI 키를 넣으면 절반 */
 
@@ -119,6 +122,24 @@ async function balanceOf(c: SB, userId: string) {
   const r = await rows(c, `cf_credits?select=balance&user_id=eq.${encodeURIComponent(userId)}`);
 
   return r[0] ? Math.round(Number(r[0].balance || 0) * 10) / 10 : 0;
+}
+
+/* 서버끼리만 쓰는 열쇠 (Cloudflare Secret WALLET_KEY). 없으면 아무도 통과 못 함 */
+function serverKeyOk(request: Request, env: Env) {
+  const want = String(env.WALLET_KEY || '');
+  const got = request.headers.get('X-Wallet-Key') || '';
+
+  if (!want || got.length !== want.length) {
+    return false;
+  }
+
+  let d = 0;
+
+  for (let i = 0; i < want.length; i++) {
+    d |= want.charCodeAt(i) ^ got.charCodeAt(i);
+  }
+
+  return d === 0;
 }
 
 function isCode(s: string) {
@@ -303,6 +324,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
       }
 
       return reply(request, { ok: true, id: r.id, cost, paid: Number(r.paid || 0), won: WON, dup: !!r.dup });
+    }
+
+    if ((op === 'give' || op === 'refund') && !serverKeyOk(request, env)) {
+      return reply(request, { error: '서버만 할 수 있는 일입니다', reason: 'server_only' }, 403);
     }
 
     if (op === 'give') {

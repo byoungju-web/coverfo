@@ -274,7 +274,7 @@ function ChargeBox() {
     }
 
     setCode(j.code);
-    setWmsg('코드를 만들었습니다. 포도톡 설정 → 크레딧 지갑에 넣어 주세요.');
+    setWmsg('코드를 만들었습니다. 포도톡 설정 → 크레딧 지갑 → coverfo 지갑에 연결하기 칸에 넣어 주세요.');
   };
   const unlink = async () => {
     if (!confirm('연결을 끊으면 포도톡은 다시 자체 지갑을 씁니다. 계속할까요?')) {
@@ -303,26 +303,44 @@ function ChargeBox() {
   const msgCls =
     msg?.t === 'err' ? 'bg-red-50 text-red-700' : msg?.t === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-indigo-50 text-indigo-700';
 
+  const fmt1 = (n: number) => (Math.round((Number(n) || 0) * 10) / 10).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
   return (
     <div className="flex flex-col gap-5">
-      {cfg?.testMode ? (
-        <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">🧪 테스트 결제 모드 — 실제 돈은 빠져나가지 않습니다.</div>
-      ) : null}
-
-      <div className="text-xs text-bolt-elements-textSecondary">
+      {/* v209 내 크레딧 잔액 — 이 화면을 열면 가장 먼저 보이게 맨 위에 둔다 */}
+      <div className="rounded-xl border-2 border-indigo-600 bg-bolt-elements-background-depth-2 p-5">
+        <div className="text-sm font-semibold text-bolt-elements-textPrimary">💜 내 크레딧</div>
         {token ? (
           <>
-            {me?.email || ''} · 무료 {me?.free ?? '…'} · 충전 {me?.paid ?? '…'}
+            <div className="mt-2 text-center text-xs text-bolt-elements-textSecondary">남은 크레딧</div>
+            <div className="text-center text-4xl font-extrabold text-indigo-700">{me ? fmt1((me.free || 0) + (me.paid || 0)) : '…'}</div>
+            <div className="mt-1 text-center text-xs text-bolt-elements-textSecondary">
+              {me ? '무료 ' + fmt1(me.free || 0) + ' · 충전 ' + fmt1(me.paid || 0) + ' (≈ ' + won(Math.round((me.paid || 0) * 99)) + ') · 1크레딧 = 99원' : '불러오는 중…'}
+            </div>
+            <div className="mt-3 text-xs leading-relaxed text-bolt-elements-textSecondary">
+              {me?.email ? me.email + ' · ' : ''}coverfo · 포도톡 · 포도야 어디서 써도 같은 지갑입니다. 충전·환불은 coverfo 에서 합니다. (포도톡·포도야는 충전 크레딧만 씁니다)
+            </div>
           </>
         ) : (
-          <>
-            로그인하면 바로 충전할 수 있습니다.{' '}
+          <div className="mt-2 text-sm text-bolt-elements-textSecondary">
+            로그인하면 내 크레딧 잔액이 여기에 보입니다.{' '}
             <a href="/" className="font-medium underline">
               홈으로 가서 로그인
             </a>
-          </>
+          </div>
         )}
       </div>
+
+      <div>
+        <h2 className="text-base font-semibold text-bolt-elements-textPrimary">충전 · 포도톡 연결</h2>
+        <p className="mt-1 text-sm text-bolt-elements-textSecondary">
+          여기서 바로 충전하고, 포도톡·포도야에 연결하는 코드도 만듭니다. 1크레딧 = 99원, 세 서비스가 같은 지갑을 씁니다.
+        </p>
+      </div>
+
+      {cfg?.testMode ? (
+        <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">🧪 테스트 결제 모드 — 실제 돈은 빠져나가지 않습니다.</div>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {(cfg?.packages || []).map((p, i) => (
@@ -377,7 +395,7 @@ function ChargeBox() {
         <div className="rounded-xl border border-bolt-elements-borderColor p-4">
           <div className="text-sm font-semibold text-bolt-elements-textPrimary">🍇 포도톡 · 포도야에 연결</div>
           <p className="mt-1 text-xs text-bolt-elements-textSecondary">
-            아래 코드를 포도톡 <b>설정 → 크레딧 지갑 → 연결 코드</b> 칸에 넣으면 포도톡(포도야 포함)이 이 크레딧을 같이 씁니다. 계정마다 코드는 하나이고,
+            아래 코드를 포도톡 <b>설정 → 크레딧 지갑 → coverfo 지갑에 연결하기</b> 칸에 넣으면 포도톡(포도야 포함)이 이 크레딧을 같이 씁니다. 계정마다 코드는 하나이고,
             다시 만들면 옛 코드는 꺼집니다. coverfo 홈 안에서 포도톡을 열면 코드 없이 자동 연결됩니다.
           </p>
           <div className="mt-3 flex items-center gap-2">
@@ -403,7 +421,7 @@ function ChargeBox() {
           </div>
           {wmsg ? <div className="mt-2 text-xs text-bolt-elements-textSecondary">{wmsg}</div> : null}
           <div className="mt-2 text-xs text-bolt-elements-textSecondary">
-            1크레딧 = 99원 · 받아쓰기 0.1 · 빠른 답 0.2 · 웹검색 0.4 · 고품질 답 1 · 전화통역 6/분 — 어디서 써도 같은 지갑입니다.
+            1크레딧 = 99원 · 받아쓰기 0.1 · 빠른 답 0.2 · 웹검색 0.4 · 고품질 답 0.8 · 전화통역 6/분 — 어디서 써도 같은 지갑입니다. 포도톡 크레딧 10 = coverfo 크레딧 1 (같은 금액)이라, 포도톡에 남은 크레딧을 먼저 쓰고 그다음 이 지갑에서 나갑니다.
           </div>
         </div>
       ) : null}
@@ -449,8 +467,15 @@ export default function Pricing() {
     <div className="flex min-h-full w-full flex-col bg-bolt-elements-background-depth-1">
       <ClientOnly>{() => <Header />}</ClientOnly>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
-        <div className="text-center">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+        {/* v209 순서: 내 크레딧 잔액 → 충전(패키지·결제) → 포도톡 연결 → 요금제 */}
+        <div id="charge" className="scroll-mt-16 rounded-xl border border-bolt-elements-borderColor p-4 sm:p-6">
+          <ClientOnly fallback={<div className="py-6 text-center text-sm text-bolt-elements-textSecondary">내 크레딧 불러오는 중…</div>}>
+            {() => <ChargeBox />}
+          </ClientOnly>
+        </div>
+
+        <div className="mt-12 text-center">
           <h1 className="text-2xl font-bold text-bolt-elements-textPrimary sm:text-3xl">요금제</h1>
           <p className="mt-3 text-sm text-bolt-elements-textSecondary">
             무료 크레딧으로 먼저 써보시고, 계속 쓰실 때 충전하시면 됩니다.
@@ -461,16 +486,6 @@ export default function Pricing() {
           {PLANS.map((plan) => (
             <PlanCard key={plan.name} plan={plan} />
           ))}
-        </div>
-
-        <div id="charge" className="mt-10 rounded-xl border border-bolt-elements-borderColor p-4 sm:p-6">
-          <h2 className="text-base font-semibold text-bolt-elements-textPrimary">충전 · 포도톡 연결</h2>
-          <p className="mt-1 text-sm text-bolt-elements-textSecondary">
-            여기서 바로 충전하고, 포도톡·포도야에 연결하는 코드도 만듭니다. 1크레딧 = 99원, 세 서비스가 같은 지갑을 씁니다.
-          </p>
-          <div className="mt-4">
-            <ClientOnly>{() => <ChargeBox />}</ClientOnly>
-          </div>
         </div>
 
         <div className="mt-10 rounded-xl border border-bolt-elements-borderColor p-6">
