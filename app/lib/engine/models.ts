@@ -19,4 +19,16 @@ export const ENGINE_MODELS = {
   stage7: 'claude-opus-4-5-20251101',
 } as const;
 
-export const ENGINE_VERSION = 'v1 Coverfo Creator';
+/*
+ * v2 Relay 에서 쓰는 모델 — API 파일(tts.js, stt.js, relay-ai.js, research.js)에서 참조
+ * 새 API 키 없이 기존 키(OpenAI · Anthropic · Google)만 씁니다
+ */
+export const RELAY_MODELS = {
+  tts: 'tts-1-hd',              // OpenAI TTS — 음성: alloy / echo / fable / onyx / nova / shimmer
+  stt: 'whisper-1',             // OpenAI Whisper — 자동 언어 감지
+  ai: 'claude-haiku-5-5',       // 요약·번역·리라이트 — 빠르고 경제적
+  research: 'claude-sonnet-5-5', // 리서치 리포트 작성 — 품질 우선
+  search: 'gemini-2.5-flash',   // Google 검색 그라운딩 — 실시간 정보 수집
+} as const;
+
+export const ENGINE_VERSION = 'v2 Coverfo Relay';
