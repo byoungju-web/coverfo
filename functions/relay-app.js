@@ -8,7 +8,7 @@ const HTML = `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Coverfo Relay v2</title>
+<title>Coverfo Studio Pro v3</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#0f1117;color:#e8eaed;font-family:'Pretendard Variable',Inter,system-ui,-apple-system,sans-serif;line-height:1.6;overflow-x:hidden}
@@ -350,12 +350,12 @@ async function apiResearch(topic, depth, onChunk) {
     }
 
     // 본문 텍스트 (태그 제거)
-    const clean = chunk.replace(/<!--RELAY_STEP:.*?-->\n?/g, '').replace(/<!--RELAY_ERROR:.*?-->\n?/g, '');
+    const clean = chunk.replace(/<!--RELAY_STEP:.*?-->\\n?/g, '').replace(/<!--RELAY_ERROR:.*?-->\\n?/g, '');
     if (clean) onChunk({ type: 'text', text: clean });
   }
 
   // 태그 제거한 순수 텍스트 반환
-  return text.replace(/<!--RELAY_STEP:.*?-->\n?/g, '').replace(/<!--RELAY_ERROR:.*?-->\n?/g, '').trim();
+  return text.replace(/<!--RELAY_STEP:.*?-->\\n?/g, '').replace(/<!--RELAY_ERROR:.*?-->\\n?/g, '').trim();
 }
 
 // ── 레시피 실행 ──────────────────────────────────────────
@@ -496,8 +496,8 @@ function render() {
   let html = '';
 
   // 헤더
-  html += '<div class="hdr"><h1>Coverfo Relay</h1><span class="ver">v2</span></div>';
-  html += '<p class="sub">AI 릴레이 레시피 — 여러 AI를 연결하여 음성·리서치·번역을 한 번에</p>';
+  html += '<div class="hdr"><h1>Coverfo Studio Pro</h1><span class="ver">v3</span></div>';
+  html += '<p class="sub">AI 릴레이 레시피 — 직접 만들고 · 마켓에서 사고팔고 · 팀과 같이 씁니다</p>';
 
   if (S.screen === 'home') {
     html += renderHome();
@@ -767,11 +767,19 @@ function goHome() {
 render();
 log('ok', 'Coverfo Relay v2 준비됨');
 </script>
+<script src="/relay-pro.js"></script>
 </body>
 </html>`;
 
 export async function onRequestGet() {
   return new Response(HTML, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      // /relay 부모 창이 Cross-Origin-Embedder-Policy 를 쓰기 때문에, 그 안에 들어가는 이 문서도 같은 정책을 내야 표시됩니다 (studio-app.js 와 동일)
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Resource-Policy': 'same-origin',
+    },
   });
 }

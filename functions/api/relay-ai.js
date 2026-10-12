@@ -23,8 +23,12 @@ export async function onRequestPost(context) {
 
   const { text, task, options = {} } = body;
   if (!text) return _json({ error: '텍스트를 입력해 주세요' }, 400);
-  if (!['summarize', 'translate', 'rewrite'].includes(task)) {
-    return _json({ error: 'task 는 summarize / translate / rewrite 중 하나여야 합니다' }, 400);
+  if (!['summarize', 'translate', 'rewrite', 'custom'].includes(task)) {
+    return _json({ error: 'task 는 summarize / translate / rewrite / custom 중 하나여야 합니다' }, 400);
+  }
+  /* v3 Studio Pro: 커스텀 레시피의 "AI 에게 시킬 말" */
+  if (task === 'custom' && !String(options.prompt || '').trim()) {
+    return _json({ error: 'AI 에게 시킬 말이 없습니다' }, 400);
   }
 
   const prompt = buildPrompt(text, task, options);
@@ -101,6 +105,8 @@ function buildPrompt(text, task, opts) {
       return `다음 텍스트를 ${lang}(으)로 자연스럽게 번역해 주세요. 번역문만 출력하세요.\n\n---\n${text}\n---`;
     case 'rewrite':
       return `다음 텍스트를 ${tone} 톤으로 다시 써 주세요. 원래 의미를 유지하면서 표현만 바꿔 주세요. 결과만 출력하세요.\n\n---\n${text}\n---`;
+    case 'custom':
+      return `${String(opts.prompt || '').slice(0, 1000)}\n\n결과만 출력하세요.\n\n---\n${text}\n---`;
     default:
       return text;
   }
