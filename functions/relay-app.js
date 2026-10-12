@@ -114,6 +114,7 @@ audio{width:100%;margin:10px 0;border-radius:8px}
 </head>
 <body>
 <div class="wrap" id="app"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
 
 <script>
 /* ═══════════════════════════════════════════════════════════
@@ -214,14 +215,28 @@ let S = {
 };
 
 // ── 인증 ─────────────────────────────────────────────────
+/* 로그인: 스튜디오(studio-app.js)와 같은 방식 — Supabase 도구로 홈/채팅의 세션을 그대로 읽고, 만료되면 자동 갱신 */
+let cfTok = '';
+(function () {
+  try {
+    fetch('/api/gen?config=1').then(r => r.json()).then(c => {
+      if (!c || !c.url || !c.anonKey || !window.supabase) return;
+      const cl = window.supabase.createClient(c.url, c.anonKey);
+      cl.auth.getSession().then(r => { const s = r && r.data && r.data.session; if (s) cfTok = s.access_token; });
+      cl.auth.onAuthStateChange((_e, s) => { cfTok = s ? s.access_token : ''; });
+    }).catch(() => {});
+  } catch (e) {}
+})();
+
 function getToken() {
+  if (cfTok) return cfTok;
   try {
     const raw = localStorage.getItem('sb-auth-token') || sessionStorage.getItem('sb-auth-token');
     if (raw) { const j = JSON.parse(raw); return j.access_token || j; }
 
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.includes('supabase') && k.includes('auth')) {
+      if (k && ((k.includes('supabase') && k.includes('auth')) || /^sb-.+-auth-token$/.test(k))) {
         const j = JSON.parse(localStorage.getItem(k));
         if (j?.access_token) return j.access_token;
       }
