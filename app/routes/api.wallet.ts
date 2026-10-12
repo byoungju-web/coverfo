@@ -23,7 +23,7 @@ import { envOf, getUserId, readJson } from '~/lib/engine/server';
 
 const WON = 99;
 
-/* 일 → 크레딧 (1 = 99원). 포도톡에서 쓰는 것은 포도톡 서버 단가(CD) ÷ 10 과 같아야 합니다 —
+/* 일 → 크레딧 (1 = 99원). 포도톡에서 쓰는 것은 포도톡 서버 단가(CD) 와 같아야 합니다 (1:1) —
    포도톡 서버는 'pt' 로 실제 차감하고, 이 표는 화면에 보여주는 값입니다 (v209 에서 맞춤) */
 const PRICES: Record<string, number> = {
   stt: 0.1, /* 말하기(받아쓰기) 1줄 */
@@ -39,7 +39,7 @@ const PRICES: Record<string, number> = {
   video: 25,
   engine_app: 30,
   engine_asset: 25,
-  pt: 0.1, /* 포도톡 크레딧 1개 = coverfo 0.1 (같은 금액 9.9원). 포도톡 서버는 늘 이것으로 보냅니다 */
+  pt: 1, /* 포도톡 크레딧 1 = coverfo 1 (1:1 · 같은 금액 99원). 포도톡 서버는 늘 이것으로 보냅니다 */
 };
 const HALF_WITH_OWN_KEY = ['fast', 'quality', 'search']; /* 내 AI 키를 넣으면 절반 */
 
