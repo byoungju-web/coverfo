@@ -3,7 +3,7 @@
 // © 2026 coverfo All Rights Reserved
 
 const HTML = `<!DOCTYPE html>
-<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ v5.5 (coverfo.com / Cloudflare) -->
+<!-- © 2026 coverfo All Rights Reserved — Coverfo Creator Engine™ v1 (coverfo.com / Cloudflare) -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -762,7 +762,7 @@ h3 .right{margin-left:auto}
     var t = esc(S.title || '3D 에셋');
     var h = '<!DOCTYPE html>\\n<html lang="ko">\\n<head>\\n<meta charset="UTF-8">\\n<meta name="viewport" content="width=device-width, initial-scale=1">\\n<title>' + t + '</title>\\n';
     if (S.modelUrl) h += '<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}<\\/script>\\n';
-    h += '<style>body{margin:0;background:#0f1117;color:#eee;font-family:Inter,system-ui,sans-serif}.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 60px}h1{font-size:22px;margin:0 0 4px}p.sub{color:#9aa;margin:0 0 18px;font-size:13px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.card{background:#171a22;border:1px solid #262a35;border-radius:16px;overflow:hidden}.card img,.card video{width:100%;display:block;background:#000}.card .cap{padding:10px 12px;font-size:12.5px;color:#aab}#viewer{width:100%;aspect-ratio:16/9;background:#0b0d13}.full{grid-column:1/-1}</style>\\n</head>\\n<body>\\n<!-- © 2026 coverfo All Rights Reserved — coverfo 3D Orchestrator Engine™ -->\\n<div class="wrap">\\n<h1>' + t + '</h1>\\n<p class="sub">' + esc(S.prompt || '') + '</p>\\n<div class="grid">\\n';
+    h += '<style>body{margin:0;background:#0f1117;color:#eee;font-family:Inter,system-ui,sans-serif}.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 60px}h1{font-size:22px;margin:0 0 4px}p.sub{color:#9aa;margin:0 0 18px;font-size:13px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.card{background:#171a22;border:1px solid #262a35;border-radius:16px;overflow:hidden}.card img,.card video{width:100%;display:block;background:#000}.card .cap{padding:10px 12px;font-size:12.5px;color:#aab}#viewer{width:100%;aspect-ratio:16/9;background:#0b0d13}.full{grid-column:1/-1}</style>\\n</head>\\n<body>\\n<!-- © 2026 coverfo All Rights Reserved — Coverfo Creator Engine™ v1 -->\\n<div class="wrap">\\n<h1>' + t + '</h1>\\n<p class="sub">' + esc(S.prompt || '') + '</p>\\n<div class="grid">\\n';
     if (S.modelUrl) h += '<div class="card full"><div id="viewer"></div><div class="cap">3D 모델 · 드래그로 회전 · <a href="' + esc(S.modelUrl) + '" style="color:#8ab4ff">GLB 다운로드</a></div></div>\\n';
     if (S.videoUrl) h += '<div class="card"><video src="' + esc(S.videoUrl) + '" crossorigin="anonymous" autoplay muted loop playsinline controls preload="metadata"></video><div class="cap">영상 · 4초</div></div>\\n';
     if (i1) h += '<div class="card"><img src="' + i1 + '" alt=""><div class="cap">이미지 1</div></div>\\n';
