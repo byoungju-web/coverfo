@@ -635,12 +635,20 @@ export const Menu = () => {
 
   return (
     <>
+      {/* coverfo: 휴대폰에서 사이드바가 열려 있을 때 오른쪽 화면을 누르면 닫힘 (안쪽 iframe 이 터치를 가져가서 따로 막이 필요) */}
+      {open && !isDesktop && !isSettingsOpen && (
+        <div
+          aria-hidden="true"
+          onClick={() => setOpen(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 996, background: 'rgba(15, 23, 42, 0.18)' }}
+        />
+      )}
       <motion.div
         ref={menuRef}
         initial="closed"
         animate={open ? 'open' : 'closed'}
         variants={menuVariants}
-        style={{ width: '340px', height: '100dvh' }}
+        style={{ width: isDesktop ? '340px' : 'min(290px, 80vw)', height: '100dvh' }}
         className={classNames(
           'flex selection-accent flex-col side-menu fixed top-0 h-full rounded-r-2xl',
           'bg-white dark:bg-gray-950 border-r border-bolt-elements-borderColor',

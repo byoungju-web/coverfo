@@ -23,7 +23,7 @@
     '.pro-tabs{display:flex;gap:4px;margin:0 0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}',
     '.pro-tab{flex:1 1 auto;padding:8px 9px;border-radius:999px;background:#fff;border:1px solid #e8eaf1;font-size:12.5px;font-weight:700;color:#6b7280;white-space:nowrap;text-align:center}',
     /* 이용안내 */
-    '.hdr .pro-help{margin-left:auto;flex:none;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#5b6cff 0%,#8b5cf6 100%);color:#fff;font-size:17px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 4px 12px #6d4aff40}',
+    '.hdr .pro-help{margin-left:auto;flex:none;height:32px;padding:0 13px;border-radius:999px;background:#fff;border:1px solid #d9d6f5;color:#4338ca;font-size:12.5px;font-weight:800;display:inline-flex;align-items:center;gap:4px;box-shadow:0 2px 8px rgba(67,56,202,.10)}',
     '#pro-guide{position:fixed;inset:0;z-index:9999;background:rgba(20,22,31,.45);display:none}',
     '#pro-guide.on{display:block}',
     '#pro-guide .gd{position:absolute;inset:0;max-width:640px;margin:0 auto;background:#fff;display:flex;flex-direction:column}',
@@ -637,8 +637,8 @@
     var hdr = document.querySelector('.hdr');
     if (hdr && !hdr.querySelector('.pro-help')) {
       var b = document.createElement('button');
-      b.className = 'pro-help'; b.type = 'button'; b.textContent = '?';
-      b.setAttribute('aria-label', '이용안내'); b.title = '이용안내';
+      b.className = 'pro-help'; b.type = 'button'; b.textContent = '📖 이용방법';
+      b.setAttribute('aria-label', '이용방법'); b.title = '이용방법';
       b.addEventListener('click', openGuide);
       hdr.appendChild(b);
     }
@@ -648,7 +648,7 @@
     if (!ov) {
       ov = document.createElement('div');
       ov.id = 'pro-guide';
-      ov.innerHTML = '<div class="gd"><div class="gd-bar">📖 Studio Pro 이용안내<button type="button" id="gd-close">✕ 닫기</button></div><div class="gd-body">' + GUIDE + '</div></div>';
+      ov.innerHTML = '<div class="gd"><div class="gd-bar">📖 Studio Pro 이용방법<button type="button" id="gd-close">✕ 닫기</button></div><div class="gd-body">' + GUIDE + '</div></div>';
       document.body.appendChild(ov);
       ov.querySelector('#gd-close').addEventListener('click', function () { ov.classList.remove('on'); });
       ov.addEventListener('click', function (ev) { if (ev.target === ov) ov.classList.remove('on'); });

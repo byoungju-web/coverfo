@@ -32,19 +32,31 @@
   /* ── 스타일 ─────────────────────────────── */
   var css = document.createElement('style');
   css.textContent = [
-    '.set-hero{position:relative;overflow:hidden;border-radius:22px;padding:18px 16px 16px;margin-bottom:18px;color:#fff;background:linear-gradient(135deg,#4f46e5 0%,#8b5cf6 55%,#ec4899 100%);box-shadow:0 10px 30px #8b5cf640}',
-    '.set-hero::after{content:"";position:absolute;right:-40px;top:-40px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,.12)}',
-    '.set-hero .k{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.3px;background:rgba(255,255,255,.22);padding:3px 10px;border-radius:999px}',
-    '.set-hero h2{font-size:21px;font-weight:900;line-height:1.3;margin:8px 0 4px;letter-spacing:-.4px}',
-    '.set-hero p{font-size:13px;opacity:.92;margin-bottom:12px}',
+    '.set-hero{position:relative;overflow:hidden;border-radius:22px;padding:18px 16px 16px;margin-bottom:18px;color:#1c1a2e;background:linear-gradient(140deg,#fcfbff 0%,#f2f3ff 55%,#fbf5ff 100%);border:1px solid #e7e4f7;box-shadow:0 10px 30px rgba(67,56,160,.08)}',
+    '.set-hero::after{content:"";position:absolute;right:-50px;top:-60px;width:190px;height:190px;border-radius:50%;background:radial-gradient(circle,rgba(129,140,248,.18) 0%,rgba(129,140,248,0) 70%)}',
+    '.set-hero .k{position:relative;z-index:1;display:inline-block;font-size:11px;font-weight:800;letter-spacing:.3px;background:#1c1a2e;color:#f3d38a;padding:4px 11px;border-radius:999px}',
+    '.set-hero h2{position:relative;z-index:1;font-size:21px;font-weight:900;line-height:1.32;margin:9px 0 4px;letter-spacing:-.4px;color:#1c1a2e}',
+    '.set-hero h2 em{font-style:normal;color:#4338ca}',
+    '.set-hero p{position:relative;z-index:1;font-size:13px;color:#5f5d73;margin-bottom:12px}',
     '.set-tri{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px;position:relative;z-index:1}',
-    '.set-tri button{background:rgba(255,255,255,.95);color:#14161f;border-radius:14px;padding:10px 6px;text-align:center;font-size:12px;font-weight:800;line-height:1.35}',
+    '.set-tri button{background:#fff;color:#1c1a2e;border:1px solid #ebe9f6;border-radius:14px;padding:10px 6px;text-align:center;font-size:12px;font-weight:800;line-height:1.35;box-shadow:0 2px 8px rgba(67,56,160,.06)}',
     '.set-tri button i{display:block;font-style:normal;font-size:24px;margin-bottom:2px}',
-    '.set-tri button span{display:block;font-size:10.5px;font-weight:600;color:#6b7280;margin-top:2px}',
-    '.set-ex{position:relative;z-index:1;font-size:12px;background:rgba(0,0,0,.18);border-radius:12px;padding:9px 11px;margin-bottom:12px;line-height:1.6}',
-    '.set-ex b{color:#fde68a}',
-    '.set-go{position:relative;z-index:1;width:100%;background:#fff;color:#5b21b6;border-radius:14px;padding:12px;font-size:15px;font-weight:900;box-shadow:0 6px 16px rgba(0,0,0,.15)}',
-    '.set-go small{font-weight:700;color:#8b5cf6;margin-left:6px}',
+    '.set-tri button span{display:block;font-size:10.5px;font-weight:600;color:#7a7890;margin-top:2px}',
+    '.set-ex{position:relative;z-index:1;font-size:12px;color:#3f3d56;background:rgba(255,255,255,.8);border:1px solid #ebe9f6;border-radius:12px;padding:9px 11px;margin-bottom:12px;line-height:1.6}',
+    '.set-ex b{color:#4338ca}',
+    '.set-go{position:relative;z-index:1;width:100%;background:#1c1a2e;color:#fff;border-radius:14px;padding:12px;font-size:15px;font-weight:900;box-shadow:0 8px 20px rgba(28,26,46,.22)}',
+    '.set-go small{font-weight:700;color:#f3d38a;margin-left:6px}',
+    '.set-mine{position:relative;z-index:1;display:block;width:100%;margin-top:8px;padding:9px;border-radius:12px;background:transparent;border:1px dashed #cfcbe8;color:#4338ca;font-size:13px;font-weight:800}',
+    '.set-top{display:flex;align-items:center;justify-content:space-between;gap:8px}',
+    '.set-top .set-link{flex:none;font-size:12px;font-weight:800;color:#4338ca;background:#f4f3ff;border:1px solid #e3e0fb;border-radius:999px;padding:5px 10px}',
+    '.made{border:1px solid #e8eaf1;border-radius:14px;padding:12px;margin-top:10px;background:#fff}',
+    '.made .mh{display:flex;align-items:center;gap:10px}',
+    '.made .mi{width:40px;height:40px;border-radius:12px;background:#f4f3ff;display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none}',
+    '.made .mt{flex:1;min-width:0}',
+    '.made .mt b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.made .mt span{font-size:11.5px;color:#7a7890}',
+    '.made .mb{margin-top:10px}',
+    '.made .mb audio{width:100%;margin:4px 0}',
     '.set-sec{margin:4px 0 10px;font-size:13px;font-weight:800;color:#4b5563}',
     '.set-box{background:#fff;border:1px solid #e8eaf1;border-radius:18px;padding:18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(20,22,31,.04)}',
     '.set-box h2{font-size:17px;font-weight:800;display:flex;align-items:center;gap:8px;margin-bottom:4px}',
@@ -98,7 +110,8 @@
   function makeVoice(text, style, voice, custom) {
     return post('/api/voice', { text: text, style: style, voice: voice, custom: custom || '' }).then(function (r) {
       if (!r.ok) return errOf(r).then(function (m) { throw new Error(m); });
-      return r.blob().then(function (b) { return URL.createObjectURL(b); });
+      var saved = r.headers.get('X-Relay-Url') || '';
+      return r.blob().then(function (b) { return { obj: URL.createObjectURL(b), url: saved }; });
     });
   }
   function makeMusic(body) {
@@ -121,16 +134,31 @@
         return j.result_url;
       });
     }).then(function (url) {
-      return fetch(url).then(function (r) { return r.blob(); }).then(function (b) {
+      return loadImg(url).then(function (img) { return { img: img, url: url }; });
+    });
+  }
+  function loadImg(url) {
+    return fetch(url).then(function (r) { return r.blob(); }).then(function (b) {
         return new Promise(function (ok, no) {
           var img = new Image();
           img.onload = function () { ok(img); };
           img.onerror = function () { no(new Error('그림을 불러오지 못했습니다')); };
           img.src = URL.createObjectURL(b);
         });
-      });
     });
   }
+
+  /* ── 내가 만든 것 — 이 폰(브라우저)에 30개까지 저장. 파일은 서버(R2)에 있고 여기엔 주소만 ── */
+  var MADE_KEY = 'cf_relay_made_v1';
+  function madeList() { try { return JSON.parse(localStorage.getItem(MADE_KEY) || '[]') || []; } catch (e) { return []; } }
+  function madeSave(list) { try { localStorage.setItem(MADE_KEY, JSON.stringify(list.slice(0, 30))); } catch (e) {} }
+  function madeAdd(item) {
+    item.id = 'm' + Date.now() + Math.random().toString(36).slice(2, 5); item.at = Date.now();
+    var l = madeList(); l.unshift(item); madeSave(l); return item.id;
+  }
+  function madeUpdate(id, patch) { var l = madeList(); l.forEach(function (x) { if (x.id === id) Object.assign(x, patch); }); madeSave(l); }
+  function madeDel(id) { madeSave(madeList().filter(function (x) { return x.id !== id; })); }
+  var memePng = {};   /* 다시 그린 짤 그림 (화면에서만) */
 
   /* ── 짤 그리기 (글자는 그림 위에 직접 → 한글이 깨지지 않음, 문구는 몇 번이든 공짜로 다시) ── */
   function drawMeme(img, top, bottom) {
@@ -181,7 +209,7 @@
   function hero() {
     return '<div class="set-hero">'
       + '<span class="k">🎁 NEW · 콘텐츠 3종 세트</span>'
-      + '<h2>주제 한 줄이면<br>목소리 + 음악 + 짤이 한 번에</h2>'
+      + '<h2>주제 한 줄이면<br><em>목소리 + 음악 + 짤</em>이 한 번에</h2>'
       + '<p>SNS · 가게 홍보 · 생일 축하까지, 올릴 거리 3가지를 1분 만에.</p>'
       + '<div class="set-tri">'
       + '<button data-set-go="voice"><i>🎙️</i>AI 목소리<span>성우처럼 말투까지</span></button>'
@@ -190,6 +218,7 @@
       + '</div>'
       + '<div class="set-ex">예시) <b>"우리 카페 가을 신메뉴"</b><br>🎙️ 라디오 DJ 목소리 홍보 멘트 · 🎵 잔잔한 어쿠스틱 30초 · 😂 "이 맛에 가을 기다렸다" 짤</div>'
       + '<button class="set-go" data-set-go="set">✨ 3종 세트 한 번에 만들기<small>' + (COST.plan + COST.voice + COST.clip + COST.image) + ' 크레딧</small></button>'
+      + '<button class="set-mine" data-set-go="made">📂 내가 만든 것 다시 보기 (' + madeList().length + ')</button>'
       + '</div><div class="set-sec">기본 레시피</div>';
   }
 
@@ -199,7 +228,9 @@
       return '<button class="set-chip' + (cur === v ? ' on' : '') + (cur === undefined ? ' ex' : '') + '" ' + attr + '="' + esc(v) + '">' + esc(t) + '</button>';
     }).join('') + '</div>';
   }
-  function head(t, lead) { return '<h2><span class="back" data-set-back="1">←</span>' + t + '</h2><div class="lead">' + lead + '</div>'; }
+  function head(t, lead) {
+    return '<div class="set-top"><h2><span class="back" data-set-back="1">←</span>' + t + '</h2><button class="set-link" data-set-go="made">📂 내가 만든 것</button></div><div class="lead">' + lead + '</div>';
+  }
   function errBox(e) { return e ? '<div class="set-err">⚠️ ' + esc(e) + '</div>' : ''; }
 
   function viewVoice() {
@@ -272,7 +303,40 @@
     return h + '</div>';
   }
 
-  window.RelaySet = { hero: hero, views: { set: viewSet, voice: viewVoice, music: viewMusic, meme: viewMeme } };
+  var KIND = { set: ['🎁', '3종 세트'], voice: ['🎙️', 'AI 목소리'], music: ['🎵', 'AI 음악'], meme: ['😂', '짤'] };
+  function when(t) {
+    var d = new Date(t), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  function viewMade() {
+    var list = madeList();
+    var h = '<div class="set-box"><div class="set-top"><h2><span class="back" data-set-back="1">←</span>📂 내가 만든 것</h2></div>'
+      + '<div class="lead">목소리 · 음악 · 짤 · 3종 세트를 다시 듣고 · 보고 · 받을 수 있어요. 이 폰(브라우저)에 최근 30개까지 남아요.</div>';
+    if (!list.length) h += '<div class="pro-empty">아직 만든 것이 없어요. 🎁 3종 세트나 🎙️ · 🎵 · 😂 를 만들어 보세요.</div>';
+    list.forEach(function (x) {
+      var k = KIND[x.t] || ['📄', ''], open = X.openMade === x.id;
+      h += '<div class="made"><div class="mh"><span class="mi">' + k[0] + '</span><div class="mt"><b>' + esc(x.title || k[1]) + '</b><span>' + k[1] + ' · ' + when(x.at) + '</span></div>'
+        + '<button class="btn btn-secondary btn-sm" data-made-open="' + x.id + '">' + (open ? '접기' : '▶ 보기') + '</button></div>';
+      if (open) {
+        h += '<div class="mb">';
+        if (x.narration && x.t !== 'voice') h += '<div class="set-card"><h4>🎙️ 멘트</h4><div class="q">' + esc(x.narration) + '</div></div>';
+        if (x.voice) h += '<audio controls src="' + esc(x.voice) + '"></audio><a class="btn btn-secondary btn-sm" href="' + esc(x.voice) + '" download="coverfo-voice.mp3">💾 목소리 MP3</a> ';
+        if (x.music) h += '<audio controls src="' + esc(x.music) + '"></audio><a class="btn btn-secondary btn-sm" href="' + esc(x.music) + '" download="coverfo-music.mp3">💾 음악 MP3</a> ';
+        if (x.lyrics) h += '<div class="set-lyr">' + esc(x.lyrics) + '</div>';
+        if (x.img) {
+          var png = memePng[x.id];
+          h += png ? '<img class="set-meme" style="margin-top:8px" src="' + png + '" alt="짤"><div class="set-row" style="justify-content:center"><a class="btn btn-secondary btn-sm" href="' + png + '" download="coverfo-meme.png">💾 짤 PNG</a><button class="btn btn-secondary btn-sm" data-made-edit="' + x.id + '">✏️ 문구 바꾸기</button></div>'
+                   : '<div class="pro-empty" style="margin-top:8px">짤 불러오는 중…</div>';
+        }
+        if (x.voice && x.voice.indexOf('blob:') === 0) h += '<div class="set-cost">이 목소리는 저장되지 않았어요.</div>';
+        h += '<div class="set-row"><button class="btn btn-secondary btn-sm" data-made-del="' + x.id + '">🗑 목록에서 지우기</button></div></div>';
+      }
+      h += '</div>';
+    });
+    return h + '</div>';
+  }
+
+  window.RelaySet = { hero: hero, views: { set: viewSet, voice: viewVoice, music: viewMusic, meme: viewMeme, made: viewMade } };
 
   /* ── 3종 세트 실행 ─────────────────────── */
   function runSet() {
@@ -290,14 +354,15 @@
     aiText(s.topic.trim(), prompt).then(function (t) {
       s.plan = parseJSON(t);
       s.steps[0].st = 'ok'; s.steps[1].st = 'run'; s.steps[2].st = 'run'; s.steps[3].st = 'run'; render();
-      var p1 = makeVoice(s.plan.narration || s.topic, s.style, 'coral').then(function (u) { s.voice = u; s.steps[1].st = 'ok'; render(); })
+      var saved = { t: 'set', title: s.topic.trim().slice(0, 40), narration: s.plan.narration || '', top: s.plan.meme_top || '', bottom: s.plan.meme_bottom || '' };
+      var p1 = makeVoice(s.plan.narration || s.topic, s.style, 'coral').then(function (u) { s.voice = u.obj; saved.voice = u.url; s.steps[1].st = 'ok'; render(); })
         .catch(function (e) { s.steps[1].st = 'bad'; s.steps[1].d = e.message; render(); });
-      var p2 = makeMusic({ prompt: s.plan.music || s.topic, mode: 'clip', vocal: 'inst' }).then(function (j) { s.music = j.url || j.data_url; s.steps[2].st = 'ok'; render(); })
+      var p2 = makeMusic({ prompt: s.plan.music || s.topic, mode: 'clip', vocal: 'inst' }).then(function (j) { s.music = j.url || j.data_url; saved.music = j.url || ''; s.steps[2].st = 'ok'; render(); })
         .catch(function (e) { s.steps[2].st = 'bad'; s.steps[2].d = e.message; render(); });
-      var p3 = makeImage(s.plan.meme_scene || s.topic).then(function (img) {
-        s.img = img; s.png = drawMeme(img, s.plan.meme_top, s.plan.meme_bottom); s.steps[3].st = 'ok'; render();
+      var p3 = makeImage(s.plan.meme_scene || s.topic).then(function (o) {
+        s.img = o.img; saved.img = o.url; s.png = drawMeme(o.img, s.plan.meme_top, s.plan.meme_bottom); s.steps[3].st = 'ok'; render();
       }).catch(function (e) { s.steps[3].st = 'bad'; s.steps[3].d = e.message; render(); });
-      return Promise.all([p1, p2, p3]);
+      return Promise.all([p1, p2, p3]).then(function () { if (saved.voice || saved.music || saved.img) madeAdd(saved); });
     }).catch(function (e) { s.steps[0].st = 'bad'; s.err = e.message; })
       .then(function () { s.busy = false; render(); log('ok', '3종 세트 끝'); });
   }
@@ -324,7 +389,10 @@
     on('#sv-go', function () {
       keepV(); var v = X.v; if (!v.text.trim()) { alert('읽을 글을 넣어 주세요.'); return; }
       v.err = ''; v.busy = true; render();
-      makeVoice(v.text.trim(), v.style, v.voice, v.custom).then(function (u) { v.url = u; log('ok', '목소리 완성'); })
+      makeVoice(v.text.trim(), v.style, v.voice, v.custom).then(function (u) {
+        v.url = u.obj; log('ok', '목소리 완성');
+        if (u.url) madeAdd({ t: 'voice', title: v.text.trim().slice(0, 40), voice: u.url, narration: v.text.trim() });
+      })
         .catch(function (e) { v.err = e.message; }).then(function () { v.busy = false; render(); });
     });
 
@@ -336,7 +404,10 @@
     on('#sm-go', function () {
       keepM(); var m = X.m; if (!m.prompt.trim()) { alert('어떤 음악인지 적어 주세요.'); return; }
       m.err = ''; m.busy = true; m.words = ''; render();
-      makeMusic({ prompt: m.prompt.trim(), mode: m.mode, vocal: m.vocal, lyrics: m.lyrics }).then(function (j) { m.url = j.url || j.data_url; m.words = j.lyrics || ''; log('ok', '음악 완성'); })
+      makeMusic({ prompt: m.prompt.trim(), mode: m.mode, vocal: m.vocal, lyrics: m.lyrics }).then(function (j) {
+        m.url = j.url || j.data_url; m.words = j.lyrics || ''; log('ok', '음악 완성');
+        if (j.url) madeAdd({ t: 'music', title: m.prompt.trim().slice(0, 40), music: j.url, lyrics: (j.lyrics || '').slice(0, 2000) });
+      })
         .catch(function (e) { m.err = e.message; }).then(function () { m.busy = false; render(); });
     });
 
@@ -347,16 +418,39 @@
       keepJ(); var j = X.j; if (!j.scene.trim()) { alert('장면을 먼저 적어 주세요.'); return; }
       j.err = ''; j.busy = true; render();
       aiText(j.scene.trim(), '이 장면에 어울리는 웃긴 한국어 짤 문구를 만들어. JSON 하나만: {"top":"윗문구 12자 이내","bottom":"아랫문구 16자 이내"}')
-        .then(function (t) { var o = parseJSON(t); j.top = o.top || j.top; j.bottom = o.bottom || j.bottom; if (j.img) j.png = drawMeme(j.img, j.top, j.bottom); })
+        .then(function (t) { var o = parseJSON(t); j.top = o.top || j.top; j.bottom = o.bottom || j.bottom; if (j.img) { j.png = drawMeme(j.img, j.top, j.bottom); if (j.mid) madeUpdate(j.mid, { top: j.top, bottom: j.bottom }); } })
         .catch(function (e) { j.err = e.message; }).then(function () { j.busy = false; render(); });
     });
     on('#sj-go', function () {
       keepJ(); var j = X.j; if (!j.scene.trim()) { alert('장면을 적어 주세요.'); return; }
       j.err = ''; j.busy = true; render();
-      makeImage(j.scene.trim()).then(function (img) { j.img = img; j.png = drawMeme(img, j.top, j.bottom); log('ok', '짤 완성'); })
+      makeImage(j.scene.trim()).then(function (o) {
+        j.img = o.img; j.png = drawMeme(o.img, j.top, j.bottom); log('ok', '짤 완성');
+        j.mid = madeAdd({ t: 'meme', title: (j.top || j.bottom || j.scene).slice(0, 40), img: o.url, top: j.top, bottom: j.bottom });
+      })
         .catch(function (e) { j.err = e.message; }).then(function () { j.busy = false; render(); });
     });
-    on('#sj-redraw', function () { keepJ(); var j = X.j; if (j.img) { j.png = drawMeme(j.img, j.top, j.bottom); render(); } });
+    on('#sj-redraw', function () { keepJ(); var j = X.j; if (j.img) { j.png = drawMeme(j.img, j.top, j.bottom); if (j.mid) madeUpdate(j.mid, { top: j.top, bottom: j.bottom, title: (j.top || j.bottom || j.scene).slice(0, 40) }); render(); } });
+
+    /* 내가 만든 것 */
+    on('[data-made-open]', function (el) {
+      var id = el.getAttribute('data-made-open');
+      X.openMade = X.openMade === id ? null : id; render();
+      var x = madeList().filter(function (m) { return m.id === id; })[0];
+      if (X.openMade && x && x.img && !memePng[id]) {
+        loadImg(x.img).then(function (img) { memePng[id] = drawMeme(img, x.top, x.bottom); render(); })
+          .catch(function () { memePng[id] = ''; delete memePng[id]; });
+      }
+    });
+    on('[data-made-del]', function (el) { if (!confirm('목록에서 지울까요? (만든 파일은 그대로 있어요)')) return; madeDel(el.getAttribute('data-made-del')); X.openMade = null; render(); });
+    on('[data-made-edit]', function (el) {
+      var x = madeList().filter(function (m) { return m.id === el.getAttribute('data-made-edit'); })[0]; if (!x) return;
+      loadImg(x.img).then(function (img) {
+        X.j.img = img; X.j.top = x.top || ''; X.j.bottom = x.bottom || ''; X.j.scene = X.j.scene || '';
+        X.j.mid = x.t === 'meme' ? x.id : null; X.j.png = drawMeme(img, X.j.top, X.j.bottom); X.j.err = '';
+        S.tab = 'meme'; render(); window.scrollTo(0, 0);
+      });
+    });
 
     /* 세트 */
     var keepS = function () { if (val('ss-topic') != null) X.s.topic = val('ss-topic'); };
