@@ -49,6 +49,14 @@
     '.set-mine{position:relative;z-index:1;display:block;width:100%;margin-top:8px;padding:9px;border-radius:12px;background:transparent;border:1px dashed #cfcbe8;color:#4338ca;font-size:13px;font-weight:800}',
     '.set-top{display:flex;align-items:center;justify-content:space-between;gap:8px}',
     '.set-top .set-link{flex:none;font-size:12px;font-weight:800;color:#4338ca;background:#f4f3ff;border:1px solid #e3e0fb;border-radius:999px;padding:5px 10px}',
+    '.reel{margin-top:12px;border:1px solid #e7e4f7;border-radius:16px;padding:14px;background:linear-gradient(140deg,#fcfbff 0%,#f4f4ff 100%)}',
+    '.reel h4{font-size:14px;font-weight:900;color:#1c1a2e;margin-bottom:2px}',
+    '.reel .rs{font-size:12px;color:#6b6a80;margin-bottom:10px}',
+    '.reel .rbar{height:8px;border-radius:999px;background:#ecebf8;overflow:hidden;margin-top:10px}',
+    '.reel .rbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#4338ca,#8b5cf6);transition:width .3s}',
+    '.reel video{display:block;width:100%;max-width:300px;margin:10px auto 0;border-radius:14px;background:#000;aspect-ratio:9/16}',
+    '.reel .go{background:#1c1a2e;color:#fff;border-radius:12px;padding:10px 16px;font-size:14px;font-weight:900}',
+    '.reel .go:disabled{opacity:.5}',
     '.made{border:1px solid #e8eaf1;border-radius:14px;padding:12px;margin-top:10px;background:#fff}',
     '.made .mh{display:flex;align-items:center;gap:10px}',
     '.made .mi{width:40px;height:40px;border-radius:12px;background:#f4f3ff;display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none}',
@@ -159,6 +167,137 @@
   function madeUpdate(id, patch) { var l = madeList(); l.forEach(function (x) { if (x.id === id) Object.assign(x, patch); }); madeSave(l); }
   function madeDel(id) { madeSave(madeList().filter(function (x) { return x.id !== id; })); }
   var memePng = {};   /* 다시 그린 짤 그림 (화면에서만) */
+
+  /* ── 🎬 릴스 · 쇼츠 영상 (세로 9:16, 폰 안에서 만듦 → 서버 · 크레딧 0) ──
+     짤 그림 + 목소리 + 배경음악(작게)을 합쳐 15초 / 30초 영상 하나로. 화면에 그리면서 그대로 녹화합니다. */
+  X.r = { secs: 15, busy: false, prog: 0, url: '', ext: '', err: '', key: '' };
+  function pickType() {
+    /* MP4 는 H.264(avc1)+AAC 일 때만 씀 — 인스타가 받는 형식. 안 되면 WebM (그냥 'video/mp4' 는 VP9 가 들어갈 수 있어 뺌) */
+    var c = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1.4D401F,mp4a.40.2', 'video/mp4;codecs=avc1.64001F,mp4a.40.2', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+    for (var i = 0; i < c.length; i++) { try { if (window.MediaRecorder && MediaRecorder.isTypeSupported(c[i])) return c[i]; } catch (e) {} }
+    return '';
+  }
+  function audioBuf(ac, url) {
+    if (!url) return Promise.resolve(null);
+    return fetch(url).then(function (r) { return r.arrayBuffer(); })
+      .then(function (ab) { return new Promise(function (ok) { ac.decodeAudioData(ab, ok, function () { ok(null); }); }); })
+      .catch(function () { return null; });
+  }
+  function subLines(text) {
+    var parts = String(text || '').replace(/\s+/g, ' ').split(/(?<=[.!?。！？])\s+/).filter(Boolean), out = [];
+    parts.forEach(function (p) { while (p.length > 22) { var cut = p.lastIndexOf(' ', 22); if (cut < 8) cut = 22; out.push(p.slice(0, cut).trim()); p = p.slice(cut).trim(); } if (p) out.push(p); });
+    return out;
+  }
+  function makeReel(o, onProg) {
+    var W = 720, H = 1280, secs = o.secs || 15, type = pickType();
+    if (!type) return Promise.reject(new Error('이 브라우저는 영상 녹화를 지원하지 않아요. 크롬으로 열어 주세요.'));
+    var AC = window.AudioContext || window.webkitAudioContext;
+    var ac = new AC();
+    return Promise.all([loadImg(o.png), audioBuf(ac, o.voice), audioBuf(ac, o.music)]).then(function (a) {
+      var img = a[0], vbuf = a[1], mbuf = a[2];
+      var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      var g = cv.getContext('2d');
+      var dest = ac.createMediaStreamDestination();
+      var t0 = 0, VOICE_AT = 0.8;
+      var vDur = vbuf ? Math.min(vbuf.duration, secs - VOICE_AT - 0.3) : 0;
+      var subs = subLines(o.narration), title = String(o.title || '').slice(0, 40);
+
+      function draw(t) {
+        /* 바탕: 같은 그림을 크게 흐리게 */
+        g.save(); g.filter = 'blur(26px) brightness(0.62)';
+        var bs = Math.max(W / img.width, H / img.height) * 1.15;
+        g.drawImage(img, (W - img.width * bs) / 2, (H - img.height * bs) / 2, img.width * bs, img.height * bs);
+        g.restore(); g.filter = 'none';
+        /* 위: 제목 */
+        if (title) {
+          g.textAlign = 'center'; g.fillStyle = '#fff'; g.font = '900 46px "Pretendard Variable","Apple SD Gothic Neo","Noto Sans KR",sans-serif';
+          g.shadowColor = 'rgba(0,0,0,.45)'; g.shadowBlur = 14;
+          var tl = wrap(g, title, W - 90).slice(0, 2);
+          tl.forEach(function (l, i) { g.fillText(l, W / 2, 170 + i * 58); });
+          g.shadowBlur = 0;
+        }
+        /* 가운데: 짤 (천천히 다가감) */
+        var S2 = 640, x = (W - S2) / 2, y = 300, z = 1 + 0.06 * Math.min(1, t / secs);
+        g.save(); roundRect(g, x, y, S2, S2, 30); g.clip();
+        var zs = S2 * z; g.drawImage(img, x - (zs - S2) / 2, y - (zs - S2) / 2, zs, zs);
+        g.restore();
+        g.save(); g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 4; roundRect(g, x, y, S2, S2, 30); g.stroke(); g.restore();
+        /* 아래: 자막 (목소리 나오는 동안 차례로) */
+        if (subs.length && vDur > 0 && t >= VOICE_AT && t <= VOICE_AT + vDur + 0.4) {
+          var idx = Math.min(subs.length - 1, Math.floor((t - VOICE_AT) / (vDur / subs.length)));
+          g.font = '800 38px "Pretendard Variable","Apple SD Gothic Neo","Noto Sans KR",sans-serif'; g.textAlign = 'center';
+          var line = subs[idx], tw = Math.min(W - 60, g.measureText(line).width + 48);
+          g.fillStyle = 'rgba(0,0,0,.55)'; roundRect(g, (W - tw) / 2, 1010, tw, 70, 18); g.fill();
+          g.fillStyle = '#fff'; g.fillText(line, W / 2, 1058);
+        }
+        /* 맨 아래 */
+        g.font = '700 22px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,.7)';
+        g.fillText('made with coverfo', W / 2, H - 42);
+      }
+
+      draw(0);
+      var stream = cv.captureStream(30);
+      dest.stream.getAudioTracks().forEach(function (tr) { stream.addTrack(tr); });
+      var rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 4000000, audioBitsPerSecond: 128000 });
+      var chunks = [];
+      rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+
+      return new Promise(function (ok, no) {
+        rec.onstop = function () {
+          try { ac.close(); } catch (e) {}
+          var blob = new Blob(chunks, { type: type.split(';')[0] });
+          if (!blob.size) { no(new Error('영상을 만들지 못했어요. 다시 눌러 주세요.')); return; }
+          ok({ url: URL.createObjectURL(blob), ext: type.indexOf('mp4') >= 0 ? 'mp4' : 'webm' });
+        };
+        rec.onerror = function () { no(new Error('녹화 중 오류가 났어요.')); };
+        var start = function () {
+          t0 = ac.currentTime + 0.15;
+          if (mbuf) {
+            var ms = ac.createBufferSource(); ms.buffer = mbuf; ms.loop = true;
+            var mg = ac.createGain(); mg.gain.setValueAtTime(vbuf ? 0.22 : 0.8, t0);
+            if (vbuf) { mg.gain.setValueAtTime(0.22, t0 + VOICE_AT + vDur); mg.gain.linearRampToValueAtTime(0.6, t0 + VOICE_AT + vDur + 0.8); }
+            mg.gain.setValueAtTime(vbuf ? 0.6 : 0.8, t0 + secs - 1.6); mg.gain.linearRampToValueAtTime(0.0001, t0 + secs - 0.1);
+            ms.connect(mg); mg.connect(dest); ms.start(t0); ms.stop(t0 + secs);
+          }
+          if (vbuf) {
+            var vs = ac.createBufferSource(); vs.buffer = vbuf;
+            var vg = ac.createGain(); vg.gain.value = 1;
+            vs.connect(vg); vg.connect(dest); vs.start(t0 + VOICE_AT, 0, vDur);
+          }
+          rec.start(250);
+          var tick = function () {
+            var t = Math.max(0, ac.currentTime - t0);
+            draw(t); if (onProg) onProg(Math.min(1, t / secs));
+            if (t >= secs) { try { rec.stop(); } catch (e) {} return; }
+            requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        };
+        (ac.state === 'suspended' ? ac.resume() : Promise.resolve()).then(start, start);
+      });
+    });
+  }
+  function roundRect(g, x, y, w, h, r) {
+    g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+  }
+  function reelBox(key, hasVoice, hasMusic) {
+    var r = X.r, mine = r.key === key;
+    var h = '<div class="reel"><h4>🎬 릴스 · 쇼츠 영상으로 합치기</h4>'
+      + '<div class="rs">짤 + ' + (hasVoice ? '목소리' : '') + (hasVoice && hasMusic ? ' + ' : '') + (hasMusic ? '배경음악' : '') + ' → 세로 영상 1개 (인스타 릴스 · 유튜브 쇼츠 · 틱톡 공용) · <b>크레딧 0</b></div>'
+      + '<div class="set-chips">' + [15, 30].map(function (n) { return '<button class="set-chip' + (r.secs === n ? ' on' : '') + '" data-reel-secs="' + n + '">' + n + '초</button>'; }).join('') + '</div>'
+      + '<div class="set-row" style="margin-top:10px"><button class="go" data-reel-go="' + key + '"' + (r.busy ? ' disabled' : '') + '>' + (r.busy && mine ? '영상 만드는 중…' : '🎬 영상 만들기') + '</button>'
+      + '<span class="set-cost">' + r.secs + '초 동안 만들어져요 · 화면을 켜 두세요</span></div>';
+    if (r.busy && mine) h += '<div class="rbar"><i id="reel-prog" style="width:' + Math.round(r.prog * 100) + '%"></i></div>';
+    if (mine && r.err) h += errBox(r.err);
+    if (mine && r.url) {
+      h += '<video controls playsinline src="' + r.url + '"></video><div class="set-row" style="justify-content:center"><a class="btn btn-primary btn-sm" href="' + r.url + '" download="coverfo-reels-' + r.secs + 's.' + r.ext + '">💾 영상 저장 (' + r.ext.toUpperCase() + ')</a></div>';
+      h += r.ext === 'mp4'
+        ? '<div class="set-cost" style="text-align:center;margin-top:6px">저장한 영상을 인스타 릴스 · 유튜브 쇼츠 · 틱톡에 그대로 올리세요.</div>'
+        : '<div class="set-cost" style="margin-top:6px">이 폰 브라우저는 <b>WebM</b> 으로 만들어요. 유튜브 쇼츠는 그대로 올라가요. 인스타는 MP4가 필요할 수 있어요 — 그럴 땐 갤러리에서 한 번 편집·저장하거나 CapCut 으로 열어 내보내면 MP4가 돼요.</div>';
+    }
+    return h + '</div>';
+  }
 
   /* ── 짤 그리기 (글자는 그림 위에 직접 → 한글이 깨지지 않음, 문구는 몇 번이든 공짜로 다시) ── */
   function drawMeme(img, top, bottom) {
@@ -298,6 +437,7 @@
       if (s.voice) h += '<div class="set-card"><h4>🎙️ 목소리 멘트</h4><div class="q">' + esc(s.plan.narration || '') + '</div><audio controls src="' + s.voice + '"></audio><div class="set-row" style="margin-top:4px"><a class="btn btn-secondary btn-sm" href="' + s.voice + '" download="coverfo-set-voice.mp3">💾 MP3</a></div></div>';
       if (s.music) h += '<div class="set-card"><h4>🎵 30초 음악</h4><audio controls src="' + s.music + '"></audio><div class="set-row" style="margin-top:4px"><a class="btn btn-secondary btn-sm" href="' + s.music + '" download="coverfo-set-music.mp3">💾 MP3</a></div></div>';
       if (s.png) h += '<div class="set-card"><h4>😂 짤</h4><img class="set-meme" src="' + s.png + '" alt="짤"><div class="set-row" style="justify-content:center"><a class="btn btn-secondary btn-sm" href="' + s.png + '" download="coverfo-set-meme.png">💾 PNG</a><button class="btn btn-secondary btn-sm" id="ss-tomeme">✏️ 문구 바꾸기</button></div></div>';
+      if (s.png && (s.voice || s.music) && !s.busy) h += reelBox('set', !!s.voice, !!s.music);
       h += '</div>';
     }
     return h + '</div>';
@@ -328,6 +468,7 @@
           h += png ? '<img class="set-meme" style="margin-top:8px" src="' + png + '" alt="짤"><div class="set-row" style="justify-content:center"><a class="btn btn-secondary btn-sm" href="' + png + '" download="coverfo-meme.png">💾 짤 PNG</a><button class="btn btn-secondary btn-sm" data-made-edit="' + x.id + '">✏️ 문구 바꾸기</button></div>'
                    : '<div class="pro-empty" style="margin-top:8px">짤 불러오는 중…</div>';
         }
+        if (x.img && memePng[x.id] && (x.voice || x.music)) h += reelBox(x.id, !!x.voice, !!x.music);
         if (x.voice && x.voice.indexOf('blob:') === 0) h += '<div class="set-cost">이 목소리는 저장되지 않았어요.</div>';
         h += '<div class="set-row"><button class="btn btn-secondary btn-sm" data-made-del="' + x.id + '">🗑 목록에서 지우기</button></div></div>';
       }
@@ -431,6 +572,22 @@
         .catch(function (e) { j.err = e.message; }).then(function () { j.busy = false; render(); });
     });
     on('#sj-redraw', function () { keepJ(); var j = X.j; if (j.img) { j.png = drawMeme(j.img, j.top, j.bottom); if (j.mid) madeUpdate(j.mid, { top: j.top, bottom: j.bottom, title: (j.top || j.bottom || j.scene).slice(0, 40) }); render(); } });
+
+    /* 🎬 영상 */
+    on('[data-reel-secs]', function (el) { if (X.r.busy) return; X.r.secs = Number(el.getAttribute('data-reel-secs')); render(); });
+    on('[data-reel-go]', function (el) {
+      if (X.r.busy) return;
+      var key = el.getAttribute('data-reel-go'), src;
+      if (key === 'set') { var s = X.s; src = { png: s.png, voice: s.voice, music: s.music, narration: s.plan && s.plan.narration, title: s.topic }; }
+      else { var x = madeList().filter(function (m) { return m.id === key; })[0]; if (!x) return; src = { png: memePng[key], voice: x.voice, music: x.music, narration: x.narration, title: x.title }; }
+      src.secs = X.r.secs;
+      if (X.r.url) { try { URL.revokeObjectURL(X.r.url); } catch (e) {} }
+      X.r.key = key; X.r.busy = true; X.r.prog = 0; X.r.url = ''; X.r.err = ''; render();
+      makeReel(src, function (p) { X.r.prog = p; var b = document.getElementById('reel-prog'); if (b) b.style.width = Math.round(p * 100) + '%'; })
+        .then(function (o) { X.r.url = o.url; X.r.ext = o.ext; log('ok', '영상 완성 (' + o.ext + ')'); })
+        .catch(function (e) { X.r.err = e.message; })
+        .then(function () { X.r.busy = false; render(); });
+    });
 
     /* 내가 만든 것 */
     on('[data-made-open]', function (el) {
