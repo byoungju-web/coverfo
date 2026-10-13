@@ -103,6 +103,7 @@ audio{width:100%;margin:10px 0;border-radius:8px}
 
 /* ── 로그 ─────────────────────────────── */
 .log{margin-top:16px;padding:12px;background:var(--soft);border:1px solid var(--line);border-radius:10px;font-size:11px;color:#9ca3af;max-height:120px;overflow-y:auto;font-family:monospace}
+.log:empty{display:none}
 .log .ok{color:#059669}.log .err{color:#dc2626}.log .info{color:#4f46e5}
 
 /* 반응형 */
@@ -789,7 +790,6 @@ function goHome() {
 
 // ── 시작 ─────────────────────────────────────────────────
 render();
-log('ok', 'Coverfo Relay v2 준비됨');
 </script>
 <script src="/relay-pro.js"></script>
 <script src="/relay-set.js"></script>

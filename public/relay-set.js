@@ -47,7 +47,7 @@
     '.set-go{position:relative;z-index:1;width:100%;background:#1c1a2e;color:#fff;border-radius:14px;padding:12px;font-size:15px;font-weight:900;box-shadow:0 8px 20px rgba(28,26,46,.22)}',
     '.set-go small{font-weight:700;color:#f3d38a;margin-left:6px}',
     '.set-mine{position:relative;z-index:1;display:block;width:100%;margin-top:8px;padding:9px;border-radius:12px;background:transparent;border:1px dashed #cfcbe8;color:#4338ca;font-size:13px;font-weight:800}',
-    '.set-vbtn{position:absolute;z-index:2;right:14px;top:48px;background:linear-gradient(135deg,#4338ca,#8b5cf6);color:#fff;border-radius:999px;padding:7px 13px;font-size:13px;font-weight:900;box-shadow:0 6px 16px rgba(67,56,202,.28);white-space:nowrap}',
+    '.set-hero h2 .plus{white-space:nowrap;background:linear-gradient(90deg,#7c3aed,#db2777);-webkit-background-clip:text;background-clip:text;color:transparent}',
     '.se-pick{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;border:2px dashed #c7c2ef;border-radius:14px;background:#faf9ff;color:#4338ca;font-size:14px;font-weight:900;cursor:pointer}',
     '.se-pick input{display:none}',
     '.se-prev{display:block;max-width:220px;max-height:320px;margin:10px auto 0;border-radius:12px;background:#000}',
@@ -446,8 +446,7 @@
   function hero() {
     return '<div class="set-hero">'
       + '<span class="k">🎁 NEW · 콘텐츠 3종 세트</span>'
-      + '<button class="set-vbtn" data-set-go="reel">+ 영상만들기</button>'
-      + '<h2>주제 한 줄이면<br><em>목소리 + 음악 + 짤</em>이 한 번에</h2>'
+      + '<h2>주제 한 줄이면<br><em>목소리 + 음악 + 짤</em>이 한 번에 <span class="plus">+영상까지</span></h2>'
       + '<p>SNS · 가게 홍보 · 생일 축하까지, 올릴 거리 3가지를 1분 만에.</p>'
       + '<div class="set-tri">'
       + '<button data-set-go="voice"><i>🎙️</i>AI 목소리<span>성우처럼 말투까지</span></button>'
@@ -676,6 +675,16 @@
   var prevBind = bindEvents;
   bindEvents = function () {
     prevBind();
+    /* 기본 레시피 목록 맨 앞에 🎬 영상 만들기 카드 */
+    if (S.screen === 'home' && (S.tab || 'basic') === 'basic') {
+      var grid = document.querySelector('.recipes');
+      if (grid && !grid.querySelector('[data-set-go="reel"]')) {
+        var card = document.createElement('div');
+        card.className = 'recipe'; card.setAttribute('data-set-go', 'reel');
+        card.innerHTML = '<div class="icon">🎬</div><div class="name">영상 만들기</div><div class="desc">폰으로 찍은 영상 · 사진이나 내 짤에 음악 · 목소리 · 글자를 얹어 릴스 · 쇼츠 세로 영상으로 만들어요.</div><div class="cost">🪙 0 크레딧</div>';
+        grid.insertBefore(card, grid.firstChild);
+      }
+    }
     var on = function (sel, fn) { document.querySelectorAll(sel).forEach(function (el) { el.addEventListener('click', function (ev) { ev.preventDefault(); fn(el); }); }); };
     var val = function (id) { var el = document.getElementById(id); return el ? el.value : null; };
 
@@ -875,5 +884,4 @@
 
   render();
   madeSync();
-  log('ok', '콘텐츠 3종 세트 준비됨');
 })();

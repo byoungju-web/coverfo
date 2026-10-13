@@ -661,5 +661,4 @@
 
   /* 결과 화면의 '새 레시피' · 취소 → 보던 탭으로 */
   render();
-  log('ok', 'Coverfo Studio Pro v3 준비됨');
 })();
