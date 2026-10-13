@@ -900,11 +900,13 @@
   var prevBind = bindEvents;
   bindEvents = function () {
     prevBind();
-    /* 기본 레시피 목록 맨 앞에 📣 SNS 콘텐츠 한 번에 · 🗣️ AI 아바타 카드 */
+    /* 기본 레시피 목록 맨 앞에 📣 SNS 콘텐츠 한 번에 · 🎵 AI 음악 · 🎙️ AI 목소리 · 🗣️ AI 아바타 카드 (앞에 끼워 넣으니 거꾸로 적음) */
     if (S.screen === 'home' && (S.tab || 'basic') === 'basic') {
       var grid = document.querySelector('.recipes');
       if (grid && !grid.querySelector('[data-set-go="sns"]')) {
         [['avatar', '🗣️', 'AI 아바타 영상 · 말하는 나', '얼굴 사진 1장 + 대본 → 사진 속 내가 입 모양 · 표정을 맞춰 말하는 영상. 제품 소개 · 강의 맛보기 · 릴스에.', COST.veo + ' 크레딧'],
+         ['voice', '🎙️', 'AI 목소리', '글을 넣고 말투를 고르면 성우처럼 읽어 줘요. 가게 홍보 멘트 · 영상 내레이션 · 안내 방송에.', COST.voice + ' 크레딧'],
+         ['music', '🎵', 'AI 음악 만들기', '어떤 느낌인지 적으면 AI가 새로 작곡해요. 30초 BGM · 한 곡(약 2분) · 노래(가사)까지.', COST.clip + ' 크레딧부터'],
          ['sns', '📣', 'SNS 콘텐츠 한 번에 만들기', '주제 한 줄 → 인스타 포스트(글+이미지) · 릴스 · 쇼츠 영상(15 · 30 · 60초) · 블로그 글 · 해시태그 · 번역까지.', (COST.plan + COST.image + COST.voice + COST.clip) + ' 크레딧부터']
         ].forEach(function (c) {
           var card = document.createElement('div');
