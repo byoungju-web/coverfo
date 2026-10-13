@@ -20,8 +20,31 @@
   /* ── 스타일 ─────────────────────────────── */
   var css = document.createElement('style');
   css.textContent = [
-    '.pro-tabs{display:flex;gap:6px;margin:0 0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}',
-    '.pro-tab{flex:none;padding:8px 14px;border-radius:999px;background:#fff;border:1px solid #e8eaf1;font-size:13px;font-weight:700;color:#6b7280;white-space:nowrap}',
+    '.pro-tabs{display:flex;gap:4px;margin:0 0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}',
+    '.pro-tab{flex:1 1 auto;padding:8px 9px;border-radius:999px;background:#fff;border:1px solid #e8eaf1;font-size:12.5px;font-weight:700;color:#6b7280;white-space:nowrap;text-align:center}',
+    /* 이용안내 */
+    '.hdr .pro-help{margin-left:auto;flex:none;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#5b6cff 0%,#8b5cf6 100%);color:#fff;font-size:17px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 4px 12px #6d4aff40}',
+    '#pro-guide{position:fixed;inset:0;z-index:9999;background:rgba(20,22,31,.45);display:none}',
+    '#pro-guide.on{display:block}',
+    '#pro-guide .gd{position:absolute;inset:0;max-width:640px;margin:0 auto;background:#fff;display:flex;flex-direction:column}',
+    '#pro-guide .gd-bar{flex:none;display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid #eef0f5;font-size:16px;font-weight:800}',
+    '#pro-guide .gd-bar button{margin-left:auto;padding:6px 12px;border-radius:9px;background:#f6f7fb;border:1px solid #e8eaf1;font-size:13px;font-weight:700}',
+    '#pro-guide .gd-body{flex:1 1 auto;overflow-y:auto;padding:16px 16px 40px;font-size:14px;line-height:1.7;color:#14161f}',
+    '#pro-guide .gd-hero{background:linear-gradient(135deg,#eef0ff 0%,#f5edff 100%);border-radius:16px;padding:16px;margin-bottom:14px}',
+    '#pro-guide .gd-hero b{color:#5b3fe0}',
+    '#pro-guide details{border:1px solid #e8eaf1;border-radius:14px;margin:10px 0;overflow:hidden}',
+    '#pro-guide summary{list-style:none;cursor:pointer;padding:13px 14px;font-weight:800;font-size:14.5px;display:flex;align-items:center;gap:8px}',
+    '#pro-guide summary::-webkit-details-marker{display:none}',
+    '#pro-guide summary::after{content:"＋";margin-left:auto;color:#8b5cf6;font-weight:800}',
+    '#pro-guide details[open] summary::after{content:"－"}',
+    '#pro-guide .gd-in{padding:0 14px 14px;font-size:13.5px;color:#374151}',
+    '#pro-guide ol,#pro-guide ul{padding-left:20px;margin:6px 0}',
+    '#pro-guide li{margin:4px 0}',
+    '#pro-guide .gd-tag{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:800;background:#efeaff;color:#5b3fe0}',
+    '#pro-guide table{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0}',
+    '#pro-guide td{padding:7px 8px;border-bottom:1px solid #f0f1f5}',
+    '#pro-guide td:last-child{text-align:right;font-weight:800;color:#5b3fe0;white-space:nowrap}',
+    '#pro-guide .gd-ex{background:#fafbfd;border:1px dashed #d9dcf0;border-radius:12px;padding:10px 12px;margin:8px 0}',
     '.pro-tab.on{background:linear-gradient(135deg,#5b6cff 0%,#8b5cf6 100%);border-color:transparent;color:#fff;box-shadow:0 4px 14px #6d4aff40}',
     '.pro-sec{margin:18px 0 8px;font-size:13px;font-weight:800;color:#4b5563;display:flex;align-items:center;gap:8px}',
     '.pro-sec .r{margin-left:auto}',
@@ -168,7 +191,7 @@
   /* ── 화면 ─────────────────────────────── */
   var origHome = renderHome;
   renderHome = function () {
-    var tabs = [['basic', '⭐ 기본 레시피'], ['mine', '📁 내 레시피'], ['market', '🛒 마켓'], ['team', '👥 팀'], ['build', '➕ 만들기']];
+    var tabs = [['basic', '기본 레시피'], ['mine', '내 레시피'], ['market', '마켓'], ['team', '팀'], ['build', '+ 만들기']];
     var h = '<div class="pro-tabs">';
     tabs.forEach(function (t) {
       var on = S.tab === t[0] || (t[0] === 'build' && S.tab === 'build');
@@ -536,6 +559,96 @@
       }).catch(function (er) { save.disabled = false; fail(er); });
     });
   };
+
+  /* ── 이용안내 (제목 오른쪽 ? 단추) ─────────────────── */
+  var GUIDE = ''
+    + '<div class="gd-hero">🧩 <b>레시피</b>는 <b>AI 일 순서표</b>예요.<br>글을 쓰거나 목소리를 녹음하면, 정해 둔 순서대로 AI가 차례차례 처리해 줍니다.<br>'
+    + '<span style="font-size:12.5px;color:#6b7280">예) 회의 녹음 → 글로 바꾸기 → 할 일만 뽑기 → 음성으로 듣기</span></div>'
+
+    + '<details open><summary>① 처음이라면 — 3단계면 끝</summary><div class="gd-in"><ol>'
+    + '<li><span class="gd-tag">기본 레시피</span> 에서 카드 하나를 누릅니다. (예: 텍스트 → 음성)</li>'
+    + '<li>글을 쓰거나 🎙️ 녹음 시작을 누릅니다.</li>'
+    + '<li><b>▶ 실행</b> 을 누르면 끝. 결과를 듣거나 📋 복사·💾 다운로드 하세요.</li>'
+    + '</ol>로그인한 상태여야 하고, 실행할 때마다 크레딧이 조금씩 듭니다.</div></details>'
+
+    + '<details><summary>② 탭은 이렇게 써요</summary><div class="gd-in"><ul>'
+    + '<li><span class="gd-tag">기본 레시피</span> 바로 쓰는 레시피 5가지 (음성 만들기 · 받아쓰기 · 리서치 · 음성 메모 요약 · 번역+음성)</li>'
+    + '<li><span class="gd-tag">내 레시피</span> 내가 만든 것 · 마켓에서 가져온 것 · 팀 레시피가 모여 있어요. <b>▶ 실행</b> 만 누르면 됩니다.</li>'
+    + '<li><span class="gd-tag">마켓</span> 다른 사람이 만든 레시피를 구경하고 가져와요. 무료도 있고, 크레딧으로 사는 것도 있어요.</li>'
+    + '<li><span class="gd-tag">팀</span> 함께 일하는 사람을 이메일로 초대해서 레시피를 같이 써요.</li>'
+    + '<li><span class="gd-tag">+ 만들기</span> 나만의 레시피를 만들어요. (아래 ③)</li>'
+    + '</ul></div></details>'
+
+    + '<details><summary>③ 나만의 레시피 만들기</summary><div class="gd-in"><ol>'
+    + '<li><b>+ 만들기</b> 를 누르고 이름을 씁니다.</li>'
+    + '<li><b>시작은</b> 에서 ✍️ 글로 시작 / 🎙️ 음성으로 시작 을 고릅니다.</li>'
+    + '<li><b>단계</b> 를 위에서 아래로 쌓습니다. <b>＋ 단계 추가</b> 로 늘리고, ▲▼ 로 순서를 바꿔요. (최대 6단계)</li>'
+    + '<li><b>▶ 저장 없이 실행해 보기</b> 로 먼저 시험해 보고, 마음에 들면 <b>💾 저장</b>.</li>'
+    + '</ol>'
+    + '<div class="gd-ex"><b>따라 해 보기 — "회의 녹음 → 할 일 정리 → 음성"</b><br>'
+    + '시작: 🎙️ 음성으로 시작 (1단계 음성 인식은 자동)<br>'
+    + '2단계: 🧠 AI 처리 → <b>직접 시키기</b> → "할 일만 번호로 정리해 줘"<br>'
+    + '3단계: 📢 AI 음성<br>→ 💾 저장 후 <b>내 레시피</b> 에서 ▶ 실행</div>'
+    + '<b>단계 종류</b><ul>'
+    + '<li>🎙️ 음성 인식 — 녹음을 글로 바꿔요</li>'
+    + '<li>🧠 AI 처리 — 요약 · 번역 · 다시 쓰기, 또는 <b>직접 시키기</b>(하고 싶은 말을 그대로 적기)</li>'
+    + '<li>📢 AI 음성 — 앞 단계 글을 목소리로 읽어 줘요</li>'
+    + '<li>🔬 리서치 — 앞 단계 글을 주제로 자료를 찾아 리포트를 써요</li>'
+    + '</ul></div></details>'
+
+    + '<details><summary>④ 크레딧은 얼마나 드나요</summary><div class="gd-in">실행할 때 <b>단계마다</b> 아래만큼 듭니다. (1크레딧 = 99원)'
+    + '<table><tr><td>🎙️ 음성 인식</td><td>2</td></tr><tr><td>🧠 AI 처리</td><td>3</td></tr>'
+    + '<tr><td>📢 AI 음성</td><td>2</td></tr><tr><td>🔬 리서치 (빠른 / 심층)</td><td>5 / 10</td></tr></table>'
+    + '예) 음성 인식 → AI 처리 → AI 음성 = 2 + 3 + 2 = <b>7 크레딧</b><br>만들기 화면 아래에 "한 번 실행할 때 약 ○ 크레딧" 이 자동으로 나와요.</div></details>'
+
+    + '<details><summary>⑤ 마켓 — 가져오기 · 팔기</summary><div class="gd-in"><ul>'
+    + '<li><b>무료</b> 레시피: <b>📥 무료로 가져가기</b> → 내 레시피에 들어와요.</li>'
+    + '<li><b>유료</b> 레시피: <b>💰 ○ 크레딧에 사기</b> → 한 번 사면 계속 써요. 같은 걸 두 번 사도 한 번만 빠져요.</li>'
+    + '<li>내 레시피를 팔려면: 만들기에서 <b>누가 쓰나 → 🌐 마켓 공개</b>, 값을 적고 저장.</li>'
+    + '<li>값이 <b>0</b> 이면 누구나 무료, <b>1 이상</b>이면 산 사람만 써요. 팔리면 값의 <b>70%</b>가 내 크레딧으로 들어와요. (현금으로 바꾸지는 않아요)</li>'
+    + '<li>레시피를 산 사람도 <b>실행할 때 크레딧은 따로</b> 들어요.</li>'
+    + '<li>남의 글 · 상표 · 개인정보를 넣은 레시피는 올리지 마세요. 문제 있는 레시피는 🚩 신고 할 수 있어요.</li>'
+    + '</ul></div></details>'
+
+    + '<details><summary>⑥ 팀 — 같이 쓰기</summary><div class="gd-in"><ol>'
+    + '<li><b>팀</b> 탭 → 팀 이름 쓰고 <b>만들기</b></li>'
+    + '<li>팀원 이메일(그 사람이 coverfo 에 로그인하는 이메일)을 넣고 <b>초대</b></li>'
+    + '<li>팀원은 coverfo 에 로그인 → <b>팀</b> 탭 → 받은 초대에서 <b>수락</b></li>'
+    + '<li>레시피를 만들 때 <b>누가 쓰나 → 👥 팀</b> 으로 저장하면 팀원 모두의 <b>내 레시피</b> 에 보여요.</li>'
+    + '</ol>팀원도 고칠 수 있어요(값 · 공개 범위는 만든 사람만). 크레딧은 <b>실행한 사람</b>이 냅니다.</div></details>'
+
+    + '<details><summary>⑦ 이럴 땐 이렇게</summary><div class="gd-in"><ul>'
+    + '<li><b>"로그인이 필요합니다"</b> → coverfo 홈에서 로그인한 뒤 이 화면을 다시 열어 주세요.</li>'
+    + '<li><b>"크레딧이 부족합니다"</b> → coverfo 에서 크레딧을 충전해 주세요.</li>'
+    + '<li><b>산 레시피가 어디 있지?</b> → 내 레시피 → "마켓에서 가져온 레시피"</li>'
+    + '<li><b>녹음이 안 돼요</b> → 브라우저가 마이크 권한을 물으면 <b>허용</b>을 눌러 주세요. 📁 파일 선택으로 녹음 파일을 올려도 돼요.</li>'
+    + '</ul></div></details>';
+
+  function addHelp() {
+    var hdr = document.querySelector('.hdr');
+    if (hdr && !hdr.querySelector('.pro-help')) {
+      var b = document.createElement('button');
+      b.className = 'pro-help'; b.type = 'button'; b.textContent = '?';
+      b.setAttribute('aria-label', '이용안내'); b.title = '이용안내';
+      b.addEventListener('click', openGuide);
+      hdr.appendChild(b);
+    }
+  }
+  function openGuide() {
+    var ov = document.getElementById('pro-guide');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'pro-guide';
+      ov.innerHTML = '<div class="gd"><div class="gd-bar">📖 Studio Pro 이용안내<button type="button" id="gd-close">✕ 닫기</button></div><div class="gd-body">' + GUIDE + '</div></div>';
+      document.body.appendChild(ov);
+      ov.querySelector('#gd-close').addEventListener('click', function () { ov.classList.remove('on'); });
+      ov.addEventListener('click', function (ev) { if (ev.target === ov) ov.classList.remove('on'); });
+    }
+    ov.classList.add('on');
+    var body = ov.querySelector('.gd-body'); if (body) body.scrollTop = 0;
+  }
+  var origRender = render;
+  render = function () { origRender(); addHelp(); };
 
   /* 결과 화면의 '새 레시피' · 취소 → 보던 탭으로 */
   render();
