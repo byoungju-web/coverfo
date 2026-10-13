@@ -61,9 +61,10 @@ export async function onRequestPost(context) {
       await streamReport(env, topic, findings, writer, encoder);
 
       await step('리포트 완성');
+      await _done(env, spent);
     } catch (e) {
       await send(`\n<!--RELAY_ERROR:${e.message}-->\n`);
-      await _refund(env, uid, creditCost, 'research');
+      await _refund(env, spent);
     } finally {
       await writer.close().catch(() => {});
     }
@@ -292,31 +293,50 @@ async function _getUserId(request, env) {
   } catch { return null; }
 }
 
+/* 크레딧 — studio(gen.js)·yt-top.js 와 같은 방식: cf_spend(p_user, p_cost, p_kind, p_prompt) → { ok, job_id }
+   kind 허용 목록에 'relay' 가 없으면 'chat' 으로 한 번 더. 반환: job_id(성공) · false(크레딧 부족) · null(설정 없음) */
 async function _spend(env, uid, amount, label) {
-  const sbUrl = env.SUPABASE_URL;
+  const sbUrl = (env.SUPABASE_URL || '').replace(/\/+$/, '');
   const svc = env.SUPABASE_SERVICE_ROLE_KEY;
   if (!sbUrl || !svc || !uid) return null;
-  try {
-    const r = await fetch(`${sbUrl}/rest/v1/rpc/cf_spend`, {
-      method: 'POST',
-      headers: { apikey: svc, Authorization: `Bearer ${svc}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p_user: uid, p_amount: amount, p_label: `relay-${label}` }),
-    });
-    const res = await r.json();
-    if (res === false) return false;
-  } catch {}
+  for (const kind of ['relay', 'chat']) {
+    try {
+      const r = await fetch(`${sbUrl}/rest/v1/rpc/cf_spend`, {
+        method: 'POST',
+        headers: { apikey: svc, Authorization: `Bearer ${svc}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_user: uid, p_cost: amount, p_kind: kind, p_prompt: `relay-${label}` }),
+      });
+      if (!r.ok) continue;
+      const res = await r.json();
+      if (res && res.ok) return res.job_id != null ? res.job_id : true;
+      return false;
+    } catch {}
+  }
   return null;
 }
 
-async function _refund(env, uid, amount, label) {
-  const sbUrl = env.SUPABASE_URL;
+async function _refund(env, job) {
+  const sbUrl = (env.SUPABASE_URL || '').replace(/\/+$/, '');
   const svc = env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!sbUrl || !svc || !uid) return;
+  if (!sbUrl || !svc || job == null || job === true || job === false) return;
   try {
     await fetch(`${sbUrl}/rest/v1/rpc/cf_refund`, {
       method: 'POST',
       headers: { apikey: svc, Authorization: `Bearer ${svc}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p_user: uid, p_amount: amount, p_label: `relay-${label}-refund` }),
+      body: JSON.stringify({ p_job: job }),
+    });
+  } catch {}
+}
+
+async function _done(env, job) {
+  const sbUrl = (env.SUPABASE_URL || '').replace(/\/+$/, '');
+  const svc = env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!sbUrl || !svc || job == null || job === true || job === false) return;
+  try {
+    await fetch(`${sbUrl}/rest/v1/cf_jobs?id=eq.${encodeURIComponent(job)}`, {
+      method: 'PATCH',
+      headers: { apikey: svc, Authorization: `Bearer ${svc}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'done', updated_at: new Date().toISOString() }),
     });
   } catch {}
 }

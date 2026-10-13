@@ -194,7 +194,7 @@
     var tabs = [['basic', '기본 레시피'], ['mine', '내 레시피'], ['market', '마켓'], ['team', '팀'], ['build', '+ 만들기']];
     var h = '<div class="pro-tabs">';
     tabs.forEach(function (t) {
-      var on = S.tab === t[0] || (t[0] === 'build' && S.tab === 'build');
+      var on = S.tab === t[0] || (t[0] === 'basic' && window.RelaySet && RelaySet.views[S.tab]);
       h += '<button class="pro-tab' + (on ? ' on' : '') + '" data-pro-tab="' + t[0] + '">' + t[1] + '</button>';
     });
     h += '</div>';
@@ -204,7 +204,8 @@
     else if (S.tab === 'market') h += viewMarket();
     else if (S.tab === 'team') h += viewTeam();
     else if (S.tab === 'build') h += viewBuild();
-    else h += origHome();
+    else if (window.RelaySet && RelaySet.views[S.tab]) h += RelaySet.views[S.tab]();   /* 콘텐츠 3종 세트 (relay-set.js) */
+    else h += (window.RelaySet ? RelaySet.hero() : '') + origHome();
     return h;
   };
 
@@ -565,7 +566,15 @@
     + '<div class="gd-hero">🧩 <b>레시피</b>는 <b>AI 일 순서표</b>예요.<br>글을 쓰거나 목소리를 녹음하면, 정해 둔 순서대로 AI가 차례차례 처리해 줍니다.<br>'
     + '<span style="font-size:12.5px;color:#6b7280">예) 회의 녹음 → 글로 바꾸기 → 할 일만 뽑기 → 음성으로 듣기</span></div>'
 
-    + '<details open><summary>① 처음이라면 — 3단계면 끝</summary><div class="gd-in"><ol>'
+    + '<details open><summary>🎁 콘텐츠 3종 세트 — 목소리 · 음악 · 짤</summary><div class="gd-in">'
+    + '<b>기본 레시피</b> 맨 위 보라색 카드에서 시작해요.<ul>'
+    + '<li><b>✨ 3종 세트 한 번에</b> — 주제 한 줄(예: "우리 카페 가을 신메뉴")만 쓰면 AI가 기획해서 🎙️ 목소리 멘트 + 🎵 30초 음악 + 😂 짤을 한 번에 (9크레딧)</li>'
+    + '<li><b>🎙️ AI 목소리</b> — 글을 넣고 말투(라디오 DJ · 광고 · 뉴스 · 동화…)를 고르면 성우처럼 읽어 줘요. 주제만 쓰고 "AI가 대본 써주기"도 돼요. (2크레딧)</li>'
+    + '<li><b>🎵 AI 음악</b> — "비 오는 날 카페, 잔잔한 피아노"처럼 적으면 새로 작곡. 30초(2) · 한 곡 약 2분(4). 연주곡 · 노래 · 내 가사 중 골라요.</li>'
+    + '<li><b>😂 밈·짤</b> — 장면을 적으면 그림을 그리고 한글 문구를 올려요. 문구는 그림을 다시 만들지 않고 <b>무료로</b> 몇 번이든 바꿔요. (그림 2크레딧, AI 문구 추천 3크레딧)</li>'
+    + '</ul>만든 파일은 💾 다운로드 해서 인스타 · 유튜브 쇼츠 · 카톡에 바로 올리세요. 실제 가수 이름·유명 노래 가사·남의 상표는 넣지 마세요.</div></details>'
+
+    + '<details><summary>① 처음이라면 — 3단계면 끝</summary><div class="gd-in"><ol>'
     + '<li><span class="gd-tag">기본 레시피</span> 에서 카드 하나를 누릅니다. (예: 텍스트 → 음성)</li>'
     + '<li>글을 쓰거나 🎙️ 녹음 시작을 누릅니다.</li>'
     + '<li><b>▶ 실행</b> 을 누르면 끝. 결과를 듣거나 📋 복사·💾 다운로드 하세요.</li>'

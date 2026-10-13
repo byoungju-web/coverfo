@@ -42,12 +42,13 @@ export async function onRequestPost(context) {
     });
 
     if (!r.ok) {
-      await _refund(env, uid, 2, 'tts');
+      await _refund(env, spent);
       const e = await r.text().catch(() => '');
       return _json({ error: `TTS 실패 (${r.status}): ${e.slice(0, 200)}` }, 502);
     }
 
     const audio = await r.arrayBuffer();
+    await _done(env, spent);
 
     // R2 저장 (MEDIA 바인딩이 있을 때)
     const fname = `tts-${Date.now()}.mp3`;
@@ -68,7 +69,7 @@ export async function onRequestPost(context) {
       },
     });
   } catch (e) {
-    await _refund(env, uid, 2, 'tts');
+    await _refund(env, spent);
     return _json({ error: `TTS 오류: ${e.message}` }, 500);
   }
 }
@@ -118,31 +119,50 @@ async function _getUserId(request, env) {
   } catch { return null; }
 }
 
+/* 크레딧 — studio(gen.js)·yt-top.js 와 같은 방식: cf_spend(p_user, p_cost, p_kind, p_prompt) → { ok, job_id }
+   kind 허용 목록에 'relay' 가 없으면 'chat' 으로 한 번 더. 반환: job_id(성공) · false(크레딧 부족) · null(설정 없음) */
 async function _spend(env, uid, amount, label) {
-  const sbUrl = env.SUPABASE_URL;
+  const sbUrl = (env.SUPABASE_URL || '').replace(/\/+$/, '');
   const svc = env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!sbUrl || !svc || !uid) return null; // 크레딧 미설정 시 통과
-  try {
-    const r = await fetch(`${sbUrl}/rest/v1/rpc/cf_spend`, {
-      method: 'POST',
-      headers: { apikey: svc, Authorization: `Bearer ${svc}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p_user: uid, p_amount: amount, p_label: `relay-${label}` }),
-    });
-    const res = await r.json();
-    if (res === false) return false;
-  } catch { /* 통과 */ }
+  if (!sbUrl || !svc || !uid) return null;
+  for (const kind of ['relay', 'chat']) {
+    try {
+      const r = await fetch(`${sbUrl}/rest/v1/rpc/cf_spend`, {
+        method: 'POST',
+        headers: { apikey: svc, Authorization: `Bearer ${svc}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_user: uid, p_cost: amount, p_kind: kind, p_prompt: `relay-${label}` }),
+      });
+      if (!r.ok) continue;
+      const res = await r.json();
+      if (res && res.ok) return res.job_id != null ? res.job_id : true;
+      return false;
+    } catch {}
+  }
   return null;
 }
 
-async function _refund(env, uid, amount, label) {
-  const sbUrl = env.SUPABASE_URL;
+async function _refund(env, job) {
+  const sbUrl = (env.SUPABASE_URL || '').replace(/\/+$/, '');
   const svc = env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!sbUrl || !svc || !uid) return;
+  if (!sbUrl || !svc || job == null || job === true || job === false) return;
   try {
     await fetch(`${sbUrl}/rest/v1/rpc/cf_refund`, {
       method: 'POST',
       headers: { apikey: svc, Authorization: `Bearer ${svc}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p_user: uid, p_amount: amount, p_label: `relay-${label}-refund` }),
+      body: JSON.stringify({ p_job: job }),
     });
-  } catch { /* best-effort */ }
+  } catch {}
+}
+
+async function _done(env, job) {
+  const sbUrl = (env.SUPABASE_URL || '').replace(/\/+$/, '');
+  const svc = env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!sbUrl || !svc || job == null || job === true || job === false) return;
+  try {
+    await fetch(`${sbUrl}/rest/v1/cf_jobs?id=eq.${encodeURIComponent(job)}`, {
+      method: 'PATCH',
+      headers: { apikey: svc, Authorization: `Bearer ${svc}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'done', updated_at: new Date().toISOString() }),
+    });
+  } catch {}
 }

@@ -792,6 +792,7 @@ render();
 log('ok', 'Coverfo Relay v2 준비됨');
 </script>
 <script src="/relay-pro.js"></script>
+<script src="/relay-set.js"></script>
 </body>
 </html>`;
 
