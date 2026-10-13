@@ -1,13 +1,13 @@
 // functions/api/made.js — 릴레이 "📂 내가 만든 것" 목록을 계정에 저장 (폰 · PC 같은 목록)
 // © 2026 coverfo All Rights Reserved
 //
-//   GET  /api/made                         → { ok, items:[{id, at, t, title, voice, music, img, top, bottom, narration, lyrics}] }  최근 50개
+//   GET  /api/made                         → { ok, items:[{id, at, t, title, voice, music, img, video, top, bottom, narration, lyrics, post, blog, tags, trans}] }  최근 50개
 //   POST /api/made  {op:'put', items:[…]}  → { ok, n }   추가·고침 (한 번에 30개까지)
 //   POST /api/made  {op:'del', id}         → { ok }
 //   (Authorization: Bearer 로그인토큰)   필요한 것: sql/cf_relay_made.sql 1회 실행
 
 const KEEP = 50;
-const KINDS = ['set', 'voice', 'music', 'meme'];
+const KINDS = ['set', 'voice', 'music', 'meme', 'sns', 'avatar'];
 
 export async function onRequestGet(context) {
   const env = context.env || {};
@@ -59,13 +59,15 @@ function tidy(x) {
   if (!/^m[\w]{4,39}$/.test(id) || !t) return null;
   const at = Math.max(0, Math.min(Number(x.at) || Date.now(), Date.now() + 60000));
   const data = {
-    t, title: clean(x.title, 60), voice: url(x.voice), music: url(x.music), img: url(x.img),
+    t, title: clean(x.title, 60), voice: url(x.voice), music: url(x.music), img: url(x.img), video: url(x.video),
     top: clean(x.top, 60), bottom: clean(x.bottom, 80), narration: clean(x.narration, 2000), lyrics: clean(x.lyrics, 2000),
+    post: cleanText(x.post, 3000), blog: cleanText(x.blog, 6000), tags: clean(x.tags, 600), trans: cleanText(x.trans, 6000),
   };
-  if (!data.voice && !data.music && !data.img) return null;
+  if (!data.voice && !data.music && !data.img && !data.video) return null;
   return { id, at, data };
 }
 
+function cleanText(v, max) { return String(v == null ? '' : v).replace(/[\u0000-\u0008\u000b-\u001f]/g, ' ').trim().slice(0, max); }
 function clean(v, max) { return String(v == null ? '' : v).replace(/[\u0000-\u0008\u000b-\u001f]/g, ' ').trim().slice(0, max); }
 function json(d, s = 200) { return new Response(JSON.stringify(d), { status: s, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } }); }
 function sb(env) { const u = String(env.SUPABASE_URL || '').replace(/\/+$/, ''); const k = env.SUPABASE_SERVICE_ROLE_KEY || ''; return u && k ? { url: u, svc: k } : null; }

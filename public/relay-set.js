@@ -8,7 +8,7 @@
 (function () {
   if (typeof S === 'undefined' || typeof render !== 'function') return;
 
-  var COST = { plan: 3, voice: 2, clip: 2, song: 4, image: 2 };
+  var COST = { plan: 3, voice: 2, clip: 2, song: 4, image: 2, veo: 25 };
   var STYLES = [
     ['dj', '📻 라디오 DJ'], ['ad', '📢 광고 멘트'], ['news', '📰 뉴스 앵커'], ['story', '🧸 동화 구연'],
     ['docu', '🎬 다큐'], ['shorts', '😆 쇼츠'], ['calm', '🧘 차분한 안내']
@@ -138,8 +138,8 @@
       });
     });
   }
-  function makeImage(scene) {
-    var prompt = scene + '. Funny meme-style photo, expressive and cute, high quality, square composition, keep clean empty space at the top and bottom for captions. Absolutely no text, no letters, no watermark.';
+  function makeImage(scene, full) {
+    var prompt = full ? scene : scene + '. Funny meme-style photo, expressive and cute, high quality, square composition, keep clean empty space at the top and bottom for captions. Absolutely no text, no letters, no watermark.';
     return post('/api/gen', { kind: 'image', prompt: prompt, aspect: '1:1' }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
         if (r.status === 401) throw new Error('로그인이 필요합니다. coverfo 홈에서 로그인한 뒤 다시 열어 주세요.');
@@ -172,7 +172,7 @@
     var p = body ? post('/api/made', body) : fetch('/api/made', { headers: h, cache: 'no-store' });
     return p.then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
   }
-  function shareable(x) { return [x.voice, x.music, x.img].some(function (u) { return u && (String(u).indexOf('/media/') === 0 || String(u).indexOf('https://') === 0); }); }
+  function shareable(x) { return [x.voice, x.music, x.img, x.video].some(function (u) { return u && (String(u).indexOf('/media/') === 0 || String(u).indexOf('https://') === 0); }); }
   function madePush(items) { items = items.filter(shareable); if (items.length) madeServer({ op: 'put', items: items.slice(0, 30) }); }
   function madeAdd(item) {
     item.id = 'm' + Date.now() + Math.random().toString(36).slice(2, 5); item.at = Date.now();
@@ -379,7 +379,7 @@
     var r = X.r, mine = r.key === key;
     var h = '<div class="reel"><h4>🎬 릴스 · 쇼츠 영상으로 합치기</h4>'
       + '<div class="rs">짤 + ' + (hasVoice ? '목소리' : '') + (hasVoice && hasMusic ? ' + ' : '') + (hasMusic ? '배경음악' : '') + ' → 세로 영상 1개 (인스타 릴스 · 유튜브 쇼츠 · 틱톡 공용) · <b>크레딧 0</b></div>'
-      + '<div class="set-chips">' + [15, 30].map(function (n) { return '<button class="set-chip' + (r.secs === n ? ' on' : '') + '" data-reel-secs="' + n + '">' + n + '초</button>'; }).join('') + '</div>'
+      + '<div class="set-chips">' + [15, 30, 60].map(function (n) { return '<button class="set-chip' + (r.secs === n ? ' on' : '') + '" data-reel-secs="' + n + '">' + n + '초</button>'; }).join('') + '</div>'
       + '<div class="set-row" style="margin-top:10px"><button class="go" data-reel-go="' + key + '"' + (r.busy ? ' disabled' : '') + '>' + (r.busy && mine ? '영상 만드는 중…' : '🎬 영상 만들기') + '</button>'
       + '<span class="set-cost">' + r.secs + '초 동안 만들어져요 · 화면을 켜 두세요</span></div>';
     return h + reelOut(key) + '</div>';
@@ -439,7 +439,25 @@
   function parseJSON(t) {
     var a = String(t || '').indexOf('{'), b = String(t || '').lastIndexOf('}');
     if (a < 0 || b <= a) throw new Error('기획 결과를 읽지 못했습니다. 다시 눌러 주세요.');
-    return JSON.parse(t.slice(a, b + 1));
+    var body = t.slice(a, b + 1);
+    try { return JSON.parse(body); } catch (e) { return JSON.parse(fixJSON(body)); }
+  }
+  /* AI 가 글 안에 줄바꿈을 그대로 넣은 경우 → \n 으로 바꿔서 읽음 */
+  function fixJSON(t) {
+    var out = '', inStr = false, esc2 = false;
+    for (var i = 0; i < t.length; i++) {
+      var ch = t[i];
+      if (inStr) {
+        if (esc2) { esc2 = false; out += ch; continue; }
+        if (ch === '\\') { esc2 = true; out += ch; continue; }
+        if (ch === '"') inStr = false;
+        if (ch === '\n') { out += '\\n'; continue; }
+        if (ch === '\r') continue;
+        if (ch === '\t') { out += ' '; continue; }
+      } else if (ch === '"') inStr = true;
+      out += ch;
+    }
+    return out;
   }
 
   /* ── 홍보 카드 (기본 레시피 탭 맨 위) ─────────────── */
@@ -541,7 +559,7 @@
     return h + '</div>';
   }
 
-  var KIND = { set: ['🎁', '3종 세트'], voice: ['🎙️', 'AI 목소리'], music: ['🎵', 'AI 음악'], meme: ['😂', '짤'] };
+  var KIND = { set: ['🎁', '3종 세트'], voice: ['🎙️', 'AI 목소리'], music: ['🎵', 'AI 음악'], meme: ['😂', '짤'], sns: ['📣', 'SNS 세트'], avatar: ['🗣️', 'AI 아바타'] };
   function when(t) {
     var d = new Date(t), p = function (n) { return (n < 10 ? '0' : '') + n; };
     return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
@@ -557,10 +575,14 @@
         + '<button class="btn btn-secondary btn-sm" data-made-open="' + x.id + '">' + (open ? '접기' : '▶ 보기') + '</button></div>';
       if (open) {
         h += '<div class="mb">';
-        if (x.narration && x.t !== 'voice') h += '<div class="set-card"><h4>🎙️ 멘트</h4><div class="q">' + esc(x.narration) + '</div></div>';
+        if (x.narration && x.t !== 'voice' && x.t !== 'avatar') h += '<div class="set-card"><h4>🎙️ 멘트</h4><div class="q">' + esc(x.narration) + '</div></div>';
         if (x.voice) h += '<audio controls src="' + esc(x.voice) + '"></audio><a class="btn btn-secondary btn-sm" href="' + esc(x.voice) + '" download="coverfo-voice.mp3">💾 목소리 MP3</a> ';
         if (x.music) h += '<audio controls src="' + esc(x.music) + '"></audio><a class="btn btn-secondary btn-sm" href="' + esc(x.music) + '" download="coverfo-music.mp3">💾 음악 MP3</a> ';
         if (x.lyrics) h += '<div class="set-lyr">' + esc(x.lyrics) + '</div>';
+        if (x.video) h += '<video controls playsinline src="' + esc(x.video) + '" style="display:block;width:100%;max-width:280px;margin:8px auto;border-radius:14px;background:#000"></video><div class="set-row" style="justify-content:center"><a class="btn btn-secondary btn-sm" href="' + esc(x.video) + '" download="coverfo-video.mp4">💾 영상 MP4</a></div>';
+        if (x.post) h += '<div class="set-card"><h4>📸 인스타 글</h4>' + copyBox('mp-' + x.id, x.post + (x.tags ? '\n\n' + x.tags : ''), 6) + '</div>';
+        if (x.blog) h += '<div class="set-card"><h4>📝 블로그 글</h4>' + copyBox('mb-' + x.id, x.blog, 8) + '</div>';
+        if (x.trans) h += '<div class="set-card"><h4>🌐 번역</h4>' + copyBox('mt-' + x.id, x.trans, 6) + '</div>';
         if (x.img) {
           var png = memePng[x.id];
           h += png ? '<img class="set-meme" style="margin-top:8px" src="' + png + '" alt="짤"><div class="set-row" style="justify-content:center"><a class="btn btn-secondary btn-sm" href="' + png + '" download="coverfo-meme.png">💾 짤 PNG</a><button class="btn btn-secondary btn-sm" data-made-edit="' + x.id + '">✏️ 문구 바꾸기</button></div>'
@@ -620,7 +642,7 @@
     }
 
     h += '<label class="set-lb">' + (e.meme ? '③' : '④') + ' 길이</label>';
-    var opts = [[15, '15초'], [30, '30초']];
+    var opts = [[15, '15초'], [30, '30초'], [60, '60초']];
     if (e.furl && e.fkind === 'video' && !e.meme) opts.push([0, '영상 길이대로' + (e.dur ? ' (' + Math.min(60, Math.round(e.dur)) + '초)' : '') + ' · 최대 60초']);
     h += '<div class="set-chips">' + opts.map(function (o) { return '<button class="set-chip' + (e.secs === o[0] ? ' on' : '') + '" data-se-secs="' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div>';
 
@@ -631,7 +653,210 @@
     return h + '</div>';
   }
 
-  window.RelaySet = { hero: hero, views: { set: viewSet, voice: viewVoice, music: viewMusic, meme: viewMeme, made: viewMade, reel: viewReel } };
+  /* ── 공용: 복사 · AI 영상(구글 Veo, 스튜디오와 같은 /api/gen) ── */
+  function copyText(t) {
+    var done = function () { log('ok', '복사했어요'); alert('복사했어요. 붙여넣기 하세요.'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t).then(done, function () { copyOld(t); done(); });
+    copyOld(t); done();
+  }
+  function copyOld(t) {
+    var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) {} ta.remove();
+  }
+  function copyBox(id, text, rows) {
+    return '<textarea class="set-in" readonly id="' + id + '" rows="' + (rows || 5) + '" style="min-height:0">' + esc(text) + '</textarea>'
+      + '<div class="set-row" style="margin-top:6px"><button class="btn btn-secondary btn-sm" data-copy="' + id + '">📋 복사</button></div>';
+  }
+  /* 영상 만들기 시작 → 다 될 때까지 6초마다 확인 (보통 1~3분). onTick(지난 초) */
+  function genVideo(prompt, aspect, image, onTick) {
+    var body = { kind: 'video', prompt: prompt, aspect: aspect };
+    if (image) body.image = image;
+    return post('/api/gen', body).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (r.status === 401) throw new Error('로그인이 필요합니다. coverfo 홈에서 로그인한 뒤 다시 열어 주세요.');
+        if (r.status === 402) throw new Error('크레딧이 부족합니다 (AI 영상 ' + (j.need || COST.veo) + ' 크레딧). coverfo 에서 충전해 주세요.');
+        if (!r.ok || !j.job_id) throw new Error(j.error || ('영상 만들기 실패 ' + r.status));
+        return j.job_id;
+      });
+    }).then(function (job) {
+      var t0 = Date.now();
+      return new Promise(function (ok, no) {
+        var check = function () {
+          var sec = Math.round((Date.now() - t0) / 1000);
+          if (onTick) onTick(sec);
+          if (sec > 600) { no(new Error('너무 오래 걸려요. 잠시 뒤 coverfo 스튜디오의 "최근 만든 것"에서 확인해 주세요.')); return; }
+          fetch('/api/gen?job=' + encodeURIComponent(job), { headers: authHeaders(), cache: 'no-store' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+              if (j.status === 'done' && j.result_url) ok(j.result_url);
+              else if (j.status === 'failed') no(new Error('영상이 만들어지지 않았어요 (크레딧은 돌려드려요). ' + (j.error || '').slice(0, 120)));
+              else setTimeout(check, 6000);
+            })
+            .catch(function () { setTimeout(check, 8000); });
+        };
+        setTimeout(check, 8000);
+      });
+    });
+  }
+  function stepsHtml(steps) {
+    return '<div class="set-steps">' + steps.map(function (st) {
+      var cls = st.st === 'run' ? ' run' : st.st === 'ok' ? ' ok' : st.st === 'bad' ? ' bad' : '';
+      var ic = st.st === 'ok' ? '✓' : st.st === 'bad' ? '✗' : st.st === 'run' ? '◉' : '·';
+      return '<div class="set-step' + cls + '"><i>' + ic + '</i>' + esc(st.t) + (st.d ? ' <span class="set-cost">— ' + esc(st.d) + '</span>' : '') + '</div>';
+    }).join('') + '</div>';
+  }
+
+  /* ── 📣 SNS 콘텐츠 한 번에 만들기 ──
+     주제 → ① AI 기획 · 글(인스타 포스트 · 해시태그 · 블로그 · 릴스 대본) → ② 이미지 ③ 목소리 ④ 음악 [⑤ AI 실사 영상] [번역]
+     → 릴스 · 쇼츠 세로 영상(15 · 30 · 60초)은 폰 안에서 합침(크레딧 0) */
+  var LANGS = ['영어', '일본어', '중국어', '베트남어', '태국어'];
+  X.n = { topic: '', style: 'ad', secs: 30, veo: false, langs: [], busy: false, steps: [], plan: null, img: '', voice: '', music: '', clip: '', trans: {}, err: '' };
+  function snsCost() { var n = X.n; return COST.plan + COST.image + COST.voice + COST.clip + (n.veo ? COST.veo : 0) + n.langs.length * COST.plan; }
+  function viewSns() {
+    var n = X.n, p = n.plan;
+    var h = '<div class="set-box">' + head('📣 SNS 콘텐츠 한 번에', '주제 한 줄이면 <b>인스타 포스트(글+이미지) · 릴스 · 유튜브 쇼츠 영상 · 블로그 글 · 해시태그 · 번역</b>까지 한 세트로 나와요.');
+    h += '<label class="set-lb">주제</label><input class="set-in" id="sn-topic" maxlength="100" placeholder="예) 카페 신메뉴 홍보 — 가을 한정 밤라떼" value="' + esc(n.topic).replace(/"/g, '&quot;') + '">';
+    h += '<div style="margin-top:8px">' + chips(TOPICS, 'data-sn-ex') + '</div>';
+    h += '<label class="set-lb">영상 목소리 말투</label>' + chips(STYLES, 'data-sn-style', n.style);
+    h += '<label class="set-lb">릴스 · 쇼츠 길이</label>' + chips([['15', '15초'], ['30', '30초'], ['60', '60초']], 'data-sn-secs', String(n.secs));
+    h += '<label class="set-lb">번역 (선택 · 한 나라 ' + COST.plan + '크레딧)</label><div class="set-chips">'
+      + LANGS.map(function (l) { return '<button class="set-chip' + (n.langs.indexOf(l) >= 0 ? ' on' : '') + '" data-sn-lang="' + l + '">🌐 ' + l + '</button>'; }).join('') + '</div>';
+    h += '<label class="se-chk"><input type="checkbox" id="sn-veo"' + (n.veo ? ' checked' : '') + '>🎥 AI 실사 영상(8초)을 영상 배경으로 · +' + COST.veo + ' 크레딧 (1~3분 더 걸려요)</label>';
+    h += '<div class="set-row"><button class="btn btn-primary" id="sn-go"' + (n.busy ? ' disabled' : '') + '>' + (n.busy ? '만드는 중… (1~3분)' : '📣 한 번에 만들기') + '</button>'
+      + '<span class="set-cost">기획·글 ' + COST.plan + ' + 이미지 ' + COST.image + ' + 목소리 ' + COST.voice + ' + 음악 ' + COST.clip + (n.veo ? ' + AI 영상 ' + COST.veo : '') + (n.langs.length ? ' + 번역 ' + n.langs.length * COST.plan : '') + ' = <b>' + snsCost() + '</b> 크레딧</span></div>';
+    if (n.steps.length) h += stepsHtml(n.steps);
+    h += errBox(n.err);
+    if (p) {
+      h += '<div class="set-out">';
+      h += '<div class="set-card"><h4>📸 인스타그램 포스트</h4>';
+      if (n.img) h += '<img class="set-meme" src="' + n.img + '" alt="포스트 이미지"><div class="set-row" style="justify-content:center"><a class="btn btn-secondary btn-sm" href="' + n.img + '" download="coverfo-post.png">💾 이미지 저장</a></div>';
+      h += '<label class="set-lb">글 + 해시태그</label>' + copyBox('sn-post', (p.post || '') + '\n\n' + (p.tags || ''), 8) + '</div>';
+
+      h += '<div class="set-card"><h4>🎬 릴스 · 유튜브 쇼츠 · 틱톡</h4>';
+      if (p.title) h += '<div class="q"><b>제목</b> ' + esc(p.title) + '</div>';
+      if (p.narration) h += '<div class="q">🎙️ ' + esc(p.narration) + '</div>';
+      if (n.voice) h += '<audio controls src="' + n.voice + '"></audio>';
+      if (n.music) h += '<audio controls src="' + n.music + '"></audio>';
+      if (n.clip) h += '<video controls playsinline muted src="' + n.clip + '" style="display:block;max-width:200px;margin:8px auto;border-radius:12px;background:#000"></video>';
+      if (!n.busy && (n.img || n.clip) && (n.voice || n.music)) {
+        var r = X.r, mine = r.key === 'sns';
+        h += '<div class="reel" style="margin-top:8px"><h4>🎬 세로 영상으로 합치기 · ' + n.secs + '초</h4><div class="rs">' + (n.clip ? 'AI 영상' : '이미지') + ' + 제목 + 목소리(자막) + 배경음악 → 릴스 · 쇼츠 · 틱톡 공용 · <b>크레딧 0</b></div>'
+          + '<div class="set-row" style="margin-top:4px"><button class="go" data-sn-reel="1"' + (r.busy ? ' disabled' : '') + '>' + (r.busy && mine ? '영상 만드는 중…' : '🎬 영상 만들기') + '</button><span class="set-cost">' + n.secs + '초 동안 만들어져요 · 화면을 켜 두세요</span></div>'
+          + reelOut('sns') + '</div>';
+      }
+      h += '</div>';
+
+      if (p.blog) h += '<div class="set-card"><h4>📝 블로그 글</h4>' + copyBox('sn-blog', (p.blog_title ? p.blog_title + '\n\n' : '') + p.blog, 10) + '</div>';
+      if (p.tags) h += '<div class="set-card"><h4># 해시태그</h4>' + copyBox('sn-tags', p.tags, 3) + '</div>';
+      Object.keys(n.trans).forEach(function (l, i) { h += '<div class="set-card"><h4>🌐 ' + esc(l) + '</h4>' + copyBox('sn-tr' + i, n.trans[l], 7) + '</div>'; });
+      h += '</div>';
+    }
+    h += '<div class="set-row"><button class="btn btn-secondary btn-sm" data-set-go="reel">📱 내 폰 영상 · 사진으로 영상 만들기</button></div>';
+    return h + '</div>';
+  }
+  function runSns() {
+    var n = X.n, topic = n.topic.trim();
+    if (!topic) { alert('주제를 적어 주세요.'); return; }
+    n.busy = true; n.err = ''; n.plan = null; n.img = ''; n.voice = ''; n.music = ''; n.clip = ''; n.trans = {};
+    if (X.r.key === 'sns') { X.r.url = ''; X.r.err = ''; }
+    n.steps = [{ k: 'plan', t: '① AI 기획 · 글 (포스트 · 블로그 · 해시태그 · 대본)', st: 'run' }, { k: 'img', t: '② 📸 이미지', st: '' }, { k: 'voice', t: '③ 🎙️ 내레이션 목소리', st: '' }, { k: 'music', t: '④ 🎵 배경음악', st: '' }];
+    if (n.veo) n.steps.push({ k: 'veo', t: '⑤ 🎥 AI 실사 영상 8초', st: '' });
+    if (n.langs.length) n.steps.push({ k: 'tr', t: '🌐 번역 (' + n.langs.join(' · ') + ')', st: '' });
+    var setSt = function (k, st, d) { n.steps.forEach(function (x) { if (x.k === k) { x.st = st; if (d !== undefined) x.d = d; } }); render(); };
+    render();
+    var chars = { 15: 60, 30: 120, 60: 240 }[n.secs] || 120;
+    var prompt = '아래 주제로 SNS 홍보 콘텐츠 한 세트를 기획하고 직접 써. 반드시 JSON 하나만 출력해:'
+      + ' {"title":"릴스·쇼츠 제목 한국어 20자 이내",'
+      + ' "post":"인스타그램 포스트 글 한국어 (이모지 조금, 4~7줄, 마지막 줄은 행동 유도)",'
+      + ' "hashtags":["해시태그 12~15개, #는 빼고, 한국어 위주에 영어 조금"],'
+      + ' "blog_title":"블로그 글 제목 한국어",'
+      + ' "blog":"블로그 글 한국어 700~1000자 (소제목 2~3개, 줄바꿈은 \\n)",'
+      + ' "narration":"릴스·쇼츠 내레이션 한국어 ' + chars + '자 안팎 (' + n.secs + '초 분량, 말하듯 자연스럽게)",'
+      + ' "image_scene":"인스타 포스트 이미지 장면 영어 설명 (고급스러운 사진 느낌, 글자 없이)",'
+      + ' "music":"배경음악 영어 설명 (장르·분위기·악기·템포, 보컬 없음)",'
+      + ' "video_scene":"8초 세로 영상 장면 영어 설명 (카메라 움직임 포함, 사람이 말하지 않음, 글자 없이)"}.'
+      + ' 실존 인물·상표·가수 이름은 쓰지 마.';
+    aiText(topic, prompt).then(function (t) {
+      var o = parseJSON(t);
+      var tags = Array.isArray(o.hashtags) ? o.hashtags : String(o.hashtags || '').split(/[\s,]+/);
+      o.tags = tags.map(function (x) { x = String(x).replace(/^#+/, '').trim(); return x ? '#' + x.replace(/\s+/g, '') : ''; }).filter(Boolean).join(' ');
+      n.plan = o;
+      n.steps.forEach(function (x) { x.st = x.k === 'plan' ? 'ok' : 'run'; });
+      render();
+      var saved = { t: 'sns', title: topic.slice(0, 40), narration: o.narration || '', post: o.post || '', tags: o.tags, blog: (o.blog_title ? o.blog_title + '\n\n' : '') + (o.blog || '') };
+      var jobs = [];
+      jobs.push(makeImage((o.image_scene || topic) + '. Premium Instagram post photo, appetizing and stylish, natural light, high quality, square composition. Absolutely no text, no letters, no logo, no watermark.', true)
+        .then(function (x) { n.img = x.url; saved.img = x.url; setSt('img', 'ok'); }).catch(function (e) { setSt('img', 'bad', e.message); }));
+      jobs.push(makeVoice(o.narration || topic, n.style, 'coral').then(function (u) { n.voice = u.obj; saved.voice = u.url; setSt('voice', 'ok'); })
+        .catch(function (e) { setSt('voice', 'bad', e.message); }));
+      jobs.push(makeMusic({ prompt: o.music || topic, mode: 'clip', vocal: 'inst' }).then(function (j) { n.music = j.url || j.data_url; saved.music = j.url || ''; setSt('music', 'ok'); })
+        .catch(function (e) { setSt('music', 'bad', e.message); }));
+      if (n.veo) {
+        jobs.push(genVideo((o.video_scene || topic) + '. Vertical 9:16 short-form video, cinematic, smooth camera movement, bright and inviting. No text, no subtitles, no logos, no one speaking.', '9:16', null,
+          function (s) { setSt('veo', 'run', s + '초 지남'); })
+          .then(function (u) { n.clip = u; saved.video = u; setSt('veo', 'ok', ''); }).catch(function (e) { setSt('veo', 'bad', e.message); }));
+      }
+      if (n.langs.length) {
+        var src = (o.post || '') + '\n\n' + o.tags, chain = Promise.resolve(), bad = 0;
+        n.langs.forEach(function (l) {
+          chain = chain.then(function () {
+            return aiText(src, '이 인스타그램 글을 ' + l + '로 자연스럽게 번역해. 해시태그도 그 나라 사람들이 실제로 쓰는 말로 바꿔. 번역문만 출력해.')
+              .then(function (tx) { n.trans[l] = tx.trim(); render(); }).catch(function () { bad++; });
+          });
+        });
+        jobs.push(chain.then(function () {
+          saved.trans = Object.keys(n.trans).map(function (l) { return '[' + l + ']\n' + n.trans[l]; }).join('\n\n');
+          setSt('tr', bad ? 'bad' : 'ok', bad ? bad + '개 실패' : '');
+        }));
+      }
+      return Promise.all(jobs).then(function () { if (saved.img || saved.voice || saved.music || saved.video) madeAdd(saved); });
+    }).catch(function (e) { setSt('plan', 'bad'); n.err = e.message; })
+      .then(function () { n.busy = false; render(); });
+  }
+
+  /* ── 🗣️ AI 아바타 영상 (말하는 나): 얼굴 사진 1장 + 대본 → 사진 속 사람이 말하는 8초 영상 (구글 Veo) ── */
+  var TONES = [['bright', '😊 밝고 친근하게', 'in a bright, friendly and warm tone'], ['calm', '🙂 차분하고 믿음직하게', 'in a calm, trustworthy tone'],
+    ['fun', '🤩 신나고 활기차게', 'in an excited, energetic tone'], ['pro', '👔 전문가처럼 또박또박', 'clearly and confidently like a professional presenter']];
+  X.a = { photo: '', script: '', topic: '', tone: 'bright', aspect: '9:16', ok: false, busy: false, sec: 0, url: '', err: '' };
+  function fitPhoto(file, aspect) {
+    return new Promise(function (ok, no) {
+      var img = new Image();
+      img.onload = function () {
+        var W = aspect === '16:9' ? 1280 : 720, H = aspect === '16:9' ? 720 : 1280;
+        var c = document.createElement('canvas'); c.width = W; c.height = H;
+        var g = c.getContext('2d'), s = Math.max(W / img.width, H / img.height);
+        var dw = img.width * s, dh = img.height * s;
+        g.drawImage(img, (W - dw) / 2, Math.min(0, (H - dh) * 0.35), dw, dh);   /* 얼굴이 잘리지 않게 위쪽을 조금 더 남김 */
+        ok(c.toDataURL('image/jpeg', 0.9));
+      };
+      img.onerror = function () { no(new Error('이 사진은 열 수 없어요. JPG · PNG 사진으로 해 주세요.')); };
+      img.src = URL.createObjectURL(file);
+    });
+  }
+  function viewAvatar() {
+    var a = X.a;
+    var h = '<div class="set-box">' + head('🗣️ AI 아바타 영상 · 말하는 나', '얼굴 사진 1장 + 대본만 넣으면, 사진 속 사람이 입 모양 · 표정을 맞춰 말하는 영상을 AI가 만들어요. 쇼핑몰 제품 소개 · 학원 강의 맛보기 · 릴스에 내 얼굴로.');
+    h += '<label class="set-lb">① 얼굴 사진</label><label class="se-pick">🙂 얼굴 사진 고르기 (정면 · 밝은 사진)<input type="file" id="av-file" accept="image/*"></label>';
+    if (a.photo) h += '<img class="se-prev" src="' + a.photo + '" alt="사진">';
+    h += '<label class="set-lb">② 대본 — 8초 분량 (50자 안팎)</label><textarea class="set-in" id="av-script" maxlength="80" placeholder="예) 안녕하세요! 오늘 새로 나온 밤라떼, 지금 오시면 쿠키 하나 더 드려요.">' + esc(a.script) + '</textarea>'
+      + '<div class="set-cost" id="av-count" style="margin-top:4px">' + a.script.length + '자' + (a.script.length > 55 ? ' · 길면 말이 빨라지거나 잘릴 수 있어요' : '') + '</div>';
+    h += '<div class="set-row" style="margin-top:6px"><input class="set-in" style="flex:1;min-width:150px" id="av-topic" maxlength="80" placeholder="주제만 쓰면 AI가 대본을 써요" value="' + esc(a.topic).replace(/"/g, '&quot;') + '"><button class="btn btn-secondary btn-sm" id="av-ai">✍️ AI 대본 · ' + COST.plan + '크레딧</button></div>';
+    h += '<label class="set-lb">③ 말투</label>' + chips(TONES.map(function (t) { return [t[0], t[1]]; }), 'data-av-tone', a.tone);
+    h += '<label class="set-lb">④ 화면</label>' + chips([['9:16', '📱 세로 (릴스 · 쇼츠)'], ['16:9', '🖥 가로 (유튜브)']], 'data-av-aspect', a.aspect);
+    h += '<label class="se-chk"><input type="checkbox" id="av-ok"' + (a.ok ? ' checked' : '') + '>내 사진이거나, 사진 속 사람에게 허락을 받았어요</label>'
+      + '<div class="set-cost" style="margin:4px 0 0 26px">연예인 · 다른 사람 · 어린이 사진은 쓰지 마세요.</div>';
+    h += '<div class="set-row"><button class="btn btn-primary" id="av-go"' + (a.busy ? ' disabled' : '') + '>' + (a.busy ? '만드는 중… ' + a.sec + '초 (보통 1~3분)' : '🗣️ 말하는 영상 만들기') + '</button><span class="set-cost"><b>' + COST.veo + '</b> 크레딧 · 8초</span></div>';
+    h += '<div class="set-cost" style="margin-top:8px">목소리는 AI가 새로 만든 목소리예요 (내 목소리가 아니에요). 사진에 따라 구글 AI가 만들지 않을 수 있는데, 그때는 크레딧이 돌아와요.</div>';
+    h += errBox(a.err);
+    if (a.url) {
+      h += '<div class="set-out"><video controls playsinline src="' + a.url + '" style="display:block;width:100%;max-width:300px;margin:0 auto;border-radius:14px;background:#000"></video>'
+        + '<div class="set-row" style="justify-content:center"><a class="btn btn-primary btn-sm" href="' + a.url + '" download="coverfo-avatar.mp4">💾 영상 저장 (MP4)</a></div>'
+        + '<div class="set-cost" style="text-align:center;margin-top:6px">저장한 영상을 인스타 릴스 · 유튜브 쇼츠 · 틱톡에 그대로 올리세요. 📂 내가 만든 것에도 남아요.</div></div>';
+    }
+    return h + '</div>';
+  }
+
+  window.RelaySet = { hero: hero, views: { set: viewSet, voice: viewVoice, music: viewMusic, meme: viewMeme, made: viewMade, reel: viewReel, sns: viewSns, avatar: viewAvatar } };
 
   /* ── 3종 세트 실행 ─────────────────────── */
   function runSet() {
@@ -675,14 +900,18 @@
   var prevBind = bindEvents;
   bindEvents = function () {
     prevBind();
-    /* 기본 레시피 목록 맨 앞에 🎬 영상 만들기 카드 */
+    /* 기본 레시피 목록 맨 앞에 📣 SNS 콘텐츠 한 번에 · 🗣️ AI 아바타 카드 */
     if (S.screen === 'home' && (S.tab || 'basic') === 'basic') {
       var grid = document.querySelector('.recipes');
-      if (grid && !grid.querySelector('[data-set-go="reel"]')) {
-        var card = document.createElement('div');
-        card.className = 'recipe'; card.setAttribute('data-set-go', 'reel');
-        card.innerHTML = '<div class="icon">🎬</div><div class="name">영상 만들기</div><div class="desc">폰으로 찍은 영상 · 사진이나 내 짤에 음악 · 목소리 · 글자를 얹어 릴스 · 쇼츠 세로 영상으로 만들어요.</div><div class="cost">🪙 0 크레딧</div>';
-        grid.insertBefore(card, grid.firstChild);
+      if (grid && !grid.querySelector('[data-set-go="sns"]')) {
+        [['avatar', '🗣️', 'AI 아바타 영상 · 말하는 나', '얼굴 사진 1장 + 대본 → 사진 속 내가 입 모양 · 표정을 맞춰 말하는 영상. 제품 소개 · 강의 맛보기 · 릴스에.', COST.veo + ' 크레딧'],
+         ['sns', '📣', 'SNS 콘텐츠 한 번에 만들기', '주제 한 줄 → 인스타 포스트(글+이미지) · 릴스 · 쇼츠 영상(15 · 30 · 60초) · 블로그 글 · 해시태그 · 번역까지.', (COST.plan + COST.image + COST.voice + COST.clip) + ' 크레딧부터']
+        ].forEach(function (c) {
+          var card = document.createElement('div');
+          card.className = 'recipe'; card.setAttribute('data-set-go', c[0]);
+          card.innerHTML = '<div class="icon">' + c[1] + '</div><div class="name">' + c[2] + '</div><div class="desc">' + c[3] + '</div><div class="cost">🪙 ' + c[4] + '</div>';
+          grid.insertBefore(card, grid.firstChild);
+        });
       }
     }
     var on = function (sel, fn) { document.querySelectorAll(sel).forEach(function (el) { el.addEventListener('click', function (ev) { ev.preventDefault(); fn(el); }); }); };
@@ -816,6 +1045,76 @@
       if (e.meme && e.secs === 0) e.secs = 15;
       S.tab = 'reel'; render(); window.scrollTo(0, 0);
       if (e.meme) ensureMeme(e.meme).then(render, function () {});
+    });
+
+    /* 복사 */
+    on('[data-copy]', function (el) { var t = document.getElementById(el.getAttribute('data-copy')); if (t) copyText(t.value); });
+
+    /* 📣 SNS 한 번에 */
+    var keepN = function () { if (val('sn-topic') != null) X.n.topic = val('sn-topic'); var c = document.getElementById('sn-veo'); if (c) X.n.veo = c.checked; };
+    on('[data-sn-ex]', function (el) { keepN(); X.n.topic = el.getAttribute('data-sn-ex'); render(); });
+    on('[data-sn-style]', function (el) { keepN(); X.n.style = el.getAttribute('data-sn-style'); render(); });
+    on('[data-sn-secs]', function (el) { keepN(); X.n.secs = Number(el.getAttribute('data-sn-secs')); render(); });
+    on('[data-sn-lang]', function (el) {
+      keepN(); var l = el.getAttribute('data-sn-lang'), i = X.n.langs.indexOf(l);
+      if (i >= 0) X.n.langs.splice(i, 1); else X.n.langs.push(l); render();
+    });
+    var snVeo = document.getElementById('sn-veo');
+    if (snVeo) snVeo.addEventListener('change', function () { keepN(); render(); });
+    on('#sn-go', function () { keepN(); runSns(); });
+    on('[data-sn-reel]', function () {
+      if (X.r.busy) return;
+      var n = X.n, p = n.plan || {};
+      var src = n.clip ? { mode: 'video', src: n.clip, orig: false, top: p.title || '' } : { mode: 'card', png: n.img, title: p.title || n.topic };
+      src.voice = n.voice; src.music = n.music; src.narration = p.narration || ''; src.secs = n.secs;
+      runReel('sns', src);
+    });
+
+    /* 🗣️ AI 아바타 */
+    var keepA = function () {
+      var a = X.a; if (val('av-script') != null) a.script = val('av-script'); if (val('av-topic') != null) a.topic = val('av-topic');
+      var c = document.getElementById('av-ok'); if (c) a.ok = c.checked;
+    };
+    var avFile = document.getElementById('av-file');
+    if (avFile) avFile.addEventListener('change', function () {
+      var f = avFile.files && avFile.files[0]; if (!f) return;
+      keepA(); X.a.file = f; X.a.err = '';
+      fitPhoto(f, X.a.aspect).then(function (d) { X.a.photo = d; render(); }, function (e) { X.a.err = e.message; render(); });
+    });
+    var avScript = document.getElementById('av-script');
+    if (avScript) avScript.addEventListener('input', function () {
+      var c = document.getElementById('av-count'), L = avScript.value.length;
+      if (c) c.textContent = L + '자' + (L > 55 ? ' · 길면 말이 빨라지거나 잘릴 수 있어요' : '');
+    });
+    on('[data-av-tone]', function (el) { keepA(); X.a.tone = el.getAttribute('data-av-tone'); render(); });
+    on('[data-av-aspect]', function (el) {
+      keepA(); var a = X.a; a.aspect = el.getAttribute('data-av-aspect');
+      if (a.file) fitPhoto(a.file, a.aspect).then(function (d) { a.photo = d; render(); }); else render();
+    });
+    on('#av-ai', function () {
+      keepA(); var a = X.a, topic = (a.topic || a.script).trim();
+      if (!topic) { alert('대본 칸이나 주제 칸에 무엇을 말할지 먼저 적어 주세요.'); return; }
+      a.err = ''; a.busy = true; render();
+      aiText(topic, '위 주제로 사람이 카메라를 보고 8초 동안 말할 한국어 대본을 써. 40~50자, 1~2문장, 친근한 말투. 따옴표·설명 없이 대본만.')
+        .then(function (t) { a.script = t.trim().replace(/^["'“”]+|["'“”]+$/g, '').slice(0, 80); })
+        .catch(function (e) { a.err = e.message; }).then(function () { a.busy = false; render(); });
+    });
+    on('#av-go', function () {
+      keepA(); var a = X.a;
+      if (a.busy) return;
+      if (!a.photo) { alert('① 얼굴 사진을 먼저 골라 주세요.'); return; }
+      if (!a.script.trim()) { alert('② 대본을 적어 주세요.'); return; }
+      if (!a.ok) { alert('내 사진이거나 허락받은 사진인지 확인 칸에 체크해 주세요.'); return; }
+      var tone = (TONES.filter(function (t) { return t[0] === a.tone; })[0] || TONES[0])[2];
+      var script = a.script.trim().replace(/"/g, "'");
+      var prompt = 'A realistic talking-head video made from this photo. The person looks into the camera and speaks Korean ' + tone
+        + ', with accurate lip sync, natural facial expressions, natural blinking and subtle head movement. Keep the face, hair, clothes and background exactly as in the photo. Static camera.'
+        + ' The person says in Korean: "' + script + '". Clear voice, no background music, no subtitles, no on-screen text.';
+      a.busy = true; a.err = ''; a.url = ''; a.sec = 0; render();
+      genVideo(prompt, a.aspect, a.photo, function (s) { a.sec = s; var b = document.getElementById('av-go'); if (b) b.textContent = '만드는 중… ' + s + '초 (보통 1~3분)'; })
+        .then(function (u) { a.url = u; log('ok', '아바타 영상 완성'); madeAdd({ t: 'avatar', title: script.slice(0, 40), video: u, narration: script }); })
+        .catch(function (e) { a.err = e.message; })
+        .then(function () { a.busy = false; render(); });
     });
 
     /* 내가 만든 것 */

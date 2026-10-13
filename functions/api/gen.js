@@ -442,10 +442,18 @@ async function handlePost(context) {
     }
   }
 
+  // 0-2) 릴레이 "AI 아바타 영상": 폰에서 올린 사진(data:image/...;base64)을 영상 첫 장면으로 — 목록에 없는 사진이라 직접 받음
+  if (!srcImage && !srcVideo && kind === 'video' && typeof body.image === 'string' && body.image) {
+    const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(body.image);
+    if (!m) return json({ error: '사진 형식이 맞지 않습니다 (JPG · PNG)' }, 400);
+    if (m[2].length > 6 * 1024 * 1024) return json({ error: '사진이 너무 큽니다' }, 400);
+    srcImage = { mime: m[1], b64: m[2], job_id: null };
+  }
+
   // 1) 크레딧 차감 (부족하면 여기서 끝)
   let spend;
   try {
-    spend = await rpc(c, 'cf_spend', { p_user: user.id, p_cost: cost, p_kind: kind, p_prompt: (srcVideo ? '[연장 #' + srcVideo.job_id + '] ' : srcImage ? '[수정 #' + srcImage.job_id + '] ' : '') + prompt });
+    spend = await rpc(c, 'cf_spend', { p_user: user.id, p_cost: cost, p_kind: kind, p_prompt: (srcVideo ? '[연장 #' + srcVideo.job_id + '] ' : srcImage && srcImage.job_id ? '[수정 #' + srcImage.job_id + '] ' : srcImage ? '[사진] ' : '') + prompt });
   } catch (e) {
     return json({ error: '크레딧 처리 실패: ' + String(e.message || e).slice(0, 200) }, 500);
   }
@@ -472,7 +480,7 @@ async function handlePost(context) {
     }
     const opName = await googleVideoStart(c, prompt, aspect, srcImage);
     // meta.res/seconds/aspect: 나중에 "7초 연장" 이 가능한지(720p) 와 길이 표시에 씀
-    await patchJob(c, jobId, Object.assign({ op_name: opName, task_id: opName, meta: Object.assign({ res: '720p', seconds: 8, aspect: aspect === '9:16' ? '9:16' : '16:9' }, srcImage ? { source_job: srcImage.job_id } : {}) }));
+    await patchJob(c, jobId, Object.assign({ op_name: opName, task_id: opName, meta: Object.assign({ res: '720p', seconds: 8, aspect: aspect === '9:16' ? '9:16' : '16:9' }, srcImage && srcImage.job_id ? { source_job: srcImage.job_id } : {}) }));
     return json({ job_id: jobId, status: 'running', kind: 'video', free: spend.free, paid: spend.paid });
   } catch (e) {
     // 실패 → 환불
