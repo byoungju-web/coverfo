@@ -15,7 +15,7 @@
   var VIS_NAME = { private: '🔒 나만', team: '👥 팀', public: '🌐 마켓 공개' };
 
   S.tab = 'basic';
-  S.pro = { mine: null, market: null, teams: null, balance: null, q: '', sort: 'popular', edit: null, busy: false, msg: '' };
+  S.pro = { mine: null, market: null, teams: null, balance: null, earn: null, earnLog: false, q: '', sort: 'popular', edit: null, busy: false, msg: '' };
 
   /* ── 스타일 ─────────────────────────────── */
   var css = document.createElement('style');
@@ -71,6 +71,15 @@
     '.pro-mini{padding:4px 8px;border-radius:7px;background:#fff;border:1px solid #e1e4ec;font-size:12px}',
     '.pro-note{font-size:12px;color:#6b7280;line-height:1.6;margin-top:6px}',
     '.pro-note b{color:#4f46e5}',
+    '.pro-earn{margin-top:10px;border:1px solid #e7e4f7;border-radius:16px;padding:14px;background:linear-gradient(140deg,#fcfbff 0%,#f4f4ff 100%)}',
+    '.pro-earn .eh{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}',
+    '.pro-earn .ev{font-size:22px;font-weight:900;color:#1c1a2e}',
+    '.pro-earn .ev small{font-size:12px;font-weight:700;color:#6b6a80;margin-left:4px}',
+    '.pro-earn .es{font-size:12px;color:#6b6a80;margin-top:2px}',
+    '.pro-earn .el{margin-top:10px;border-top:1px dashed #e1e4ec;padding-top:8px;max-height:260px;overflow:auto}',
+    '.pro-earn .el div{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;padding:5px 0;border-bottom:1px solid #f1f2f6}',
+    '.pro-earn .el .p{color:#059669;font-weight:800;white-space:nowrap}',
+    '.pro-earn .el .m{color:#6b7280;font-weight:800;white-space:nowrap}',
     '.pro-msg{font-size:12.5px;margin:8px 0;color:#92400e;background:#fff7e6;border:1px solid #fde3a7;border-radius:10px;padding:8px 12px}',
     '.pro-team{background:#fff;border:1px solid #e8eaf1;border-radius:16px;padding:14px;margin:8px 0;box-shadow:0 1px 2px rgba(20,22,31,.04)}',
     '.pro-mem{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:7px 0;border-bottom:1px solid #f0f1f5}',
@@ -105,6 +114,13 @@
       S.pro.balance = j && j.ok ? Number(j.paid || 0) : null;
     }).catch(function () { S.pro.balance = null; });
   }
+  /* 💰 내 수익 (sql/cf_earned.sql · /api/earnings) — 못 읽으면 칸을 안 보여 줌 */
+  function loadEarn() {
+    return fetch('/api/earnings', { headers: authHeaders(), cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { S.pro.earn = j && j.ok ? j : null; })
+      .catch(function () { S.pro.earn = null; });
+  }
   function fail(e) { S.pro.busy = false; S.pro.msg = '⚠️ ' + (e && e.message ? e.message : e); log('err', S.pro.msg); render(); }
 
   function loadTab(tab) {
@@ -116,7 +132,7 @@
     }
     if (tab === 'market') {
       S.pro.busy = true; render();
-      return Promise.all([api('market', { q: S.pro.q, sort: S.pro.sort }), loadBalance()]).then(function (a) {
+      return Promise.all([api('market', { q: S.pro.q, sort: S.pro.sort }), loadBalance(), loadEarn()]).then(function (a) {
         S.pro.market = a[0].items || []; S.pro.busy = false; render();
       }).catch(fail);
     }
@@ -269,10 +285,28 @@
     h += '<button class="btn btn-secondary btn-sm" id="pro-search">찾기</button>';
     h += '</div>';
     if (S.pro.balance != null) h += '<div class="pro-note">내 충전 크레딧 <b>' + S.pro.balance + '</b></div>';
-    h += '<div class="pro-note">💡 값이 있는 레시피는 한 번 사면 계속 씁니다. 실행할 때는 단계별 기본 크레딧이 따로 듭니다. 판 사람에게 값의 70%가 크레딧으로 들어갑니다.</div>';
+    h += viewEarn();
+    h += '<div class="pro-note">💡 값이 있는 레시피는 한 번 사면 계속 씁니다. 실행할 때는 단계별 기본 크레딧이 따로 듭니다. 판 사람에게 값의 70%가 <b>💰 수익 크레딧</b>으로 바로 들어갑니다.</div>';
     h += '<div style="height:10px"></div>';
     h += grid(S.pro.market, 'market', '아직 마켓에 올라온 레시피가 없습니다. 첫 레시피를 올려 보세요!');
     return h;
+  }
+
+  var EARN_KIND = { sale: '판매', move: '사용 크레딧으로 옮김', payout: '출금', adjust: '조정' };
+  function viewEarn() {
+    var e = S.pro.earn; if (!e) return '';
+    var h = '<div class="pro-earn"><div class="eh"><div><div class="es">💰 내 수익 크레딧</div><div class="ev">' + e.earned + '<small>크레딧</small></div></div>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" id="pro-earn-move"' + (e.earned > 0 ? '' : ' disabled') + '>↪ 사용 크레딧으로 옮기기</button>'
+      + '<button class="btn btn-secondary btn-sm" id="pro-earn-log">' + (S.pro.earnLog ? '접기' : '🧾 수익 장부') + '</button></div></div>'
+      + '<div class="es">이번 달 ' + e.month + ' · 지금까지 ' + e.total + ' 크레딧 · 판매 ' + e.count + '건 — 팔리는 순간 바로 들어와요. 현금 출금은 준비 중이에요.</div>';
+    if (S.pro.earnLog) {
+      h += '<div class="el">' + (e.items.length ? e.items.map(function (x) {
+        var d = new Date(x.at), p = function (n) { return (n < 10 ? '0' : '') + n; };
+        return '<div><span>' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ' · ' + esc(EARN_KIND[x.kind] || x.kind) + (x.title ? ' · ' + esc(x.title) : '') + (x.price ? ' (' + x.price + ' 중 70%)' : '') + '</span>'
+          + '<span class="' + (x.amount >= 0 ? 'p' : 'm') + '">' + (x.amount >= 0 ? '+' : '') + x.amount + '</span></div>';
+      }).join('') : '<div><span>아직 기록이 없어요. 마켓에 레시피를 올려 보세요.</span></div>') + '</div>';
+    }
+    return h + '</div>';
   }
 
   function viewTeam() {
@@ -452,6 +486,21 @@
       S.tab = t; S.pro.msg = ''; render(); loadTab(t);
     });
 
+    on('#pro-earn-log', function () { S.pro.earnLog = !S.pro.earnLog; render(); });
+    on('#pro-earn-move', function () {
+      var e = S.pro.earn; if (!e || !(e.earned > 0)) return;
+      var v = prompt('사용 크레딧으로 옮길 수익 크레딧 (최대 ' + e.earned + ')\n※ 옮긴 크레딧은 coverfo 에서 바로 쓸 수 있고, 결제 취소 환불 대상은 아니에요.', String(e.earned));
+      if (v == null) return;
+      var n = Math.round(Number(String(v).replace(/[^0-9.]/g, '')) * 10) / 10;
+      if (!(n > 0) || n > e.earned) { alert('0보다 크고 ' + e.earned + ' 이하로 적어 주세요.'); return; }
+      fetch('/api/earnings', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()), body: JSON.stringify({ op: 'move', amount: n }) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || !j.ok) throw new Error((j && j.error) || '옮기지 못했습니다');
+          S.pro.msg = '✅ ' + n + ' 크레딧을 사용 크레딧으로 옮겼어요';
+          return Promise.all([loadEarn(), loadBalance()]).then(function () { render(); });
+        }).catch(fail);
+    });
     on('[data-pro-run]', function (el) {
       var p = el.getAttribute('data-pro-run').split(':'); var r = findMine(p[0], p[1]); if (r) startRun(r);
     });

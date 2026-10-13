@@ -97,7 +97,10 @@ async function plan(c: SB, userId: string) {
   const now = Date.now();
   const items: Item[] = [];
   const skipped: { order_id: string; why: string }[] = [];
-  let remaining = credits.paid;
+  /* 2026-10-13: 💰 수익 크레딧에서 "사용 크레딧으로 옮긴" 만큼은 내가 결제한 돈이 아니므로 결제 취소 환불에서 뺌 (sql/cf_earned.sql) */
+  const moves = await rows<{ amount: number }>(c, `cf_earnings?select=amount&user_id=eq.${encodeURIComponent(userId)}&kind=eq.move`);
+  const moved = moves.reduce((s, m) => s + Math.abs(Number(m.amount || 0)), 0);
+  let remaining = Math.max(0, credits.paid - moved);
 
   for (const o of orders) {
     if (remaining <= 0) {
