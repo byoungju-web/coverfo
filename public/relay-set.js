@@ -463,6 +463,39 @@
     });
   };
 
+  /* ── 뒤로가기: 탭·화면을 옮길 때마다 기록을 남겨서, 휴대폰 뒤로가기를 누르면 바로 전 화면으로 ──
+     (이 화면은 /relay 안의 창(iframe)이라, 기록을 남기지 않으면 뒤로가기가 곧장 홈으로 나감) */
+  var navLast = '', navRestoring = false;
+  function navState() { return { relayTab: S.tab || 'basic', relayScr: S.screen === 'home' ? 'h' : 'r' }; }
+  function navKey(st) { return st.relayTab + '|' + st.relayScr; }
+  var renderBeforeNav = render;
+  render = function () {
+    renderBeforeNav();
+    if (navRestoring) return;
+    try {
+      var st = navState(), k = navKey(st);
+      if (!navLast) { history.replaceState(st, ''); navLast = k; return; }
+      if (k !== navLast) { history.pushState(st, ''); navLast = k; }
+    } catch (e) {}
+  };
+  window.addEventListener('popstate', function (ev) {
+    var st = ev.state;
+    if (!st || !st.relayTab) return;
+    navRestoring = true;
+    try {
+      var g = document.getElementById('pro-guide'); if (g) g.classList.remove('on');
+      S.tab = st.relayTab;
+      if (st.relayScr === 'r' && S.recipe && S.screen !== 'running') S.screen = 'input';
+      else if (st.relayScr === 'h') {
+        if (typeof mediaRec !== 'undefined' && mediaRec && mediaRec.state === 'recording') stopRec();
+        S.screen = 'home'; S.recipe = null; S.error = null;
+      }
+      renderBeforeNav();
+      navLast = navKey(navState());
+    } finally { navRestoring = false; }
+    window.scrollTo(0, 0);
+  });
+
   render();
   log('ok', '콘텐츠 3종 세트 준비됨');
 })();
