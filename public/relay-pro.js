@@ -210,7 +210,7 @@
   /* ── 화면 ─────────────────────────────── */
   var origHome = renderHome;
   renderHome = function () {
-    var tabs = [['basic', '기본 레시피'], ['mine', '내 레시피'], ['market', '마켓'], ['team', '팀'], ['build', '+ 만들기']];
+    var tabs = [['basic', '기본 레시피'], ['mine', '내 레시피'], ['team', '팀'], ['build', '+ 만들기']];   /* v242: 사용자끼리 사고파는 '마켓' 칸 삭제 — 홈의 🛒 마켓(릴레이 융합)으로 대신 */
     var h = '<div class="pro-tabs">';
     tabs.forEach(function (t) {
       var on = S.tab === t[0] || (t[0] === 'basic' && window.RelaySet && RelaySet.views[S.tab]);
