@@ -7,7 +7,7 @@
 //   (Authorization: Bearer 로그인토큰)   필요한 것: sql/cf_relay_made.sql 1회 실행
 
 const KEEP = 50;
-const KINDS = ['set', 'voice', 'music', 'meme', 'sns', 'avatar'];
+const KINDS = ['set', 'voice', 'music', 'meme', 'sns', 'avatar', 'flow'];
 
 export async function onRequestGet(context) {
   const env = context.env || {};

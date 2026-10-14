@@ -263,9 +263,11 @@
     if (!type) return Promise.reject(new Error('이 브라우저는 영상 녹화를 지원하지 않아요. 크롬으로 열어 주세요.'));
     var AC = window.AudioContext || window.webkitAudioContext;
     var ac = new AC();
-    var bg = mode === 'video' ? loadVideo(o.src) : loadImg(mode === 'card' ? o.png : o.src);
+    /* o.pngs: 그림 여러 장(그림책 등) → 길이를 나눠 차례로 넘김 */
+    var bg = o.pngs && o.pngs.length ? Promise.all(o.pngs.map(loadImg)) : mode === 'video' ? loadVideo(o.src) : loadImg(mode === 'card' ? o.png : o.src);
     return Promise.all([bg, audioBuf(ac, o.voice), audioBuf(ac, o.music)]).then(function (a) {
-      var img = a[0], vbuf = a[1], mbuf = a[2], vid = mode === 'video' ? a[0] : null;
+      var imgs = Array.isArray(a[0]) ? a[0] : null;
+      var img = imgs ? imgs[0] : a[0], vbuf = a[1], mbuf = a[2], vid = mode === 'video' && !imgs ? a[0] : null;
       var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
       var g = cv.getContext('2d');
       var dest = ac.createMediaStreamDestination();
@@ -288,6 +290,7 @@
         g.fillText('made with coverfo', W / 2, H - 42);
       }
       function draw(t) {
+        if (imgs) img = imgs[Math.min(imgs.length - 1, Math.floor(t / secs * imgs.length))];
         if (mode !== 'card') {
           g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
           if (vid) { if (vid.videoWidth) cover(g, vid, vid.videoWidth, vid.videoHeight, W, H, 1); }
@@ -571,7 +574,7 @@
     return h + '</div>';
   }
 
-  var KIND = { set: ['🎁', '3종 세트'], voice: ['🎙️', 'AI 목소리'], music: ['🎵', 'AI 음악'], meme: ['😂', '짤'], sns: ['📣', 'SNS 세트'], avatar: ['🗣️', 'AI 아바타'] };
+  var KIND = { set: ['🎁', '3종 세트'], voice: ['🎙️', 'AI 목소리'], music: ['🎵', 'AI 음악'], meme: ['😂', '짤'], sns: ['📣', 'SNS 세트'], avatar: ['🗣️', 'AI 아바타'], flow: ['🔀', '릴레이 융합'] };
   function when(t) {
     var d = new Date(t), p = function (n) { return (n < 10 ? '0' : '') + n; };
     return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
@@ -876,6 +879,16 @@
   var RSTEP = { stt: 2, ai: 3, tts: 2, research: 5 };
   function ai(prompt) { return { type: 'ai', task: 'custom', prompt: prompt }; }
   var FU = [
+    /* 🔀 릴레이 융합 — 창작 릴레이 (노래 · 그림 · 목소리 · 영상까지) */
+    { c: 'relay', i: '🎂', t: '이름 넣은 축하 노래', d: '이름 · 추억 한 줄 → 그 이름을 부르는 축하 노래 + 카드 + 영상. 선물로 보내기 좋아요', flow: 'bday', path: '✍️ 이름 → 가사 → 노래 + 카드 → 영상' },
+    { c: 'relay', i: '📖', t: '우리 아이 맞춤 그림책', d: '아이 이름 · 좋아하는 것 → 아이가 주인공인 동화 + 삽화 3장 + 구연 목소리 + 그림책 영상', flow: 'book', path: '✍️ 이름 → 동화 → 삽화 3장 + 목소리 → 영상' },
+    { c: 'relay', i: '💌', t: '마음 전하기 (감사 · 사과 · 고백)', d: '하기 어려운 말을 대충 적으면 → 진심이 담긴 편지 + 읽어 주는 목소리 + 카드 + 영상', flow: 'letter', path: '✍️ 하고 싶은 말 → 편지 → 목소리 + 카드 → 영상' },
+    { c: 'relay', i: '🎵', t: '내 하루를 노래로', d: '오늘 있었던 일을 말하거나 적으면 → 그 하루가 가사가 된 노래 한 곡 + 앨범 표지', flow: 'daysong', path: '🎙️ 하루 이야기 → 가사 → 노래 + 표지 → 영상' },
+    { c: 'relay', i: '🖋️', t: '일기 → 시 한 편 + 그림', d: '오늘의 기분 · 일기를 말하거나 적으면 → 짧은 시 + 그 시를 닮은 그림', flow: 'poem', path: '🎙️ 일기 → 시 → 그림' },
+    { c: 'relay', i: '🍳', t: '냉장고 재료 → 오늘 요리', d: '있는 재료를 적으면 → 요리 3가지 + 만드는 법 + 완성 사진 + 장보기 목록', flow: 'cook', path: '✍️ 재료 → 요리 3가지 → 완성 사진' },
+    { c: 'relay', i: '🏷️', t: '이름 짓기 세트', d: '가게 · 브랜드 · 채널 · 반려동물 이름 후보 10개 + 슬로건 + 로고 시안 + 광고 징글', flow: 'name', path: '✍️ 설명 → 이름 10개 · 슬로건 → 로고 + 징글' },
+    { c: 'relay', i: '📚', t: '공부 친구', d: '교재 · 기사를 붙여 넣으면 → 요약 + 암기 카드 + 퀴즈 + 이동 중에 들을 음성', flow: 'study', path: '✍️ 공부할 글 → 요약 · 카드 · 퀴즈 → 듣기 음성' },
+
     /* 🔀 릴레이 융합 — 단계를 이어 붙여 한 번에 */
     { c: 'relay', i: '🗂️', t: '회의록 자동 정리', d: '회의를 녹음하면 → 글로 받아쓰고 → 안건 · 결정 · 할 일(담당 · 기한) 회의록으로 정리', input: 'audio',
       steps: [{ type: 'stt' }, ai('아래 회의 내용을 회의록으로 정리해. 1) 한 줄 요약 2) 안건별 논의 3) 결정 사항 4) 할 일 목록(담당자 · 기한, 모르면 "미정"). 보기 좋게 제목과 목록으로.')] },
@@ -947,6 +960,7 @@
     { c: 'app', i: '💰', t: '동호회 회비 장부', d: '회원 · 입금 · 지출 · 잔액 한눈에', app: '동호회 회비 관리 웹앱을 만들어줘. 회원 목록, 월별 회비 납부 체크, 지출 기록, 잔액 자동 계산, 요약 화면. 한국어, 모바일에서 쓰기 편하게.' }
   ];
   function fuCost(x) {
+    if (x.flow) return FLOWS[x.flow].cost + ' 크레딧';
     if (x.steps) return x.steps.reduce(function (a, s) { return a + (RSTEP[s.type] || 0); }, 0) + ' 크레딧';
     if (x.sns) return (COST.plan + COST.image + COST.voice + COST.clip + (x.sns.veo ? COST.veo : 0) + x.sns.langs.length * COST.plan) + ' 크레딧';
     if (x.voice) return COST.voice + ' 크레딧';
@@ -972,7 +986,7 @@
     h += '<div class="fu-grid">';
     list.forEach(function (p) {
       var x = p[0], cat = (FU_CATS.filter(function (c) { return c[0] === x.c; })[0] || ['', ''])[1];
-      var flow = x.steps ? '<div class="fu-flow">' + (x.input === 'audio' ? '🎙️ 녹음 → ' : '✍️ 글 → ') + x.steps.map(function (s) { return s.type === 'stt' ? '받아쓰기' : s.type === 'research' ? '리서치' : s.type === 'tts' ? 'AI 음성' : s.task === 'translate' ? '번역' : 'AI 정리'; }).join(' → ') + '</div>' : '';
+      var flow = x.path ? '<div class="fu-flow">' + esc(x.path) + '</div>' : x.steps ? '<div class="fu-flow">' + (x.input === 'audio' ? '🎙️ 녹음 → ' : '✍️ 글 → ') + x.steps.map(function (s) { return s.type === 'stt' ? '받아쓰기' : s.type === 'research' ? '리서치' : s.type === 'tts' ? 'AI 음성' : s.task === 'translate' ? '번역' : 'AI 정리'; }).join(' → ') + '</div>' : '';
       h += '<div class="fu-card" data-fu-go="' + p[1] + '"><div class="fu-h"><span class="fu-i">' + x.i + '</span><div><b>' + esc(x.t) + '</b><span>' + cat + '</span></div></div>'
         + '<div class="fu-d">' + esc(x.d) + '</div>' + flow
         + '<div class="fu-f"><span class="fu-c">🪙 ' + fuCost(x) + '</span><span class="fu-b">' + (x.steps ? '▶ 실행' : x.studio ? '🎨 열기' : x.app ? '📱 만들기' : '▶ 열기') + '</span></div></div>';
@@ -981,6 +995,7 @@
     return h + '</div></div>';
   }
   function fuGo(x) {
+    if (x.flow) { flowOpen(x.flow); render(); window.scrollTo(0, 0); return; }
     if (x.steps) {
       if (!window.RelayPro || !RelayPro.run) { alert('잠시 뒤 다시 눌러 주세요.'); return; }
       RelayPro.run({ id: 'fu', title: x.t, icon: x.i, descr: x.d, input: x.input, steps: x.steps.map(function (s) { return Object.assign({}, s); }), run_cost: parseInt(fuCost(x), 10) || 0 });
@@ -999,7 +1014,223 @@
   /* 홈의 🛒 마켓 단추는 /relay?tab=fusion 으로 옴 → 바로 마켓 화면 */
   try { if (new URLSearchParams(location.search).get('tab') === 'fusion') S.tab = 'fusion'; } catch (e) {}
 
-  window.RelaySet = { hero: hero, views: { set: viewSet, voice: viewVoice, music: viewMusic, meme: viewMeme, made: viewMade, reel: viewReel, sns: viewSns, avatar: viewAvatar, fusion: viewFusion } };
+  /* ── 🔀 창작 릴레이 (축하 노래 · 그림책 · 편지 · 노래 일기 · 시 · 요리 · 이름 짓기 · 공부 친구) ──
+     입력 → ① AI 기획(글 · 가사 · 장면) → ② 노래 · 음악 · 그림 · 목소리 를 한꺼번에 → ③ 세로 영상(폰 안에서, 크레딧 0)
+     글은 "입력한 언어"로 써서 어느 나라 사람이 써도 그 나라 말로 나옴. */
+  var LANG_RULE = ' 글(가사·편지·시·설명 등)은 사용자가 입력한 글과 같은 언어로 써. 장면·음악 설명만 영어로. 실존 인물·상표·가수 이름은 쓰지 마. 반드시 JSON 하나만 출력해.';
+  var FLOWS = {
+    bday: {
+      i: '🎂', t: '이름 넣은 축하 노래', cost: 9, need: ['name'],
+      lead: '이름과 추억 한 줄이면 → 그 이름을 부르는 축하 노래(가사까지) + 축하 카드 + 세로 영상. 생일 · 결혼 · 졸업 선물로 보내 보세요.',
+      fields: [{ k: 'name', l: '받는 사람 이름', ph: '예) 김민지' }, { k: 'rel', l: '나와의 관계', ph: '예) 엄마, 친구, 직장 동료' },
+        { k: 'kind', l: '무슨 날?', chips: ['생일', '결혼', '졸업', '입학', '합격', '은퇴', '기념일'] },
+        { k: 'memo', l: '추억 · 하고 싶은 말 (선택)', ta: true, ph: '예) 늘 웃게 해 줘서 고마워. 올해는 꼭 같이 여행 가자!' }],
+      input: function (v) { return '이름: ' + v.name + '\n관계: ' + (v.rel || '') + '\n무슨 날: ' + (v.kind || '생일') + '\n추억·하고 싶은 말: ' + (v.memo || ''); },
+      prompt: '위 정보로 축하 노래를 만들어. JSON: {"title":"노래 제목 20자 이내","lyrics":"[Verse]…[Chorus]… 형식 가사, 받는 사람 이름을 후렴에 2번 이상 넣고, 추억을 한 줄 녹여서, 전체 500자 이내","music":"노래 스타일 영어 설명(장르·분위기·악기·템포, 따뜻하고 신나게)","card_scene":"축하 카드 그림 장면 영어 설명(글자 없이)","card_top":"카드 윗문구 12자 이내","card_bottom":"카드 아랫문구 18자 이내(이름 포함)"}.',
+      jobs: [{ k: 'song' }, { k: 'card' }],
+      text: function (o) { return [['🎤 가사 — ' + (o.title || ''), o.lyrics]]; },
+      reel: { secs: 30, title: 'title' }
+    },
+    book: {
+      i: '📖', t: '우리 아이 맞춤 그림책', cost: 11, need: ['name'],
+      lead: '아이 이름과 좋아하는 것을 적으면 → 아이가 주인공인 동화 + 삽화 3장 + 동화 구연 목소리 + 그림책 영상.',
+      fields: [{ k: 'name', l: '아이 이름', ph: '예) 서준' }, { k: 'age', l: '나이 (선택)', ph: '예) 5살' },
+        { k: 'like', l: '좋아하는 것', ph: '예) 공룡, 딸기, 바다' }, { k: 'lesson', l: '전하고 싶은 이야기 (선택)', ph: '예) 양치를 잘하자, 친구와 나눠 쓰기' }],
+      input: function (v) { return '아이 이름: ' + v.name + '\n나이: ' + (v.age || '') + '\n좋아하는 것: ' + (v.like || '') + '\n교훈: ' + (v.lesson || ''); },
+      prompt: '위 아이가 주인공인 짧은 그림책을 만들어. JSON: {"title":"동화 제목","hero":"주인공 겉모습 영어 묘사(모든 그림에서 똑같이 그리도록 구체적으로)","pages":[{"text":"1쪽 이야기 2~3문장","scene":"1쪽 장면 영어 설명"},{"text":"2쪽","scene":"…"},{"text":"3쪽(행복한 결말)","scene":"…"}],"moral":"한 줄 교훈"}. 아이 눈높이로 다정하게.',
+      jobs: [{ k: 'pages' }, { k: 'voice', from: 'story', style: 'story', voice: 'shimmer' }],
+      text: function (o) { return [['📖 ' + (o.title || '그림책'), (o.pages || []).map(function (p, i) { return (i + 1) + '. ' + p.text; }).join('\n\n') + (o.moral ? '\n\n💡 ' + o.moral : '')]]; },
+      reel: { secs: 60, title: 'title', narration: 'story' }
+    },
+    letter: {
+      i: '💌', t: '마음 전하기 (감사 · 사과 · 고백 · 응원)', cost: 7, need: ['to', 'say'],
+      lead: '하기 어려운 말을 대충 적으면 → 마음이 전해지는 편지 + 읽어 주는 목소리 + 카드 그림 + 영상.',
+      fields: [{ k: 'to', l: '누구에게', ph: '예) 엄마, 오랜 친구 지훈' }, { k: 'kind', l: '어떤 마음?', chips: ['감사', '사과', '고백', '응원', '축하', '위로'] },
+        { k: 'say', l: '하고 싶은 말 (대충 적어도 돼요)', ta: true, ph: '예) 그때 화내서 미안해. 사실 많이 고마웠어.' }],
+      input: function (v) { return '받는 사람: ' + v.to + '\n마음: ' + (v.kind || '감사') + '\n하고 싶은 말: ' + v.say; },
+      prompt: '위 내용으로 진심이 전해지는 짧은 편지를 써. JSON: {"title":"편지 제목","letter":"편지 본문 4~7문장, 소리 내어 읽기 좋게","card_scene":"편지 분위기의 카드 그림 영어 설명(글자 없이, 따뜻하게)","card_top":"카드 윗문구 12자 이내","card_bottom":"카드 아랫문구 18자 이내"}.',
+      jobs: [{ k: 'card' }, { k: 'voice', from: 'letter', style: 'calm', voice: 'nova' }],
+      text: function (o) { return [['💌 ' + (o.title || '편지'), o.letter]]; },
+      reel: { secs: 60, title: 'title', narration: 'letter' }
+    },
+    daysong: {
+      i: '🎵', t: '내 하루를 노래로', cost: 7, need: ['diary'], audio: 'diary',
+      lead: '오늘 있었던 일을 말하거나 적으면 → 그 하루가 가사가 된 노래 한 곡.',
+      fields: [{ k: 'diary', l: '오늘 하루', ta: true, ph: '예) 아침에 비가 왔는데 우산을 놓고 와서 뛰었다. 점심엔 동료가 커피를 사 줬다.' },
+        { k: 'mood', l: '노래 느낌', chips: ['신나게', '잔잔하게', '감성 발라드', '힙합', '어쿠스틱'] }],
+      input: function (v) { return '오늘 하루: ' + v.diary + '\n노래 느낌: ' + (v.mood || '잔잔하게'); },
+      prompt: '위 하루를 노래로 만들어. JSON: {"title":"노래 제목","lyrics":"[Verse]…[Chorus]… 가사, 오늘 일의 구체적인 장면을 넣고, 전체 500자 이내","music":"노래 스타일 영어 설명(노래 느낌 반영)","scene":"이 노래의 앨범 표지 그림 영어 설명(글자 없이)"}.',
+      jobs: [{ k: 'song' }, { k: 'cover' }],
+      text: function (o) { return [['🎤 ' + (o.title || '오늘의 노래'), o.lyrics]]; },
+      reel: { secs: 30, title: 'title' }
+    },
+    poem: {
+      i: '🖋️', t: '일기 → 시 한 편 + 그림', cost: 5, need: ['diary'], audio: 'diary',
+      lead: '오늘의 기분이나 일기를 말하거나 적으면 → 짧은 시 한 편과 그 시를 닮은 그림.',
+      fields: [{ k: 'diary', l: '오늘의 일기 · 기분', ta: true, ph: '예) 퇴근길 노을이 너무 예뻐서 한참 서 있었다.' }],
+      input: function (v) { return v.diary; },
+      prompt: '위 일기로 짧은 시를 써. JSON: {"title":"시 제목","poem":"4~8행 시, 줄바꿈은 \\n","scene":"이 시를 닮은 그림 영어 설명(수채화 느낌, 글자 없이)"}.',
+      jobs: [{ k: 'cover' }],
+      text: function (o) { return [['🖋️ ' + (o.title || ''), o.poem]]; }
+    },
+    cook: {
+      i: '🍳', t: '냉장고 재료 → 오늘 요리', cost: 5, need: ['items'],
+      lead: '집에 있는 재료를 적으면 → 만들 수 있는 요리 3가지 + 만드는 법 + 완성 사진 + 장보기 목록.',
+      fields: [{ k: 'items', l: '있는 재료', ta: true, ph: '예) 계란 3개, 양파, 김치, 밥, 참치캔' },
+        { k: 'who', l: '몇 명 · 시간 (선택)', ph: '예) 2인분, 20분 안에' }],
+      input: function (v) { return '재료: ' + v.items + '\n조건: ' + (v.who || ''); },
+      prompt: '위 재료로 만들 수 있는 요리 3가지를 추천해. JSON: {"dishes":[{"name":"요리 이름","time":"걸리는 시간","steps":["만드는 법 1","2","3","4"]}],"shopping":["더 있으면 좋은 재료"],"scene":"첫 번째 요리 완성 사진 영어 설명(먹음직스럽게, 글자 없이)"}.',
+      jobs: [{ k: 'cover', style: 'Appetizing food photography, natural light, high quality.' }],
+      text: function (o) {
+        return [['🍳 오늘의 요리', (o.dishes || []).map(function (d, i) { return (i + 1) + '. ' + d.name + ' (' + (d.time || '') + ')\n' + (d.steps || []).map(function (s, j) { return '  ' + (j + 1) + ') ' + s; }).join('\n'); }).join('\n\n')],
+          ['🛒 장보기 목록', (o.shopping || []).map(function (s) { return '· ' + s; }).join('\n')]];
+      }
+    },
+    name: {
+      i: '🏷️', t: '이름 짓기 세트 (가게 · 브랜드 · 채널)', cost: 7, need: ['what'],
+      lead: '무엇의 이름인지 적으면 → 이름 후보 10개(뜻 포함) + 슬로건 + 로고 시안 + 광고 징글.',
+      fields: [{ k: 'kind', l: '무엇의 이름?', chips: ['가게', '브랜드', '유튜브 채널', '앱 · 서비스', '반려동물'] },
+        { k: 'what', l: '설명', ta: true, ph: '예) 동네 작은 빵집, 아침에 갓 구운 소금빵이 대표' }, { k: 'mood', l: '분위기 (선택)', ph: '예) 따뜻하고 귀엽게' }],
+      input: function (v) { return '종류: ' + (v.kind || '가게') + '\n설명: ' + v.what + '\n분위기: ' + (v.mood || ''); },
+      prompt: '위 정보로 이름을 지어. JSON: {"names":[{"name":"이름","why":"뜻·이유 한 줄"}](10개),"slogan":"슬로건 한 줄","logo":"1번 이름의 로고 시안 그림 영어 설명(심플한 아이콘, 흰 배경, 글자 없이)","jingle":"광고 징글 음악 영어 설명(짧고 귀에 남게, 보컬 없음)"}.',
+      jobs: [{ k: 'cover', from: 'logo', style: 'Simple flat vector logo mark, clean white background, no text.' }, { k: 'jingle' }],
+      text: function (o) { return [['🏷️ 이름 후보', (o.names || []).map(function (n, i) { return (i + 1) + '. ' + n.name + ' — ' + (n.why || ''); }).join('\n')], ['✨ 슬로건', o.slogan]]; },
+      reel: { secs: 15, title: 'slogan' }
+    },
+    study: {
+      i: '📚', t: '공부 친구 (요약 · 암기 카드 · 퀴즈 · 듣기)', cost: 5, need: ['src'],
+      lead: '교재 · 기사 · 필기를 붙여 넣으면 → 요약 + 암기 카드 + 퀴즈 + 이동 중에 들을 음성.',
+      fields: [{ k: 'src', l: '공부할 글', ta: true, ph: '교재나 기사 내용을 붙여 넣으세요 (길어도 돼요)' }],
+      input: function (v) { return v.src; },
+      prompt: '위 글로 공부 자료를 만들어. JSON: {"summary":"핵심 요약 5~8줄","cards":[{"q":"앞면 질문","a":"뒷면 답"}](8개),"quiz":[{"q":"문제","choices":["①","②","③","④"],"answer":"정답 번호","why":"짧은 해설"}](5개),"listen":"이동 중에 들을 2분 설명 원고(말하듯이)"}.',
+      jobs: [{ k: 'voice', from: 'listen', style: 'calm', voice: 'sage' }],
+      text: function (o) {
+        return [['📝 요약', o.summary], ['🃏 암기 카드', (o.cards || []).map(function (c, i) { return (i + 1) + '. Q) ' + c.q + '\n   A) ' + c.a; }).join('\n')],
+          ['❓ 퀴즈', (o.quiz || []).map(function (q, i) { return (i + 1) + '. ' + q.q + '\n   ' + (q.choices || []).join('  ') + '\n   정답: ' + q.answer + ' — ' + (q.why || ''); }).join('\n\n')]];
+      }
+    }
+  };
+  X.fl = { id: '', v: {}, busy: false, steps: [], o: null, res: {}, err: '', secs: 30, rec: null, recOn: false, recBusy: false };
+  function flowOpen(id) {
+    var F = FLOWS[id]; if (!F) return;
+    if (X.fl.id !== id) X.fl = { id: id, v: {}, busy: false, steps: [], o: null, res: {}, err: '', secs: (F.reel && F.reel.secs) || 30, rec: null, recOn: false, recBusy: false };
+    S.tab = 'flow';
+  }
+  /* 그림책 한 쪽: 그림 + 아래 글 띠 */
+  function drawPage(img, text) {
+    var W = 1080, c = document.createElement('canvas'); c.width = W; c.height = W;
+    var g = c.getContext('2d'); cover(g, img, img.width, img.height, W, W, 1);
+    g.font = '700 40px "Pretendard Variable","Apple SD Gothic Neo","Noto Sans KR",sans-serif';
+    var lines = wrap(g, String(text || ''), W - 120).slice(0, 4), lh = 54, bh = lines.length * lh + 60;
+    var grd = g.createLinearGradient(0, W - bh - 80, 0, W); grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(0.35, 'rgba(0,0,0,.6)'); grd.addColorStop(1, 'rgba(0,0,0,.75)');
+    g.fillStyle = grd; g.fillRect(0, W - bh - 80, W, bh + 80);
+    g.fillStyle = '#fff'; g.textAlign = 'center';
+    lines.forEach(function (l, i) { g.fillText(l, W / 2, W - bh + 40 + i * lh); });
+    return c.toDataURL('image/png');
+  }
+  function viewFlow() {
+    var f = X.fl, F = FLOWS[f.id]; if (!F) return viewFusion();
+    var h = '<div class="set-box"><div class="set-top"><h2><span class="back" data-fl-back="1">←</span>' + F.i + ' ' + esc(F.t) + '</h2><button class="set-link" data-set-go="made">📂 내가 만든 것</button></div><div class="lead">' + F.lead + '</div>';
+    F.fields.forEach(function (fd) {
+      var val = f.v[fd.k] || '';
+      h += '<label class="set-lb">' + esc(fd.l) + '</label>';
+      if (fd.chips) h += '<div class="set-chips">' + fd.chips.map(function (c) { return '<button class="set-chip' + (val === c ? ' on' : '') + '" data-fl-chip="' + fd.k + '|' + esc(c) + '">' + esc(c) + '</button>'; }).join('') + '</div>';
+      else if (fd.ta) h += '<textarea class="set-in" data-fl-f="' + fd.k + '" maxlength="4000" placeholder="' + esc(fd.ph || '') + '">' + esc(val) + '</textarea>';
+      else h += '<input class="set-in" data-fl-f="' + fd.k + '" maxlength="80" placeholder="' + esc(fd.ph || '') + '" value="' + esc(val).replace(/"/g, '&quot;') + '">';
+      if (F.audio === fd.k) h += '<div class="set-row" style="margin-top:6px"><button class="btn btn-secondary btn-sm" id="fl-rec"' + (f.recBusy ? ' disabled' : '') + '>' + (f.recOn ? '⏹ 그만 (받아쓰기)' : f.recBusy ? '받아쓰는 중…' : '🎙️ 말로 하기') + '</button><span class="set-cost">말로 하면 받아쓰기 ' + RSTEP.stt + ' 크레딧</span></div>';
+    });
+    h += '<div class="set-row"><button class="btn btn-primary" id="fl-go"' + (f.busy ? ' disabled' : '') + '>' + (f.busy ? '만드는 중… (1~2분)' : F.i + ' 만들기') + '</button><span class="set-cost"><b>' + F.cost + '</b> 크레딧</span></div>';
+    if (f.steps.length) h += stepsHtml(f.steps);
+    h += errBox(f.err);
+    var r = f.res, o = f.o;
+    if (o) {
+      h += '<div class="set-out">';
+      F.text(o).forEach(function (sec, i) { if (sec[1]) h += '<div class="set-card"><h4>' + esc(sec[0]) + '</h4>' + copyBox('fl-t' + i, sec[1], Math.min(14, String(sec[1]).split('\n').length + 1)) + '</div>'; });
+      if (r.music) h += '<div class="set-card"><h4>' + (f.id === 'name' ? '🎵 광고 징글' : '🎵 노래') + '</h4><audio controls src="' + r.music + '"></audio><div class="set-row" style="margin-top:4px"><a class="btn btn-secondary btn-sm" href="' + r.music + '" download="coverfo-song.mp3">💾 MP3</a></div></div>';
+      if (r.voice) h += '<div class="set-card"><h4>🎙️ 읽어 주는 목소리</h4><audio controls src="' + r.voice + '"></audio><div class="set-row" style="margin-top:4px"><a class="btn btn-secondary btn-sm" href="' + r.voice + '" download="coverfo-voice.mp3">💾 MP3</a></div></div>';
+      if (r.pngs) h += '<div class="set-card"><h4>🖼️ 그림책</h4>' + r.pngs.map(function (p, i) { return '<img class="set-meme" style="margin-top:8px" src="' + p + '" alt="' + (i + 1) + '쪽"><div class="set-row" style="justify-content:center"><a class="btn btn-secondary btn-sm" href="' + p + '" download="coverfo-book-' + (i + 1) + '.png">💾 ' + (i + 1) + '쪽 PNG</a></div>'; }).join('') + '</div>';
+      if (r.png) h += '<div class="set-card"><h4>🖼️ 그림</h4><img class="set-meme" src="' + r.png + '" alt="그림"><div class="set-row" style="justify-content:center"><a class="btn btn-secondary btn-sm" href="' + r.png + '" download="coverfo-' + f.id + '.png">💾 PNG</a></div></div>';
+      if (!f.busy && F.reel && (r.png || r.pngs) && (r.voice || r.music)) {
+        var rr = X.r, mine = rr.key === 'flow';
+        h += '<div class="reel"><h4>🎬 세로 영상으로 만들기</h4><div class="rs">' + (r.pngs ? '그림책 3장' : '그림') + ' + ' + (r.voice ? '목소리(자막)' : '노래') + ' → 릴스 · 쇼츠 · 카톡으로 보내기 좋은 영상 · <b>크레딧 0</b></div>'
+          + '<div class="set-chips">' + [15, 30, 60].map(function (n) { return '<button class="set-chip' + (f.secs === n ? ' on' : '') + '" data-fl-secs="' + n + '">' + n + '초</button>'; }).join('') + '</div>'
+          + '<div class="set-row" style="margin-top:10px"><button class="go" data-fl-reel="1"' + (rr.busy ? ' disabled' : '') + '>' + (rr.busy && mine ? '영상 만드는 중…' : '🎬 영상 만들기') + '</button><span class="set-cost">' + f.secs + '초 동안 만들어져요 · 화면을 켜 두세요</span></div>'
+          + reelOut('flow') + '</div>';
+      }
+      h += '</div>';
+    }
+    return h + '</div>';
+  }
+  function runFlow() {
+    var f = X.fl, F = FLOWS[f.id], v = f.v;
+    for (var i = 0; i < F.need.length; i++) if (!String(v[F.need[i]] || '').trim()) { alert('"' + F.fields.filter(function (x) { return x.k === F.need[i]; })[0].l + '" 칸을 채워 주세요.'); return; }
+    f.busy = true; f.err = ''; f.o = null; f.res = {};
+    if (X.r.key === 'flow') { X.r.url = ''; X.r.err = ''; }
+    var NAMES = { song: '🎵 노래 작곡', card: '🖼️ 카드 그림', cover: '🖼️ 그림', pages: '🖼️ 삽화 3장', voice: '🎙️ 목소리', jingle: '🎵 광고 징글' };
+    f.steps = [{ k: 'plan', t: '① AI 기획 · 글', st: 'run' }].concat(F.jobs.map(function (j, i) { return { k: j.k, t: ['②', '③', '④'][i] + ' ' + NAMES[j.k], st: '' }; }));
+    var setSt = function (k, st, d) { f.steps.forEach(function (x) { if (x.k === k) { x.st = st; if (d !== undefined) x.d = d; } }); render(); };
+    render();
+    aiText(F.input(v), F.prompt + LANG_RULE).then(function (t) {
+      var o = parseJSON(t); f.o = o;
+      if (o.pages) o.story = o.pages.map(function (p) { return p.text; }).join(' ');
+      f.steps.forEach(function (x) { x.st = x.k === 'plan' ? 'ok' : 'run'; }); render();
+      var title = o.title || o.slogan || F.t;
+      var saved = { t: 'flow', title: (F.i + ' ' + title).slice(0, 40), post: F.text(o).map(function (s) { return s[0] + '\n' + (s[1] || ''); }).join('\n\n').slice(0, 3000) };
+      var r = f.res;
+      var jobs = F.jobs.map(function (j) {
+        if (j.k === 'song' || j.k === 'jingle') {
+          var body = j.k === 'song' ? { prompt: o.music || title, mode: 'song', vocal: 'lyrics', lyrics: String(o.lyrics || '').slice(0, 1500) } : { prompt: o.jingle || title, mode: 'clip', vocal: 'inst' };
+          return makeMusic(body).then(function (m) { r.music = m.url || m.data_url; saved.music = m.url || ''; setSt(j.k, 'ok'); }).catch(function (e) { setSt(j.k, 'bad', e.message); });
+        }
+        if (j.k === 'card' || j.k === 'cover') {
+          var scene = o[j.from || (j.k === 'card' ? 'card_scene' : 'scene')] || title;
+          var style = j.style || (j.k === 'card' ? 'Warm illustrated greeting card art, soft colors, festive, square composition, empty space at top and bottom for captions.' : 'Beautiful illustration, square composition.');
+          return makeImage(scene + '. ' + style + ' Absolutely no text, no letters, no watermark.', true).then(function (x) {
+            r.png = j.k === 'card' ? drawMeme(x.img, o.card_top || '', o.card_bottom || '') : x.url; saved.img = x.url; if (j.k === 'card') { saved.top = o.card_top || ''; saved.bottom = o.card_bottom || ''; }
+            setSt(j.k, 'ok');
+          }).catch(function (e) { setSt(j.k, 'bad', e.message); });
+        }
+        if (j.k === 'pages') {
+          var pages = (o.pages || []).slice(0, 3), out = [], bad = 0;
+          return Promise.all(pages.map(function (p, i) {
+            return makeImage(p.scene + '. Main character: ' + (o.hero || 'a cute child') + '. Children\'s picture book illustration, soft watercolor, warm and gentle, consistent character design, square. Absolutely no text, no letters.', true)
+              .then(function (x) { out[i] = drawPage(x.img, p.text); if (i === 0) saved.img = x.url; }).catch(function () { bad++; });
+          })).then(function () { r.pngs = out.filter(Boolean); if (!r.pngs.length) delete r.pngs; setSt('pages', bad ? (r.pngs ? 'ok' : 'bad') : 'ok', bad ? bad + '장 실패' : ''); });
+        }
+        if (j.k === 'voice') {
+          var txt = String(o[j.from] || '').slice(0, 2000);
+          if (!txt) { setSt('voice', 'bad', '읽을 글이 없어요'); return Promise.resolve(); }
+          return makeVoice(txt, j.style, j.voice).then(function (u) { r.voice = u.obj; saved.voice = u.url; saved.narration = txt; setSt('voice', 'ok'); }).catch(function (e) { setSt('voice', 'bad', e.message); });
+        }
+        return Promise.resolve();
+      });
+      return Promise.all(jobs).then(function () { madeAdd(saved); });
+    }).catch(function (e) { f.steps[0].st = 'bad'; f.err = e.message; })
+      .then(function () { f.busy = false; render(); log('ok', F.t + ' 끝'); });
+  }
+  /* 🎙️ 말로 하기 → 받아쓰기(/api/stt) → 칸에 붙임 */
+  function flowRec() {
+    var f = X.fl, F = FLOWS[f.id];
+    if (f.recOn && f.rec) { try { f.rec.stop(); } catch (e) {} return; }
+    if (!navigator.mediaDevices || !window.MediaRecorder) { alert('이 브라우저는 녹음을 지원하지 않아요.'); return; }
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (st) {
+      var chunks = [], rec = new MediaRecorder(st);
+      rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+      rec.onstop = function () {
+        st.getTracks().forEach(function (t) { t.stop(); });
+        f.recOn = false; f.recBusy = true; f.rec = null; render();
+        var fd = new FormData(); fd.append('file', new Blob(chunks, { type: rec.mimeType || 'audio/webm' }), 'audio.webm');
+        fetch('/api/stt', { method: 'POST', headers: authHeaders(), body: fd })
+          .then(function (r) { return r.ok ? r.json() : errOf(r).then(function (m) { throw new Error(m); }); })
+          .then(function (j) { var k = F.audio; f.v[k] = ((f.v[k] || '') + (f.v[k] ? '\n' : '') + (j.text || '')).trim(); })
+          .catch(function (e) { f.err = e.message; })
+          .then(function () { f.recBusy = false; render(); });
+      };
+      f.rec = rec; f.recOn = true; rec.start(); render();
+    }).catch(function () { alert('마이크를 쓸 수 없어요. 마이크 허용을 확인해 주세요.'); });
+  }
+
+  window.RelaySet = { hero: hero, views: { set: viewSet, voice: viewVoice, music: viewMusic, meme: viewMeme, made: viewMade, reel: viewReel, sns: viewSns, avatar: viewAvatar, fusion: viewFusion, flow: viewFlow } };
 
   /* ── 3종 세트 실행 ─────────────────────── */
   function runSet() {
@@ -1190,6 +1421,22 @@
       if (e.meme && e.secs === 0) e.secs = 15;
       S.tab = 'reel'; render(); window.scrollTo(0, 0);
       if (e.meme) ensureMeme(e.meme).then(render, function () {});
+    });
+
+    /* 🔀 창작 릴레이 */
+    document.querySelectorAll('[data-fl-f]').forEach(function (el) { el.addEventListener('input', function () { X.fl.v[el.getAttribute('data-fl-f')] = el.value; }); });
+    on('[data-fl-chip]', function (el) { var p = el.getAttribute('data-fl-chip').split('|'); X.fl.v[p[0]] = X.fl.v[p[0]] === p[1] ? '' : p[1]; render(); });
+    on('[data-fl-back]', function () { S.tab = 'fusion'; render(); });
+    on('#fl-go', function () { if (!X.fl.busy) runFlow(); });
+    on('#fl-rec', function () { flowRec(); });
+    on('[data-fl-secs]', function (el) { if (X.r.busy) return; X.fl.secs = Number(el.getAttribute('data-fl-secs')); render(); });
+    on('[data-fl-reel]', function () {
+      if (X.r.busy) return;
+      var f = X.fl, F = FLOWS[f.id], r = f.res, o = f.o || {};
+      var src = r.pngs ? { mode: 'card', pngs: r.pngs, png: r.pngs[0] } : { mode: 'card', png: r.png };
+      src.title = o[(F.reel && F.reel.title) || 'title'] || ''; src.voice = r.voice || ''; src.music = r.music || '';
+      src.narration = r.voice && F.reel && F.reel.narration ? (o[F.reel.narration] || '') : ''; src.secs = f.secs;
+      runReel('flow', src);
     });
 
     /* 🛒 마켓 · 릴레이 융합 */
