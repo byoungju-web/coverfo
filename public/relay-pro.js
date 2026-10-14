@@ -157,6 +157,9 @@
     render();
   }
 
+  /* 🛒 마켓 · 릴레이 융합(relay-set.js)이 미리 만든 레시피를 바로 실행할 때 씀 */
+  window.RelayPro = { run: startRun };
+
   var origRun = runRecipe;
   runRecipe = async function () {
     var r = S.recipe;

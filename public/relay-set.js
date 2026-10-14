@@ -53,6 +53,18 @@
     '.se-prev{display:block;max-width:220px;max-height:320px;margin:10px auto 0;border-radius:12px;background:#000}',
     '.se-chk{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#374151;margin-top:10px}',
     '.se-chk input{width:18px;height:18px;accent-color:#4338ca}',
+    '.fu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-top:12px}',
+    '.fu-card{border:1px solid #e8eaf1;border-radius:16px;padding:13px;background:#fff;cursor:pointer;display:flex;flex-direction:column;gap:6px;box-shadow:0 1px 2px rgba(20,22,31,.04);transition:border-color .2s,transform .15s}',
+    '.fu-card:hover{border-color:#8b5cf6;transform:translateY(-1px)}',
+    '.fu-h{display:flex;align-items:center;gap:10px}',
+    '.fu-i{width:40px;height:40px;border-radius:12px;background:#f4f3ff;display:inline-flex;align-items:center;justify-content:center;font-size:21px;flex:none}',
+    '.fu-h b{display:block;font-size:14px;color:#14161f}',
+    '.fu-h span{font-size:11px;color:#7a7890}',
+    '.fu-d{font-size:12.5px;color:#4b5563;line-height:1.5}',
+    '.fu-flow{font-size:11.5px;color:#5b21b6;background:#f6f3ff;border-radius:8px;padding:5px 8px}',
+    '.fu-f{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:4px}',
+    '.fu-c{font-size:12px;font-weight:800;color:#5b21b6;background:#f1edff;border-radius:999px;padding:3px 9px}',
+    '.fu-b{font-size:12.5px;font-weight:900;color:#fff;background:#1c1a2e;border-radius:10px;padding:6px 11px}',
     '.set-top{display:flex;align-items:center;justify-content:space-between;gap:8px}',
     '.set-top .set-link{flex:none;font-size:12px;font-weight:800;color:#4338ca;background:#f4f3ff;border:1px solid #e3e0fb;border-radius:999px;padding:5px 10px}',
     '.reel{margin-top:12px;border:1px solid #e7e4f7;border-radius:16px;padding:14px;background:linear-gradient(140deg,#fcfbff 0%,#f4f4ff 100%)}',
@@ -856,7 +868,138 @@
     return h + '</div>';
   }
 
-  window.RelaySet = { hero: hero, views: { set: viewSet, voice: viewVoice, music: viewMusic, meme: viewMeme, made: viewMade, reel: viewReel, sns: viewSns, avatar: viewAvatar } };
+  /* ── 🛒 마켓 · 릴레이 융합 ──
+     coverfo 가 미리 만들어 둔 "융합 레시피 · 콘텐츠 팩 · 틀" 모음. 사고파는 것 없이, 쓸 때 크레딧만 듭니다 (100% 크레딧 사용).
+     누르면 ① 여러 단계를 이어 붙인 릴레이를 바로 실행하거나 ② 해당 도구(목소리 · 음악 · 짤 · SNS · 아바타)를 값이 채워진 채로 열거나
+     ③ 스튜디오(이미지·영상) · 앱 만들기(/chat) 로 문장을 채워서 보냅니다. */
+  var FU_CATS = [['all', '전체'], ['relay', '🔀 릴레이 융합'], ['pack', '🎁 콘텐츠 팩'], ['voice', '🎙️ 목소리'], ['music', '🎵 음악'], ['meme', '😂 짤'], ['avatar', '🗣️ 아바타'], ['studio', '🎨 이미지·영상'], ['app', '📱 앱 만들기']];
+  var RSTEP = { stt: 2, ai: 3, tts: 2, research: 5 };
+  function ai(prompt) { return { type: 'ai', task: 'custom', prompt: prompt }; }
+  var FU = [
+    /* 🔀 릴레이 융합 — 단계를 이어 붙여 한 번에 */
+    { c: 'relay', i: '🗂️', t: '회의록 자동 정리', d: '회의를 녹음하면 → 글로 받아쓰고 → 안건 · 결정 · 할 일(담당 · 기한) 회의록으로 정리', input: 'audio',
+      steps: [{ type: 'stt' }, ai('아래 회의 내용을 회의록으로 정리해. 1) 한 줄 요약 2) 안건별 논의 3) 결정 사항 4) 할 일 목록(담당자 · 기한, 모르면 "미정"). 보기 좋게 제목과 목록으로.')] },
+    { c: 'relay', i: '🎓', t: '강의 녹음 → 요약 노트 + 퀴즈', d: '강의 · 수업을 녹음하면 → 핵심 요약 노트와 확인 퀴즈 5문제(정답 포함)까지', input: 'audio',
+      steps: [{ type: 'stt' }, ai('아래 강의 내용으로 1) 핵심 요약 노트(소제목 · 목록) 2) 이해 확인 퀴즈 5문제(객관식, 정답과 짧은 해설 포함)를 만들어.')] },
+    { c: 'relay', i: '📞', t: '상담 녹음 → 요약 + 답장 문자', d: '손님 상담 · 통화를 녹음하면 → 요청 사항 요약 + 바로 보낼 정중한 답장 문자 초안', input: 'audio',
+      steps: [{ type: 'stt' }, ai('아래 상담 내용을 1) 손님 요청 · 문의 요약(목록) 2) 우리가 할 일 3) 손님에게 보낼 정중한 답장 문자 초안(3~5문장)으로 정리해.')] },
+    { c: 'relay', i: '🎤', t: '음성 메모 → 인스타 글', d: '말로 툭 녹음하면 → 인스타그램 포스트 글 + 해시태그 15개로', input: 'audio',
+      steps: [{ type: 'stt' }, ai('아래 음성 메모 내용으로 인스타그램 포스트를 써. 이모지 조금, 4~7줄, 마지막 줄은 행동 유도. 그 아래 해시태그 15개(#포함, 한 줄).')] },
+    { c: 'relay', i: '📚', t: '리서치 → 블로그 글', d: '주제를 적으면 → 웹 리서치 → 소제목이 있는 블로그 글(1000자 안팎)로', input: 'text',
+      steps: [{ type: 'research' }, ai('아래 리서치 결과로 한국어 블로그 글을 써. 제목, 도입, 소제목 3개, 마무리. 1000자 안팎, 읽기 쉽게. 사실은 리서치 내용 안에서만.')] },
+    { c: 'relay', i: '📻', t: '뉴스 브리핑 라디오', d: '주제를 적으면 → 최신 리서치 → 2분 라디오 원고 → AI 목소리로 읽어 줌', input: 'text',
+      steps: [{ type: 'research' }, ai('아래 리서치 결과로 2분 분량 라디오 뉴스 브리핑 원고를 써. 인사 → 핵심 3가지 → 마무리 인사. 소리 내어 읽기 좋게, 표 · 기호 없이.'), { type: 'tts' }] },
+    { c: 'relay', i: '🌏', t: '안내문 3개국어 + 낭독', d: '한국어 안내문을 → 영어 · 일본어 · 중국어로 번역하고 → 읽어 주는 음성까지', input: 'text',
+      steps: [ai('아래 안내문을 영어, 일본어, 중국어(간체)로 각각 자연스럽게 번역해. 언어 이름을 머리말로 붙이고 번역문만.'), { type: 'tts' }] },
+    { c: 'relay', i: '🛍️', t: '상품 상세페이지 문구 (한 · 영)', d: '상품 이름 · 특징을 적으면 → 상세페이지 문구(한국어) → 영어판까지', input: 'text',
+      steps: [ai('아래 상품 정보로 온라인 쇼핑몰 상세페이지 문구를 써. 1) 한 줄 카피 2) 이런 분께 추천 3) 특징 3가지(소제목+설명) 4) 사용 방법 5) 자주 묻는 질문 3개.'), { type: 'ai', task: 'translate', lang: '영어' }] },
+    { c: 'relay', i: '✉️', t: '거절 · 사과 메일 다듬기 + 낭독 연습', d: '하고 싶은 말을 대충 적으면 → 정중한 비즈니스 메일로 → 읽어 주는 음성으로 연습', input: 'text',
+      steps: [ai('아래 내용을 정중하고 따뜻한 한국어 비즈니스 메일로 다듬어. 제목, 인사, 본문, 맺음말. 상대가 기분 나쁘지 않게.'), { type: 'tts' }] },
+
+    /* 🎁 콘텐츠 팩 — SNS 한 번에(글 · 이미지 · 목소리 · 음악 · 영상 · 번역) */
+    { c: 'pack', i: '☕', t: '카페 오픈 팩', d: '오픈 홍보 인스타 글 · 이미지 · 30초 릴스 · 블로그 · 해시태그', sns: { topic: '동네 작은 카페 오픈 — 시그니처 라떼와 수제 디저트', style: 'dj', secs: 30, langs: [], veo: false } },
+    { c: 'pack', i: '💇', t: '미용실 이벤트 팩', d: '이벤트 안내 글 · 이미지 · 15초 쇼츠 · 블로그', sns: { topic: '미용실 첫 방문 고객 커트 20% 할인 이벤트', style: 'ad', secs: 15, langs: [], veo: false } },
+    { c: 'pack', i: '🏫', t: '학원 모집 팩', d: '신규 모집 홍보 글 · 이미지 · 60초 영상 · 블로그', sns: { topic: '초등 영어 학원 겨울방학 특강 신규 모집', style: 'news', secs: 60, langs: [], veo: false } },
+    { c: 'pack', i: '🍜', t: '식당 신메뉴 팩', d: '신메뉴 홍보 글 · 이미지 · 30초 릴스 · 블로그', sns: { topic: '식당 겨울 신메뉴 얼큰 칼국수 출시', style: 'shorts', secs: 30, langs: [], veo: false } },
+    { c: 'pack', i: '🛒', t: '쇼핑몰 신상품 팩', d: '신상품 소개 글 · 이미지 · 15초 쇼츠 · 상세 블로그', sns: { topic: '온라인 쇼핑몰 겨울 신상 니트 출시', style: 'ad', secs: 15, langs: [], veo: false } },
+    { c: 'pack', i: '🌏', t: '해외 손님 홍보 팩', d: '홍보 세트 + 영어 · 일본어 · 중국어 번역 + AI 실사 영상 배경', sns: { topic: '외국인 관광객에게 우리 가게 소개 — 한국 전통 디저트 카페', style: 'calm', secs: 30, langs: ['영어', '일본어', '중국어'], veo: true } },
+
+    /* 🎙️ 목소리 말투 */
+    { c: 'voice', i: '🛍️', t: '홈쇼핑 쇼호스트', d: '"이 가격 오늘뿐!" 신나고 빠른 판매 멘트', voice: { custom: '홈쇼핑 쇼호스트처럼 신나고 빠르게, 강조할 곳은 힘 있게', voice: 'nova', text: '여러분, 오늘 딱 하루! 이 가격은 다시 없습니다. 지금 바로 주문하세요!' } },
+    { c: 'voice', i: '🚇', t: '지하철 안내 방송', d: '또박또박 차분한 안내 방송 톤', voice: { custom: '지하철 안내 방송처럼 또박또박, 차분하고 정확하게', voice: 'sage', text: '이번 역은 우리 가게 앞입니다. 내리실 문은 행복 쪽입니다. 잊으신 물건 없이 안녕히 가세요.' } },
+    { c: 'voice', i: '⚽', t: '스포츠 중계', d: '흥분한 캐스터처럼 숨 가쁜 중계', voice: { custom: '스포츠 캐스터처럼 흥분해서 빠르고 크게, 마지막은 소리치듯', voice: 'ash', text: '자, 마지막 기회입니다! 공을 잡았어요! 슛! 골! 골입니다! 오늘의 주인공!' } },
+    { c: 'voice', i: '🧸', t: '다정한 동화 구연', d: '아이에게 읽어 주듯 따뜻하고 느리게', voice: { custom: '할머니가 손주에게 동화를 읽어 주듯 따뜻하고 느리게', voice: 'shimmer', text: '옛날 옛적, 숲속 작은 집에 마음씨 착한 토끼가 살았어요.' } },
+    { c: 'voice', i: '🤫', t: 'ASMR 속삭임', d: '귓가에 속삭이는 조용한 목소리', voice: { custom: '아주 작게 속삭이듯, 숨소리가 느껴지게 천천히', voice: 'coral', text: '오늘 하루도 고생 많았어요. 이제 천천히 쉬어요.' } },
+    { c: 'voice', i: '☎️', t: '콜센터 안내 멘트', d: '친절한 ARS · 대기 안내 멘트', voice: { custom: '친절한 콜센터 상담원처럼 밝고 정중하게', voice: 'coral', text: '안녕하세요, 고객님. 지금은 상담 대기 중입니다. 잠시만 기다려 주시면 곧 연결해 드리겠습니다.' } },
+
+    /* 🎵 음악 */
+    { c: 'music', i: '☕', t: '카페 BGM', d: '잔잔한 어쿠스틱 · 피아노, 대화 방해 없는 배경음악', music: { prompt: 'Cozy cafe background music, soft acoustic guitar and warm piano, relaxed slow tempo, no vocals', mode: 'clip', vocal: 'inst' } },
+    { c: 'music', i: '▶️', t: '유튜브 인트로', d: '짧고 강렬한 시작 음악', music: { prompt: 'Energetic YouTube intro jingle, punchy drums, bright synth, upbeat, catchy, no vocals', mode: 'clip', vocal: 'inst' } },
+    { c: 'music', i: '🎂', t: '생일 축하 노래', d: 'AI가 가사까지 지어 부르는 축하 노래 (한 곡)', music: { prompt: 'Happy birthday celebration song, cheerful pop, warm and fun, sing along', mode: 'song', vocal: 'auto' } },
+    { c: 'music', i: '📢', t: '광고 징글', d: '가게 이름이 귀에 박히는 짧은 광고 음악', music: { prompt: 'Short catchy advertising jingle, playful ukulele and claps, bright and memorable, no vocals', mode: 'clip', vocal: 'inst' } },
+    { c: 'music', i: '📖', t: '공부용 로파이', d: '집중이 잘 되는 차분한 로파이 힙합', music: { prompt: 'Lo-fi hip hop study beat, mellow piano, vinyl crackle, slow calm groove, no vocals', mode: 'clip', vocal: 'inst' } },
+    { c: 'music', i: '🎉', t: '오픈 · 이벤트 팡파레', d: '오픈 축하 · 당첨 발표용 신나는 음악', music: { prompt: 'Festive grand opening fanfare, brass section, celebratory drums, exciting and joyful, no vocals', mode: 'clip', vocal: 'inst' } },
+
+    /* 😂 짤 */
+    { c: 'meme', i: '🧑‍🍳', t: '사장님 공감', d: '손님 없는 오후, 사장님 마음', meme: { scene: '텅 빈 가게 카운터에 턱을 괴고 문만 바라보는 고양이 사장님', top: '손님 언제 오세요', bottom: '문 열려 있어요...' } },
+    { c: 'meme', i: '😩', t: '월요병', d: '월요일 아침 출근길', meme: { scene: '월요일 아침 이불 속에서 안 나오는 강아지', top: '월요일이라고?', bottom: '난 아직 일요일이다멍' } },
+    { c: 'meme', i: '🥗', t: '다이어트 3일차', d: '치킨 앞에서 흔들리는 마음', meme: { scene: '치킨을 바라보며 침 흘리는 햄스터', top: '다이어트 3일차', bottom: '오늘까지만 먹을게' } },
+    { c: 'meme', i: '🏃', t: '퇴근 1분 전', d: '시계만 보는 직장인', meme: { scene: '퇴근 시간 시계를 뚫어지게 보는 펭귄 직장인', top: '퇴근 1분 전', bottom: '세상에서 제일 긴 1분' } },
+    { c: 'meme', i: '📦', t: '택배 기다림', d: '배송 조회만 50번째', meme: { scene: '현관문 앞에서 택배 상자를 기다리는 고양이', top: '배송 조회 50번째', bottom: '오늘 온다며...' } },
+
+    /* 🗣️ AI 아바타 */
+    { c: 'avatar', i: '🛍️', t: '상품 소개 영상', d: '내 얼굴 사진으로 8초 상품 소개', avatar: { script: '안녕하세요! 오늘 소개할 제품은 정말 자신 있어요. 지금 바로 만나 보세요.', tone: 'bright' } },
+    { c: 'avatar', i: '🎓', t: '강의 맛보기 영상', d: '강사 사진으로 8초 강의 인사', avatar: { script: '안녕하세요, 여러분. 이번 강의에서 꼭 알아야 할 세 가지를 쉽게 알려 드릴게요.', tone: 'pro' } },
+    { c: 'avatar', i: '🏪', t: '매장 인사 영상', d: '사장님 사진으로 8초 환영 인사', avatar: { script: '어서 오세요! 오늘도 정성껏 준비했습니다. 편하게 둘러보세요.', tone: 'calm' } },
+
+    /* 🎨 이미지 · 영상 (스튜디오로 문장을 채워 보냄) */
+    { c: 'studio', i: '🍰', t: '메뉴 사진', d: '고급 카페 메뉴판용 음식 사진', studio: { kind: 'image', prompt: '나무 테이블 위 크림 라떼와 딸기 케이크, 창가 자연광, 고급 카페 메뉴판 사진, 얕은 심도' }, cost: 2 },
+    { c: 'studio', i: '📦', t: '제품 누끼 느낌 사진', d: '흰 배경 쇼핑몰 대표 이미지', studio: { kind: 'image', prompt: '흰 배경 가운데 놓인 화장품 병, 부드러운 그림자, 쇼핑몰 대표 이미지, 깔끔한 스튜디오 조명' }, cost: 2 },
+    { c: 'studio', i: '🔤', t: '가게 로고 시안', d: '심플한 로고 아이디어 이미지', studio: { kind: 'image', prompt: '동네 빵집을 위한 심플하고 귀여운 로고 시안, 밀 이삭과 빵 모양, 따뜻한 갈색, 흰 배경, 글자 없이' }, cost: 2 },
+    { c: 'studio', i: '🛋️', t: '매장 인테리어 컨셉', d: '새 매장 분위기 미리 보기', studio: { kind: 'image', prompt: '따뜻한 우드톤 미니멀 카페 인테리어, 큰 창, 초록 식물, 오후 햇살, 실사 건축 사진' }, cost: 2 },
+    { c: 'studio', i: '🎬', t: '8초 홍보 영상', d: 'AI 실사 영상 한 편', studio: { kind: 'video', prompt: '갓 구운 빵에서 김이 오르는 모습을 천천히 다가가며 찍은 따뜻한 베이커리 홍보 영상, 시네마틱' }, cost: 25 },
+
+    /* 📱 앱 만들기 (앱 만들기 화면으로 요청 문장을 채워 보냄 — 채팅 크레딧 사용) */
+    { c: 'app', i: '☕', t: '카페 주문 앱', d: '메뉴 · 장바구니 · 주문 접수 화면', app: '모바일용 카페 주문 웹앱을 만들어줘. 메뉴(사진·가격·옵션), 장바구니, 주문하기, 주문 번호 화면, 사장님용 주문 목록 화면. 한국어, 깔끔한 디자인.' },
+    { c: 'app', i: '💇', t: '미용실 예약 앱', d: '날짜 · 시간 · 디자이너 선택 예약', app: '모바일용 미용실 예약 웹앱을 만들어줘. 시술 선택, 디자이너 선택, 날짜·시간 선택, 예약 확인, 사장님용 예약 목록. 한국어, 깔끔한 디자인.' },
+    { c: 'app', i: '🏫', t: '학원 출결 · 공지 앱', d: '학생 출석 체크 · 공지 · 학부모 알림', app: '학원 출결 관리 웹앱을 만들어줘. 학생 목록, 출석/지각/결석 체크, 날짜별 기록, 공지사항 작성·목록. 한국어, 모바일에서 쓰기 편하게.' },
+    { c: 'app', i: '🏪', t: '가게 소개 페이지', d: '메뉴 · 위치 · 영업시간 · 전화 한 장 페이지', app: '우리 가게 소개 한 페이지 웹사이트를 만들어줘. 대표 사진, 소개, 메뉴/가격, 영업시간, 위치 안내, 전화 버튼, 인스타 링크. 한국어, 모바일 우선.' },
+    { c: 'app', i: '💰', t: '동호회 회비 장부', d: '회원 · 입금 · 지출 · 잔액 한눈에', app: '동호회 회비 관리 웹앱을 만들어줘. 회원 목록, 월별 회비 납부 체크, 지출 기록, 잔액 자동 계산, 요약 화면. 한국어, 모바일에서 쓰기 편하게.' }
+  ];
+  function fuCost(x) {
+    if (x.steps) return x.steps.reduce(function (a, s) { return a + (RSTEP[s.type] || 0); }, 0) + ' 크레딧';
+    if (x.sns) return (COST.plan + COST.image + COST.voice + COST.clip + (x.sns.veo ? COST.veo : 0) + x.sns.langs.length * COST.plan) + ' 크레딧';
+    if (x.voice) return COST.voice + ' 크레딧';
+    if (x.music) return (x.music.mode === 'song' ? COST.song : COST.clip) + ' 크레딧';
+    if (x.meme) return COST.image + ' 크레딧';
+    if (x.avatar) return COST.veo + ' 크레딧';
+    if (x.studio) return x.cost + ' 크레딧';
+    if (x.app) return '채팅 크레딧';
+    return '';
+  }
+  X.fu = { cat: 'all', q: '' };
+  function viewFusion() {
+    var f = X.fu, q = f.q.trim().toLowerCase();
+    var h = '<div class="set-box"><div class="set-top"><h2><span class="back" data-set-back="1">←</span>🛒 마켓 · 릴레이 융합</h2><button class="set-link" data-set-go="made">📂 내가 만든 것</button></div>'
+      + '<div class="lead">coverfo 의 기능을 이어 붙인 <b>융합 레시피</b>와 바로 쓰는 <b>콘텐츠 팩 · 틀</b> 모음이에요. 사고팔 필요 없이 누르면 바로 쓰고, 쓸 때 <b>크레딧</b>만 들어요.</div>';
+    h += '<input class="set-in" id="fu-q" placeholder="찾기 (예: 회의록, 카페, 생일)" value="' + esc(f.q).replace(/"/g, '&quot;') + '">';
+    h += '<div class="set-chips" style="margin-top:8px">' + FU_CATS.map(function (c) { return '<button class="set-chip' + (f.cat === c[0] ? ' on' : '') + '" data-fu-cat="' + c[0] + '">' + c[1] + '</button>'; }).join('') + '</div>';
+    var list = FU.map(function (x, i) { return [x, i]; }).filter(function (p) {
+      var x = p[0];
+      if (f.cat !== 'all' && x.c !== f.cat) return false;
+      return !q || (x.t + ' ' + x.d).toLowerCase().indexOf(q) >= 0;
+    });
+    h += '<div class="fu-grid">';
+    list.forEach(function (p) {
+      var x = p[0], cat = (FU_CATS.filter(function (c) { return c[0] === x.c; })[0] || ['', ''])[1];
+      var flow = x.steps ? '<div class="fu-flow">' + (x.input === 'audio' ? '🎙️ 녹음 → ' : '✍️ 글 → ') + x.steps.map(function (s) { return s.type === 'stt' ? '받아쓰기' : s.type === 'research' ? '리서치' : s.type === 'tts' ? 'AI 음성' : s.task === 'translate' ? '번역' : 'AI 정리'; }).join(' → ') + '</div>' : '';
+      h += '<div class="fu-card" data-fu-go="' + p[1] + '"><div class="fu-h"><span class="fu-i">' + x.i + '</span><div><b>' + esc(x.t) + '</b><span>' + cat + '</span></div></div>'
+        + '<div class="fu-d">' + esc(x.d) + '</div>' + flow
+        + '<div class="fu-f"><span class="fu-c">🪙 ' + fuCost(x) + '</span><span class="fu-b">' + (x.steps ? '▶ 실행' : x.studio ? '🎨 열기' : x.app ? '📱 만들기' : '▶ 열기') + '</span></div></div>';
+    });
+    if (!list.length) h += '<div class="pro-empty">찾는 항목이 없어요.</div>';
+    return h + '</div></div>';
+  }
+  function fuGo(x) {
+    if (x.steps) {
+      if (!window.RelayPro || !RelayPro.run) { alert('잠시 뒤 다시 눌러 주세요.'); return; }
+      RelayPro.run({ id: 'fu', title: x.t, icon: x.i, descr: x.d, input: x.input, steps: x.steps.map(function (s) { return Object.assign({}, s); }), run_cost: parseInt(fuCost(x), 10) || 0 });
+      window.scrollTo(0, 0); return;
+    }
+    if (x.sns) { X.n.topic = x.sns.topic; X.n.style = x.sns.style; X.n.secs = x.sns.secs; X.n.langs = x.sns.langs.slice(); X.n.veo = x.sns.veo; S.tab = 'sns'; }
+    else if (x.voice) { X.v.custom = x.voice.custom; X.v.voice = x.voice.voice; X.v.text = x.voice.text; X.v.url = ''; S.tab = 'voice'; }
+    else if (x.music) { X.m.prompt = x.music.prompt; X.m.mode = x.music.mode; X.m.vocal = x.music.vocal; X.m.url = ''; S.tab = 'music'; }
+    else if (x.meme) { X.j.scene = x.meme.scene; X.j.top = x.meme.top; X.j.bottom = x.meme.bottom; X.j.img = null; X.j.png = ''; X.j.mid = null; S.tab = 'meme'; }
+    else if (x.avatar) { X.a.script = x.avatar.script; X.a.tone = x.avatar.tone; S.tab = 'avatar'; }
+    else if (x.studio) { goTop('/studio?kind=' + x.studio.kind + '&prompt=' + encodeURIComponent(x.studio.prompt)); return; }
+    else if (x.app) { goTop('/chat?mode=build&prompt=' + encodeURIComponent(x.app)); return; }
+    render(); window.scrollTo(0, 0);
+  }
+  function goTop(url) { try { (window.top || window).location.href = url; } catch (e) { location.href = url; } }
+  /* 홈의 🛒 마켓 단추는 /relay?tab=fusion 으로 옴 → 바로 마켓 화면 */
+  try { if (new URLSearchParams(location.search).get('tab') === 'fusion') S.tab = 'fusion'; } catch (e) {}
+
+  window.RelaySet = { hero: hero, views: { set: viewSet, voice: viewVoice, music: viewMusic, meme: viewMeme, made: viewMade, reel: viewReel, sns: viewSns, avatar: viewAvatar, fusion: viewFusion } };
 
   /* ── 3종 세트 실행 ─────────────────────── */
   function runSet() {
@@ -1047,6 +1190,15 @@
       if (e.meme && e.secs === 0) e.secs = 15;
       S.tab = 'reel'; render(); window.scrollTo(0, 0);
       if (e.meme) ensureMeme(e.meme).then(render, function () {});
+    });
+
+    /* 🛒 마켓 · 릴레이 융합 */
+    on('[data-fu-cat]', function (el) { X.fu.cat = el.getAttribute('data-fu-cat'); render(); });
+    on('[data-fu-go]', function (el) { var x = FU[Number(el.getAttribute('data-fu-go'))]; if (x) fuGo(x); });
+    var fuQ = document.getElementById('fu-q');
+    if (fuQ) fuQ.addEventListener('input', function () {
+      X.fu.q = fuQ.value; var pos = fuQ.selectionStart; render();
+      var n = document.getElementById('fu-q'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} }
     });
 
     /* 복사 */
