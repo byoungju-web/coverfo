@@ -70,8 +70,15 @@ export default async function handleRequest(
 
   responseHeaders.set('Content-Type', 'text/html');
 
-  responseHeaders.set('Cross-Origin-Embedder-Policy', 'require-corp');
-  responseHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
+  /* v239: /pricing(충전 · 토스 결제창)에는 COEP/COOP 를 붙이지 않는다.
+     채팅 코드 미리보기(WebContainer)용 설정인데, 이 설정이 있으면 토스 결제 모듈(js.tosspayments.com)이 막혀
+     "결제 모듈을 불러오지 못했습니다" 가 뜸 — 이 설정이 없는 /buy 에서는 결제창이 열리는 것을 확인함(2026-10-14). 다른 화면은 그대로 */
+  const cfPath = new URL(request.url).pathname;
+
+  if (!cfPath.startsWith('/pricing')) {
+    responseHeaders.set('Cross-Origin-Embedder-Policy', 'require-corp');
+    responseHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
+  }
 
   return new Response(body, {
     headers: responseHeaders,
