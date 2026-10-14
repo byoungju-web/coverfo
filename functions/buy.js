@@ -64,7 +64,7 @@ th{color:#666;font-weight:600}
 
   <div class="card">
     <h1>크레딧 충전</h1>
-    <p class="sub">1크레딧 ≈ 99원 · 기간 제한 없음 · 결제 즉시 충전 · 실패한 생성은 자동 환불</p>
+    <p class="sub">1크레딧 ≈ 99원 · 결제일로부터 1년 동안 사용 · 결제 즉시 충전 · 실패한 생성은 자동 환불</p>
     <div class="pk" id="pk"></div>
     <div class="methods" id="methods">
       <button type="button" class="chip on" data-m="CARD">💳 카드 · 간편결제</button>
