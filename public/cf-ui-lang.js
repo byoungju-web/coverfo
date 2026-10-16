@@ -1,5 +1,5 @@
 /* coverfo 화면 언어 — 포도톡(pt2.js)의 "화면 언어"와 같은 방식
-   ① 자동(위치 따름): 폰 시간대로 나라를 어림해 그 나라 말로 (준비 안 된 말이면 영어)
+   ① 자동(시간대 따름): 폰 시간대로 나라를 어림해 그 나라 말로 (준비 안 된 말이면 영어)
    ② 화면의 한국어 글자를 모아 번역해 바꿔 넣고, 한 번 번역한 문장은 이 기기(localStorage)에 적어 둔다 → 다음부터 즉시
    ③ 번역기: 구글(무료) → MyMemory(무료) 순. 키 필요 없음
    ④ 같은 값을 답변 언어(cf-answer-lang)에도 넣어 AI 답변·렌즈 분석·음성 인식 언어가 함께 바뀐다
@@ -7,7 +7,7 @@
 (function () {
   if (window.cfUiLang) return;
   var LANGS = [
-    ["auto", "🌐", "자동(위치 따름)"],
+    ["auto", "🌐", "자동(시간대 따름)"],
     ["ko", "🇰🇷", "한국어"],
     ["en", "🇺🇸", "English"],
     ["zh", "🇨🇳", "中文"],
@@ -156,7 +156,7 @@
     var p = pick();
     return '<div class="cf-ui-lang" data-cf-noui="1">' +
       LANGS.map(function (x) { return '<button type="button" class="cf-ui-chip' + (p === x[0] ? " on" : "") + '" data-cf-ui="' + x[0] + '">' + x[1] + " " + x[2] + "</button>"; }).join("") +
-      "</div>" + (where() ? '<div class="cf-ui-where" data-cf-noui="1">📍 지금 위치 · <b>' + esc(where()) + "</b>" + overrideNote() + "</div>" : "");
+      "</div>" + (where() ? '<div class="cf-ui-where" data-cf-noui="1">🕐 시간대 기준 · <b>' + esc(where()) + "</b>" + overrideNote() + "</div>" : "");
   }
   function mount(el) {
     if (!el) return;
