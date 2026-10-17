@@ -501,7 +501,6 @@
     if (pk) return { u: "", w: "숙소", none: pk + " 같은 개인정보가 들어 있어 검색하지 않았어요. 지역·숙소 이름과 날짜·인원만 적어 주세요. (coverfo는 개인정보를 저장하지 않습니다)", info: i };
     var sv = savedStay(q);
     if (sv) { i.saved = { name: sv.name, u: tripSaved(sv.stay, i) }; return { u: i.saved.u, w: "🏨 " + sv.name, info: i, stay: i }; }   /* v37: 내 숙소로 저장한 곳이면 그 숙소로 바로 */
-    if (stayCore(i.stay).length >= 2) i.hotelName = i.stay;   /* 도시 말고 숙소 이름까지 말함 → 처음이면 '내 숙소 저장' 창 */
     return { u: tripHotel(i), w: "🏨 Trip.com", info: i, stay: i };   /* v36: 숙소는 Trip.com 한 곳만 (전에는 Booking.com + 여기어때/Airbnb) */
   }
 
