@@ -445,6 +445,31 @@
     var q = (id ? "city=" + id : "") + (!id || rest ? (id ? "&" : "") + "searchWord=" + E(kw) : "");
     return tripHost(o.c) + "/hotels/list?" + q + (o.ci ? "&checkIn=" + o.ci + "&checkOut=" + o.co : "") + "&adult=" + (o.ppl || 2) + "&children=0&crn=1";
   }
+  /* ── v37 내 숙소: 📒 내 연락처(이 기기 암호화 수첩)에 숙소 이름 + Trip.com 숙소 링크를 저장해 두면 다음부터 그 숙소가 날짜·인원 채워진 채 바로 열림 ──
+     · 수첩은 이 기기에만(AES-GCM 암호화) — 서버로 보내지 않음. 이름 맞추기도 이 기기 안에서. */
+  var GENERIC_STAY = /(호텔|리조트|숙소|펜션|모텔|게스트하우스|민박|풀빌라|콘도|hotels?|resorts?|inn|예약|해\s*줘|줘|좀|찾아|알려)/gi;
+  var STAY_PLACES = ["서귀포", "중문", "애월", "성산", "함덕", "협재", "경주", "속초", "강원", "강원도", "전주", "통영", "거제", "남해", "가평", "춘천", "평창", "해운대", "광안리", "기장", "인천", "수원", "대전", "광주", "대구", "울산", "목포", "안동", "단양", "태안", "보령", "여수", "순천", "포항", "삼척", "동해", "양양", "고성", "홍대", "명동", "강남", "잠실", "종로", "이태원", "성수", "나트랑", "다낭", "푸꾸옥", "세부", "보라카이", "괌", "사이판", "하와이", "발리", "치앙마이", "푸켓", "후쿠오카", "삿포로", "오키나와", "교토", "나고야", "상하이", "베이징", "마카오", "파리", "런던", "뉴욕", "근처", "주변"];
+  function nrm(t) { return String(t || "").replace(/\s+/g, "").toLowerCase(); }
+  /* 도시 이름 · '호텔' 같은 말을 뺀 숙소 고유 이름 (예: "제주 그랜드 하얏트 호텔" → "그랜드하얏트") */
+  function stayCore(name) {
+    var t = nrm(String(name || "").replace(TRIP_RE, " ").replace(GENERIC_STAY, " "));
+    var keys = Object.keys(TRIP_CITY).concat(Object.keys(IATA), STAY_PLACES).sort(function (a, b) { return b.length - a.length; });
+    keys.forEach(function (k) { t = t.split(nrm(k)).join(""); });
+    return t.replace(/^(도|시)|(도|시)$/g, "");
+  }
+  function savedStay(q) {
+    var list = []; try { list = (window.cfBook && window.cfBook.stays) ? window.cfBook.stays() : []; } catch (e) {}
+    var nq = nrm(q), best = null, bl = 0;
+    list.forEach(function (r) { var c = stayCore(r.name); if (c.length >= 2 && nq.indexOf(c) >= 0 && c.length > bl) { best = r; bl = c.length; } });
+    return best;
+  }
+  /* 저장된 Trip.com 숙소 링크 + 날짜·인원 */
+  function tripSaved(url, o) {
+    var u = String(url || ""), id = (u.match(/hotelId=(\d+)/i) || u.match(/hotel-detail-(\d+)/i) || u.match(/\/hotels\/detail\/(\d+)/i) || [])[1], city = (u.match(/cityId=(\d+)/i) || [])[1];
+    if (!id) return u;
+    var host = (u.match(/^https:\/\/[a-z0-9.-]*trip\.com/i) || [tripHost(o.c)])[0];
+    return host + "/hotels/detail/?" + (city ? "cityId=" + city + "&" : "") + "hotelId=" + id + (o.ci ? "&checkIn=" + o.ci + "&checkOut=" + o.co : "") + "&adult=" + (o.ppl || 2) + "&children=0&crn=1";
+  }
   var TRIP_CITYCODE = { ICN: "SEL", GMP: "SEL", NRT: "TYO", HND: "TYO", KIX: "OSA", PUS: "PUS" };
   function tripFlight(o) {
     if (!(o.fc && o.tc && o.dep)) return tripHost(o.c) + "/flights/";
@@ -474,6 +499,9 @@
     if (SANCTIONED[c]) return { u: "", w: "숙소", none: "이 지역에서는 숙소 연결을 제공하지 않습니다 (국제 제재 대상 지역).", info: i };
     var pk = piiKind(q, true);
     if (pk) return { u: "", w: "숙소", none: pk + " 같은 개인정보가 들어 있어 검색하지 않았어요. 지역·숙소 이름과 날짜·인원만 적어 주세요. (coverfo는 개인정보를 저장하지 않습니다)", info: i };
+    var sv = savedStay(q);
+    if (sv) { i.saved = { name: sv.name, u: tripSaved(sv.stay, i) }; return { u: i.saved.u, w: "🏨 " + sv.name, info: i, stay: i }; }   /* v37: 내 숙소로 저장한 곳이면 그 숙소로 바로 */
+    if (stayCore(i.stay).length >= 2) i.hotelName = i.stay;   /* 도시 말고 숙소 이름까지 말함 → 처음이면 '내 숙소 저장' 창 */
     return { u: tripHotel(i), w: "🏨 Trip.com", info: i, stay: i };   /* v36: 숙소는 Trip.com 한 곳만 (전에는 Booking.com + 여기어때/Airbnb) */
   }
 
@@ -595,6 +623,9 @@
     if (any(R.train, q) && /(예매|예약|표|승차권|끊어|타고\s*가|편도|왕복|자리|좌석|에서.*(까지|행|가는|도착)|book|ticket|from\s+.+\s+to\s+|schedule|to\s+\w+)/i.test(q) && notQuestion(q)) return { kind: "train", q: q };
     if (any(R.delivery, q) && /(시켜|시키|주문|배달|order|deliver|get|doordash|uber\s*eats|grubhub|grab\s*food|배민|쿠팡\s*이츠|요기요)/i.test(q) && !/(배달비|배달료|얼마|몇\s*분|언제\s*오|환불|취소|후기|리뷰|how\s*much|how\s*long)/i.test(q)) return { kind: "delivery", q: q };
     if (any(R.stay, q) && any(R.stayWord, q) && notQuestion(q)) return { kind: "stay", q: q };
+    /* v37: "그랜드 하얏트 제주 11월 4일 2박3일 2명 예약" 처럼 '호텔' 이라는 말이 없어도 — 몇 박 + 인원·날짜 / 내 숙소로 저장한 이름이면 숙소 */
+    if (/\d+\s*박/.test(q) && (/\d+\s*(명|인|사람)/.test(q) || /\d{1,2}\s*월\s*\d{1,2}\s*일?/.test(q)) && notQuestion(q)) return { kind: "stay", q: q };
+    if (savedStay(q) && notQuestion(q) && /(예약|박|체크인|\d+\s*월|\d+\s*(명|인))/.test(q)) return { kind: "stay", q: q };
     if (any(R.navi, q)) return { kind: "navi", q: q };
     if (any(R.music, q)) return { kind: "music", q: q };
     if (any([R.place[0], R.place[1], R.place[2]], q) || (any(R.placeNear, q) && any(R.placeKinds, q))) return { kind: "place", q: q };
@@ -799,7 +830,7 @@
     aiClassify(text, c, function (j) { if (!j) { cb(null); return; } go({ kind: j.kind, q: text, query: j.query || "", body: j.body || "" }); });
   }
   if (AI_FALLBACK) try { fetch("/api/quick-intent").then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j && j.cost != null) AI_COST = Number(j.cost) || 0; })["catch"](function () {}); } catch (e) {}
-  window.cfQuick = { country: country, setCountry: setCountry, isOverride: isOverride, classify: classify, build: build, decide: decide, stayInfo: stayInfo, amountOf: amountOf, trip: { hotel: tripHotel, flight: tripFlight, car: tripCar }, aiCost: function () { return AI_COST; }, onAI: null,
+  window.cfQuick = { country: country, setCountry: setCountry, isOverride: isOverride, classify: classify, build: build, decide: decide, stayInfo: stayInfo, amountOf: amountOf, trip: { hotel: tripHotel, flight: tripFlight, car: tripCar, saved: tripSaved, core: stayCore }, aiCost: function () { return AI_COST; }, onAI: null,
     /* 세계 주요 경제국 30 (관리자 시험 칩·확인표에 쓰임) */
     COUNTRIES: [["AUTO", "🌐 자동(시간대)"], ["KR", "🇰🇷 대한민국"], ["US", "🇺🇸 미국"], ["JP", "🇯🇵 일본"], ["CN", "🇨🇳 중국"], ["IN", "🇮🇳 인도"], ["GB", "🇬🇧 영국"], ["DE", "🇩🇪 독일"], ["FR", "🇫🇷 프랑스"], ["ES", "🇪🇸 스페인"], ["IT", "🇮🇹 이탈리아"],
       ["CA", "🇨🇦 캐나다"], ["AU", "🇦🇺 호주"], ["BR", "🇧🇷 브라질"], ["MX", "🇲🇽 멕시코"], ["NL", "🇳🇱 네덜란드"], ["CH", "🇨🇭 스위스"], ["SE", "🇸🇪 스웨덴"], ["BE", "🇧🇪 벨기에"], ["AT", "🇦🇹 오스트리아"], ["PL", "🇵🇱 폴란드"], ["TR", "🇹🇷 튀르키예"],
