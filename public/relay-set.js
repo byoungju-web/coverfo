@@ -1585,3 +1585,62 @@
   render();
   madeSync();
 })();
+
+/* v252 📤 공유 단추 — 릴레이 결과(짤·영상·음악·목소리·그림책·이미지)의 💾 저장 단추 옆에 [📤 공유] 를 붙인다.
+   · 누르면 폰의 공유 창(카카오톡·인스타·X·문자…)에 그 파일 자체를 넘긴다. 결과물 그림·영상에는 아무 표시도 넣지 않는다.
+   · 공유 글: "coverfo 로 만들었어요 👉 https://coverfo.com"
+   · 파일 공유를 못 하는 기기(PC 등)는 링크 공유 → 그것도 없으면 coverfo 주소를 복사. 위의 기존 코드는 바꾸지 않고 화면에 단추만 덧붙인다. */
+(function () {
+  if (window.__cfRelayShare) return; window.__cfRelayShare = true;
+  var SITE = 'https://coverfo.com', TEXT = 'coverfo 로 만들었어요 👉 ' + SITE;
+  var cache = {};   /* src → File (한 번 받아 두면 두 번째 누를 때 바로 공유) */
+  function msg(t) {
+    var d = document.getElementById('cf-rs-toast');
+    if (!d) { d = document.createElement('div'); d.id = 'cf-rs-toast'; d.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:99999;background:#1f1b33;color:#fff;padding:10px 16px;border-radius:14px;font-size:13px;line-height:1.5;max-width:calc(100% - 32px);box-shadow:0 8px 24px rgba(0,0,0,.25)'; document.body.appendChild(d); }
+    d.textContent = t; d.style.display = 'block'; clearTimeout(d._h); d._h = setTimeout(function () { d.style.display = 'none'; }, 3500);
+  }
+  function mime(name, blobType) {
+    if (blobType && blobType !== 'application/octet-stream') return blobType;
+    var e = (name.split('.').pop() || '').toLowerCase();
+    return { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', mp4: 'video/mp4', webm: 'video/webm', mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav' }[e] || 'application/octet-stream';
+  }
+  function linkOnly(src) {
+    var url = /^https?:/i.test(src) ? src : SITE;
+    if (navigator.share) { navigator.share({ title: 'coverfo', text: TEXT, url: url }).then(function () {}, function () {}); return; }
+    try { navigator.clipboard.writeText(TEXT).then(function () { msg('🔗 공유 창이 없는 기기라 소개 글을 복사했어요. 붙여넣기 하세요. (파일은 💾 저장 후 올려 주세요)'); }, function () { msg('💾 저장한 뒤 SNS 에 올려 주세요'); }); } catch (e) { msg('💾 저장한 뒤 SNS 에 올려 주세요'); }
+  }
+  function shareFile(file, src) {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: 'coverfo', text: TEXT }).then(function () {}, function (e) {
+        if (e && e.name === 'NotAllowedError') msg('📤 한 번 더 눌러 주세요');   /* 파일을 받는 동안 시간이 지나 브라우저가 막은 경우 */
+      });
+    } else linkOnly(src);
+  }
+  function onShare(btn) {
+    var src = btn.getAttribute('data-src') || '', name = btn.getAttribute('data-name') || 'coverfo';
+    if (!src) return;
+    if (cache[src]) { shareFile(cache[src], src); return; }
+    if (!(navigator.canShare && window.File)) { linkOnly(src); return; }
+    btn.disabled = true; var old = btn.textContent; btn.textContent = '⏳ 준비 중…';
+    fetch(src).then(function (r) { if (!r.ok) throw new Error(r.status); return r.blob(); }).then(function (b) {
+      var f = new File([b], name, { type: mime(name, b.type) }); cache[src] = f; btn.disabled = false; btn.textContent = old; shareFile(f, src);
+    })['catch'](function () { btn.disabled = false; btn.textContent = old; linkOnly(src); });
+  }
+  function decorate() {
+    var as = document.querySelectorAll('a[download^="coverfo"]');
+    for (var i = 0; i < as.length; i++) {
+      var a = as[i]; if (a.getAttribute('data-cf-share')) continue;
+      a.setAttribute('data-cf-share', '1');
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-secondary btn-sm cf-rs-share';
+      b.setAttribute('data-src', a.getAttribute('href') || ''); b.setAttribute('data-name', a.getAttribute('download') || 'coverfo');
+      b.textContent = '📤 공유';
+      a.parentNode.insertBefore(b, a.nextSibling);
+      if (a.nextSibling === b && b.previousSibling === a) { try { b.style.marginLeft = getComputedStyle(a.parentNode).display.indexOf('flex') >= 0 ? '' : '6px'; } catch (e) {} }
+    }
+  }
+  document.addEventListener('click', function (e) { var b = e.target && e.target.closest ? e.target.closest('.cf-rs-share') : null; if (!b) return; e.preventDefault(); e.stopPropagation(); onShare(b); }, true);
+  var t = null;
+  function soon() { if (t) return; t = setTimeout(function () { t = null; decorate(); }, 120); }
+  if (window.MutationObserver) new MutationObserver(soon).observe(document.documentElement, { childList: true, subtree: true });
+  decorate();
+})();

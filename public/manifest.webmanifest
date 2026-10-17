@@ -1,0 +1,16 @@
+{
+  "name": "coverfo",
+  "short_name": "coverfo",
+  "description": "말하면 바로 열리는 AI — 예약·검색·영상·짤까지",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FCFCFD",
+  "theme_color": "#FCFCFD",
+  "lang": "ko",
+  "icons": [
+    { "src": "/coverfo-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/coverfo-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/coverfo-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

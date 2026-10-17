@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<!-- © 2026 coverfo All Rights Reserved — Korea travel page for visitors (English) -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>coverfo — Korea travel AI assistant | Taxi, maps, trains, food delivery in English</title>
+<meta name="description" content="Visiting Korea? Type or say what you need in English. coverfo opens the right Korean app — Kakao T, Naver Map, Korail, delivery apps, Trip.com — with your destination filled in.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://coverfo.com/travel/">
+<meta property="og:title" content="Korea, without the app headache — coverfo">
+<meta property="og:description" content="Say it in English. coverfo opens Kakao T, Naver Map, Korail and more — already filled in.">
+<meta property="og:image" content="https://coverfo.com/travel/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://coverfo.com/travel/">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/coverfo-icon-180.png">
+<link rel="icon" type="image/png" href="/coverfo-icon-192.png">
+<meta name="theme-color" content="#FCFCFD">
+<style>
+:root{--ink:#14121f;--sub:#5d5a70;--line:#e8e5f0;--bg:#fcfcfd;--card:#fff;--a:#5b6cff;--b:#8b5cf6;--c:#10b981;--soft:#f4f1ff}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-text-size-adjust:100%}
+a{color:inherit}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px}
+header{position:sticky;top:0;z-index:5;background:rgba(252,252,253,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+header .wrap{height:56px;display:flex;align-items:center;justify-content:space-between}
+.brand{font-weight:800;font-size:20px;letter-spacing:-.02em;text-decoration:none}
+.brand i{font-style:normal;background:linear-gradient(90deg,var(--a),var(--b));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hdr-go{height:36px;padding:0 14px;border-radius:999px;background:var(--ink);color:#fff;text-decoration:none;font-size:14px;font-weight:700;display:inline-flex;align-items:center}
+.hero{padding:40px 0 28px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:var(--soft);color:#4b2fb8;font-size:13px;font-weight:700}
+h1{font-size:clamp(32px,8.5vw,52px);line-height:1.05;letter-spacing:-.035em;margin:16px 0 14px}
+h1 span{background:linear-gradient(90deg,var(--a),var(--b) 55%,var(--c));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{font-size:17px;line-height:1.6;color:var(--sub);margin:0 0 22px;max-width:600px}
+.apps{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 24px;padding:0;list-style:none}
+.apps li{font-size:13px;font-weight:700;padding:7px 11px;border-radius:10px;background:#fff;border:1px solid var(--line)}
+.cta{display:flex;flex-wrap:wrap;gap:10px}
+.btn{height:50px;padding:0 22px;border-radius:999px;font-size:16px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;border:none;cursor:pointer}
+.btn-main{background:linear-gradient(90deg,var(--a),var(--b));color:#fff;box-shadow:0 10px 24px -10px rgba(91,108,255,.7)}
+.btn-ghost{background:#fff;color:var(--ink);border:1.5px solid var(--line)}
+section{padding:26px 0}
+h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
+.h2s{color:var(--sub);font-size:15px;margin:0 0 16px;line-height:1.55}
+.grid{display:grid;grid-template-columns:1fr;gap:10px}
+@media(min-width:620px){.grid{grid-template-columns:1fr 1fr}}
+.try{display:flex;gap:12px;align-items:flex-start;text-decoration:none;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;transition:transform .15s,box-shadow .15s;-webkit-tap-highlight-color:transparent}
+.try:hover{transform:translateY(-1px);box-shadow:0 10px 24px -14px rgba(0,0,0,.25)}
+.try:active{transform:scale(.99)}
+.ico{flex:none;width:44px;height:44px;border-radius:12px;background:var(--soft);display:grid;place-items:center;font-size:22px}
+.tt{flex:1;min-width:0}
+.tt b{display:block;font-size:15px;margin-bottom:4px}
+.say{display:inline-block;font-size:14px;font-weight:600;color:#0f6b7a;background:#e3f2f4;border-radius:8px;padding:4px 8px;margin-bottom:5px;word-break:break-word}
+.opens{display:block;font-size:12.5px;color:var(--sub)}
+.go{flex:none;align-self:center;font-size:20px;color:#b3acd0}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.steps li{display:flex;gap:12px;align-items:flex-start;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px}
+.num{flex:none;width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:800;font-size:14px}
+.steps p{margin:3px 0 0;color:var(--sub);font-size:14px;line-height:1.55}
+.box{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;font-size:14px;line-height:1.65;color:var(--sub)}
+.box b{color:var(--ink)}
+.box ul{margin:8px 0 0;padding-left:18px}
+.tip{display:flex;gap:10px;align-items:flex-start;background:var(--soft);border-radius:16px;padding:14px 16px;font-size:14px;line-height:1.6;color:#3b2a86}
+footer{border-top:1px solid var(--line);margin-top:20px;padding:22px 0 40px;color:#8a879a;font-size:12.5px}
+footer a{color:#5d5a70}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <a class="brand" href="/" data-en="1">cover<i>fo</i></a>
+  <a class="hdr-go" href="/" data-en="1">Open coverfo</a>
+</div></header>
+
+<main class="wrap">
+  <div class="hero">
+    <span class="pill">🇰🇷 For visitors to Korea</span>
+    <h1>Korea, without the<br><span>app headache.</span></h1>
+    <p class="lead">Korea runs on its own apps — Kakao T for taxis, Naver Map for directions, Korail for trains, local apps for food delivery. Just <b>type or say what you need in English</b>, and coverfo opens the right one with your destination already filled in.</p>
+    <ul class="apps" aria-label="Apps coverfo can open">
+      <li>🚕 Kakao T</li><li>🧭 Naver Map</li><li>🚄 Korail</li><li>🛵 Delivery apps</li><li>🏨 Trip.com hotels</li><li>✈️ Trip.com flights</li>
+    </ul>
+    <div class="cta">
+      <a class="btn btn-main" href="/" data-en="1">Try it now — free</a>
+      <a class="btn btn-ghost" href="#try">See examples ↓</a>
+    </div>
+  </div>
+
+  <section id="try">
+    <h2>Tap an example</h2>
+    <p class="h2s">Each one opens coverfo with the sentence ready to go — tap <b>▶ Open</b> at the bottom and the Korean app opens. Change the place or date to anything you like.</p>
+    <div class="grid">
+      <a class="try" data-q="Call a taxi to Gyeongbokgung"><span class="ico">🚕</span><span class="tt"><b>Get a taxi</b><span class="say">“Call a taxi to Gyeongbokgung”</span><span class="opens">Opens Kakao T, Korea's main taxi app</span></span><span class="go">›</span></a>
+      <a class="try" data-q="Directions to Myeongdong"><span class="ico">🧭</span><span class="tt"><b>Find your way</b><span class="say">“Directions to Myeongdong”</span><span class="opens">Opens Naver Map with the place searched</span></span><span class="go">›</span></a>
+      <a class="try" data-q="Best restaurants near Hongdae"><span class="ico">🍜</span><span class="tt"><b>Find food nearby</b><span class="say">“Best restaurants near Hongdae”</span><span class="opens">Opens Naver Map restaurant search</span></span><span class="go">›</span></a>
+      <a class="try" data-q="Train ticket from Seoul to Busan"><span class="ico">🚄</span><span class="tt"><b>Book a train</b><span class="say">“Train ticket from Seoul to Busan”</span><span class="opens">Opens Korail (KTX) ticket search</span></span><span class="go">›</span></a>
+      <a class="try" data-q="Order fried chicken delivery"><span class="ico">🛵</span><span class="tt"><b>Order delivery</b><span class="say">“Order fried chicken delivery”</span><span class="opens">Opens a Korean food delivery app</span></span><span class="go">›</span></a>
+      <a class="try" data-q="Book a hotel in Seoul Nov 5 for 2 nights 2 people"><span class="ico">🏨</span><span class="tt"><b>Book a hotel</b><span class="say">“Book a hotel in Seoul Nov 5 for 2 nights 2 people”</span><span class="opens">Opens Trip.com with city, dates and guests filled in</span></span><span class="go">›</span></a>
+      <a class="try" data-q="Flight from Seoul to Jeju Nov 5"><span class="ico">✈️</span><span class="tt"><b>Fly to Jeju</b><span class="say">“Flight from Seoul to Jeju Nov 5”</span><span class="opens">Opens Trip.com flight search with the date</span></span><span class="go">›</span></a>
+      <a class="try" data-q="Places to visit in Seoul"><span class="ico">🏯</span><span class="tt"><b>Things to see</b><span class="say">“Places to visit in Seoul”</span><span class="opens">Opens Naver Map with sights to explore</span></span><span class="go">›</span></a>
+      <a class="try" data-q="Weather in Busan tomorrow"><span class="ico">🌤</span><span class="tt"><b>Check the weather</b><span class="say">“Weather in Busan tomorrow”</span><span class="opens">Opens the local weather forecast</span></span><span class="go">›</span></a>
+      <a class="try" data-q="Rent a car in Jeju"><span class="ico">🚗</span><span class="tt"><b>Rent a car</b><span class="say">“Rent a car in Jeju”</span><span class="opens">Opens Trip.com car hire</span></span><span class="go">›</span></a>
+    </div>
+  </section>
+
+  <section>
+    <h2>How it works</h2>
+    <ol class="steps">
+      <li><span class="num">1</span><div><b>Type or say it in English</b><p>Use the 🎙 button to just speak. No Korean needed.</p></div></li>
+      <li><span class="num">2</span><div><b>coverfo picks the Korean app</b><p>It works out what you want and opens the official app or site — with the place, date or number of people filled in where possible.</p></div></li>
+      <li><span class="num">3</span><div><b>Finish in that app</b><p>You book and pay directly in the official app or site. coverfo never takes your payment.</p></div></li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="tip">📲 <div><b>Keep it on your home screen.</b> In Chrome: ⋮ menu → <i>Add to Home screen</i>. On iPhone Safari: Share □↑ → <i>Add to Home Screen</i>. Then coverfo opens like an app, any time you need it.</div></div>
+  </section>
+
+  <section>
+    <h2>Good to know</h2>
+    <div class="box">
+      <ul>
+        <li>coverfo only <b>opens</b> the official apps and websites — it doesn't book, reserve or take payment for you.</li>
+        <li>Some Korean apps may ask you to install the app or sign up the first time you use them.</li>
+        <li>Prices, rooms and availability come from each app or site, not from coverfo.</li>
+        <li>On the coverfo home screen, <b>🌐 통역톡 (Translate Talk)</b> helps you chat with people in Korean and other languages.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer><div class="wrap">© 2026 coverfo · <a href="/" data-en="1">coverfo.com</a></div></footer>
+
+<script>
+/* 예시 누르면: coverfo 홈을 영어 화면으로 열고(처음 한 번만 — 이미 언어를 골라 둔 사람은 그대로), 그 문장을 입력칸에 채운다(/?q=…). */
+(function(){
+  function en(){ try{ if(!localStorage.getItem("cf_ui")) localStorage.setItem("cf_ui","en"); }catch(e){} }
+  var t=document.querySelectorAll(".try[data-q]");
+  for(var i=0;i<t.length;i++){ t[i].href="/?q="+encodeURIComponent(t[i].getAttribute("data-q")); t[i].addEventListener("click",en); }
+  var g=document.querySelectorAll("[data-en]"); for(var k=0;k<g.length;k++) g[k].addEventListener("click",en);
+})();
+</script>
+</body>
+</html>
