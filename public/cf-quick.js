@@ -780,8 +780,8 @@
     window.cfUiLang.translate(text, "en", function (out) { if (done) return; done = true; clearTimeout(t); cb(out || text); });
   }
   /* ── 규칙 실패 시 AI(Claude Fable 5.1)에게 한 번: /api/quick-intent ── */
-  var AI_FALLBACK = false;   /* 규칙에 안 걸린 문장을 AI(크레딧 차감)에게 물을지. false 면 바로 채팅으로 — 오타·발음 오류로 크레딧이 나가지 않게 */
-  var AI_COST = 1;   /* 표시용 기본값. 서버 GET /api/quick-intent 의 cost 로 갱신 */
+  var AI_FALLBACK = true;   /* v254 AI 판단 라우터 켬: 규칙에 안 걸린 문장을 AI(1회 0.1크레딧)에게 한 번 물음. false 면 바로 채팅으로 */
+  var AI_COST = 0.1;   /* 표시용 기본값(1회 0.1). 서버 GET /api/quick-intent 의 cost 로 갱신 */
   function aiClassify(text, c, cb) {
     var tok = null;
     try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf("sb-") === 0 && k.indexOf("-auth-token") > 0) { var v = JSON.parse(localStorage.getItem(k) || "null"); if (v && v.access_token) tok = v.access_token; } } } catch (e) {}
