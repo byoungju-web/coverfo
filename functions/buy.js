@@ -87,7 +87,7 @@ th{color:#666;font-weight:600}
     <div class="wl-code"><input id="wlcode" readonly placeholder="아직 코드가 없습니다"><button type="button" class="wl-btn" id="wlcopy">복사</button></div>
     <div class="wl-row"><button type="button" class="wl-btn sec" id="wlnew">코드 만들기</button><button type="button" class="wl-btn gray" id="wlunlink" style="display:none">연결 끊기</button></div>
     <div class="wl-note" id="wlmsg"></div>
-    <div class="wl-note">1크레딧 = 99원 · 받아쓰기 0.1 · 빠른 답 0.2 · 웹검색 0.4 · 고품질 답 1 · 전화통역 6/분 — 어디서 써도 같은 지갑입니다.</div>
+    <div class="wl-note">1크레딧 = 99원 · 받아쓰기 0.1 · 빠른 답 0.2 · 웹검색 0.4 · 고품질 답 0.8 · 전화통역 6/분 — 어디서 써도 같은 지갑입니다.</div>
   </div>
 
   <h3>충전 내역</h3>
