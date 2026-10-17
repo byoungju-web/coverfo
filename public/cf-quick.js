@@ -61,8 +61,8 @@
     flight: [/(항공권|비행기\s*(표|티켓|편|예약|예매|값|요금|최저가)|항공편|비행편|항공\s*(예약|예매)|비행기.*(예약|예매|끊어|알아봐|찾아|최저가)|비행기\s*타고)/, /\b(flights?|airfare|plane\s*tickets?|air\s*tickets?|fly\s+(to|from))\b/i],
     weather: [/(날씨|기온|일기\s*예보|강수|미세\s*먼지|초미세\s*먼지|자외선|체감\s*온도|비\s*(와|올까|오나|올래|소식)|눈\s*(와|올까|오나|소식)|우산\s*(챙|필요|가져))/, /\b(weather|forecast|temperature|will\s+it\s+rain|is\s+it\s+raining)\b/i],
     used: [/(중고(?!\s*등|생|교)|당근\s*마켓|당근\s*(에서|에|으로)|번개\s*장터|번장|중고\s*나라|리퍼\s*(제품|폰|상품)?)/, /\b(used|second[- ]?hand|pre[- ]?owned|refurbished)\b/i],
-    rental: [/(렌터카|렌트카|렌트\s*카|차\s*렌트|차량\s*(렌트|대여)|자동차\s*대여|쏘카|그린카|카\s*셰어링)/, /\b(car\s*rental|rental\s*car|rent\s*a\s*car|car\s*hire|hire\s*a\s*car)\b/i],
-    stayWord: [/(콘도|리조트|펜션|호텔|모텔|민박|게스트하우스|글램핑|캠핑|숙소|풀빌라|롯지|료칸)/, /\b(hotel|hostel|airbnb|resort|motel|inn|lodge|guesthouse|villa|cabin|apartment)\b/i]
+    rental: [/(렌터카|렌트카|랜터카|랜트카|렌트\s*카|차\s*렌트|차량\s*(렌트|대여)|자동차\s*대여|쏘카|그린카|카\s*셰어링)/, /\b(car\s*rental|rental\s*car|rent\s*a\s*car|car\s*hire|hire\s*a\s*car)\b/i],
+    stayWord: [/(콘도|리조트|펜션|호텔|모텔|민박|게스트하우스|글램핑|캠핑|숙소|풀빌라|롯지|료칸|트립\s*닷컴)/, /\b(hotel|hostel|airbnb|resort|motel|inn|lodge|guesthouse|villa|cabin|apartment|trip\s*\.\s*com|tripcom)\b/i]   /* v36: "○○ 2박 2명 트립닷컴(trip.com) 예약" 도 숙소로 */
   };
   function any(list, q) { var qn = String(q || "").replace(/\s+/g, ""); for (var i = 0; i < list.length; i++) if (list[i].test(q) || list[i].test(qn)) return true; return false; }
   function notQuestion(q) { return !/(방법|사용법|어떻게\s*(해|하는)|고장|수리|원리|뜻|의미|증상|차이점|뭐야|what\s*is|how\s*does|meaning|why)/i.test(q); }
@@ -267,7 +267,7 @@
     return { dep: out[0], ret: out[1] || "", guessed: guessed, adults: ppl && +ppl[2] > 0 && +ppl[2] <= 9 ? +ppl[2] : 1, round: !!out[1] || /왕복|round\s*trip|return/i.test(s) };
   }
   function flightRoute(q) {
-    var t = String(q || "").replace(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*\d{1,2}\b/gi, " ").replace(/(다음\s*주(말)?|이번\s*주(말)?|다음\s*달|주말|오늘|내일|모레|글피|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*\/\s*\d{1,2}|\d{1,2}\s*박(\s*\d{1,2}\s*일)?|(어른|성인)?\s*\d{1,2}\s*(명|인|사람)|\d{1,2}\s*(adults?|people|persons?|pax))/gi, " ")
+    var t = String(q || "").replace(TRIP_RE, " ").replace(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*\d{1,2}\b/gi, " ").replace(/(다음\s*주(말)?|이번\s*주(말)?|다음\s*달|주말|오늘|내일|모레|글피|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*\/\s*\d{1,2}|\d{1,2}\s*박(\s*\d{1,2}\s*일)?|(어른|성인)?\s*\d{1,2}\s*(명|인|사람)|\d{1,2}\s*(adults?|people|persons?|pax))/gi, " ")
       .replace(/(항공권|비행기\s*(표|티켓|편)?|항공편|비행편|항공|예약|예매|최저가|가장\s*싼|싼|저렴한|편도|왕복|끊어\s*줘?|알아\s*봐\s*줘?|찾아\s*줘?|알려\s*줘?|해\s*줘?|줘|좀|타고|가는|가고\s*싶어|값|요금)/g, " ")
       .replace(/\b(cheap(est)?|flights?|airfare|plane|air|tickets?|book(ing)?|a|the|please|one[- ]way|round[- ]?trip|return|find|me|search|for|fly)\b/gi, " ").replace(/(^|\s)(부터|까지|에|에서부터)(?=\s|$)/g, " ").replace(/\s+/g, " ").trim();
     var m = t.match(/^(.*?\S)\s*에서\s+(.+?)(까지|행|으로|로)?$/) || t.match(/^from\s+(.+?)\s+to\s+(.+)$/i) || t.match(/^(.+?)\s+to\s+(.+)$/i) || t.match(/^(\S+)\s*(?:→|->|-|~)\s*(\S+)$/);
@@ -284,7 +284,7 @@
     if (fr === "SEL" && to && !KR_AIR[to]) fr = "ICN"; if (to === "SEL" && fr && !KR_AIR[fr]) to = "ICN";
     if (fr === "SEL" && KR_AIR[to]) fr = "GMP"; if (to === "SEL" && KR_AIR[fr]) to = "GMP";
     var info = { from: rt.from, to: rt.to, fc: fr, tc: to, dep: dt.dep, ret: dt.round ? dt.ret : "", guessed: dt.guessed, adults: dt.adults, c: c, dom: !!(KR_AIR[fr] && KR_AIR[to]) };
-    return { u: "https://www.google.com/travel/flights", w: "✈️ 항공권", flight: info };
+    return { u: tripFlight(info), w: "✈️ Trip.com 항공권", flight: info };   /* v36: 항공권은 Trip.com 한 곳만 */
   }
   /* ── 날씨(v19): 한국은 날씨 화면(cf-weather: 네이버 날씨·기상청 날씨누리·Google), 그 밖의 나라는 Google 날씨 검색을 바로 연다 ──
      · 공개 검색 주소만 연다(크롤링 없음). 지역 이름만 검색어로 쓰고 저장하지 않는다. 위치(GPS)는 받지 않는다 — 지역을 안 말하면 각 서비스가 직접 판단.
@@ -336,12 +336,12 @@
     var days = s.match(/부터\s*(\d{1,2})\s*일(간|동안)?/) || s.match(/(\d{1,2})\s*일\s*(간|동안)/) || s.match(/\bfor\s+(\d{1,2})\s+days?\b/i);
     var dep = dt.dep, ret = dt.ret;
     if (!ret) { var r0 = new Date(dep + "T00:00:00"); r0.setDate(r0.getDate() + (days ? +days[1] : 3)); var p2 = function (n) { return (n < 10 ? "0" : "") + n; }; ret = r0.getFullYear() + "-" + p2(r0.getMonth() + 1) + "-" + p2(r0.getDate()); guessRet = !days; }
-    var place = s.replace(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*\d{1,2}\b/gi, " ")
-      .replace(/(렌터카|렌트카|렌트\s*카|차\s*렌트|차량\s*(렌트|대여)|자동차\s*대여|쏘카|그린카|카\s*셰어링|다음\s*주(말)?|이번\s*주(말)?|주말|오늘|내일|모레|글피|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*\/\s*\d{1,2}|부터|까지|\d{1,2}\s*일\s*(간|동안)?|\d{1,2}\s*박|예약|빌려\s*줘?|빌리고\s*싶어|찾아\s*줘?|알아\s*봐\s*줘?|알려\s*줘?|싼|저렴한|최저가|해\s*줘?|줘|좀)/g, " ")
+    var place = s.replace(TRIP_RE, " ").replace(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*\d{1,2}\b/gi, " ")
+      .replace(/(렌터카|렌트카|랜터카|랜트카|렌트\s*카|차\s*렌트|차량\s*(렌트|대여)|자동차\s*대여|쏘카|그린카|카\s*셰어링|다음\s*주(말)?|이번\s*주(말)?|주말|오늘|내일|모레|글피|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*\/\s*\d{1,2}|부터|까지|\d{1,2}\s*일\s*(간|동안)?|\d{1,2}\s*박|예약|빌려\s*줘?|빌리고\s*싶어|찾아\s*줘?|알아\s*봐\s*줘?|알려\s*줘?|싼|저렴한|최저가|해\s*줘?|줘|좀)/g, " ")
       .replace(/\b(car|rental|rent|hire|a|in|at|for|from|to|the|cheap|please|find|me|days?|\d+)\b/gi, " ").replace(/(\S{2,})(에서|에)(?=\s|$)/g, "$1").replace(/\s+/g, " ").trim();
     var code = iata(place);
     var info = { place: place, code: code, dep: dep, ret: ret, guessed: dt.guessed, guessRet: guessRet, c: c };
-    return { u: code ? "https://www.expedia.com/go/car/search/Airport/" + dep + "/" + ret + "?PickUpLoc=" + code.toLowerCase() + "&DiffDropLoc=0&PickUpTime=10AM&DropTime=10AM&Class=NoPreference" : "https://www.expedia.com/Cars", w: "🚗 렌터카", rental: info };
+    return { u: tripCar(info), w: "🚗 Trip.com 렌터카", rental: info };   /* v36: 렌터카는 Trip.com 한 곳만 */
   }
   /* ── 배달(v13) ──
      · 한국: 배민·쿠팡이츠·요기요·네이버지도 '근처 ○○ 배달' 화면(cf-dlv). 한국 배달 앱은 검색어를 받는 공개 주소가 없어 앱을 열고 메뉴 이름을 복사해 둔다.
@@ -427,6 +427,32 @@
     if (handle) return { u: "https://paypal.me/" + E(handle) + (amt ? "/" + amt : ""), w: "💸 PayPal.me" };
     return { u: "https://www.paypal.com/myaccount/transfer/homepage/pay", w: "💸 PayPal 보내기", note: "문장에 @아이디를 넣으면 받는 사람·금액이 채워진 채 열려요." };
   }
+  /* ── v36 Trip.com (숙소 · 항공권 · 렌터카 모두 Trip.com 한 곳만) ──
+     · 숙소: /hotels/list?city=도시번호&checkIn&checkOut&adult&children&crn (Trip.com 목록 주소 형식). 도시번호를 모르면 searchWord(검색어)로.
+       도시번호는 Trip.com 공개 목록 주소(…-hotels-list-번호)에서 확인한 것만 넣음.
+     · 항공권: /flights/showfarefirst?dcity&acity&ddate&rdate&triptype&class&quantity (Trip.com 검색 결과 주소 형식, 도시 코드)
+     · 렌터카: 장소·날짜를 주소로 넘기는 공개 형식이 없어 렌터카 첫 화면(/carhire/)을 연다 — 화면에 장소·날짜를 보여 줌.
+     · 한국은 kr.trip.com, 그 밖은 www.trip.com. 예약·결제는 Trip.com 에서 이용자가 직접. */
+  var TRIP_CITY = { "제주": 737, "제주도": 737, "제주시": 737, "jeju": 737, "서울": 274, "seoul": 274, "부산": 253, "busan": 253, "강릉": 61325, "gangneung": 61325,
+    "오사카": 219, "osaka": 219, "도쿄": 228, "동경": 228, "tokyo": 228, "홍콩": 58, "hong kong": 58, "하노이": 286, "hanoi": 286, "방콕": 359, "bangkok": 359,
+    "타이베이": 617, "대만": 617, "taipei": 617, "싱가포르": 73, "singapore": 73 };
+  var TRIP_RE = /(트립\s*닷컴|트립닷컴|trip\s*\.\s*com|tripcom|trip\.com)\s*(에서|으로|로|에)?/gi;
+  function tripHost(c) { return c === "KR" ? "https://kr.trip.com" : "https://www.trip.com"; }
+  function tripHotel(o) {
+    var kw = String(o.stay || "").replace(TRIP_RE, " ").replace(/\s+/g, " ").trim(), l = kw.toLowerCase(), id = 0, hit = "";
+    for (var k in TRIP_CITY) if (TRIP_CITY.hasOwnProperty(k) && l.indexOf(k) >= 0 && k.length > hit.length) { id = TRIP_CITY[k]; hit = k; }
+    var rest = hit ? l.replace(hit, " ").replace(/(도|시)(?=\s|$)/g, " ").replace(/(호텔|숙소|hotels?)/g, " ").trim() : kw;
+    var q = (id ? "city=" + id : "") + (!id || rest ? (id ? "&" : "") + "searchWord=" + E(kw) : "");
+    return tripHost(o.c) + "/hotels/list?" + q + (o.ci ? "&checkIn=" + o.ci + "&checkOut=" + o.co : "") + "&adult=" + (o.ppl || 2) + "&children=0&crn=1";
+  }
+  var TRIP_CITYCODE = { ICN: "SEL", GMP: "SEL", NRT: "TYO", HND: "TYO", KIX: "OSA", PUS: "PUS" };
+  function tripFlight(o) {
+    if (!(o.fc && o.tc && o.dep)) return tripHost(o.c) + "/flights/";
+    var dc = (TRIP_CITYCODE[o.fc] || o.fc).toLowerCase(), ac = (TRIP_CITYCODE[o.tc] || o.tc).toLowerCase();
+    return tripHost(o.c) + "/flights/showfarefirst?dcity=" + dc + "&acity=" + ac + "&ddate=" + o.dep + (o.ret ? "&rdate=" + o.ret + "&triptype=rt" : "&triptype=ow") + "&class=y&quantity=" + (o.adults || 1) + "&searchboxarg=t&nonstoponly=off";
+  }
+  function tripCar(o) { return tripHost(o.c) + "/carhire/"; }
+
   /* 숙소 예약: 날짜·인원이 채워진 검색 결과까지 (결제는 사이트에서 본인이) — 포도톡 bookingInfo 규칙 */
   function fmt(d) { function p(x) { return (x < 10 ? "0" : "") + x; } return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()); }
   function stayInfo(q) {
@@ -437,7 +463,7 @@
     if (md) { d0 = new Date(now.getFullYear(), parseInt(md[1], 10) - 1, parseInt(md[2], 10)); }
     else { var me = q.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*(\d{1,2})\b/i) || q.match(/\b(\d{1,2})\/(\d{1,2})\b/); if (me) { var mo = isNaN(me[1]) ? "janfebmaraprmayjunjulaugsepoctnovdec".indexOf(me[1].slice(0, 3).toLowerCase()) / 3 : parseInt(me[1], 10) - 1; d0 = new Date(now.getFullYear(), mo, parseInt(me[2], 10)); } }
     if (d0) { if (d0 < t0) d0 = new Date(d0.getFullYear() + 1, d0.getMonth(), d0.getDate()); ci = fmt(d0); co = fmt(new Date(d0.getTime() + nights * 86400000)); }
-    var name = q.replace(/\d+\s*박\s*\d+\s*일/g, " ").replace(/\d{1,2}\s*월\s*\d{1,2}\s*일?/g, " ").replace(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*\d{1,2}\b/gi, " ").replace(/\b\d{1,2}\/\d{1,2}\b/g, " ")
+    var name = q.replace(TRIP_RE, " ").replace(/\d+\s*박\s*\d+\s*일/g, " ").replace(/\d{1,2}\s*월\s*\d{1,2}\s*일?/g, " ").replace(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*\d{1,2}\b/gi, " ").replace(/\b\d{1,2}\/\d{1,2}\b/g, " ")
       .replace(/\d+\s*(박|nights?|명|인원|인|사람|people|persons?|adults?|guests?)/gi, " ").replace(/(예약|숙박|묵을|묵고|체크인|빈\s*방|객실|방\s*잡아?|해\s*줘|줘|좀|알려|찾아)/g, " ")
       .replace(/(^|\s)(book(ing|ed)?|reserve|find|get|me|a|an|the|room|rooms|for|in|at|on|to|near|stay|nights?|please|from|until|till|people|persons?|adults?|guests?|and)(?=\s|$)/gi, "$1").replace(/\s+/g, " ").trim();
     return { stay: name || clean(q), ci: ci, co: co, ppl: ppl, nights: nights };
@@ -448,8 +474,7 @@
     if (SANCTIONED[c]) return { u: "", w: "숙소", none: "이 지역에서는 숙소 연결을 제공하지 않습니다 (국제 제재 대상 지역).", info: i };
     var pk = piiKind(q, true);
     if (pk) return { u: "", w: "숙소", none: pk + " 같은 개인정보가 들어 있어 검색하지 않았어요. 지역·숙소 이름과 날짜·인원만 적어 주세요. (coverfo는 개인정보를 저장하지 않습니다)", info: i };
-    var baid = ""; try { baid = (window.cfShopIds && window.cfShopIds.booking) || ""; } catch (e) {}
-    return { u: "https://www.booking.com/searchresults.html?ss=" + E(i.stay) + (i.ci ? "&checkin=" + i.ci + "&checkout=" + i.co : "") + "&group_adults=" + i.ppl + "&no_rooms=1" + (baid ? "&aid=" + E(baid) : ""), w: "🏨 Booking.com", alt: c === "KR" ? { u: "https://www.yeogi.com/domestic-accommodations?keyword=" + E(i.stay) + (i.ci ? "&checkIn=" + i.ci + "&checkOut=" + i.co : "") + "&personal=" + i.ppl + "&freeForm=true", w: "여기어때" } : { u: "https://www.airbnb.com/s/" + E(i.stay) + "/homes" + (i.ci ? "?checkin=" + i.ci + "&checkout=" + i.co + "&adults=" + i.ppl : ""), w: "Airbnb" }, info: i, stay: i };   /* v31: 한국도 처음부터 Booking.com */
+    return { u: tripHotel(i), w: "🏨 Trip.com", info: i, stay: i };   /* v36: 숙소는 Trip.com 한 곳만 (전에는 Booking.com + 여기어때/Airbnb) */
   }
 
   /* ── 규칙으로 판별 → {kind, q} ── */
@@ -774,7 +799,7 @@
     aiClassify(text, c, function (j) { if (!j) { cb(null); return; } go({ kind: j.kind, q: text, query: j.query || "", body: j.body || "" }); });
   }
   if (AI_FALLBACK) try { fetch("/api/quick-intent").then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j && j.cost != null) AI_COST = Number(j.cost) || 0; })["catch"](function () {}); } catch (e) {}
-  window.cfQuick = { country: country, setCountry: setCountry, isOverride: isOverride, classify: classify, build: build, decide: decide, stayInfo: stayInfo, amountOf: amountOf, aiCost: function () { return AI_COST; }, onAI: null,
+  window.cfQuick = { country: country, setCountry: setCountry, isOverride: isOverride, classify: classify, build: build, decide: decide, stayInfo: stayInfo, amountOf: amountOf, trip: { hotel: tripHotel, flight: tripFlight, car: tripCar }, aiCost: function () { return AI_COST; }, onAI: null,
     /* 세계 주요 경제국 30 (관리자 시험 칩·확인표에 쓰임) */
     COUNTRIES: [["AUTO", "🌐 자동(시간대)"], ["KR", "🇰🇷 대한민국"], ["US", "🇺🇸 미국"], ["JP", "🇯🇵 일본"], ["CN", "🇨🇳 중국"], ["IN", "🇮🇳 인도"], ["GB", "🇬🇧 영국"], ["DE", "🇩🇪 독일"], ["FR", "🇫🇷 프랑스"], ["ES", "🇪🇸 스페인"], ["IT", "🇮🇹 이탈리아"],
       ["CA", "🇨🇦 캐나다"], ["AU", "🇦🇺 호주"], ["BR", "🇧🇷 브라질"], ["MX", "🇲🇽 멕시코"], ["NL", "🇳🇱 네덜란드"], ["CH", "🇨🇭 스위스"], ["SE", "🇸🇪 스웨덴"], ["BE", "🇧🇪 벨기에"], ["AT", "🇦🇹 오스트리아"], ["PL", "🇵🇱 폴란드"], ["TR", "🇹🇷 튀르키예"],
