@@ -8,7 +8,7 @@
 (function () {
   if (typeof S === 'undefined' || typeof render !== 'function') return;
 
-  var COST = { plan: 3, voice: 2, clip: 2, song: 4, image: 2, veo: 25 };
+  var COST = { plan: 3, voice: 2, clip: 2, song: 4, image: 2, veo: 25, podcast: 6 };
   var STYLES = [
     ['dj', '📻 라디오 DJ'], ['ad', '📢 광고 멘트'], ['news', '📰 뉴스 앵커'], ['story', '🧸 동화 구연'],
     ['docu', '🎬 다큐'], ['shorts', '😆 쇼츠'], ['calm', '🧘 차분한 안내']
@@ -892,6 +892,7 @@
     { c: 'relay', i: '🍳', t: '냉장고 재료 → 오늘 요리', d: '있는 재료를 적으면 → 요리 3가지 + 만드는 법 + 완성 사진 + 장보기 목록', flow: 'cook', path: '✍️ 재료 → 요리 3가지 → 완성 사진' },
     { c: 'relay', i: '🏷️', t: '이름 짓기 세트', d: '가게 · 브랜드 · 채널 · 반려동물 이름 후보 10개 + 슬로건 + 로고 시안 + 광고 징글', flow: 'name', path: '✍️ 설명 → 이름 10개 · 슬로건 → 로고 + 징글' },
     { c: 'relay', i: '📚', t: '공부 친구', d: '교재 · 기사를 붙여 넣으면 → 요약 + 암기 카드 + 퀴즈 + 이동 중에 들을 음성', flow: 'study', path: '✍️ 공부할 글 → 요약 · 카드 · 퀴즈 → 듣기 음성' },
+    { c: 'relay', i: '🎙️', t: '2인 대담 팟캐스트', d: '주제나 긴 글 → 리서치 → 진행자 두 명의 대화 대본 → 두 목소리가 번갈아 말하는 음성 + 표지. 출퇴근길에 듣는 라디오처럼', flow: 'podcast', path: '✍️ 주제 · 글 → 리서치 → 2인 대본 → 두 목소리 + 표지' },
 
     /* 🔀 릴레이 융합 — 단계를 이어 붙여 한 번에 */
     { c: 'relay', i: '🗂️', t: '회의록 자동 정리', d: '회의를 녹음하면 → 글로 받아쓰고 → 안건 · 결정 · 할 일(담당 · 기한) 회의록으로 정리', input: 'audio',
@@ -964,7 +965,7 @@
     { c: 'app', i: '💰', t: '동호회 회비 장부', d: '회원 · 입금 · 지출 · 잔액 한눈에', app: '동호회 회비 관리 웹앱을 만들어줘. 회원 목록, 월별 회비 납부 체크, 지출 기록, 잔액 자동 계산, 요약 화면. 한국어, 모바일에서 쓰기 편하게.' }
   ];
   function fuCost(x) {
-    if (x.flow) return FLOWS[x.flow].cost + ' 크레딧';
+    if (x.flow) return (FLOWS[x.flow].costLabel || FLOWS[x.flow].cost) + ' 크레딧';
     if (x.tab) return x.cost + ' 크레딧';
     if (x.steps) return x.steps.reduce(function (a, s) { return a + (RSTEP[s.type] || 0); }, 0) + ' 크레딧';
     if (x.sns) return (COST.plan + COST.image + COST.voice + COST.clip + (x.sns.veo ? COST.veo : 0) + x.sns.langs.length * COST.plan) + ' 크레딧';
@@ -1114,8 +1115,64 @@
         return [['📝 요약', o.summary], ['🃏 암기 카드', (o.cards || []).map(function (c, i) { return (i + 1) + '. Q) ' + c.q + '\n   A) ' + c.a; }).join('\n')],
           ['❓ 퀴즈', (o.quiz || []).map(function (q, i) { return (i + 1) + '. ' + q.q + '\n   ' + (q.choices || []).join('  ') + '\n   정답: ' + q.answer + ' — ' + (q.why || ''); }).join('\n\n')]];
       }
+    },
+    /* 🎙️ 2인 대담 팟캐스트 (v257): 주제·글 → (웹 리서치) → 2인 대본 → 두 목소리가 번갈아 말하는 MP3 한 개(/api/podcast) + 표지 */
+    podcast: {
+      i: '🎙️', t: '2인 대담 팟캐스트', need: ['src'], audio: 'src',
+      cost: function (v) { return COST.plan + COST.podcast + COST.image + (podFind(v) ? RSTEP.research : 0); }, costLabel: (3 + 6 + 2) + '~' + (3 + 6 + 2 + 5),
+      lead: '주제를 적거나 긴 글 · 뉴스 · 공부 내용을 붙여 넣으면 → 진행자 두 명이 이야기를 주고받는 팟캐스트 음성(약 3~5분) + 대본 + 표지 그림. 출퇴근길에 라디오처럼 들어 보세요.',
+      fields: [{ k: 'src', l: '주제 또는 글', ta: true, ph: '예) 요즘 뜨는 전기차 배터리 이야기 — 또는 기사 · 공부 내용을 그대로 붙여 넣으세요' },
+        { k: 'find', l: '자료', chips: ['🔎 웹에서 자료 찾기 (+5)', '📄 내 글만 쓰기'], def: '🔎 웹에서 자료 찾기 (+5)' },
+        { k: 'len', l: '길이', chips: ['짧게 (약 3분)', '보통 (약 5분)'], def: '짧게 (약 3분)' },
+        { k: 'hosts', l: '진행자 목소리', chips: ['여성 + 남성', '남성 + 여성', '여성 + 여성', '남성 + 남성'], def: '여성 + 남성' }],
+      before: function (v) { return podFind(v) ? String(v.src || '').slice(0, 300) : ''; },
+      input: function (v, pre) {
+        var g = podHosts(v), long = podLen(v) === '보통 (약 5분)';
+        return '주제 · 글:\n' + v.src + (pre ? '\n\n리서치 자료:\n' + pre : '')
+          + '\n\n요청: 대사 ' + (long ? '18~22' : '12~16') + '줄, 전체 ' + (long ? '2800' : '1800') + '자 안팎. A 목소리는 ' + g.a + ', B 목소리는 ' + g.b + '(이름도 그에 맞게).';
+      },
+      prompt: '위 내용으로 진행자 두 명(A, B)이 나누는 팟캐스트 대본을 써. A는 호기심 많은 진행자, B는 쉽게 풀어 주는 전문가. 인사 → 핵심 3~4가지를 주고받으며 풀기 → 한 줄 정리와 끝인사. 실제 대화처럼 짧게 주고받고(한 번에 1~3문장) 맞장구와 질문을 섞어. 사실은 주어진 내용 안에서만, 모르는 것은 지어내지 마. 표 · 기호 · 괄호 지문 없이 소리 내어 읽기 좋게. JSON: {"title":"에피소드 제목 25자 이내","hosts":{"A":"진행자 이름","B":"전문가 이름"},"lines":[{"s":"A","t":"말"},{"s":"B","t":"말"}],"summary":"에피소드 한 줄 소개","scene":"팟캐스트 표지 그림 영어 설명(글자 없이)"}.',
+      jobs: [{ k: 'talk' }, { k: 'cover', style: 'Podcast cover art, bold modern illustration, two microphones, vibrant colors, square composition.' }],
+      text: function (o) {
+        var H = o.hosts || {};
+        return [['🎙️ ' + (o.title || '팟캐스트') + ' — 대본', (o.lines || []).map(function (l) { return (l.s === 'B' ? (H.B || 'B') : (H.A || 'A')) + ': ' + l.t; }).join('\n\n')],
+          ['📝 소개', o.summary || '']];
+      }
     }
   };
+  /* 팟캐스트 도우미 */
+  function podFind(v) { return (v.find || '🔎 웹에서 자료 찾기 (+5)') !== '📄 내 글만 쓰기'; }
+  function podLen(v) { return v.len || '짧게 (약 3분)'; }
+  function podHosts(v) {
+    var h = v.hosts || '여성 + 남성', p = h.split(' + ');
+    var W = ['coral', 'nova'], M = ['ash', 'onyx'];
+    var a = p[0] === '남성' ? M[0] : W[0], b = p[1] === '남성' ? (p[0] === '남성' ? M[1] : M[0]) : (p[0] === '여성' ? W[1] : W[0]);
+    return { a: p[0] || '여성', b: p[1] || '남성', va: a, vb: b };
+  }
+  /* 웹 리서치 (relay-app.js 의 리서치와 같은 /api/research · 빠른 5크레딧) */
+  function research(topic) {
+    return post('/api/research', { topic: topic, depth: 'quick' }).then(function (r) {
+      if (!r.ok) return errOf(r).then(function (m) { throw new Error(m); });
+      return r.text();
+    }).then(function (t) {
+      var em = t.match(/<!--RELAY_ERROR:(.*?)-->/); if (em) throw new Error(em[1] || '리서치 오류');
+      return t.replace(/<!--RELAY_STEP:.*?-->\n?/g, '').trim();
+    });
+  }
+  /* 두 목소리 팟캐스트 음성 (/api/podcast) */
+  function makePodcast(o, v) {
+    var g = podHosts(v), total = 0, lines = [];
+    (o.lines || []).forEach(function (l) {
+      var t = String((l && l.t) || '').trim().slice(0, 500); if (!t || lines.length >= 24 || total + t.length > 6000) return;
+      total += t.length; lines.push({ s: l.s === 'B' ? 'B' : 'A', t: t });
+    });
+    if (lines.length < 2) return Promise.reject(new Error('대본이 너무 짧아요'));
+    return post('/api/podcast', { lines: lines, voices: { A: g.va, B: g.vb }, title: o.title || '' }).then(function (r) {
+      if (!r.ok) return errOf(r).then(function (m) { throw new Error(m); });
+      var saved = r.headers.get('X-Relay-Url') || '';
+      return r.blob().then(function (b) { return { obj: URL.createObjectURL(b), url: saved }; });
+    });
+  }
   X.fl = { id: '', v: {}, busy: false, steps: [], o: null, res: {}, err: '', secs: 30, rec: null, recOn: false, recBusy: false };
   function flowOpen(id) {
     var F = FLOWS[id]; if (!F) return;
@@ -1138,14 +1195,14 @@
     var f = X.fl, F = FLOWS[f.id]; if (!F) return viewFusion();
     var h = '<div class="set-box"><div class="set-top"><h2><span class="back" data-fl-back="1">←</span>' + F.i + ' ' + esc(F.t) + '</h2><button class="set-link" data-set-go="made">📂 내가 만든 것</button></div><div class="lead">' + F.lead + '</div>';
     F.fields.forEach(function (fd) {
-      var val = f.v[fd.k] || '';
+      var val = f.v[fd.k] || fd.def || '';
       h += '<label class="set-lb">' + esc(fd.l) + '</label>';
       if (fd.chips) h += '<div class="set-chips">' + fd.chips.map(function (c) { return '<button class="set-chip' + (val === c ? ' on' : '') + '" data-fl-chip="' + fd.k + '|' + esc(c) + '">' + esc(c) + '</button>'; }).join('') + '</div>';
       else if (fd.ta) h += '<textarea class="set-in" data-fl-f="' + fd.k + '" maxlength="4000" placeholder="' + esc(fd.ph || '') + '">' + esc(val) + '</textarea>';
       else h += '<input class="set-in" data-fl-f="' + fd.k + '" maxlength="80" placeholder="' + esc(fd.ph || '') + '" value="' + esc(val).replace(/"/g, '&quot;') + '">';
       if (F.audio === fd.k) h += '<div class="set-row" style="margin-top:6px"><button class="btn btn-secondary btn-sm" id="fl-rec"' + (f.recBusy ? ' disabled' : '') + '>' + (f.recOn ? '⏹ 그만 (받아쓰기)' : f.recBusy ? '받아쓰는 중…' : '🎙️ 말로 하기') + '</button><span class="set-cost">말로 하면 받아쓰기 ' + RSTEP.stt + ' 크레딧</span></div>';
     });
-    h += '<div class="set-row"><button class="btn btn-primary" id="fl-go"' + (f.busy ? ' disabled' : '') + '>' + (f.busy ? '만드는 중… (1~2분)' : F.i + ' 만들기') + '</button><span class="set-cost"><b>' + F.cost + '</b> 크레딧</span></div>';
+    h += '<div class="set-row"><button class="btn btn-primary" id="fl-go"' + (f.busy ? ' disabled' : '') + '>' + (f.busy ? '만드는 중… (1~2분)' : F.i + ' 만들기') + '</button><span class="set-cost"><b>' + (typeof F.cost === 'function' ? F.cost(f.v) : F.cost) + '</b> 크레딧</span></div>';
     if (f.steps.length) h += stepsHtml(f.steps);
     h += errBox(f.err);
     var r = f.res, o = f.o;
@@ -1153,6 +1210,7 @@
       h += '<div class="set-out">';
       F.text(o).forEach(function (sec, i) { if (sec[1]) h += '<div class="set-card"><h4>' + esc(sec[0]) + '</h4>' + copyBox('fl-t' + i, sec[1], Math.min(14, String(sec[1]).split('\n').length + 1)) + '</div>'; });
       if (r.music) h += '<div class="set-card"><h4>' + (f.id === 'name' ? '🎵 광고 징글' : '🎵 노래') + '</h4><audio controls src="' + r.music + '"></audio><div class="set-row" style="margin-top:4px"><a class="btn btn-secondary btn-sm" href="' + r.music + '" download="coverfo-song.mp3">💾 MP3</a></div></div>';
+      if (r.talk) h += '<div class="set-card"><h4>🎧 팟캐스트 듣기</h4><audio controls src="' + r.talk + '"></audio><div class="set-row" style="margin-top:4px"><a class="btn btn-secondary btn-sm" href="' + r.talk + '" download="coverfo-podcast.mp3">💾 MP3</a></div></div>';
       if (r.voice) h += '<div class="set-card"><h4>🎙️ 읽어 주는 목소리</h4><audio controls src="' + r.voice + '"></audio><div class="set-row" style="margin-top:4px"><a class="btn btn-secondary btn-sm" href="' + r.voice + '" download="coverfo-voice.mp3">💾 MP3</a></div></div>';
       if (r.pngs) h += '<div class="set-card"><h4>🖼️ 그림책</h4>' + r.pngs.map(function (p, i) { return '<img class="set-meme" style="margin-top:8px" src="' + p + '" alt="' + (i + 1) + '쪽"><div class="set-row" style="justify-content:center"><a class="btn btn-secondary btn-sm" href="' + p + '" download="coverfo-book-' + (i + 1) + '.png">💾 ' + (i + 1) + '쪽 PNG</a></div>'; }).join('') + '</div>';
       if (r.png) h += '<div class="set-card"><h4>🖼️ 그림</h4><img class="set-meme" src="' + r.png + '" alt="그림"><div class="set-row" style="justify-content:center"><a class="btn btn-secondary btn-sm" href="' + r.png + '" download="coverfo-' + f.id + '.png">💾 PNG</a></div></div>';
@@ -1172,14 +1230,17 @@
     for (var i = 0; i < F.need.length; i++) if (!String(v[F.need[i]] || '').trim()) { alert('"' + F.fields.filter(function (x) { return x.k === F.need[i]; })[0].l + '" 칸을 채워 주세요.'); return; }
     f.busy = true; f.err = ''; f.o = null; f.res = {};
     if (X.r.key === 'flow') { X.r.url = ''; X.r.err = ''; }
-    var NAMES = { song: '🎵 노래 작곡', card: '🖼️ 카드 그림', cover: '🖼️ 그림', pages: '🖼️ 삽화 3장', voice: '🎙️ 목소리', jingle: '🎵 광고 징글' };
-    f.steps = [{ k: 'plan', t: '① AI 기획 · 글', st: 'run' }].concat(F.jobs.map(function (j, i) { return { k: j.k, t: ['②', '③', '④'][i] + ' ' + NAMES[j.k], st: '' }; }));
+    var NAMES = { song: '🎵 노래 작곡', card: '🖼️ 카드 그림', cover: '🖼️ 그림', pages: '🖼️ 삽화 3장', voice: '🎙️ 목소리', jingle: '🎵 광고 징글', talk: '🎙️ 두 목소리 음성' };
+    var preQ = F.before ? F.before(v) : '';
+    f.steps = [{ k: 'plan', t: '① AI 기획 · 글', st: preQ ? '' : 'run' }].concat(F.jobs.map(function (j, i) { return { k: j.k, t: ['②', '③', '④'][i] + ' ' + NAMES[j.k], st: '' }; }));
+    if (preQ) f.steps.unshift({ k: 'pre', t: '🔎 웹에서 자료 찾기', st: 'run' });
     var setSt = function (k, st, d) { f.steps.forEach(function (x) { if (x.k === k) { x.st = st; if (d !== undefined) x.d = d; } }); render(); };
     render();
-    aiText(F.input(v), F.prompt + LANG_RULE).then(function (t) {
+    (preQ ? research(preQ).then(function (rep) { setSt('pre', 'ok'); setSt('plan', 'run'); return rep; }, function (e) { setSt('pre', 'bad', e.message); setSt('plan', 'run'); return ''; }) : Promise.resolve(''))
+    .then(function (pre) { return aiText(F.input(v, pre), F.prompt + LANG_RULE); }).then(function (t) {
       var o = parseJSON(t); f.o = o;
       if (o.pages) o.story = o.pages.map(function (p) { return p.text; }).join(' ');
-      f.steps.forEach(function (x) { x.st = x.k === 'plan' ? 'ok' : 'run'; }); render();
+      f.steps.forEach(function (x) { if (x.k !== 'pre') x.st = x.k === 'plan' ? 'ok' : 'run'; }); render();
       var title = o.title || o.slogan || F.t;
       var saved = { t: 'flow', title: (F.i + ' ' + title).slice(0, 40), post: F.text(o).map(function (s) { return s[0] + '\n' + (s[1] || ''); }).join('\n\n').slice(0, 3000) };
       var r = f.res;
@@ -1203,6 +1264,9 @@
               .then(function (x) { out[i] = drawPage(x.img, p.text); if (i === 0) saved.img = x.url; }).catch(function () { bad++; });
           })).then(function () { r.pngs = out.filter(Boolean); if (!r.pngs.length) delete r.pngs; setSt('pages', bad ? (r.pngs ? 'ok' : 'bad') : 'ok', bad ? bad + '장 실패' : ''); });
         }
+        if (j.k === 'talk') {
+          return makePodcast(o, v).then(function (u) { r.talk = u.obj; saved.voice = u.url; setSt('talk', 'ok'); }).catch(function (e) { setSt('talk', 'bad', e.message); });
+        }
         if (j.k === 'voice') {
           var txt = String(o[j.from] || '').slice(0, 2000);
           if (!txt) { setSt('voice', 'bad', '읽을 글이 없어요'); return Promise.resolve(); }
@@ -1211,7 +1275,7 @@
         return Promise.resolve();
       });
       return Promise.all(jobs).then(function () { madeAdd(saved); });
-    }).catch(function (e) { f.steps[0].st = 'bad'; f.err = e.message; })
+    }).catch(function (e) { f.steps.forEach(function (x) { if (x.k === 'plan') x.st = 'bad'; }); f.err = e.message; })
       .then(function () { f.busy = false; render(); log('ok', F.t + ' 끝'); });
   }
   /* 🎙️ 말로 하기 → 받아쓰기(/api/stt) → 칸에 붙임 */
