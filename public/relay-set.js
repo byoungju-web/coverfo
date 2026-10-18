@@ -574,7 +574,7 @@
     return h + '</div>';
   }
 
-  var KIND = { set: ['🎁', '3종 세트'], voice: ['🎙️', 'AI 목소리'], music: ['🎵', 'AI 음악'], meme: ['😂', '짤'], sns: ['📣', 'SNS 세트'], avatar: ['🗣️', 'AI 아바타'], flow: ['🔀', '릴레이 융합'] };
+  var KIND = { set: ['🎁', '3종 세트'], voice: ['🎙️', 'AI 목소리'], music: ['🎵', 'AI 음악'], meme: ['😂', '짤'], sns: ['📣', 'SNS 세트'], avatar: ['🗣️', 'AI 아바타'], flow: ['🔀', '릴레이 융합'], dub: ['🌍', '다국어 더빙'], lens: ['📷', '사진 번역 · 설명'], trip: ['🧳', '여행 영상 일기'] };
   function when(t) {
     var d = new Date(t), p = function (n) { return (n < 10 ? '0' : '') + n; };
     return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
@@ -879,6 +879,10 @@
   var RSTEP = { stt: 2, ai: 3, tts: 2, research: 5 };
   function ai(prompt) { return { type: 'ai', task: 'custom', prompt: prompt }; }
   var FU = [
+    /* 🔀 릴레이 융합 — 내 영상 · 사진으로 (relay-media.js 화면을 엶) */
+    { c: 'relay', i: '🌍', t: '내 영상 다국어 더빙', d: '폰 영상 말소리를 받아쓰고 → 영어 · 일본어 · 중국어 등으로 번역 → AI 목소리로 다시 입힌 세로 영상', tab: 'dub', cost: '7', path: '🎞️ 영상 → 받아쓰기 → 번역 → AI 목소리 → 영상' },
+    { c: 'relay', i: '📷', t: '사진 한 장 번역 · 설명', d: '메뉴판 · 표지판 · 약 설명서… 어느 나라 글이든 찍으면 옮겨 적고 · 번역하고 · 쉽게 설명', tab: 'lens', cost: '1', path: '📸 사진 → 글자 읽기 → 번역 · 설명 (→ 읽어 주기)' },
+    { c: 'relay', i: '🧳', t: '여행 사진 → 영상 일기', d: '여행 사진 여러 장 → AI 가 사진을 보고 일기를 써서 내레이션 · 음악과 함께 사진이 넘어가는 영상', tab: 'trip', cost: '사진 수+7', path: '🖼️ 사진 2~8장 → 사진 읽기 → 일기 → 목소리 + 음악 → 영상' },
     /* 🔀 릴레이 융합 — 창작 릴레이 (노래 · 그림 · 목소리 · 영상까지) */
     { c: 'relay', i: '🎂', t: '이름 넣은 축하 노래', d: '이름 · 추억 한 줄 → 그 이름을 부르는 축하 노래 + 카드 + 영상. 선물로 보내기 좋아요', flow: 'bday', path: '✍️ 이름 → 가사 → 노래 + 카드 → 영상' },
     { c: 'relay', i: '📖', t: '우리 아이 맞춤 그림책', d: '아이 이름 · 좋아하는 것 → 아이가 주인공인 동화 + 삽화 3장 + 구연 목소리 + 그림책 영상', flow: 'book', path: '✍️ 이름 → 동화 → 삽화 3장 + 목소리 → 영상' },
@@ -961,6 +965,7 @@
   ];
   function fuCost(x) {
     if (x.flow) return FLOWS[x.flow].cost + ' 크레딧';
+    if (x.tab) return x.cost + ' 크레딧';
     if (x.steps) return x.steps.reduce(function (a, s) { return a + (RSTEP[s.type] || 0); }, 0) + ' 크레딧';
     if (x.sns) return (COST.plan + COST.image + COST.voice + COST.clip + (x.sns.veo ? COST.veo : 0) + x.sns.langs.length * COST.plan) + ' 크레딧';
     if (x.voice) return COST.voice + ' 크레딧';
@@ -1006,6 +1011,7 @@
     else if (x.music) { X.m.prompt = x.music.prompt; X.m.mode = x.music.mode; X.m.vocal = x.music.vocal; X.m.url = ''; S.tab = 'music'; }
     else if (x.meme) { X.j.scene = x.meme.scene; X.j.top = x.meme.top; X.j.bottom = x.meme.bottom; X.j.img = null; X.j.png = ''; X.j.mid = null; S.tab = 'meme'; }
     else if (x.avatar) { X.a.script = x.avatar.script; X.a.tone = x.avatar.tone; S.tab = 'avatar'; }
+    else if (x.tab) { S.tab = x.tab; }
     else if (x.studio) { goTop('/studio?kind=' + x.studio.kind + '&prompt=' + encodeURIComponent(x.studio.prompt)); return; }
     else if (x.app) { goTop('/chat?mode=build&prompt=' + encodeURIComponent(x.app)); return; }
     render(); window.scrollTo(0, 0);
@@ -1231,6 +1237,8 @@
   }
 
   window.RelaySet = { hero: hero, views: { set: viewSet, voice: viewVoice, music: viewMusic, meme: viewMeme, made: viewMade, reel: viewReel, sns: viewSns, avatar: viewAvatar, fusion: viewFusion, flow: viewFlow } };
+  /* relay-media.js(🌍 더빙 · 📷 사진 번역 · 🧳 여행 영상 일기)가 같은 도우미를 쓰도록 내보냄 */
+  window.RelaySet.lib = { X: X, head: head, chips: chips, errBox: errBox, stepsHtml: stepsHtml, copyBox: copyBox, copyText: copyText, aiText: aiText, makeVoice: makeVoice, makeMusic: makeMusic, parseJSON: parseJSON, madeAdd: madeAdd, madeUpdate: madeUpdate, runReel: runReel, reelOut: reelOut };
 
   /* ── 3종 세트 실행 ─────────────────────── */
   function runSet() {

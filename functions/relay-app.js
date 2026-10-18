@@ -793,6 +793,7 @@ render();
 </script>
 <script src="/relay-pro.js"></script>
 <script src="/relay-set.js"></script>
+<script src="/relay-media.js"></script>
 </body>
 </html>`;
 
