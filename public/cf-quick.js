@@ -124,7 +124,11 @@
     if (c === "KR") return { u: "https://map.naver.com/p/search/" + E(dest), w: "🧭 네이버지도 길찾기" };
     if (c === "CN") return { u: "https://uri.amap.com/search?keyword=" + E(dest) + "&view=map&src=coverfo", w: "🧭 高德地图", note: "중국은 구글 지도가 막혀 있어 高德 검색으로 엽니다. 길안내는 지도 안에서 눌러 주세요." };
     /* 기본은 자동차(2026-10-06 결정). dir_action=navigate = Google 공개 Maps URLs 의 '바로 길안내 시작' 값 */
-    return { u: "https://www.google.com/maps/dir/?api=1&destination=" + E(dest) + "&travelmode=driving&dir_action=navigate", w: "🧭 Google Maps 내비" };
+    var web = "https://www.google.com/maps/dir/?api=1&destination=" + E(dest) + "&travelmode=driving&dir_action=navigate";
+    /* v41: 안드로이드는 Google 공식 내비 인텐트(google.navigation:q=목적지)로 Google Maps 앱의 길안내를 바로 시작한다 —
+       웹 주소는 목적지 이름이 여러 곳에 맞으면(예: 힐튼) 앱이 검색 목록부터 보여 줘서. 앱이 없으면 위 웹 길찾기로. */
+    if (isAndroid()) return { u: "intent:q=" + E(dest) + "#Intent;scheme=google.navigation;package=com.google.android.apps.maps;S.browser_fallback_url=" + E(web) + ";end", w: "🧭 Google Maps 내비" };
+    return { u: web, w: "🧭 Google Maps 내비" };
   }
   /* ── 쇼핑 법적 안전 (2026-10 v7) ──
      · 제재 대상국(RU IR KP SY CU VE BY): 검색어 낱말이 아니라 '나라 값'으로만 막는다 ("노트북이란" 같은 문장이 걸리지 않게)
