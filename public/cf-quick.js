@@ -49,6 +49,8 @@
     navi: [/길\s*안내|길\s*좀|내비게이션|내비|네비게이션|네비|나비게이션|길\s*찾기|길찾기|길\s*찾아|가는\s*길|가는\s*법|가는\s*방법|어떻게\s*가|찾아\s*가|까지\s*가|로\s*가\s*(줘|자)|에\s*가\s*(줘|자)|데려다|목적지|경로|안내\s*해|출발|도착\s*(까지|하는)/, /(directions?\s*to|navigate\s*to|how\s*(do\s*i|to)\s*get\s*to|route\s*to|take\s*me\s*to|drive\s*to|way\s*to)/i],
     music: [/(틀어|틀러|들려|재생|플레이|듣고\s*싶|듣자|노래\s*(해|찾아|불러)|음악\s*(틀|켜|찾)|뮤비|뮤직비디오|노래\s*좀|음악\s*좀|한\s*곡)/, /(유튜브|유툽|유투브|유튜부|유투부|youtube|you\s*tube)/i, /\b(play|listen\s*to)\b.*\b(song|music|video|mv|playlist|album)\b|\b(youtube|yt)\b/i, /^\s*play\s+(?!.*\b(games?|store|station)\b)\S/i],
     shopWord: [/(쇼핑몰|쇼핑|최저가|가성비|판매처|구매|사고\s*싶|사\s*줘|살래|살\s*건데|어디서\s*(사|팔)|파는\s*(곳|데)|가격\s*(비교|좀|알려|얼마)|얼마|싸게|제일\s*싼|가장\s*싼|저렴|판매량|리뷰\s*많|할인|세일|특가|주문\s*하고\s*싶)/, /\b(buy|purchase|cheapest|best\s*price|price\s*of|how\s*much\s*(is|does)|deal|shop\s*for|shopping|order\s*online|amazon)\b/i],
+    /* v42: "결제(결재) 화면 보여줘 · 구매 화면 · 주문 화면 · 바로 구매 · 결제까지" = 쇼핑 (결제는 쇼핑몰에서 본인이) */
+    shopPay: [/(결[제재]\s*(화면|창|페이지|단계|까지|하게|할\s*수)|구매\s*(화면|창|페이지|하기\s*화면|까지)|주문\s*(화면|창|페이지|까지)|바로\s*(구매|결[제재]|주문)|장바구니\s*(에\s*)?(담아|넣어))/, /\b(checkout|check\s*out|buy\s*now)\b/i],
     shopAsk: [/(추천|알려|골라|비교|어떤|뭐가\s*좋|뭐\s*살|살까)/, /\b(recommend|which|compare|best)\b/i],
     shopBuy: [/(가성비|최저가|리뷰|구매|판매량|베스트|제품|상품|모델|브랜드|저렴|쇼핑|얼마|만원|원대)/, /\b(product|brand|model|review|cheap|budget|under\s*\$?\d+)\b/i],
     call: [/(전화|통화|콜)/, /\b(call|phone|dial|ring)\b/i],
@@ -646,7 +648,7 @@
     if (any([R.place[0], R.place[1], R.place[2]], q) || (any(R.placeNear, q) && any(R.placeKinds, q))) return { kind: "place", q: q };
     if (!any([/(맛집|카페|식당|술집|숙소|펜션|호텔|관광|여행|가볼만|놀거리|근처|주변|길\s*안내|예약|항공권|비행기표|전화|문자|메일)/], q) && notQuestion(q)) {
       var shopWord = any(R.shopWord, q), buy = any(R.shopBuy, q), ask = any(R.shopAsk, q);
-      if (shopWord || (buy && ask)) return { kind: "shop", q: q };
+      if (shopWord || (buy && ask) || any(R.shopPay, q)) return { kind: "shop", q: q };
     }
     return null;
   }
@@ -733,9 +735,11 @@
      · 통째로 같아야 빼는 말(EXACT) — "순·싼·모델" 은 "순두부·싼타페·모델Y" 를 지키려고 낱말 전체가 같을 때만
      · 다 빠져서 두 글자도 안 남으면 예전 방식(shopTopicOld) 결과를 쓴다 */
   var SHOP_PRE = ["추천", "알려", "골라", "비교", "최저가", "가성비", "리뷰", "후기", "평점", "별점", "구매", "판매", "팔린", "인기", "베스트", "랭킹", "쇼핑", "판매처", "어디서", "검색", "가격", "얼마", "저렴", "싸게", "싸고", "싼거", "싼걸", "살까", "사고", "사는", "사줘", "살래", "파는", "팔아", "구입", "주문해", "주문하", "어딨", "어디", "나오게", "해줘", "찾아", "보여", "순으로", "순서", "정렬", "좋은", "좋고", "좋다", "좋게", "제일", "가장", "많은", "많이", "높은", "낮은", "할인", "세일", "특가",
-    "cheapest", "cheap", "buy", "best", "price", "review", "recommend", "deal", "compare", "shopping", "purchase", "lowest", "rated"];
+    "cheapest", "cheap", "buy", "best", "price", "review", "recommend", "deal", "compare", "shopping", "purchase", "lowest", "rated",
+    "결제", "결재", "장바구니", "checkout"];   /* v42 */
   var SHOP_EXACT = ["뭐", "뭐가", "어떤", "좀", "정도", "바로", "순", "싼", "제품", "상품", "모델", "브랜드", "살", "것", "거", "잘", "줘", "해", "요", "곳", "데", "데가", "곳이", "곳을", "사", "주문", "파나요", "파냐",
-    "find", "show", "please", "me", "i", "want", "the", "a", "an", "some", "order", "sort", "sorted", "by", "in", "of"];
+    "find", "show", "please", "me", "i", "want", "the", "a", "an", "some", "order", "sort", "sorted", "by", "in", "of",
+    "화면", "창", "페이지", "화면을", "화면이", "까지", "now"];   /* v42: "결제 화면 보여줘" 의 '화면' 등 (통째로 같을 때만 → '화면보호필름' 은 남음) */
   function shopTopic(q) {
     var toks = String(q || "").replace(/[?？!！.,]/g, " ").split(/\s+/), out = [];
     for (var i = 0; i < toks.length; i++) {
@@ -747,6 +751,19 @@
     }
     var core = out.join(" ").trim();
     return core.length >= 2 ? core : shopTopicOld(q);
+  }
+  /* v42 모델번호: "tat 1109" 처럼 띄어 쓴 것은 붙이고(영문 2~4자 + 숫자 3~6자만 — "iphone 15" 는 안 붙임),
+     영문+숫자가 섞인 4~20자 낱말 중 가장 긴 것. 용량·크기 단위(128gb, 65인치 등)는 모델번호로 보지 않는다 */
+  function joinModel(q) { return String(q || "").replace(/(^|[^a-z0-9])([a-z]{2,4})\s+(\d{3,6}[a-z]{0,3})(?=$|[^a-z0-9])/gi, "$1$2$3"); }
+  function modelOf(q) {
+    var best = "", toks = joinModel(q).split(/[^a-z0-9-]+/i);
+    for (var i = 0; i < toks.length; i++) {
+      var t = toks[i].replace(/^-+|-+$/g, "");
+      if (t.length < 4 || t.length > 20 || !/\d/.test(t) || !/[a-z]/i.test(t)) continue;
+      if (/^\d+(gb|tb|mb|mm|cm|kg|mah|hz|khz|ml|kw|w|v|l|g|p|k|fps|inch|in)$/i.test(t)) continue;
+      if (t.length > best.length) best = t;
+    }
+    return best.toUpperCase();
   }
   function shopTopicOld(q) {
     var cut = ["추천", "알려", "골라", "비교", "어떤", "뭐가", "뭐 ", "살까", "사고", "최저가", "가성비", "쇼핑", "구매", "얼마", " recommend", " cheapest", " best price", " under", " buy"], idx = q.length;
@@ -769,7 +786,12 @@
     if (k === "place") { var pq = r.query || clean(q); if (/^(근처|주변|여기|가까운|이\s*근방|근방)?$/.test(pq.trim())) pq = (pq.trim() || "근처") + " 맛집"; if (isFood(q)) return food(pq, c, q); if (isAttr(q)) return attr(pq, c, q); return mapsSearch(pq, c); }   /* "배고파 근처 뭐 먹지" → 근처 맛집 */
     if (k === "navi") { if (r.query) return navi(r.query, "", c, q); var ft = naviFromTo(q); return navi(ft.to, ft.from, c, q); }
     if (k === "music") return music(r.query || q, c, q);
-    if (k === "shop") return shop(r.query || shopTopic(q), c, q);
+    if (k === "shop") {
+      var sres2 = shop(joinModel(r.query || shopTopic(q)), c, q);
+      /* v42: 결제 화면까지 — 한국 + 결제·구매 화면을 말했고 모델번호가 있으면, 홈 화면이 /api/shop-find 로 그 상품 페이지를 찾아 바로 연다 */
+      if (sres2 && sres2.shop) { sres2.shop.pay = any(R.shopPay, q); sres2.shop.model = modelOf(sres2.shop.q); }
+      return sres2;
+    }
     if (k === "call") { var n = numIn(q); if (n) return { u: "tel:" + n, w: "📞 전화" };
       var bf = bookFind(q); if (bf.e && bf.e.tel) return { u: "tel:" + bf.e.tel, w: "📞 " + bf.e.name + " 전화" };
       if (bf.name) return { u: "", w: "전화", need: { kind: "call", name: bf.name, q: q } };
