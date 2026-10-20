@@ -2,7 +2,10 @@
    · 카카오 공식 "키워드로 장소 검색" API(dapi.kakao.com/v2/local/search/keyword.json)를 쓴다. 크롤링 아님.
    · Cloudflare Secret KAKAO_REST_KEY 를 넣었을 때만 동작. 없으면 {ok:false} → 브라우저는 지금처럼 장소 검색으로 연다.
    · 받는 것은 도착지 이름 하나(100자까지). 저장·기록(로그)하지 않는다. 개인정보가 섞인 문장은 브라우저(cf-quick.js)에서 먼저 막혀 여기까지 오지 않는다.
-   · 돌려주는 것: 장소 이름·위도·경도 하나. 길안내는 카카오맵·네이버지도 앱이 한다(coverfo 는 위치를 받지 않음). */
+   · 돌려주는 것: 장소 이름·위도·경도 하나. 길안내는 카카오맵·네이버지도 앱이 한다(coverfo 는 위치를 받지 않음).
+   · v266: KAKAO_JS_KEY(카카오 JavaScript 키)가 있으면 js 로 함께 돌려준다 → 화면이 카카오 공식 SDK 로 카카오내비 길안내를 바로 시작.
+     JavaScript 키는 카카오가 '브라우저에 공개되는 키'로 만든 것이고, 카카오 개발자 사이트에 등록한 도메인(coverfo.com)에서만 동작한다.
+     REST 키(KAKAO_REST_KEY)는 지금처럼 서버에서만 쓰고 내보내지 않는다. */
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
 }
@@ -30,7 +33,8 @@ export async function onRequestGet({ request, env }) {
     const j = await r.json().catch(() => null);
     const d = j && Array.isArray(j.documents) ? j.documents[0] : null;
     if (!d || !d.y || !d.x) return json({ ok: false, reason: 'not-found' });
-    return json({ ok: true, name: String(d.place_name || q), lat: Number(d.y), lng: Number(d.x) });
+    const js = String(env.KAKAO_JS_KEY || '').trim();
+    return json({ ok: true, name: String(d.place_name || q), lat: Number(d.y), lng: Number(d.x), js: /^[0-9a-f]{20,64}$/i.test(js) ? js : '' });
   } catch (e) {
     return json({ ok: false });
   }
