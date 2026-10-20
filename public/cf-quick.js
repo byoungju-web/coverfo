@@ -435,15 +435,27 @@
      · 한국은 kr.trip.com, 그 밖은 www.trip.com. 예약·결제는 Trip.com 에서 이용자가 직접. */
   var TRIP_CITY = { "제주": 737, "제주도": 737, "제주시": 737, "jeju": 737, "서울": 274, "seoul": 274, "부산": 253, "busan": 253, "강릉": 61325, "gangneung": 61325,
     "오사카": 219, "osaka": 219, "도쿄": 228, "동경": 228, "tokyo": 228, "홍콩": 58, "hong kong": 58, "하노이": 286, "hanoi": 286, "방콕": 359, "bangkok": 359,
-    "타이베이": 617, "대만": 617, "taipei": 617, "싱가포르": 73, "singapore": 73 };
+    "타이베이": 617, "대만": 617, "taipei": 617, "싱가포르": 73, "singapore": 73,
+    /* v40: 해외 주요 도시 — Trip.com 공개 주소(…/hotels-c번호…, …-hotels-list-번호)에서 확인한 도시 번호만 */
+    "뉴욕": 633, "new york": 633, "로스앤젤레스": 347, "엘에이": 347, "los angeles": 347, "라스베이거스": 26282, "라스베가스": 26282, "las vegas": 26282,
+    "샌프란시스코": 313, "san francisco": 313, "시카고": 549, "chicago": 549, "호놀룰루": 757, "하와이": 757, "honolulu": 757, "hawaii": 757,
+    "괌": 753, "guam": 753, "사이판": 4081, "saipan": 4081, "런던": 338, "london": 338, "파리": 192, "paris": 192, "로마": 343, "rome": 343,
+    "바르셀로나": 40795, "barcelona": 40795, "시드니": 501, "sydney": 501, "후쿠오카": 248, "fukuoka": 248, "삿포로": 641, "sapporo": 641,
+    "교토": 734, "kyoto": 734, "오키나와": 207, "okinawa": 207, "다낭": 1356, "da nang": 1356, "danang": 1356, "나트랑": 1777, "냐짱": 1777, "nha trang": 1777,
+    "호치민": 301, "ho chi minh": 301, "세부": 1239, "cebu": 1239, "발리": 723, "bali": 723, "푸켓": 725, "phuket": 725,
+    "상하이": 2, "상해": 2, "shanghai": 2, "베이징": 1, "북경": 1, "beijing": 1, "마카오": 59, "macau": 59 };
+  /* v40: 숙소는 이용자 나라의 Trip.com 사이트로 (통화·언어가 그 나라 기준). 공개 주소로 확인한 나라만, 그 밖은 www */
+  var TRIP_SUB = { US: "us", GB: "uk", CA: "ca", AU: "au", NZ: "nz", SG: "sg", PH: "ph", IN: "in", AE: "ae", SA: "sa", ID: "id" };
   var TRIP_RE = /(트립\s*닷컴|트립닷컴|trip\s*\.\s*com|tripcom|trip\.com)\s*(에서|으로|로|에)?/gi;
   function tripHost(c) { return c === "KR" ? "https://kr.trip.com" : "https://www.trip.com"; }
   function tripHotel(o) {
-    var kw = String(o.stay || "").replace(TRIP_RE, " ").replace(/\s+/g, " ").trim(), l = kw.toLowerCase(), id = 0, hit = "";
+    var kw = String(o.stay || "").replace(TRIP_RE, " ").replace(/\b(accommodations?|lodgings?)\b/gi, " ").replace(/\s+/g, " ").trim(), l = kw.toLowerCase(), id = 0, hit = "";
     for (var k in TRIP_CITY) if (TRIP_CITY.hasOwnProperty(k) && l.indexOf(k) >= 0 && k.length > hit.length) { id = TRIP_CITY[k]; hit = k; }
     var rest = hit ? l.replace(hit, " ").replace(/(도|시)(?=\s|$)/g, " ").replace(/(호텔|숙소|hotels?)/g, " ").trim() : kw;
+    /* v40: 해외에서 도시 번호를 모르면 Trip.com 은 목적지가 빈 화면이 된다 → Booking.com 검색(지역·날짜·인원 채워짐)으로 바로 */
+    if (!id && o.c !== "KR") return "https://www.booking.com/searchresults.html?ss=" + E(kw) + (o.ci ? "&checkin=" + o.ci + "&checkout=" + o.co : "") + "&group_adults=" + (o.ppl || 2) + "&no_rooms=1";
     var q = (id ? "city=" + id : "") + (!id || rest ? (id ? "&" : "") + "searchWord=" + E(kw) : "");
-    return tripHost(o.c) + "/hotels/list?" + q + (o.ci ? "&checkIn=" + o.ci + "&checkOut=" + o.co : "") + "&adult=" + (o.ppl || 2) + "&children=0&crn=1";
+    return (TRIP_SUB[o.c] ? "https://" + TRIP_SUB[o.c] + ".trip.com" : tripHost(o.c)) + "/hotels/list?" + q + (o.ci ? "&checkIn=" + o.ci + "&checkOut=" + o.co : "") + "&adult=" + (o.ppl || 2) + "&children=0&crn=1";
   }
   /* ── v37 내 숙소: 📒 내 연락처(이 기기 암호화 수첩)에 숙소 이름 + Trip.com 숙소 링크를 저장해 두면 다음부터 그 숙소가 날짜·인원 채워진 채 바로 열림 ──
      · 수첩은 이 기기에만(AES-GCM 암호화) — 서버로 보내지 않음. 이름 맞추기도 이 기기 안에서. */
