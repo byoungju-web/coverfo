@@ -24,6 +24,8 @@ const INSTRUCTIONS = [
   'If the user interrupts, stop and listen.',
   'When the user wants an ACTION that the coverfo home screen can do — map/places/restaurants (맛집), attractions (가볼만한곳), navigation (길안내/내비), hotel booking (숙소 예약), shopping or checkout screen (쇼핑/결제 화면), taxi, food delivery, music playback, weather, flights, trains, phone call or SMS —',
   'call the tool run_command with ONE concise command sentence in the user\'s language that includes all details they said (place, date, nights, people, model number, color). Before calling, say only a very short line like "네, 열어 드릴게요."',
+  'After a command runs the conversation CONTINUES (v265): the user may now be looking at another app such as a navigation map, so keep talking briefly by voice and keep helping.',
+  'When the user says things like "홈으로", "홈 화면", "이전 화면", "돌아가", "대화 보여줘", "대화 목록" (go home / go back / show the conversation), call the tool show_chat and say a very short line like "대화 화면을 열게요."',
   'For questions, chit-chat or explanations, just answer by voice without the tool.',
   'Never ask for or repeat card numbers, ID numbers, passwords or bank account numbers. coverfo does not take payments; payment happens on each shop\'s site by the user.',
 ].join(' ');
@@ -31,12 +33,17 @@ const INSTRUCTIONS = [
 const TOOLS = [{
   type: 'function',
   name: 'run_command',
-  description: 'Run an action command on the coverfo home screen (opens maps, navigation, hotel booking, shopping/checkout, taxi, delivery, music, weather, flights, trains, call/SMS). The voice session ends when the command runs.',
+  description: 'Run an action command on the coverfo home screen (opens maps, navigation, hotel booking, shopping/checkout, taxi, delivery, music, weather, flights, trains, call/SMS). The voice conversation continues after the command runs.',
   parameters: {
     type: 'object',
     properties: { text: { type: 'string', description: 'One command sentence, e.g. "뉴욕 힐튼호텔 길안내 해줘" or "필립스 TAT1109 화이트 결제 화면 보여줘"' } },
     required: ['text'],
   },
+}, {
+  type: 'function',
+  name: 'show_chat',
+  description: 'Go back to the coverfo home screen and show the voice conversation panel (when the user says go home, go back, previous screen, show the conversation/list).',
+  parameters: { type: 'object', properties: {} },
 }];
 
 export async function onRequestPost(context) {
