@@ -5,6 +5,9 @@
 //   { op:"start", sdp }  → 첫 1분 크레딧 차감 후 OpenAI Realtime 에 연결(WebRTC). 응답 { sdp, call, cost }
 //   { op:"tick",  call } → 1분마다 화면이 부른다. 다음 1분 크레딧 차감. 부족하면 통화를 끊고 402
 //   { op:"end",   call } → 통화 끊기
+//   { op:"token" }       → (v267 안드로이드 앱 'coverfo 소리') 첫 1분 차감 후 1회용 임시 키(ek_…) 발급. 응답 { key, url, model, cost }
+//                          앱이 그 키로 OpenAI Realtime WebSocket 에 직접 연결(마이크 24kHz PCM). 진짜 OpenAI 키는 서버에만.
+//                          앱의 1분 tick 은 call 없이 { op:"tick" } 로 보낸다(차감만, 부족하면 402 → 앱이 끊음).
 //
 // · OpenAI 키(OPENAI_API_KEY)는 서버에만 있다. 브라우저는 SDP(연결 정보)만 주고받고 키를 보지 못한다.
 // · 말하는 도중 끊기: OpenAI 서버 VAD(interrupt_response) — 이용자가 말을 시작하면 비서 목소리가 멈춘다.
@@ -61,15 +64,16 @@ export async function onRequestPost(context) {
   if (op === 'end') { if (call) await hangup(env, call); return json({ ok: true }); }
 
   if (op === 'tick') {
-    if (!call) return json({ error: '통화 정보가 없습니다' }, 400);
+    /* 웹(WebRTC)은 call 로 서버가 끊을 수 있고, 앱(WebSocket)은 call 이 없어 앱이 직접 끊는다 */
     let job;
     try { job = await spend(env, uid, cost, 'live:minute'); }
-    catch (e) { await hangup(env, call); return json({ error: '크레딧 처리 실패' }, 500); }
-    if (job === false) { await hangup(env, call); return json({ error: '크레딧이 부족해 대화를 마쳤어요', need: cost }, 402); }
+    catch (e) { if (call) await hangup(env, call); return json({ error: '크레딧 처리 실패' }, 500); }
+    if (job === false) { if (call) await hangup(env, call); return json({ error: '크레딧이 부족해 대화를 마쳤어요', need: cost }, 402); }
     await done(env, job);
     return json({ ok: true, cost });
   }
 
+  if (op === 'token') return appToken(env, uid, cost);
   if (op !== 'start') return json({ error: '잘못된 요청입니다' }, 400);
   const sdp = String(b.sdp || '');
   if (!/^v=0/.test(sdp) || sdp.length > 20000) return json({ error: '연결 정보(SDP)가 올바르지 않습니다' }, 400);
@@ -123,6 +127,57 @@ export async function onRequestPost(context) {
   } catch (e) {
     await refund(env, job);
     return json({ error: `음성 연결 오류: ${e.message}`, refunded: true }, 500);
+  }
+}
+
+/* ── v267 안드로이드 앱용 임시 키 (OpenAI POST /v1/realtime/client_secrets → value) ──
+   · 키는 120초 안에 연결을 시작할 때만 쓰인다(연결 후 대화는 계속). 앱 화면·기기에 진짜 OpenAI 키가 남지 않는다.
+   · 오디오는 PCM 16bit 24kHz 모노 (앱의 AudioRecord · AudioTrack 과 같은 형식). */
+async function appToken(env, uid, cost) {
+  let job;
+  try { job = await spend(env, uid, cost, 'live:start'); }
+  catch (e) { return json({ error: '크레딧 처리 실패: ' + String(e.message || e).slice(0, 200) }, 500); }
+  if (job === false) return json({ error: '크레딧이 부족합니다', need: cost }, 402);
+  const model = env.REALTIME_MODEL || MODEL_DEFAULT;
+  const fmt = { type: 'audio/pcm', rate: 24000 };
+  const session = {
+    type: 'realtime',
+    model,
+    instructions: INSTRUCTIONS,
+    audio: {
+      input: {
+        format: fmt,
+        transcription: { model: 'gpt-4o-mini-transcribe' },
+        turn_detection: { type: 'server_vad', create_response: true, interrupt_response: true },
+      },
+      output: { format: fmt, voice: VOICE },
+    },
+    tools: TOOLS,
+    tool_choice: 'auto',
+  };
+  const ask = (cfg) => fetch('https://api.openai.com/v1/realtime/client_secrets', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json', 'OpenAI-Safety-Identifier': userHash(uid) },
+    body: JSON.stringify({ expires_after: { anchor: 'created_at', seconds: 120 }, session: cfg }),
+  });
+  try {
+    let r = await ask(session);
+    let j = await r.json().catch(() => null);
+    if (r.status === 400) {
+      delete session.audio.input.transcription;   /* 받아쓰기 모델 이름이 거절되면 받아쓰기 없이 한 번 더 */
+      r = await ask(session);
+      j = await r.json().catch(() => null);
+    }
+    const key = j && (j.value || (j.client_secret && j.client_secret.value));
+    if (!r.ok || !key) {
+      await refund(env, job);
+      return json({ error: `음성 키 발급 실패 (${r.status}): ${JSON.stringify(j || {}).slice(0, 200)}`, refunded: true }, 502);
+    }
+    await done(env, job);
+    return json({ key, model, cost, url: 'wss://api.openai.com/v1/realtime?model=' + encodeURIComponent(model) });
+  } catch (e) {
+    await refund(env, job);
+    return json({ error: `음성 키 오류: ${e.message}`, refunded: true }, 500);
   }
 }
 
