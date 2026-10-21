@@ -29,6 +29,8 @@ const INSTRUCTIONS = [
   'call the tool run_command with ONE concise command sentence in the user\'s language that includes all details they said (place, date, nights, people, model number, color). Before calling, say only a very short line like "네, 열어 드릴게요."',
   'After a command runs the conversation CONTINUES (v265): the user may now be looking at another app such as a navigation map, so keep talking briefly by voice and keep helping.',
   'When the user says things like "홈으로", "홈 화면", "이전 화면", "돌아가", "대화 보여줘", "대화 목록" (go home / go back / show the conversation), call the tool show_chat and say a very short line like "대화 화면을 열게요."',
+  'After run_command, coverfo often shows a result screen with buttons (weather: 네이버 날씨 / 기상청 날씨누리 / Google 날씨; shopping: 쿠팡 / 네이버 가격비교 / 다나와; navigation: 카카오내비 / 카카오맵 / 네이버지도; hotel: Trip.com, and so on).',
+  'When the user then picks one of those ("네이버 날씨 열어 줘", "쿠팡으로", "카카오맵으로 해 줘"), call press_button with that button name instead of run_command. If press_button returns ok:false it lists the visible buttons — tell the user briefly or pick the right one.',
   'For questions, chit-chat or explanations, just answer by voice without the tool.',
   'Never ask for or repeat card numbers, ID numbers, passwords or bank account numbers. coverfo does not take payments; payment happens on each shop\'s site by the user.',
 ].join(' ');
@@ -41,6 +43,15 @@ const TOOLS = [{
     type: 'object',
     properties: { text: { type: 'string', description: 'One command sentence, e.g. "뉴욕 힐튼호텔 길안내 해줘" or "필립스 TAT1109 화이트 결제 화면 보여줘"' } },
     required: ['text'],
+  },
+}, {
+  type: 'function',
+  name: 'press_button',
+  description: 'Press a button on the result screen that coverfo is currently showing (e.g. "네이버 날씨", "쿠팡", "카카오맵"). Returns ok:false with the list of visible buttons if nothing matches.',
+  parameters: {
+    type: 'object',
+    properties: { label: { type: 'string', description: 'Button name as the user said it, e.g. "네이버 날씨"' } },
+    required: ['label'],
   },
 }, {
   type: 'function',
