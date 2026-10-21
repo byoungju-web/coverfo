@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>coverfo 소리 · 로그인</title>
+<!-- coverfo 소리 앱(안드로이드) 전용 — 크롬 창에서 Google 로그인을 마친 뒤 이 페이지로 돌아오면, 로그인 정보를 앱으로 넘긴다.
+     · Supabase 가 주소 뒤에 붙여 준 값(#access_token·refresh_token 또는 ?code)을 앱 주소(coverfosori://login)로 전달.
+     · 이 페이지는 값을 저장하지도, 서버로 보내지도 않는다. -->
+<style>
+  :root { --bg:#f6f4fd; --card:#fff; --ink:#1f1b33; --sub:#6b6385; --pri:#5b2ec6; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#15121f; --card:#1f1b2e; --ink:#f1eefb; --sub:#b6aecf; --pri:#a58bff; } }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg); color:var(--ink);
+         font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif; padding:16px; box-sizing:border-box; }
+  .c { background:var(--card); border-radius:20px; padding:28px 22px; max-width:420px; width:100%; text-align:center; box-shadow:0 10px 30px rgba(60,30,160,.12); }
+  h1 { font-size:20px; margin:8px 0 6px; }
+  p { color:var(--sub); font-size:14px; line-height:1.6; margin:6px 0; }
+  a.b { display:block; margin:18px 0 8px; padding:15px; border-radius:14px; background:var(--pri); color:#fff; font-weight:800; font-size:16px; text-decoration:none; }
+  .e { color:#c81e1e; }
+  .i { font-size:44px; }
+</style>
+</head>
+<body>
+<div class="c">
+  <div class="i">🗣️</div>
+  <h1 id="t">로그인을 마쳤어요</h1>
+  <p id="m">coverfo 소리 앱으로 돌아가는 중이에요…</p>
+  <a class="b" id="go" href="#">coverfo 소리 앱으로 돌아가기</a>
+  <p id="h">앱으로 자동으로 넘어가지 않으면 위 단추를 눌러 주세요.</p>
+</div>
+<script>
+(function () {
+  var hash = new URLSearchParams((location.hash || "").replace(/^#/, ""));
+  var qs = new URLSearchParams(location.search || "");
+  var at = hash.get("access_token"), rt = hash.get("refresh_token"), code = qs.get("code");
+  var err = hash.get("error_description") || qs.get("error_description") || hash.get("error") || qs.get("error");
+  var go = document.getElementById("go");
+  if (err) {
+    document.getElementById("t").textContent = "로그인을 마치지 못했어요";
+    document.getElementById("m").innerHTML = '<span class="e"></span>';
+    document.querySelector("#m .e").textContent = err;
+    go.textContent = "coverfo 소리 앱으로 돌아가기";
+    go.href = "intent://login#Intent;scheme=coverfosori;package=com.coverfo.sori;end";
+    document.getElementById("h").textContent = "앱에서 다시 시도해 주세요.";
+    return;
+  }
+  if (!(at && rt) && !code) {
+    document.getElementById("t").textContent = "coverfo";
+    document.getElementById("m").textContent = "이 페이지는 coverfo 소리 앱의 Google 로그인용이에요.";
+    go.textContent = "coverfo 로 가기"; go.href = "https://coverfo.com/";
+    document.getElementById("h").textContent = "";
+    return;
+  }
+  var q = code ? "code=" + encodeURIComponent(code) : "at=" + encodeURIComponent(at) + "&rt=" + encodeURIComponent(rt);
+  var url = "intent://login?" + q + "#Intent;scheme=coverfosori;package=com.coverfo.sori;end";
+  go.href = url;
+  /* 주소에 남은 로그인 값은 지운다(뒤로가기·기록에 남지 않게) */
+  try { history.replaceState(null, "", location.pathname); } catch (e) {}
+  setTimeout(function () { try { location.href = url; } catch (e) {} }, 300);
+})();
+</script>
+</body>
+</html>

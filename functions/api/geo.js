@@ -34,7 +34,11 @@ export async function onRequestGet({ request, env }) {
     const d = j && Array.isArray(j.documents) ? j.documents[0] : null;
     if (!d || !d.y || !d.x) return json({ ok: false, reason: 'not-found' });
     const js = String(env.KAKAO_JS_KEY || '').trim();
-    return json({ ok: true, name: String(d.place_name || q), lat: Number(d.y), lng: Number(d.x), js: /^[0-9a-f]{20,64}$/i.test(js) ? js : '' });
+    /* v270: KAKAO_NATIVE_KEY(카카오 네이티브 앱 키) — 'coverfo 소리' 안드로이드 앱이 카카오 공식 Android SDK 로 카카오내비 안내를 시작할 때 씀.
+       네이티브 앱 키도 앱에 들어가는 공개용 키이고, 카카오에 등록한 패키지·키 해시의 앱에서만 동작한다 */
+    const nk = String(env.KAKAO_NATIVE_KEY || '').trim();
+    const okKey = (k) => /^[A-Za-z0-9_-]{16,80}$/.test(k) ? k : '';
+    return json({ ok: true, name: String(d.place_name || q), lat: Number(d.y), lng: Number(d.x), js: okKey(js), nk: okKey(nk) });
   } catch (e) {
     return json({ ok: false });
   }
