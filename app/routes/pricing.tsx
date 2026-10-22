@@ -2,6 +2,7 @@ import { json, type MetaFunction } from '@remix-run/cloudflare';
 import { useEffect, useState } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { Header } from '~/components/header/Header';
+import { Menu } from '~/components/sidebar/Menu.client';
 
 export const meta: MetaFunction = () => {
   return [{ title: '요금제 · coverfo' }, { name: 'description', content: 'coverfo 요금제 안내' }];
@@ -467,6 +468,8 @@ export default function Pricing() {
   return (
     <div className="flex min-h-full w-full flex-col bg-bolt-elements-background-depth-1">
       <ClientOnly>{() => <Header />}</ClientOnly>
+      {/* 왼쪽 위 ☰ → 사이드 설정 메뉴 (로고는 그대로 홈으로) */}
+      <ClientOnly>{() => <Menu overlay />}</ClientOnly>
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
         {/* v209 순서: 내 크레딧 잔액 → 충전(패키지·결제) → 포도톡 연결 → 요금제 */}

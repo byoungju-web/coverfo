@@ -123,14 +123,18 @@ function CurrentDateTime() {
   );
 }
 
-export const Menu = () => {
+/*
+ * overlay: 충전 화면(/pricing)처럼 사이드바가 늘 펼쳐져 있으면 안 되는 화면용.
+ * PC 에서도 자동으로 펼치지 않고, 왼쪽 위 ☰ 를 누르면 '설정'이 펼쳐진 상태로 열리며, 바깥을 누르면 닫힙니다.
+ */
+export const Menu = ({ overlay = false }: { overlay?: boolean } = {}) => {
   const { duplicateCurrentChat, exportChat } = useChatHistory();
   const menuRef = useRef<HTMLDivElement>(null);
   const [list, setList] = useState<ChatHistoryItem[]>([]);
   const [open, setOpen] = useState(false);
   const [dialogContent, setDialogContent] = useState<DialogContent>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [footOpen, setFootOpen] = useState(false); // 하단 '설정' 펼침 여부
+  const [footOpen, setFootOpen] = useState(overlay); // 하단 '설정' 펼침 여부 (overlay 화면은 처음부터 펼침)
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
 
@@ -495,7 +499,7 @@ export const Menu = () => {
   }, []);
 
   useEffect(() => {
-    if (isDesktop) {
+    if (isDesktop && !overlay) {
       setOpen(true);
     }
   }, [isDesktop]);
@@ -505,7 +509,7 @@ export const Menu = () => {
     const exitThreshold = 20;
 
     function onMouseMove(event: MouseEvent) {
-      if (isSettingsOpen || isDesktop) {
+      if (isSettingsOpen || isDesktop || overlay) {
         return;
       }
 
@@ -636,7 +640,7 @@ export const Menu = () => {
   return (
     <>
       {/* coverfo: 휴대폰에서 사이드바가 열려 있을 때 오른쪽 화면을 누르면 닫힘 (안쪽 iframe 이 터치를 가져가서 따로 막이 필요) */}
-      {open && !isDesktop && !isSettingsOpen && (
+      {open && (!isDesktop || overlay) && !isSettingsOpen && (
         <div
           aria-hidden="true"
           onClick={() => setOpen(false)}
@@ -937,6 +941,14 @@ export const Menu = () => {
                 >
                   <span className="i-ph:lock h-4 w-4 shrink-0" />
                   <span>개인정보 처리방침</span>
+                  <span className="ml-auto text-xs text-gray-400">›</span>
+                </a>
+                <a
+                  href="/#refund"
+                  className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <span className="i-ph:arrow-counter-clockwise h-4 w-4 shrink-0" />
+                  <span>크레딧 환불</span>
                   <span className="ml-auto text-xs text-gray-400">›</span>
                 </a>
                 <a
