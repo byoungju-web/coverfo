@@ -16,6 +16,12 @@
  *     · 가상계좌·계좌이체 결제는 환불받을 계좌(refundReceiveAccount)가 필요 → 브라우저가 입력받아 보냄
  *     · 성공한 건마다 cf_refunds 에 기록 + cf_topup(-크레딧). 한 건이라도 실패하면 거기서 멈추고 계정은 지우지 않음
  *   필요한 것: Cloudflare 변수 TOSS_SECRET_KEY (결제에 이미 씀), sql/cf_refunds.sql 1회 실행
+ *
+ *   v2 (2026-10-22, 토스 보안 체크리스트):
+ *     · 토스 취소 요청 전에 같은 회차(주문번호:rf:회차)를 cf_refunds 에 'pending' 으로 먼저 잡음 → 환불 버튼을 연달아 눌러도
+ *       크레딧이 두 번 깎이지 않음 (sql/cf_toss_security.sql 의 idem_key 고유 규칙 필요. 실행 전에는 예전처럼 동작)
+ *     · 취소가 실패하면 잡아 둔 회차를 풀어 다시 시도할 수 있게 함 (같은 멱등키라 토스에서 이중 취소 없음)
+ *     · 환불 기록 저장 성공 여부 확인, 토스 취소 응답 상태(CANCELED/PARTIAL_CANCELED) 확인
  */
 import type { ActionFunctionArgs } from '@remix-run/cloudflare';
 import { envOf, fail, getUserId, ok, readJson } from '~/lib/engine/server';
@@ -152,7 +158,7 @@ async function plan(c: SB, userId: string) {
 }
 
 /** 토스 결제 취소 (부분) — 멱등키로 같은 회차는 한 번만 */
-async function tossCancel(secret: string, paymentKey: string, orderId: string, seq: number, amount: number, account?: Account) {
+async function tossCancel(secret: string, paymentKey: string, idemKey: string, amount: number, account?: Account) {
   const body: any = { cancelReason: 'coverfo 크레딧 환불', cancelAmount: amount };
 
   if (account && account.bank && account.accountNumber && account.holderName) {
@@ -161,7 +167,7 @@ async function tossCancel(secret: string, paymentKey: string, orderId: string, s
 
   const r = await fetch(`https://api.tosspayments.com/v1/payments/${encodeURIComponent(paymentKey)}/cancel`, {
     method: 'POST',
-    headers: { Authorization: 'Basic ' + btoa(secret + ':'), 'Content-Type': 'application/json', 'Idempotency-Key': `${orderId}:rf:${seq}`.slice(0, 300) },
+    headers: { Authorization: 'Basic ' + btoa(secret + ':'), 'Content-Type': 'application/json', 'Idempotency-Key': idemKey.slice(0, 300) },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(20_000),
   });
@@ -171,10 +177,47 @@ async function tossCancel(secret: string, paymentKey: string, orderId: string, s
     throw new Error(d?.message || d?.code || `toss ${r.status}`);
   }
 
+  if (d?.status && d.status !== 'CANCELED' && d.status !== 'PARTIAL_CANCELED') {
+    throw new Error(`토스 취소 응답 상태가 이상합니다 (${d.status})`);
+  }
+
   const cancels: any[] = d?.cancels || [];
   const last = cancels[cancels.length - 1] || {};
 
   return String(last.transactionKey || '');
+}
+
+/** 환불 회차 잠금: 'pending' 줄을 먼저 넣음. 'busy' = 이미 누가 처리 중, null = 잠금 미지원(SQL 실행 전) → 예전처럼 진행 */
+async function lockRefund(c: SB, user: { id: string; email: string }, it: Item, idem: string): Promise<'locked' | 'busy' | null> {
+  try {
+    const r = await fetch(`${c.url}/rest/v1/cf_refunds`, {
+      method: 'POST',
+      headers: hdr(c, { Prefer: 'return=minimal' }),
+      body: JSON.stringify({ order_id: it.order_id, user_id: user.id, email: user.email || null, credits: it.credits, gross: it.gross, fee: it.fee, amount: it.net, method: it.method, status: 'pending', reason: 'user', idem_key: idem }),
+    });
+
+    if (r.ok) {
+      return 'locked';
+    }
+
+    if (r.status === 409) {
+      return 'busy';
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function patchRefund(c: SB, idem: string, patch: any) {
+  const r = await fetch(`${c.url}/rest/v1/cf_refunds?idem_key=eq.${encodeURIComponent(idem)}`, {
+    method: 'PATCH',
+    headers: hdr(c, { Prefer: 'return=minimal' }),
+    body: JSON.stringify(patch),
+  });
+
+  return r.ok;
 }
 
 /** 계획대로 실행. 실패하면 거기서 멈추고 {done, failed} 반환 */
@@ -196,25 +239,47 @@ async function execute(c: SB, env: Env, user: { id: string; email: string }, acc
     }
 
     const o = (await rows<Order>(c, `cf_orders?select=order_id,payment_key&order_id=eq.${encodeURIComponent(it.order_id)}`))[0];
+    const idem = `${it.order_id}:rf:${it.seq}`;
+    const lock = await lockRefund(c, user, it, idem);
+
+    if (lock === 'busy') {
+      failed = { order_id: it.order_id, error: '이미 처리 중인 환불이 있습니다. 잠시 후 충전 내역을 확인해 주세요.' };
+      break;
+    }
 
     try {
-      const tx = await tossCancel(secret, String(o?.payment_key || ''), it.order_id, it.seq, it.net, it.needsAccount ? account : undefined);
+      const tx = await tossCancel(secret, String(o?.payment_key || ''), idem, it.net, it.needsAccount ? account : undefined);
 
-      await fetch(`${c.url}/rest/v1/cf_refunds`, {
-        method: 'POST',
-        headers: hdr(c, { Prefer: 'return=minimal' }),
-        body: JSON.stringify({ order_id: it.order_id, user_id: user.id, email: user.email || null, credits: it.credits, gross: it.gross, fee: it.fee, amount: it.net, method: it.method, transaction_key: tx, status: 'done', reason: 'user' }),
-      });
-      await rpc(c, 'cf_topup', { p_user: user.id, p_amount: -it.credits, p_note: '환불 ' + it.order_id });
+      let saved = false;
+
+      if (lock === 'locked') {
+        saved = await patchRefund(c, idem, { status: 'done', transaction_key: tx });
+      } else {
+        const r = await fetch(`${c.url}/rest/v1/cf_refunds`, {
+          method: 'POST',
+          headers: hdr(c, { Prefer: 'return=minimal' }),
+          body: JSON.stringify({ order_id: it.order_id, user_id: user.id, email: user.email || null, credits: it.credits, gross: it.gross, fee: it.fee, amount: it.net, method: it.method, transaction_key: tx, status: 'done', reason: 'user' }),
+        });
+        saved = r.ok;
+      }
+
+      // 토스 환불은 이미 끝났으므로 크레딧은 반드시 차감 (기록 저장이 실패해도 'pending' 줄이 남아 같은 회차 재환불을 막음)
+      await rpc(c, 'cf_topup', { p_user: user.id, p_amount: -it.credits, p_note: '환불 ' + it.order_id + (saved ? '' : ' (기록 저장 실패 · 확인 필요)') });
       done.push(it);
     } catch (e: any) {
       const msg = String(e?.message || e).slice(0, 200);
 
-      await fetch(`${c.url}/rest/v1/cf_refunds`, {
-        method: 'POST',
-        headers: hdr(c, { Prefer: 'return=minimal' }),
-        body: JSON.stringify({ order_id: it.order_id, user_id: user.id, email: user.email || null, credits: it.credits, gross: it.gross, fee: it.fee, amount: it.net, method: it.method, status: 'failed', reason: 'user', error: msg }),
-      }).catch(() => undefined);
+      if (lock === 'locked') {
+        // 회차를 풀어 다시 시도할 수 있게 (같은 멱등키로 다시 보내므로 토스에서 이중 취소 없음)
+        await patchRefund(c, idem, { status: 'failed', error: msg, idem_key: `${idem}:f:${Date.now()}` }).catch(() => false);
+      } else {
+        await fetch(`${c.url}/rest/v1/cf_refunds`, {
+          method: 'POST',
+          headers: hdr(c, { Prefer: 'return=minimal' }),
+          body: JSON.stringify({ order_id: it.order_id, user_id: user.id, email: user.email || null, credits: it.credits, gross: it.gross, fee: it.fee, amount: it.net, method: it.method, status: 'failed', reason: 'user', error: msg }),
+        }).catch(() => undefined);
+      }
+
       failed = { order_id: it.order_id, error: msg };
       break;
     }

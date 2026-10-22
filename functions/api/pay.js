@@ -12,6 +12,15 @@
 //   POST /api/pay  {op:'create', package}        → { orderId, orderName, amount, credits, customerKey }  (로그인 필요)
 //   GET  /api/pay?op=confirm&paymentKey&orderId&amount  → 토스에 결제 확인 → 충전 → /buy?done=1 로 이동
 //   POST /api/pay?webhook=1                      → 토스 웹훅 (결제 상태 변경 시 토스가 호출; 확인 누락 대비)
+//
+// v2 (2026-10-22, 토스 보안 체크리스트):
+//   · 웹훅 본문은 믿지 않고 토스 결제 조회 API(GET /v1/payments/{paymentKey})로 상태·주문번호·금액을 다시 확인한 뒤에만 충전·취소
+//   · 웹훅 DONE 때 결제를 다시 승인하지 않음 (이미 승인된 결제라 오류가 나서 failed 로 바뀌던 문제)
+//   · 승인 요청이 "이미 처리된 결제(ALREADY_PROCESSED_PAYMENT)"면 조회 API로 확인해 DONE 이면 충전
+//   · 승인 응답도 상태(DONE)·주문번호·금액을 대조
+//   · 웹훅은 바로 200 으로 답하고 처리는 뒤에서 (토스 10초 기준)
+//   · tosspayments-webhook-transmission-id 로 같은 웹훅 두 번 처리 방지 (sql/cf_toss_security.sql 의 cf_webhook_seen 표; 표가 없어도 결제는 그대로 됨)
+//   · 선택 Secret TOSS_MID 를 넣으면 결제의 mId 도 대조
 
 function json(data, status) {
   return new Response(JSON.stringify(data), { status: status || 200, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
@@ -31,6 +40,7 @@ function cfg(env) {
     service: env.SUPABASE_SERVICE_ROLE_KEY || '',
     clientKey: env.TOSS_CLIENT_KEY || '',
     secretKey: env.TOSS_SECRET_KEY || '',
+    mid: String(env.TOSS_MID || ''),
     packages,
   };
 }
@@ -71,6 +81,33 @@ async function patchOrder(c, orderId, patch, filter) {
   return rows && rows[0] ? rows[0] : null;
 }
 
+function tossAuth(c) {
+  return 'Basic ' + btoa(c.secretKey + ':');
+}
+/* 토스 결제 조회 API — paymentKey 로, 없으면 주문번호로 */
+async function tossPayment(c, paymentKey, orderId) {
+  const path = paymentKey ? '/v1/payments/' + encodeURIComponent(paymentKey) : '/v1/payments/orders/' + encodeURIComponent(orderId);
+  const r = await fetch('https://api.tosspayments.com' + path, { headers: { Authorization: tossAuth(c) }, signal: AbortSignal.timeout(15000) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.message || ('토스 조회 실패 ' + r.status));
+  return d;
+}
+/* 토스가 알려준 결제가 이 주문과 같은 결제인지 대조 (상태 DONE · 주문번호 · 금액 · 선택: 상점아이디) */
+function paidMatches(c, order, p) {
+  if (!p || p.status !== 'DONE') return false;
+  if (String(p.orderId || '') !== String(order.order_id)) return false;
+  if (Number(p.totalAmount) !== Number(order.amount)) return false;
+  if (c.mid && p.mId && String(p.mId) !== c.mid) return false;
+  return true;
+}
+/* 확인된 결제를 충전: pending(또는 예전 버그로 failed 된 주문) → paid 를 먼저 잡아 두 번 충전되지 않게 */
+async function finalize(c, order, paymentKey, p) {
+  const locked = await patchOrder(c, order.order_id, { status: 'paid', payment_key: paymentKey || p.paymentKey || null, method: p.method || null, paid_at: new Date().toISOString() }, 'status=in.(pending,failed)');
+  if (!locked) return { already: true, order };
+  await rpc(c, 'cf_topup', { p_user: order.user_id, p_amount: order.credits, p_note: '토스 결제 ' + order.order_id });
+  return { already: false, order: locked };
+}
+
 /* 토스에 결제 승인 요청 → 성공하면 크레딧 충전 (같은 주문은 한 번만) */
 async function confirmAndTopup(c, paymentKey, orderId, amount) {
   const order = await getOrder(c, orderId);
@@ -80,19 +117,63 @@ async function confirmAndTopup(c, paymentKey, orderId, amount) {
 
   const r = await fetch('https://api.tosspayments.com/v1/payments/confirm', {
     method: 'POST',
-    headers: { Authorization: 'Basic ' + btoa(c.secretKey + ':'), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ paymentKey, orderId, amount: Number(amount) }),
+    headers: { Authorization: tossAuth(c), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ paymentKey, orderId, amount: Number(order.amount) }),
+    signal: AbortSignal.timeout(20000),
   });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) {
+    // 새로고침·웹훅과 겹쳐서 "이미 처리된 결제"면 실패로 만들지 않고 조회 API로 확인해 충전
+    if (d.code === 'ALREADY_PROCESSED_PAYMENT') {
+      const p = await tossPayment(c, paymentKey, orderId);
+      if (paidMatches(c, order, p)) return finalize(c, order, paymentKey, p);
+    }
     await patchOrder(c, orderId, { status: 'failed', note: String(d.message || d.code || r.status).slice(0, 300) }, 'status=eq.pending');
     throw new Error(d.message || ('토스 승인 실패 ' + r.status));
   }
-  // pending → paid 를 먼저 잡아 두 번 충전되지 않게 합니다
-  const locked = await patchOrder(c, orderId, { status: 'paid', payment_key: paymentKey, method: d.method || null, paid_at: new Date().toISOString() }, 'status=eq.pending');
-  if (!locked) return { already: true, order };
-  await rpc(c, 'cf_topup', { p_user: order.user_id, p_amount: order.credits, p_note: '토스 결제 ' + orderId });
-  return { already: false, order: locked };
+  // 승인 응답도 대조 (상태 DONE · 주문번호 · 금액)
+  if (!paidMatches(c, order, d)) {
+    await patchOrder(c, orderId, { note: ('승인 응답 불일치: ' + (d.status || '') + ' ' + (d.orderId || '') + ' ' + (d.totalAmount || '')).slice(0, 300) }, 'status=eq.pending');
+    throw new Error('결제 확인 결과가 주문과 맞지 않습니다. 문의해 주세요.');
+  }
+  return finalize(c, order, paymentKey, d);
+}
+
+/* 웹훅 처리 — 본문은 믿지 않고 조회 API 결과로만 판단 */
+async function handleWebhook(c, body) {
+  const data = (body && body.data) || body || {};
+  const orderId = String(data.orderId || '');
+  const paymentKey = String(data.paymentKey || '');
+  if (!orderId || !c.secretKey) return;
+  const order = await getOrder(c, orderId);
+  if (!order) return;
+  const p = await tossPayment(c, paymentKey, orderId);
+  if (String(p.orderId || '') !== orderId) return;
+  if (paidMatches(c, order, p)) {
+    if (order.status !== 'paid') await finalize(c, order, p.paymentKey || paymentKey, p);
+    return;
+  }
+  if (p.status === 'CANCELED' || p.status === 'ABORTED' || p.status === 'EXPIRED') {
+    // 결제가 끝나지 않은 주문만 취소로 표시 (충전된 주문의 환불은 환불 기능이 따로 기록)
+    await patchOrder(c, orderId, { status: 'canceled', note: p.status }, 'status=in.(pending,failed)');
+  }
+}
+/* 같은 웹훅 두 번 처리 방지 — 처리에 성공한 웹훅만 기록. 표(cf_webhook_seen)가 없으면 그냥 처리
+   (같은 결제가 두 번 충전되는 일은 주문 잠금(pending→paid)이 이미 막음) */
+async function seenBefore(c, tid) {
+  if (!tid) return false;
+  try {
+    const r = await fetch(c.sbUrl + '/rest/v1/cf_webhook_seen?select=transmission_id&transmission_id=eq.' + encodeURIComponent(String(tid).slice(0, 200)), { headers: sbHeaders(c) });
+    if (!r.ok) return false;
+    const rows = await r.json().catch(() => []);
+    return Array.isArray(rows) && rows.length > 0;
+  } catch (e) { return false; }
+}
+async function markSeen(c, tid) {
+  if (!tid) return;
+  try {
+    await fetch(c.sbUrl + '/rest/v1/cf_webhook_seen', { method: 'POST', headers: sbHeaders(c, { Prefer: 'return=minimal,resolution=ignore-duplicates' }), body: JSON.stringify({ transmission_id: String(tid).slice(0, 200) }) });
+  } catch (e) { /* 표가 없으면 무시 */ }
 }
 
 async function handleGet(context) {
@@ -148,23 +229,19 @@ async function handlePost(context) {
   const url = new URL(request.url);
   if (!c.sbUrl || !c.service) return json({ error: 'Supabase 설정이 없습니다' }, 500);
 
-  // 토스 웹훅: 브라우저 확인이 끊겨도 결제가 DONE 이면 충전합니다
+  // 토스 웹훅: 브라우저 확인이 끊겨도 결제가 DONE 이면 충전합니다 — 바로 200 으로 답하고 처리는 뒤에서
   if (url.searchParams.get('webhook')) {
     let body = {};
     try { body = await request.json(); } catch (e) { body = {}; }
-    const data = body.data || body;
-    const status = data.status || '';
-    const orderId = data.orderId || '';
-    const paymentKey = data.paymentKey || '';
-    if (!orderId) return json({ ok: true, ignored: true });
-    try {
-      if (status === 'DONE' && c.secretKey) {
-        const order = await getOrder(c, orderId);
-        if (order && order.status === 'pending') await confirmAndTopup(c, paymentKey, orderId, order.amount);
-      } else if (status === 'CANCELED' || status === 'PARTIAL_CANCELED' || status === 'ABORTED' || status === 'EXPIRED') {
-        await patchOrder(c, orderId, { status: 'canceled', note: status }, 'status=neq.paid');
-      }
-    } catch (e) { /* 웹훅은 항상 200 으로 답해야 토스가 재전송을 멈춥니다 */ }
+    const tid = request.headers.get('tosspayments-webhook-transmission-id') || '';
+    const work = (async () => {
+      try {
+        if (await seenBefore(c, tid)) return;
+        await handleWebhook(c, body);
+        await markSeen(c, tid);
+      } catch (e) { /* 기록하지 않음 → 토스가 다시 보내면 다시 처리 */ }
+    })();
+    if (context.waitUntil) context.waitUntil(work); else await work;
     return json({ ok: true });
   }
 
