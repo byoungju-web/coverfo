@@ -5,7 +5,10 @@
 //   { op:"start", sdp }  → 첫 1분 크레딧 차감 후 OpenAI Realtime 에 연결(WebRTC). 응답 { sdp, call, cost }
 //   { op:"tick",  call } → 1분마다 화면이 부른다. 다음 1분 크레딧 차감. 부족하면 통화를 끊고 402
 //   { op:"end",   call } → 통화 끊기
-//   { op:"token" }       → (v267 안드로이드 앱 'coverfo 소리') 첫 1분 차감 후 1회용 임시 키(ek_…) 발급. 응답 { key, url, model, cost }
+//   { op:"token", name } → (v267 안드로이드 앱 'coverfo 소리') 첫 1분 차감 후 1회용 임시 키(ek_…) 발급. 응답 { key, url, model, cost }
+//                          v276: name = 앱에서 정한 부르는 이름(기본 "소리야"). 앱 전용 도구(open_app·run_routine·end_conversation)도 이때만 준다.
+//   { op:"device" }      → v276 앱의 '이름 부르기 대기'용 기기 키(30일). 로그인 키(1시간)로만 받을 수 있다.
+//                          앱은 대기 중 이름이 들리면 이 키로 token·tick 을 부른다 (화면이 꺼져 있어도 대화 시작 가능).
 //                          앱이 그 키로 OpenAI Realtime WebSocket 에 직접 연결(마이크 24kHz PCM). 진짜 OpenAI 키는 서버에만.
 //                          앱의 1분 tick 은 call 없이 { op:"tick" } 로 보낸다(차감만, 부족하면 402 → 앱이 끊음).
 //
@@ -20,21 +23,37 @@
 const COST_DEFAULT = 1;
 const MODEL_DEFAULT = 'gpt-realtime-2.1-mini';   // 2026-07 공개 · 오디오 입력 $10 / 출력 $20 (100만 토큰당)
 const VOICE = 'marin';
+const MAX_OUT = 300;            // v276: 한 번 대답의 최대 길이 (말이 길어지지 않게)
+const DEVICE_DAYS = 30;         // v276: 앱 대기용 기기 키 유효 기간
 
 const INSTRUCTIONS = [
   "You are '소리', the voice assistant of coverfo (a Korean all-in-one assistant web app).",
-  'Speak in the same language as the user (default Korean, polite 해요체). Keep answers short and natural for speech: 1-3 sentences.',
+  'Speak in the same language as the user (default Korean, polite 해요체).',
+  /* v276: 말 줄이기 — 묻는 것에만 짧게. 먼저 말을 꺼내거나 덧붙이지 않는다 */
+  'BE BRIEF: answer in ONE short sentence whenever possible (two at most). Give only what was asked. No explanations, background, lists, greetings, or closing offers such as "더 궁금한 점 있으세요?" / "도와드릴까요?" unless the user asks for details.',
+  'Never start talking on your own and never continue talking after you have answered. Respond only to what the user just said. If the request is unclear, ask ONE very short question.',
   'If the user interrupts, stop and listen.',
   'When the user wants an ACTION that the coverfo home screen can do — map/places/restaurants (맛집), attractions (가볼만한곳), navigation (길안내/내비), hotel booking (숙소 예약), shopping or checkout screen (쇼핑/결제 화면), taxi, food delivery, music playback, weather, flights, trains, phone call or SMS —',
-  'call the tool run_command with ONE concise command sentence in the user\'s language that includes all details they said (place, date, nights, people, model number, color). Before calling, say only a very short line like "네, 열어 드릴게요."',
+  'call the tool run_command with ONE concise command sentence in the user\'s language that includes all details they said (place, date, nights, people, model number, color). Before calling, say only a very short line like "네, 열게요."',
   'The command must be a short, natural request like "카페 아라비카 길안내 해줘", "부산역 맛집 알려줘", "서울 내일 날씨 알려줘" — one action, the place/item name plus the action word. Never add alternatives or extra words such as "또는", "위치 찾아서", "탐색 화면 열어".',
-  'After a command runs the conversation CONTINUES (v265): the user may now be looking at another app such as a navigation map, so keep talking briefly by voice and keep helping.',
+  'After a command runs the conversation CONTINUES (v265): the user may now be looking at another app such as a navigation map. Stay quiet and wait; speak only when the user talks to you.',
   'When the user says things like "홈으로", "홈 화면", "이전 화면", "돌아가", "대화 보여줘", "대화 목록" (go home / go back / show the conversation), call the tool show_chat and say a very short line like "대화 화면을 열게요."',
   'After run_command, coverfo often shows a result screen with buttons (weather: 네이버 날씨 / 기상청 날씨누리 / Google 날씨; shopping: 쿠팡 / 네이버 가격비교 / 다나와; navigation: 카카오내비 / 카카오맵 / 네이버지도; hotel: Trip.com, and so on).',
   'When the user then picks one of those ("네이버 날씨 열어 줘", "쿠팡으로", "카카오맵으로 해 줘"), call press_button with that button name instead of run_command. If press_button returns ok:false it lists the visible buttons — tell the user briefly or pick the right one.',
-  'For questions, chit-chat or explanations, just answer by voice without the tool.',
+  'For questions, chit-chat or explanations, just answer by voice without the tool — still briefly.',
   'Never ask for or repeat card numbers, ID numbers, passwords or bank account numbers. coverfo does not take payments; payment happens on each shop\'s site by the user.',
 ].join(' ');
+
+/* v276 앱(coverfo 소리) 전용: 부르는 이름 + 앱 열기 · 저장루틴 실행 · 대화 끝내기 */
+function appInstructions(name) {
+  const n = name || '소리야';
+  return INSTRUCTIONS + ' ' + [
+    `The user calls you by the name "${n}". Their speech may begin with that name (it may be mis-transcribed) — ignore the name itself and handle the rest. If they only said your name, reply with just "네?" and wait.`,
+    'When the user wants to open an app on the phone ("카톡 켜 줘", "유튜브 열어 줘", "카메라 켜 줘", "배민 열어"), call open_app with the app name. Say at most "네." before calling. If it returns ok:false, tell the user in one short sentence.',
+    'When the user wants to run a saved routine (저장루틴, 루틴) — e.g. "아침 루틴 실행해", "어제 저장한 루틴 실행해", "마지막 루틴 돌려 줘" — call run_routine with the routine name and/or when ("latest" for the last/most recent, "today", "yesterday"). If it returns ok:false with names, read at most three of the names briefly.',
+    'When the user ends the conversation ("그만", "됐어", "끝", "고마워 끝", "잘 자", "대기해"), call end_conversation. Say nothing, or only "네."',
+  ].join(' ');
+}
 
 const TOOLS = [{
   type: 'function',
@@ -61,6 +80,34 @@ const TOOLS = [{
   parameters: { type: 'object', properties: {} },
 }];
 
+/* v276 앱 전용 도구 (앱이 직접 처리: open_app · end_conversation / 화면이 처리: run_routine) */
+const APP_TOOLS = TOOLS.concat([{
+  type: 'function',
+  name: 'open_app',
+  description: 'Open an app installed on the phone, e.g. 카카오톡, 유튜브, 카카오맵, 쿠팡, 배달의민족, 카메라, 전화, 문자, 설정, 갤러리.',
+  parameters: {
+    type: 'object',
+    properties: { name: { type: 'string', description: 'App name as the user said it, e.g. "카톡" or "유튜브"' } },
+    required: ['name'],
+  },
+}, {
+  type: 'function',
+  name: 'run_routine',
+  description: 'Run one of the user\'s saved routines (저장루틴) on coverfo by name and/or date. Returns ok:false with the saved routine names if nothing matches.',
+  parameters: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: 'Routine name as the user said it, e.g. "아침 루틴". Empty if they only gave a date.' },
+      when: { type: 'string', enum: ['', 'latest', 'today', 'yesterday'], description: '"latest" = most recently saved, "today"/"yesterday" = saved on that day' },
+    },
+  },
+}, {
+  type: 'function',
+  name: 'end_conversation',
+  description: 'End the voice conversation (the app goes back to waiting for its name, or closes).',
+  parameters: { type: 'object', properties: {} },
+}]);
+
 export async function onRequestPost(context) {
   const env = context.env || {};
   if (!env.OPENAI_API_KEY) return json({ error: 'OPENAI_API_KEY 가 설정되지 않았습니다' }, 500);
@@ -85,7 +132,15 @@ export async function onRequestPost(context) {
     return json({ ok: true, cost });
   }
 
-  if (op === 'token') return appToken(env, uid, cost);
+  /* 새 앱(v4)만 name 을 보낸다 → 그때만 앱 전용 도구. 업데이트 전 앱은 예전 도구 그대로 (처리 못 하는 도구를 받지 않게) */
+  if (op === 'token') return appToken(env, uid, cost, b.name ? cleanName(b.name) : '');
+  if (op === 'device') {
+    /* 기기 키는 진짜 로그인 키로만 받는다 (기기 키로 기기 키를 다시 받아 끝없이 늘리지 못하게) */
+    if (isDevice(context.request)) return json({ error: '로그인 키가 필요합니다' }, 401);
+    const device = await makeDevice(env, uid);
+    if (!device) return json({ error: '기기 키를 만들 수 없습니다' }, 500);
+    return json({ ok: true, device, days: DEVICE_DAYS });
+  }
   if (op !== 'start') return json({ error: '잘못된 요청입니다' }, 400);
   const sdp = String(b.sdp || '');
   if (!/^v=0/.test(sdp) || sdp.length > 20000) return json({ error: '연결 정보(SDP)가 올바르지 않습니다' }, 400);
@@ -109,6 +164,7 @@ export async function onRequestPost(context) {
       },
       tools: TOOLS,
       tool_choice: 'auto',
+      max_output_tokens: MAX_OUT,
     };
     const create = (cfg) => {
       const fd = new FormData();
@@ -122,6 +178,12 @@ export async function onRequestPost(context) {
     };
     let r = await create(session);
     let answer = await r.text();
+    if (r.status === 400) {
+      /* v276: 답 길이 제한(max_output_tokens)을 거절하면 빼고 한 번 더 */
+      delete session.max_output_tokens;
+      r = await create(session);
+      answer = await r.text();
+    }
     if (r.status === 400) {
       /* 받아쓰기 모델 이름이 바뀌어 거절되면 받아쓰기 없이 한 번 더 (화면에 내 말 글자만 안 보임) */
       delete session.audio.input.transcription;
@@ -145,7 +207,7 @@ export async function onRequestPost(context) {
 /* ── v267 안드로이드 앱용 임시 키 (OpenAI POST /v1/realtime/client_secrets → value) ──
    · 키는 120초 안에 연결을 시작할 때만 쓰인다(연결 후 대화는 계속). 앱 화면·기기에 진짜 OpenAI 키가 남지 않는다.
    · 오디오는 PCM 16bit 24kHz 모노 (앱의 AudioRecord · AudioTrack 과 같은 형식). */
-async function appToken(env, uid, cost) {
+async function appToken(env, uid, cost, name) {
   let job;
   try { job = await spend(env, uid, cost, 'live:start'); }
   catch (e) { return json({ error: '크레딧 처리 실패: ' + String(e.message || e).slice(0, 200) }, 500); }
@@ -155,7 +217,7 @@ async function appToken(env, uid, cost) {
   const session = {
     type: 'realtime',
     model,
-    instructions: INSTRUCTIONS,
+    instructions: name ? appInstructions(name) : INSTRUCTIONS,
     audio: {
       input: {
         format: fmt,
@@ -164,8 +226,9 @@ async function appToken(env, uid, cost) {
       },
       output: { format: fmt, voice: VOICE },
     },
-    tools: TOOLS,
+    tools: name ? APP_TOOLS : TOOLS,
     tool_choice: 'auto',
+    max_output_tokens: MAX_OUT,
   };
   const ask = (cfg) => fetch('https://api.openai.com/v1/realtime/client_secrets', {
     method: 'POST',
@@ -175,6 +238,11 @@ async function appToken(env, uid, cost) {
   try {
     let r = await ask(session);
     let j = await r.json().catch(() => null);
+    if (r.status === 400) {
+      delete session.max_output_tokens;   /* v276: 답 길이 제한을 거절하면 빼고 한 번 더 */
+      r = await ask(session);
+      j = await r.json().catch(() => null);
+    }
     if (r.status === 400) {
       delete session.audio.input.transcription;   /* 받아쓰기 모델 이름이 거절되면 받아쓰기 없이 한 번 더 */
       r = await ask(session);
@@ -221,6 +289,7 @@ async function userId(request, env) {
   const c = sb(env);
   const token = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
   if (!c || !token) return '';
+  if (token.startsWith('sd1.')) return checkDevice(env, token);   /* v276 앱 대기용 기기 키 */
   try {
     const r = await fetch(c.url + '/auth/v1/user', { headers: { apikey: c.svc, Authorization: 'Bearer ' + token } });
     if (!r.ok) return '';
@@ -260,4 +329,50 @@ async function done(env, job) {
     headers: { apikey: c.svc, Authorization: 'Bearer ' + c.svc, 'Content-Type': 'application/json' },
     body: JSON.stringify({ status: 'done', updated_at: new Date().toISOString() }),
   }).catch(() => {});
+}
+
+/* ── v276 앱 '이름 부르기 대기'용 기기 키: sd1.<내용>.<서명> (HMAC-SHA256, 30일) ──
+   서명 열쇠는 서버에만 있는 SUPABASE_SERVICE_ROLE_KEY 에서 만든다 (새 설정 불필요). 이 키는 talk-live(음성 대화)에서만 쓰인다. */
+function cleanName(v) {
+  const n = String(v || '').replace(/[^0-9A-Za-z가-힣]/g, '').slice(0, 10);
+  return n || '소리야';
+}
+function isDevice(request) {
+  return /^Bearer\s+sd1\./i.test(request.headers.get('Authorization') || '');
+}
+function b64u(bytes) {
+  let s = ''; const a = new Uint8Array(bytes);
+  for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function b64uText(t) { return b64u(new TextEncoder().encode(t)); }
+function fromB64u(s) {
+  s = String(s).replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '=';
+  return new TextDecoder().decode(Uint8Array.from(atob(s), (c) => c.charCodeAt(0)));
+}
+async function deviceKey(env) {
+  const base = env.SUPABASE_SERVICE_ROLE_KEY || '';
+  if (!base) return null;
+  return crypto.subtle.importKey('raw', new TextEncoder().encode('coverfo-sori-device:' + base), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
+}
+async function makeDevice(env, uid) {
+  const k = await deviceKey(env);
+  if (!k || !uid) return '';
+  const body = b64uText(JSON.stringify({ u: uid, e: Date.now() + DEVICE_DAYS * 86400e3 }));
+  const sig = await crypto.subtle.sign('HMAC', k, new TextEncoder().encode('sd1.' + body));
+  return 'sd1.' + body + '.' + b64u(sig);
+}
+async function checkDevice(env, token) {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return '';
+    const k = await deviceKey(env);
+    if (!k) return '';
+    const sig = Uint8Array.from(atob(parts[2].replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((parts[2].length + 3) % 4)), (c) => c.charCodeAt(0));
+    const ok = await crypto.subtle.verify('HMAC', k, sig, new TextEncoder().encode('sd1.' + parts[1]));
+    if (!ok) return '';
+    const p = JSON.parse(fromB64u(parts[1]));
+    if (!p || !p.u || !(p.e > Date.now())) return '';
+    return String(p.u);
+  } catch { return ''; }
 }
