@@ -7,6 +7,7 @@
 //   { op:"end",   call } → 통화 끊기
 //   { op:"token", name } → (v267 안드로이드 앱 'coverfo 소리') 첫 1분 차감 후 1회용 임시 키(ek_…) 발급. 응답 { key, url, model, cost }
 //                          v276: name = 앱에서 정한 부르는 이름(기본 "소리야"). 앱 전용 도구(open_app·run_routine·end_conversation)도 이때만 준다.
+//                          v277: relay = 1 이면 커넥션 허브 2.0 릴레이 도구(run_relay · relay_answer)도 준다 (앱이 /api/hub 로 직접 실행).
 //   { op:"device" }      → v276 앱의 '이름 부르기 대기'용 기기 키(30일). 로그인 키(1시간)로만 받을 수 있다.
 //                          앱은 대기 중 이름이 들리면 이 키로 token·tick 을 부른다 (화면이 꺼져 있어도 대화 시작 가능).
 //                          앱이 그 키로 OpenAI Realtime WebSocket 에 직접 연결(마이크 24kHz PCM). 진짜 OpenAI 키는 서버에만.
@@ -54,6 +55,32 @@ function appInstructions(name) {
     'When the user ends the conversation ("그만", "됐어", "끝", "고마워 끝", "잘 자", "대기해"), call end_conversation. Say nothing, or only "네."',
   ].join(' ');
 }
+
+/* v277 커넥션 허브 2.0: 연결한 앱(캘린더·지메일·드라이브·구글문서·노션)과 카톡으로 여러 단계를 한 번에 */
+const RELAY_INSTR = [
+  'For tasks that use the user\'s connected apps — Google Calendar, Gmail, Google Drive, Google Docs, Notion, or sending KakaoTalk messages — such as "내일 10시 미팅 준비해", "오늘 일정 알려줘", "참석자에게 메일 보내", "드라이브에서 계약서 찾아 요약해", call run_relay with the whole request as one sentence. Say only "네, 할게요." before calling. It can take up to a minute; stay quiet while waiting.',
+  'If run_relay or relay_answer returns status "confirm", ask the user the given question in ONE short sentence and wait. When they answer yes (응/네/보내/해) call relay_answer with approve true; no (아니/취소/하지마) approve false.',
+  'When the result has status "done", say its "say" text (one sentence). If it says an app must be connected, tell them to connect it in 커넥션 허브.',
+].join(' ');
+const RELAY_TOOLS = [{
+  type: 'function',
+  name: 'run_relay',
+  description: 'Run a multi-step task on the user\'s connected apps (Calendar, Gmail, Drive, Docs, Notion) and KakaoTalk, e.g. "내일 10시 미팅 준비해". Returns status done (with "say") or confirm (with a question to ask).',
+  parameters: {
+    type: 'object',
+    properties: { goal: { type: 'string', description: 'The user\'s whole request as one Korean sentence, e.g. "내일 10시 미팅 준비해서 참석자에게 보내줘"' } },
+    required: ['goal'],
+  },
+}, {
+  type: 'function',
+  name: 'relay_answer',
+  description: 'Answer the confirmation question from run_relay (send / do it = true, cancel = false).',
+  parameters: {
+    type: 'object',
+    properties: { approve: { type: 'boolean' } },
+    required: ['approve'],
+  },
+}];
 
 const TOOLS = [{
   type: 'function',
@@ -133,7 +160,7 @@ export async function onRequestPost(context) {
   }
 
   /* 새 앱(v4)만 name 을 보낸다 → 그때만 앱 전용 도구. 업데이트 전 앱은 예전 도구 그대로 (처리 못 하는 도구를 받지 않게) */
-  if (op === 'token') return appToken(env, uid, cost, b.name ? cleanName(b.name) : '');
+  if (op === 'token') return appToken(env, uid, cost, b.name ? cleanName(b.name) : '', !!(b.name && b.relay));
   if (op === 'device') {
     /* 기기 키는 진짜 로그인 키로만 받는다 (기기 키로 기기 키를 다시 받아 끝없이 늘리지 못하게) */
     if (isDevice(context.request)) return json({ error: '로그인 키가 필요합니다' }, 401);
@@ -207,7 +234,7 @@ export async function onRequestPost(context) {
 /* ── v267 안드로이드 앱용 임시 키 (OpenAI POST /v1/realtime/client_secrets → value) ──
    · 키는 120초 안에 연결을 시작할 때만 쓰인다(연결 후 대화는 계속). 앱 화면·기기에 진짜 OpenAI 키가 남지 않는다.
    · 오디오는 PCM 16bit 24kHz 모노 (앱의 AudioRecord · AudioTrack 과 같은 형식). */
-async function appToken(env, uid, cost, name) {
+async function appToken(env, uid, cost, name, relay) {
   let job;
   try { job = await spend(env, uid, cost, 'live:start'); }
   catch (e) { return json({ error: '크레딧 처리 실패: ' + String(e.message || e).slice(0, 200) }, 500); }
@@ -217,7 +244,7 @@ async function appToken(env, uid, cost, name) {
   const session = {
     type: 'realtime',
     model,
-    instructions: name ? appInstructions(name) : INSTRUCTIONS,
+    instructions: name ? appInstructions(name) + (relay ? ' ' + RELAY_INSTR : '') : INSTRUCTIONS,
     audio: {
       input: {
         format: fmt,
@@ -226,7 +253,7 @@ async function appToken(env, uid, cost, name) {
       },
       output: { format: fmt, voice: VOICE },
     },
-    tools: name ? APP_TOOLS : TOOLS,
+    tools: name ? (relay ? APP_TOOLS.concat(RELAY_TOOLS) : APP_TOOLS) : TOOLS,
     tool_choice: 'auto',
     max_output_tokens: MAX_OUT,
   };
