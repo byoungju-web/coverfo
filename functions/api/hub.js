@@ -7,6 +7,12 @@
 //   { op:"disconnect", app }              → 연결 끊기
 //   { op:"run", goal, from? }             → 릴레이 실행 ("내일 10시 미팅 준비해")
 //   { op:"confirm", state, approve }      → 보내기 전 확인에 대한 대답 (approve true/false) → 이어서 실행
+//   v279 레시피 (Supabase 표 hub_recipes — sql/hub_recipes.sql 1번 실행 필요):
+//   { op:"recipes" }                      → 내 레시피 목록
+//   { op:"recipe_save", name, goal }      → 저장 (같은 이름이면 덮어씀, 1인 30개까지)
+//   { op:"recipe_delete", id }            → 지우기
+//   { op:"recipe_run", id }               → 그 레시피의 "시킬 말"로 run 과 똑같이 실행
+//   · run 의 goal 이 "○○ 실행해 / 돌려 줘 / 시작해" 이고 ○○ 가 내 레시피 이름이면 그 레시피로 실행한다 (소리야 음성용)
 //
 // 응답(run · confirm):
 //   { status:"done",    say, text, steps, client, links }
@@ -39,10 +45,19 @@ const APPS = [
   { app: 'googledrive',    name: '구글 드라이브', icon: '📁', what: '관련 파일 찾기 · 내용 읽기' },
   { app: 'googledocs',     name: '구글 문서',   icon: '📝', what: '요약 문서 만들기' },
   { app: 'notion',         name: '노션',        icon: '🗒️', what: '페이지 찾기 · 요약 페이지 만들기' },
+  /* v279 자주 쓰는 앱 (화면에서는 '앱 더보기' 안에) */
+  { app: 'googlesheets',   name: '구글 시트',   icon: '📊', what: '표 읽기 · 한 줄 추가', more: true },
+  { app: 'slack',          name: '슬랙',        icon: '💼', what: '채널 메시지 읽기 · 보내기', more: true },
+  { app: 'outlook',        name: '아웃룩',      icon: '📮', what: '메일 · 일정 (마이크로소프트)', more: true },
+  { app: 'dropbox',        name: '드롭박스',    icon: '🗃️', what: '파일 찾기 · 읽기', more: true },
+  { app: 'trello',         name: '트렐로',      icon: '🗂️', what: '카드(할 일) 보기 · 추가', more: true },
+  { app: 'todoist',        name: '투두이스트',  icon: '✅', what: '할 일 보기 · 추가', more: true },
+  { app: 'github',         name: '깃허브',      icon: '🐙', what: '이슈 · 저장소 확인', more: true },
 ];
+const RECIPE_MAX = 30;
 const APP_SET = new Set(APPS.map((a) => a.app));
 /* 확인 없이 만들어도 되는 것 (내 드라이브·노션에 새 문서 만들기) */
-const SAFE_CREATE_APPS = new Set(['googledocs', 'googledrive', 'notion']);
+const SAFE_CREATE_APPS = new Set(['googledocs', 'googledrive', 'notion', 'googlesheets']);
 
 export async function onRequestPost(context) {
   const env = context.env || {};
@@ -59,6 +74,14 @@ export async function onRequestPost(context) {
     if (op === 'disconnect') return json(await disconnect(env, cu, String(b.app || '')));
     if (op === 'run') return json(await run(env, uid, cu, b));
     if (op === 'confirm') return json(await confirm(env, uid, cu, b));
+    if (op === 'recipes') return json({ ok: true, recipes: await recipeList(env, uid) });
+    if (op === 'recipe_save') return json(await recipeSave(env, uid, b));
+    if (op === 'recipe_delete') return json(await recipeDelete(env, uid, b));
+    if (op === 'recipe_run') {
+      const r = await recipeGet(env, uid, b.id);
+      if (!r) throw httpErr(404, '레시피를 찾지 못했어요');
+      return json(await run(env, uid, cu, { goal: r.goal, from: b.from, recipe: r }));
+    }
   } catch (e) {
     const code = e && e.status ? e.status : 500;
     return json({ error: String((e && e.message) || e).slice(0, 300) }, code);
@@ -429,8 +452,14 @@ function finish(st, content) {
 }
 
 async function run(env, uid, cu, b) {
-  const goal = String(b.goal || '').trim().slice(0, 1000);
+  let goal = String(b.goal || '').trim().slice(0, 1000);
   if (!goal) throw httpErr(400, '무엇을 할지 말씀해 주세요');
+  /* "○○ 실행해" 의 ○○ 가 내 레시피 이름이면 그 레시피의 시킬 말로 (소리야 음성·입력칸 공통) */
+  let recipe = b.recipe || null;
+  if (!recipe && /(실행|돌려|시작|해\s*줘|진행)/.test(goal) && goal.length <= 60) {
+    try { recipe = await recipeMatch(env, uid, goal); } catch {}
+  }
+  if (recipe) { goal = recipe.goal; try { await recipeTouch(env, uid, recipe.id); } catch {} }
   const acc = await accounts(env, cu);
   const connected = APPS.map((a) => a.app).filter((a) => acc[a] && acc[a].length);
   if (!connected.length) {
@@ -447,7 +476,10 @@ async function run(env, uid, cu, b) {
     throw e;
   }
   await doneJob(env, job);
-  return pack(env, st, r);
+  const out = await pack(env, st, r);
+  if (recipe) out.recipe = { id: recipe.id, name: recipe.name };
+  out.goal = goal;
+  return out;
 }
 
 async function confirm(env, uid, cu, b) {
@@ -512,6 +544,72 @@ function b64u(bytes) {
 function fromB64u(s) {
   s = String(s).replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '=';
   return Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+}
+
+/* ───────────── v279 레시피 (Supabase 표 hub_recipes) ───────────── */
+async function sbReq(env, method, path, body, prefer) {
+  const c = sb(env);
+  if (!c) throw httpErr(500, 'Supabase 설정이 없어요');
+  const h = { apikey: c.svc, Authorization: 'Bearer ' + c.svc, 'Content-Type': 'application/json' };
+  if (prefer) h.Prefer = prefer;
+  const r = await fetch(c.url + '/rest/v1/' + path, { method, headers: h, body: body ? JSON.stringify(body) : undefined });
+  const t = await r.text();
+  if (!r.ok) {
+    if (/hub_recipes/.test(t) && (r.status === 404 || /42P01|does not exist|schema cache/.test(t))) {
+      throw httpErr(500, '레시피 표가 아직 없어요. Supabase 에서 sql/hub_recipes.sql 을 한 번 실행해 주세요.');
+    }
+    throw httpErr(500, '레시피 저장소 오류 (' + r.status + '): ' + t.slice(0, 160));
+  }
+  try { return t ? JSON.parse(t) : null; } catch { return null; }
+}
+function recipeOut(r) {
+  return { id: r.id, name: r.name, goal: r.goal, runs: r.runs || 0, last_run: r.last_run || null, created_at: r.created_at || null };
+}
+async function recipeList(env, uid) {
+  const rows = await sbReq(env, 'GET', 'hub_recipes?select=*&user_id=eq.' + encodeURIComponent(uid) + '&order=last_run.desc.nullslast,created_at.desc&limit=' + RECIPE_MAX);
+  return (Array.isArray(rows) ? rows : []).map(recipeOut);
+}
+async function recipeGet(env, uid, id) {
+  const n = Number(id);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const rows = await sbReq(env, 'GET', 'hub_recipes?select=*&user_id=eq.' + encodeURIComponent(uid) + '&id=eq.' + n + '&limit=1');
+  return Array.isArray(rows) && rows[0] ? recipeOut(rows[0]) : null;
+}
+function normName(s) { return String(s || '').toLowerCase().replace(/[^0-9a-z가-힣]/g, ''); }
+async function recipeMatch(env, uid, goal) {
+  const list = await recipeList(env, uid);
+  if (!list.length) return null;
+  const g = normName(goal.replace(/(레시피|를|을)?\s*(실행|돌려|시작|진행)\S*\s*(해\s*줘|해|줘|주세요)?/g, ' '));
+  const hit = list.filter((r) => { const n = normName(r.name); return n.length >= 2 && g.includes(n); })
+    .sort((a, b) => normName(b.name).length - normName(a.name).length)[0];
+  return hit || null;
+}
+async function recipeTouch(env, uid, id) {
+  const r = await recipeGet(env, uid, id);
+  if (!r) return;
+  await sbReq(env, 'PATCH', 'hub_recipes?user_id=eq.' + encodeURIComponent(uid) + '&id=eq.' + Number(id),
+    { runs: (r.runs || 0) + 1, last_run: new Date().toISOString() }, 'return=minimal');
+}
+async function recipeSave(env, uid, b) {
+  const name = String(b.name || '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 30);
+  const goal = String(b.goal || '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').trim().slice(0, 1000);
+  if (!name) throw httpErr(400, '레시피 이름을 넣어 주세요');
+  if (!goal) throw httpErr(400, '시킬 말이 없어요');
+  const list = await recipeList(env, uid);
+  const same = list.find((r) => normName(r.name) === normName(name));
+  if (same) {
+    await sbReq(env, 'PATCH', 'hub_recipes?user_id=eq.' + encodeURIComponent(uid) + '&id=eq.' + Number(same.id), { name, goal }, 'return=minimal');
+    return { ok: true, id: same.id, updated: true };
+  }
+  if (list.length >= RECIPE_MAX) throw httpErr(400, '레시피는 ' + RECIPE_MAX + '개까지 저장할 수 있어요. 안 쓰는 것을 지워 주세요.');
+  const rows = await sbReq(env, 'POST', 'hub_recipes', { user_id: uid, name, goal }, 'return=representation');
+  return { ok: true, id: Array.isArray(rows) && rows[0] ? rows[0].id : null };
+}
+async function recipeDelete(env, uid, b) {
+  const n = Number(b.id);
+  if (!Number.isFinite(n) || n <= 0) throw httpErr(400, '지울 레시피가 없어요');
+  await sbReq(env, 'DELETE', 'hub_recipes?user_id=eq.' + encodeURIComponent(uid) + '&id=eq.' + n, null, 'return=minimal');
+  return { ok: true };
 }
 
 /* ───────────── 공용 ───────────── */

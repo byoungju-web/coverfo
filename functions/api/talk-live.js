@@ -61,6 +61,9 @@ const RELAY_INSTR = [
   'For tasks that use the user\'s connected apps — Google Calendar, Gmail, Google Drive, Google Docs, Notion, or sending KakaoTalk messages — such as "내일 10시 미팅 준비해", "오늘 일정 알려줘", "참석자에게 메일 보내", "드라이브에서 계약서 찾아 요약해", call run_relay with the whole request as one sentence. Say only "네, 할게요." before calling. It can take up to a minute; stay quiet while waiting.',
   'If run_relay or relay_answer returns status "confirm", ask the user the given question in ONE short sentence and wait. When they answer yes (응/네/보내/해) call relay_answer with approve true; no (아니/취소/하지마) approve false.',
   'When the result has status "done", say its "say" text (one sentence). If it says an app must be connected, tell them to connect it in 커넥션 허브.',
+  /* v279 커넥션 허브 레시피: "아침 브리핑 실행해" 처럼 저장해 둔 레시피 이름 + 실행 */
+  'The user may also have saved 커넥션 허브 레시피 (recipes). When they say "레시피" (e.g. "아침 브리핑 레시피 실행해"), call run_relay with their sentence as said — the server finds the recipe by name.',
+  'If run_routine returns ok:false (no saved routine with that name), call run_relay once with the same sentence before telling the user it was not found.',
 ].join(' ');
 const RELAY_TOOLS = [{
   type: 'function',
