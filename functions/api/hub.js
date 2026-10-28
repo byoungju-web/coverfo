@@ -13,6 +13,14 @@
 //   { op:"recipe_delete", id }            → 지우기
 //   { op:"recipe_run", id }               → 그 레시피의 "시킬 말"로 run 과 똑같이 실행
 //   · run 의 goal 이 "○○ 실행해 / 돌려 줘 / 시작해" 이고 ○○ 가 내 레시피 이름이면 그 레시피로 실행한다 (소리야 음성용)
+//   v280 예약 실행 (sql/hub_schedule.sql 1번 실행 + 예약 깨우기 Worker coverfo-cron + 비밀값 HUB_CRON_KEY):
+//   { op:"recipe_schedule", id, on, kind, days, hh, mm, date, mail_me } → 예약 켜기·끄기 (kind: daily·weekdays·days·once, 한국시간)
+//   { op:"runs" }                         → 예약 실행 기록 20개 (완료 · 확인 대기 · 오류)
+//   { op:"run_decide", id, approve }      → '확인 대기' 기록에 대답 (보내기 / 취소). 24시간 안에만.
+//   서버끼리 (헤더 X-Hub-Cron = HUB_CRON_KEY):
+//   { op:"cron_due" }                     → 지금 실행할 예약 레시피 ID 목록 (다음 시각을 먼저 옮겨 두 번 실행되지 않게)
+//   { op:"cron_run", id }                 → 그 레시피를 사람 없이 실행. 남에게 보내기·수정은 하지 않고 '확인 대기'로 멈춘다.
+//                                            결과(또는 확인 요청)는 지메일이 연결돼 있으면 내 메일 주소로만 보낸다.
 //
 // 응답(run · confirm):
 //   { status:"done",    say, text, steps, client, links }
@@ -61,6 +69,20 @@ const SAFE_CREATE_APPS = new Set(['googledocs', 'googledrive', 'notion', 'google
 
 export async function onRequestPost(context) {
   const env = context.env || {};
+  /* v280 예약 깨우기 Worker(coverfo-cron) 전용 — 로그인 대신 서버끼리 비밀 열쇠 */
+  const cronKey = context.request.headers.get('X-Hub-Cron') || '';
+  if (cronKey) {
+    if (!env.HUB_CRON_KEY || !safeEq(cronKey, String(env.HUB_CRON_KEY))) return json({ error: '권한이 없어요' }, 401);
+    let cb = {};
+    try { cb = await context.request.json(); } catch {}
+    try {
+      if (cb.op === 'cron_due') return json(await cronDue(env));
+      if (cb.op === 'cron_run') return json(await cronRun(env, cb.id));
+    } catch (e) {
+      return json({ error: String((e && e.message) || e).slice(0, 300) }, e && e.status ? e.status : 500);
+    }
+    return json({ error: '잘못된 요청입니다' }, 400);
+  }
   const uid = await userId(context.request, env);
   if (!uid) return json({ error: '로그인이 필요합니다' }, 401);
   let b = {};
@@ -77,6 +99,9 @@ export async function onRequestPost(context) {
     if (op === 'recipes') return json({ ok: true, recipes: await recipeList(env, uid) });
     if (op === 'recipe_save') return json(await recipeSave(env, uid, b));
     if (op === 'recipe_delete') return json(await recipeDelete(env, uid, b));
+    if (op === 'recipe_schedule') return json(await recipeSchedule(env, uid, b));
+    if (op === 'runs') return json({ ok: true, runs: await runList(env, uid) });
+    if (op === 'run_decide') return json(await runDecide(env, uid, cu, b));
     if (op === 'recipe_run') {
       const r = await recipeGet(env, uid, b.id);
       if (!r) throw httpErr(404, '레시피를 찾지 못했어요');
@@ -268,6 +293,7 @@ function systemPrompt(connected, from) {
     'If a step fails, try once more in a different way, then continue with what you have and mention it briefly.',
     'FINAL ANSWER (when you are done, no more tool calls): Korean, polite 해요체. First line = ONE short sentence to be read aloud (e.g. "내일 10시 미팅 요약을 만들어 참석자 3명에게 메일로 보냈어요."). Then, after a blank line, up to 6 short lines with the key points and the links you created or found. No greetings, no offers of more help.',
     from === 'voice' ? 'The user is talking by voice: keep the first line especially short.' : '',
+    from === 'cron' ? 'This is a SCHEDULED run: nobody is watching. Do the reading and summarizing. Any sending, sharing or changing will automatically wait for the user\'s approval later, so just request it once and then finish with the FINAL ANSWER.' : '',
   ].filter(Boolean).join('\n');
 }
 
@@ -485,7 +511,12 @@ async function run(env, uid, cu, b) {
 async function confirm(env, uid, cu, b) {
   const st = await openState(env, String(b.state || ''));
   if (!st || st.u !== uid) throw httpErr(400, '확인 시간이 지났어요. 다시 말씀해 주세요.');
-  const approve = b.approve === true;
+  return continueState(env, uid, cu, st, b.approve === true);
+}
+
+/* 확인에 대한 대답으로 이어서 실행 (화면 확인 · 예약 '확인 대기' 공통) */
+async function continueState(env, uid, cu, st, approve) {
+  st.from = st.from === 'cron' ? 'web' : st.from;   /* 사람이 대답했으니 이제부터는 보통 실행 */
   const last = st.messages[st.messages.length - 1];
   if (!last || last.role !== 'assistant') throw httpErr(400, '이어서 할 일이 없어요');
   if (approve) {
@@ -555,15 +586,20 @@ async function sbReq(env, method, path, body, prefer) {
   const r = await fetch(c.url + '/rest/v1/' + path, { method, headers: h, body: body ? JSON.stringify(body) : undefined });
   const t = await r.text();
   if (!r.ok) {
-    if (/hub_recipes/.test(t) && (r.status === 404 || /42P01|does not exist|schema cache/.test(t))) {
+    if (/hub_recipes/.test(t) && (r.status === 404 || /42P01|does not exist|schema cache/.test(t)) && !/sched_|next_run|mail_me/.test(t)) {
       throw httpErr(500, '레시피 표가 아직 없어요. Supabase 에서 sql/hub_recipes.sql 을 한 번 실행해 주세요.');
+    }
+    if (/hub_runs|sched_|next_run|mail_me/.test(t) && (r.status === 404 || r.status === 400 || /42P01|42703|does not exist|schema cache|column/.test(t))) {
+      throw httpErr(500, '예약 기능 표가 아직 없어요. Supabase 에서 sql/hub_schedule.sql 을 한 번 실행해 주세요.');
     }
     throw httpErr(500, '레시피 저장소 오류 (' + r.status + '): ' + t.slice(0, 160));
   }
   try { return t ? JSON.parse(t) : null; } catch { return null; }
 }
 function recipeOut(r) {
-  return { id: r.id, name: r.name, goal: r.goal, runs: r.runs || 0, last_run: r.last_run || null, created_at: r.created_at || null };
+  return { id: r.id, name: r.name, goal: r.goal, runs: r.runs || 0, last_run: r.last_run || null, created_at: r.created_at || null,
+    sched: { on: !!r.sched_on, kind: r.sched_kind || 'daily', days: parseDays(r.sched_days), hh: r.sched_hh == null ? 8 : r.sched_hh,
+      mm: r.sched_mm == null ? 0 : r.sched_mm, date: r.sched_date || '', mail_me: r.mail_me !== false, next_run: r.next_run || null, text: schedText(r) } };
 }
 async function recipeList(env, uid) {
   const rows = await sbReq(env, 'GET', 'hub_recipes?select=*&user_id=eq.' + encodeURIComponent(uid) + '&order=last_run.desc.nullslast,created_at.desc&limit=' + RECIPE_MAX);
@@ -610,6 +646,192 @@ async function recipeDelete(env, uid, b) {
   if (!Number.isFinite(n) || n <= 0) throw httpErr(400, '지울 레시피가 없어요');
   await sbReq(env, 'DELETE', 'hub_recipes?user_id=eq.' + encodeURIComponent(uid) + '&id=eq.' + n, null, 'return=minimal');
   return { ok: true };
+}
+
+/* ───────────── v280 예약 실행 ───────────── */
+const WAIT_HOURS = 24;          // '확인 대기' 유효 시간
+const DAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
+
+/* 다음 실행 시각 (한국시간 기준 규칙 → UTC ms). 없으면 null (한 번만 · 지난 날짜) */
+function nextRun(sc, from) {
+  const hh = Math.min(23, Math.max(0, Number(sc.hh) || 0));
+  const mm = Math.min(59, Math.max(0, Number(sc.mm) || 0));
+  const KST = 9 * 3600e3;
+  if (sc.kind === 'once') {
+    const m = String(sc.date || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    const t = Date.UTC(+m[1], +m[2] - 1, +m[3], hh, mm) - KST;
+    return t > from ? t : null;
+  }
+  const days = sc.kind === 'weekdays' ? [1, 2, 3, 4, 5] : sc.kind === 'days' ? parseDays(sc.days) : [0, 1, 2, 3, 4, 5, 6];
+  if (!days.length) return null;
+  const k = new Date(from + KST);
+  for (let off = 0; off <= 8; off++) {
+    const base = Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate() + off);
+    const wd = new Date(base).getUTCDay();
+    const t = base + hh * 3600e3 + mm * 60e3 - KST;
+    if (t > from && days.includes(wd)) return t;
+  }
+  return null;
+}
+function parseDays(v) {
+  const a = (Array.isArray(v) ? v : String(v || '').split(',')).map((x) => Number(x)).filter((x) => Number.isInteger(x) && x >= 0 && x <= 6);
+  return Array.from(new Set(a)).sort();
+}
+function schedText(r) {
+  if (!r.sched_on) return '';
+  const t = String(r.sched_hh).padStart(2, '0') + ':' + String(r.sched_mm).padStart(2, '0');
+  if (r.sched_kind === 'once') return String(r.sched_date || '') + ' ' + t + ' 한 번';
+  if (r.sched_kind === 'weekdays') return '평일 ' + t;
+  if (r.sched_kind === 'days') return parseDays(r.sched_days).map((d) => DAY_KO[d]).join('·') + ' ' + t;
+  return '매일 ' + t;
+}
+
+async function recipeSchedule(env, uid, b) {
+  const r = await recipeGet(env, uid, b.id);
+  if (!r) throw httpErr(404, '레시피를 찾지 못했어요');
+  const on = b.on === true;
+  const kind = ['daily', 'weekdays', 'days', 'once'].includes(b.kind) ? b.kind : 'daily';
+  const sc = { kind, days: parseDays(b.days).join(','), hh: Math.min(23, Math.max(0, parseInt(b.hh, 10) || 0)), mm: Math.min(59, Math.max(0, parseInt(b.mm, 10) || 0)), date: String(b.date || '').slice(0, 10) };
+  if (kind === 'days' && !sc.days) throw httpErr(400, '요일을 하나 이상 골라 주세요');
+  let nr = null;
+  if (on) {
+    nr = nextRun(sc, Date.now());
+    if (!nr) throw httpErr(400, kind === 'once' ? '지난 날짜·시각이에요. 앞으로의 날짜를 골라 주세요' : '예약 시각을 계산하지 못했어요');
+  }
+  await sbReq(env, 'PATCH', 'hub_recipes?user_id=eq.' + encodeURIComponent(uid) + '&id=eq.' + Number(r.id), {
+    sched_on: on, sched_kind: kind, sched_days: sc.days || null, sched_hh: sc.hh, sched_mm: sc.mm,
+    sched_date: kind === 'once' && sc.date ? sc.date : null, mail_me: b.mail_me !== false,
+    next_run: nr ? new Date(nr).toISOString() : null,
+  }, 'return=minimal');
+  return { ok: true, on, next_run: nr ? new Date(nr).toISOString() : null };
+}
+
+async function runList(env, uid) {
+  const rows = await sbReq(env, 'GET', 'hub_runs?select=id,recipe_id,recipe_name,status,say,body,items,created_at,decided_at&user_id=eq.' + encodeURIComponent(uid) + '&order=created_at.desc&limit=20');
+  const now = Date.now();
+  return (Array.isArray(rows) ? rows : []).map((x) => ({
+    id: x.id, recipe_id: x.recipe_id, recipe_name: x.recipe_name, say: x.say, body: x.body, items: x.items,
+    created_at: x.created_at, decided_at: x.decided_at,     /* state(이어서 할 상태)는 화면에 보내지 않는다 */
+    status: x.status === 'wait' && now - Date.parse(x.created_at) > WAIT_HOURS * 3600e3 ? 'expired' : x.status,
+  }));
+}
+async function runSave(env, uid, rec, out) {
+  await sbReq(env, 'POST', 'hub_runs', {
+    user_id: uid, recipe_id: rec ? rec.id : null, recipe_name: rec ? rec.name : null,
+    status: out.status, say: String(out.say || '').slice(0, 300), body: String(out.body || '').slice(0, 8000),
+    items: out.items || null, state: out.state || null,
+  }, 'return=minimal');
+}
+
+/* '확인 대기' 에 대답 */
+async function runDecide(env, uid, cu, b) {
+  const id = Number(b.id);
+  if (!Number.isFinite(id) || id <= 0) throw httpErr(400, '잘못된 요청입니다');
+  const rows = await sbReq(env, 'GET', 'hub_runs?select=*&user_id=eq.' + encodeURIComponent(uid) + '&id=eq.' + id + '&limit=1');
+  const run = Array.isArray(rows) && rows[0];
+  if (!run) throw httpErr(404, '기록을 찾지 못했어요');
+  if (run.status !== 'wait') throw httpErr(400, '이미 처리한 기록이에요');
+  const mark = (status, say) => sbReq(env, 'PATCH', 'hub_runs?user_id=eq.' + encodeURIComponent(uid) + '&id=eq.' + id,
+    { status, say: String(say || '').slice(0, 300), state: null, decided_at: new Date().toISOString() }, 'return=minimal');
+  if (Date.now() - Date.parse(run.created_at) > WAIT_HOURS * 3600e3) {
+    await mark('expired', '확인 시간(24시간)이 지났어요');
+    throw httpErr(400, '확인 시간(24시간)이 지났어요. 레시피를 다시 실행해 주세요.');
+  }
+  let st = null;
+  try { st = JSON.parse(run.state || 'null'); } catch {}
+  if (!st || st.u !== uid) { await mark('error', '이어서 할 상태가 없어요'); throw httpErr(400, '이어서 할 수 없는 기록이에요'); }
+  const approve = b.approve === true;
+  const out = await continueState(env, uid, cu, st, approve);
+  await mark(approve ? 'done' : 'declined', out.say || (approve ? '진행했어요' : '보내지 않았어요'));
+  return out;
+}
+
+/* 예약 깨우기: 지금 실행할 레시피 (다음 시각을 먼저 옮긴다 — 같은 시각 두 번 실행 방지) */
+async function cronDue(env) {
+  const now = Date.now();
+  const rows = await sbReq(env, 'GET', 'hub_recipes?select=*&sched_on=eq.true&next_run=lte.' + encodeURIComponent(new Date(now).toISOString()) + '&order=next_run.asc&limit=20');
+  const ids = [];
+  for (const r of Array.isArray(rows) ? rows : []) {
+    const sc = { kind: r.sched_kind, days: r.sched_days, hh: r.sched_hh, mm: r.sched_mm, date: r.sched_date };
+    const nr = r.sched_kind === 'once' ? null : nextRun(sc, now);
+    const upd = await sbReq(env, 'PATCH', 'hub_recipes?id=eq.' + Number(r.id) + '&next_run=eq.' + encodeURIComponent(r.next_run),
+      { next_run: nr ? new Date(nr).toISOString() : null, sched_on: !!nr }, 'return=representation');
+    if (Array.isArray(upd) && upd.length) ids.push(r.id);     /* 다른 깨우기가 먼저 가져갔으면 빈 배열 */
+  }
+  return { ok: true, ids };
+}
+
+/* 사람 없이 레시피 실행 */
+async function cronRun(env, id) {
+  const n = Number(id);
+  const rows = await sbReq(env, 'GET', 'hub_recipes?select=*&id=eq.' + n + '&limit=1');
+  const rec = Array.isArray(rows) && rows[0];
+  if (!rec) return { ok: false, error: 'no recipe' };
+  const uid = String(rec.user_id), cu = 'cf_' + uid;
+  const acc = await accounts(env, cu);
+  const connected = APPS.map((a) => a.app).filter((a) => acc[a] && acc[a].length);
+  const mailOk = rec.mail_me !== false && connected.includes('gmail');
+  const finishRun = async (out) => {
+    await runSave(env, uid, rec, out);
+    if (mailOk) {
+      const subj = out.status === 'wait' ? '[coverfo] 확인이 필요해요 · ' + rec.name
+        : out.status === 'done' ? '[coverfo] ' + rec.name + ' · 결과' : '[coverfo] ' + rec.name + ' · 실행하지 못했어요';
+      const tail = out.status === 'wait'
+        ? '\n\n보내기 전에 확인이 필요해요. 24시간 안에 coverfo.com/hub → "예약 실행 기록"에서 [보내기] 또는 [취소]를 눌러 주세요.'
+        : '';
+      try { await mailMe(env, cu, uid, subj, String(out.body || out.say || '') + tail + '\n\n— coverfo 커넥션 허브 예약 실행 (' + schedText(rec) + ') · coverfo.com/hub'); } catch {}
+    }
+    return { ok: true, status: out.status };
+  };
+  if (!connected.length) return finishRun({ status: 'error', say: '연결된 앱이 없어요', body: '커넥션 허브에서 앱을 연결해 주세요.' });
+  const cost = Math.max(0, Number(env.HUB_RUN_COST) || RUN_COST);
+  let job;
+  try { job = await spend(env, uid, cost, 'hub-cron'); }
+  catch (e) { return finishRun({ status: 'error', say: '크레딧 처리 실패', body: '크레딧을 처리하지 못해 실행하지 않았어요.' }); }
+  if (job === false) return finishRun({ status: 'error', say: '크레딧이 부족해요', body: '크레딧이 부족해 예약 실행을 하지 못했어요. coverfo.com/pricing 에서 충전해 주세요.' });
+  const st = { u: uid, from: 'cron', connected, messages: [{ role: 'user', content: rec.goal }], steps: [], client: [], turns: 0, pending: null };
+  let r;
+  try { r = await loop(env, cu, st); }
+  catch (e) {
+    if (st.turns <= 1 && !st.steps.length) await refund(env, job);
+    return finishRun({ status: 'error', say: '실행 중 오류', body: String((e && e.message) || e).slice(0, 300) });
+  }
+  await doneJob(env, job);
+  try { await recipeTouch(env, uid, rec.id); } catch {}
+  if (r.done) return finishRun({ status: 'done', say: r.done.say, body: r.done.text });
+  const items = r.pause;
+  const body = '아래 일을 하려면 확인이 필요해요.\n\n' + items.map((x) => '• ' + x.title + (x.detail ? '\n  ' + String(x.detail).replace(/\n/g, '\n  ').slice(0, 600) : '')).join('\n\n');
+  return finishRun({ status: 'wait', say: items.map((x) => x.title).join(', ').slice(0, 200) + ' — 확인 대기', body, items, state: JSON.stringify(st) });
+}
+
+/* 결과를 '내 메일 주소로만' 보낸다 (지메일 연결이 있을 때). 받는 사람은 coverfo 계정 이메일로 고정 — AI 가 정하지 않음 */
+const mailSchema = { key: null };
+async function mailMe(env, cu, uid, subject, body) {
+  const c = sb(env);
+  if (!c) return false;
+  const ur = await fetch(c.url + '/auth/v1/admin/users/' + encodeURIComponent(uid), { headers: { apikey: c.svc, Authorization: 'Bearer ' + c.svc } });
+  const u = ur.ok ? await ur.json() : null;
+  const email = u && (u.email || (u.user && u.user.email));
+  if (!email) return false;
+  if (!mailSchema.key) {
+    const t = await cmp(env, 'GET', '/tools/GMAIL_SEND_EMAIL');
+    const props = (t.ok && ((t.j.input_parameters || t.j.inputParameters || {}).properties)) || {};
+    const pick = (names) => names.find((n) => props[n]) || null;
+    mailSchema.key = { to: pick(['recipient_email', 'to', 'recipient', 'to_email']), subject: pick(['subject']), body: pick(['body', 'message_body', 'text', 'content']) };
+  }
+  const k = mailSchema.key;
+  if (!k.to || !k.body) return false;
+  const args = { [k.to]: email, [k.body]: body.slice(0, 20000) };
+  if (k.subject) args[k.subject] = subject.slice(0, 150);
+  const r = await execTool(env, cu, 'GMAIL_SEND_EMAIL', args);
+  return !!r.ok;
+}
+function safeEq(a, b) {
+  if (a.length !== b.length) return false;
+  let x = 0;
+  for (let i = 0; i < a.length; i++) x |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return x === 0;
 }
 
 /* ───────────── 공용 ───────────── */
