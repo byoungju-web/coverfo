@@ -29,6 +29,8 @@ const STEP_COST = 2;
 const MAX_TURNS = 10;          // 한 번 실행에서 AI 가 도구를 부르는 최대 횟수
 const STATE_MIN = 20;          // 확인을 기다리는 최대 시간(분)
 const RESULT_MAX = 6000;       // 도구 결과를 AI 에게 넘길 때 최대 글자 수
+/* v278: 오류는 502 대신 500 으로 보낸다 — 502 는 Cloudflare 가 자기 오류 화면(Bad gateway)으로 바꿔 버려서
+   화면에 실제 이유(Composio 가 준 문장 등)가 안 보였다 (2026-10-28 확인) */
 
 /* 연결할 수 있는 앱 (Composio 툴킷 이름) */
 const APPS = [
@@ -95,7 +97,7 @@ function slugOf(acc) {
 /* 이 사람의 연결된 계정들 { app: [id…] } */
 async function accounts(env, cu) {
   const res = await cmp(env, 'GET', '/connected_accounts?user_ids=' + encodeURIComponent(cu) + '&statuses=ACTIVE&limit=100');
-  if (!res.ok) throw httpErr(502, '연결 목록을 못 읽었어요: ' + cmpErr(res));
+  if (!res.ok) throw httpErr(500, '연결 목록을 못 읽었어요: ' + cmpErr(res));
   const out = {};
   for (const a of items(res.j)) {
     const s = slugOf(a);
@@ -135,9 +137,9 @@ async function authConfig(env, app) {
     }
   }
   const mk = await cmp(env, 'POST', '/auth_configs', { toolkit: { slug: app }, auth_config: { type: 'use_composio_managed_auth' } });
-  if (!mk.ok) throw httpErr(502, '앱 연결 설정을 만들지 못했어요: ' + cmpErr(mk));
+  if (!mk.ok) throw httpErr(500, '앱 연결 설정을 만들지 못했어요: ' + cmpErr(mk));
   const id = (mk.j.auth_config && mk.j.auth_config.id) || mk.j.id;
-  if (!id) throw httpErr(502, '앱 연결 설정 ID 를 받지 못했어요');
+  if (!id) throw httpErr(500, '앱 연결 설정 ID 를 받지 못했어요');
   const v = { id: String(id), managed: true };
   authCache.set(app, v);
   return v;
@@ -161,9 +163,9 @@ async function connect(env, cu, app, back) {
     /* 내 OAuth 앱(직접 만든 인증 설정)은 예전 방식도 된다 */
     res = await cmp(env, 'POST', '/connected_accounts', { auth_config: { id: ac.id }, connection: { user_id: cu, callback_url: cb } });
   }
-  if (!res.ok) throw httpErr(502, '연결 화면을 만들지 못했어요: ' + cmpErr(res));
+  if (!res.ok) throw httpErr(500, '연결 화면을 만들지 못했어요: ' + cmpErr(res));
   const url = res.j.redirect_url || res.j.redirectUrl || (res.j.connectionData && res.j.connectionData.redirectUrl) || '';
-  if (!/^https:\/\//.test(url)) throw httpErr(502, '연결 화면 주소를 받지 못했어요');
+  if (!/^https:\/\//.test(url)) throw httpErr(500, '연결 화면 주소를 받지 못했어요');
   return { ok: true, url };
 }
 
@@ -335,7 +337,7 @@ async function ai(env, messages, connected, from) {
   const t = await r.text();
   let j = null;
   try { j = JSON.parse(t); } catch {}
-  if (!r.ok || !j || !Array.isArray(j.content)) throw httpErr(502, 'AI 오류 (' + r.status + '): ' + ((j && j.error && j.error.message) || t).slice(0, 200));
+  if (!r.ok || !j || !Array.isArray(j.content)) throw httpErr(500, 'AI 오류 (' + r.status + '): ' + ((j && j.error && j.error.message) || t).slice(0, 200));
   return j;
 }
 
