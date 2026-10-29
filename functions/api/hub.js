@@ -20,7 +20,11 @@
 //   서버끼리 (헤더 X-Hub-Cron = HUB_CRON_KEY):
 //   { op:"cron_due" }                     → 지금 실행할 예약 레시피 ID 목록 (다음 시각을 먼저 옮겨 두 번 실행되지 않게)
 //   v283 ☀️ 아침 브리핑 (sql/hub_brief.sql 1번 실행):
-//   { op:"brief_get" }  설정 + 최근 7일 · { op:"brief_save", … } 설정 저장 · { op:"brief_make", style? } 지금 만들기 · { op:"brief_latest" } 오늘 것 (소리 앱 알림용)
+//   { op:"brief_get" }  설정 + 최근 7일 · { op:"brief_save", … } 설정 저장 · { op:"brief_make" } 지금 만들기 · { op:"brief_latest" } 오늘 것 (소리 앱 알림용)
+//   v284: 2인 대담은 뺐다 (1인 진행만, 3크레딧).
+//   v284 🔔 웹 알림 (sql/hub_push.sql + 비밀값 VAPID_PUBLIC · VAPID_PRIVATE):
+//   { op:"push_key" } 공개 키 · { op:"push_sub", sub } 이 브라우저 구독 · { op:"push_unsub", endpoint } 끊기 · { op:"push_test" } 시험 알림
+//   브리핑이 만들어지면 알림 시각(push_at)에 cron_due 가 구독한 브라우저로 "☀️ 오늘 아침 브리핑" 알림을 보낸다.
 //   { op:"cron_run", id }                 → 그 레시피를 사람 없이 실행. 남에게 보내기·수정은 하지 않고 '확인 대기'로 멈춘다.
 //                                            결과(또는 확인 요청)는 지메일이 연결돼 있으면 내 메일 주소로만 보낸다.
 //
@@ -90,7 +94,7 @@ export async function onRequestPost(context) {
   let b = {};
   try { b = await context.request.json(); } catch { return json({ error: '잘못된 요청입니다' }, 400); }
   const op = String(b.op || '');
-  if (!env.COMPOSIO_API_KEY && !/^brief_/.test(op)) return json({ error: '커넥션 허브가 아직 설정되지 않았어요 (COMPOSIO_API_KEY)', setup: true }, 500);
+  if (!env.COMPOSIO_API_KEY && !/^(brief_|push_)/.test(op)) return json({ error: '커넥션 허브가 아직 설정되지 않았어요 (COMPOSIO_API_KEY)', setup: true }, 500);
   const cu = 'cf_' + uid;
   try {
     if (op === 'apps') return json(await listApps(env, cu));
@@ -104,7 +108,11 @@ export async function onRequestPost(context) {
     if (op === 'recipe_schedule') return json(await recipeSchedule(env, uid, b));
     if (op === 'brief_get') return json(await briefGet(env, uid));
     if (op === 'brief_save') return json(await briefSave(env, uid, b));
-    if (op === 'brief_make') return json(await briefMake(env, uid, false, b.style));
+    if (op === 'brief_make') return json(await briefMake(env, uid, false));
+    if (op === 'push_key') return json({ ok: true, key: env.VAPID_PUBLIC || '' });
+    if (op === 'push_sub') return json(await pushSub(env, uid, b.sub));
+    if (op === 'push_unsub') return json(await pushUnsub(env, uid, b.endpoint));
+    if (op === 'push_test') return json(await pushUser(env, uid, { title: '🔔 알림 시험', body: '이 브라우저로 coverfo 알림이 와요.', url: '/brief' }));
     if (op === 'brief_latest') return json(await briefLatest(env, uid));
     if (op === 'runs') return json({ ok: true, runs: await runList(env, uid) });
     if (op === 'run_decide') return json(await runDecide(env, uid, cu, b));
@@ -598,6 +606,9 @@ async function sbReq(env, method, path, body, prefer) {
     if (/hub_recipes/.test(t) && (r.status === 404 || /42P01|does not exist|schema cache/.test(t)) && !/sched_|next_run|mail_me/.test(t)) {
       throw httpErr(500, '레시피 표가 아직 없어요. Supabase 에서 sql/hub_recipes.sql 을 한 번 실행해 주세요.');
     }
+    if (/hub_push|push_at|pushed/.test(t) && (r.status === 404 || r.status === 400 || /42P01|42703|does not exist|schema cache|column/.test(t))) {
+      throw httpErr(500, '웹 알림 표가 아직 없어요. Supabase 에서 sql/hub_push.sql 을 한 번 실행해 주세요.');
+    }
     if (/hub_brief/.test(t) && (r.status === 404 || r.status === 400 || /42P01|42703|does not exist|schema cache|column/.test(t))) {
       throw httpErr(500, '아침 브리핑 표가 아직 없어요. Supabase 에서 sql/hub_brief.sql 을 한 번 실행해 주세요.');
     }
@@ -780,7 +791,19 @@ async function cronDue(env) {
       { next_run: nr ? new Date(nr).toISOString() : null }, 'return=representation');
     if (Array.isArray(upd) && upd.length) ids.push('b:' + bf.user_id);
   }
-  return { ok: true, ids };
+  /* v284 🔔 알림 시각이 된 브리핑 → 구독한 브라우저로 알림 (보냄 표시를 먼저 해서 두 번 보내지 않게) */
+  let pushes = 0;
+  if (env.VAPID_PUBLIC && env.VAPID_PRIVATE) {
+    let due = [];
+    try { due = await sbReq(env, 'GET', 'hub_brief_items?select=id,user_id,title&status=eq.ready&pushed=eq.false&push_at=lte.' + encodeURIComponent(new Date(now).toISOString()) + '&limit=50'); } catch {}
+    for (const it of Array.isArray(due) ? due : []) {
+      const upd = await sbReq(env, 'PATCH', 'hub_brief_items?id=eq.' + Number(it.id) + '&pushed=eq.false', { pushed: true }, 'return=representation').catch(() => []);
+      if (!Array.isArray(upd) || !upd.length) continue;
+      await pushUser(env, it.user_id, { title: '☀️ ' + (it.title || '오늘 아침 브리핑'), body: '눌러서 2분 브리핑 듣기', url: '/brief?play=1' }).catch(() => {});
+      pushes++;
+    }
+  }
+  return { ok: true, ids, pushes };
 }
 
 /* 사람 없이 레시피 실행 */
@@ -870,9 +893,9 @@ const BRIEF_HOST = {
   A: 'You are the warm, upbeat host of a short Korean morning briefing. Clear, friendly, natural pace, like a radio morning show.',
   B: 'You are the calm co-host of a short Korean morning briefing. Clear and kind, adding short helpful comments.',
 };
-function briefCost(env, style) {
-  const n = Number(style === 'duo' ? env.BRIEF_COST_DUO : env.BRIEF_COST_SOLO);
-  return Number.isFinite(n) && n >= 0 ? n : (style === 'duo' ? 5 : 3);
+function briefCost(env) {
+  const n = Number(env.BRIEF_COST_SOLO);
+  return Number.isFinite(n) && n >= 0 ? n : 3;
 }
 function kstDay(ts) { return new Date((ts || Date.now()) + 9 * 3600e3).toISOString().slice(0, 10); }
 function briefDefaults() {
@@ -901,7 +924,7 @@ async function briefGet(env, uid) {
   const s = await briefSettings(env, uid);
   const items = await briefItems(env, uid, 7);
   const today = kstDay();
-  return { ok: true, settings: briefOut(s), items, today: items.find((x) => x.day === today) || null, costs: { solo: briefCost(env, 'solo'), duo: briefCost(env, 'duo') } };
+  return { ok: true, settings: briefOut(s), items, today: items.find((x) => x.day === today) || null, cost: briefCost(env), push: !!env.VAPID_PUBLIC };
 }
 async function briefSave(env, uid, b) {
   const old = (await briefSettings(env, uid)) || briefDefaults();
@@ -913,7 +936,7 @@ async function briefSave(env, uid, b) {
   const s = {
     user_id: uid, on1: b.on === true, hh: Math.min(23, Math.max(0, parseInt(b.hh, 10) || 0)), mm: Math.min(59, Math.max(0, parseInt(b.mm, 10) || 0)),
     days: (days.length ? days : [0, 1, 2, 3, 4, 5, 6]).join(','), city, topics: topics.join(','),
-    style: b.style === 'duo' ? 'duo' : 'solo',
+    style: 'solo',
     voice_a: BRIEF_VOICES.includes(b.voice_a) ? b.voice_a : 'coral', voice_b: BRIEF_VOICES.includes(b.voice_b) ? b.voice_b : 'ash',
     lat: city === old.city ? old.lat : null, lng: city === old.city ? old.lng : null,
     updated_at: new Date().toISOString(),
@@ -1106,17 +1129,17 @@ async function briefSaveItem(env, uid, row) {
   await sbReq(env, 'POST', 'hub_brief_items?on_conflict=user_id,day', { user_id: uid, day: kstDay(), ...row, created_at: new Date().toISOString() }, 'resolution=merge-duplicates,return=minimal');
 }
 /* 브리핑 한 편 만들기. auto=true(예약)면 오늘 것이 이미 있으면 건너뛰고, 오류는 기록만 한다 */
-async function briefMake(env, uid, auto, styleOverride) {
+async function briefMake(env, uid, auto) {
   if (!env.OPENAI_API_KEY) throw httpErr(500, 'OPENAI_API_KEY 가 설정되지 않았어요');
   if (!env.MEDIA) throw httpErr(500, '음성 저장소(MEDIA)가 연결되지 않았어요');
   const cu = 'cf_' + uid;
   const s0 = (await briefSettings(env, uid)) || { ...briefDefaults(), user_id: uid };
-  const s = { ...s0, user_id: uid, style: styleOverride === 'duo' || styleOverride === 'solo' ? styleOverride : s0.style };
+  const s = { ...s0, user_id: uid, style: 'solo' };   /* v284: 1인 진행만 */
   if (auto) {
     const ex = await briefLatest(env, uid);
     if (ex.ready) return { ok: true, skipped: true };
   }
-  const cost = briefCost(env, s.style);
+  const cost = briefCost(env);
   let job;
   try { job = await spend(env, uid, cost, 'brief-' + s.style); }
   catch (e) { if (auto) { await briefSaveItem(env, uid, { status: 'error', error: '크레딧 처리 실패', style: s.style }); return { ok: false }; } throw e; }
@@ -1137,7 +1160,12 @@ async function briefMake(env, uid, auto, styleOverride) {
     const audio = joinMp3(parts);
     const name = 'relay/brief-' + uid.slice(0, 8) + '-' + kstDay() + '-' + Math.random().toString(36).slice(2, 8) + '.mp3';
     await env.MEDIA.put(name, audio, { httpMetadata: { contentType: 'audio/mpeg' } });
-    const row = { status: 'ready', title: sc.title, body: sc.body, script: sc.lines, sources: sc.sources, audio_url: '/media/' + name, style: s.style, error: null };
+    /* v284 🔔 웹 알림 보낼 시각: 오늘 알림 시각(한국시간). 지금 만들기로 그 시각이 이미 지났으면 보내지 않는다 */
+    const k = new Date(Date.now() + 9 * 3600e3);
+    const pushAt = Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate(), Number(s.hh) || 0, Number(s.mm) || 0) - 9 * 3600e3;
+    const willPush = auto && !!s.on1;
+    const row = { status: 'ready', title: sc.title, body: sc.body, script: sc.lines, sources: sc.sources, audio_url: '/media/' + name, style: s.style, error: null,
+      push_at: willPush ? new Date(Math.max(pushAt, Date.now())).toISOString() : null, pushed: !willPush };
     await briefSaveItem(env, uid, row);
     await doneJob(env, job);
     return { ok: true, item: { day: kstDay(), ...row, script: undefined } };
@@ -1148,6 +1176,71 @@ async function briefMake(env, uid, auto, styleOverride) {
     if (auto) return { ok: false, error: msg };
     throw httpErr(500, '브리핑을 만들지 못했어요: ' + msg + ' (크레딧은 돌려드렸어요)');
   }
+}
+
+/* ───────────── v284 🔔 웹 알림 (RFC 8291 aes128gcm + VAPID) — 포도톡 Worker 의 웹푸시와 같은 방식 ───────────── */
+const PTE = new TextEncoder();
+function pcat(...a) { const n = a.reduce((x, y) => x + y.length, 0); const o = new Uint8Array(n); let i = 0; for (const x of a) { o.set(x, i); i += x.length; } return o; }
+async function phmac(keyBytes, data) {
+  const k = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return new Uint8Array(await crypto.subtle.sign('HMAC', k, data));
+}
+async function phkdf(salt, ikm, info, len) { const prk = await phmac(salt, ikm); return (await phmac(prk, pcat(info, new Uint8Array([1])))).slice(0, len); }
+async function pushEncrypt(p256dh, auth, payloadStr) {
+  const ua = fromB64u(p256dh), authSecret = fromB64u(auth);
+  const kp = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const asPub = new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey));
+  const uaKey = await crypto.subtle.importKey('raw', ua, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: uaKey }, kp.privateKey, 256));
+  const ikm = await phkdf(authSecret, shared, pcat(PTE.encode('WebPush: info\0'), ua, asPub), 32);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const cek = await phkdf(salt, ikm, PTE.encode('Content-Encoding: aes128gcm\0'), 16);
+  const nonce = await phkdf(salt, ikm, PTE.encode('Content-Encoding: nonce\0'), 12);
+  const key = await crypto.subtle.importKey('raw', cek, { name: 'AES-GCM' }, false, ['encrypt']);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, key, pcat(PTE.encode(payloadStr), new Uint8Array([2]))));
+  const rs = new Uint8Array(4); new DataView(rs.buffer).setUint32(0, 4096);
+  return pcat(salt, rs, new Uint8Array([asPub.length]), asPub, ct);
+}
+async function pushVapid(env, endpoint) {
+  const pub = fromB64u(env.VAPID_PUBLIC);
+  const jwk = { kty: 'EC', crv: 'P-256', x: b64u(pub.slice(1, 33)), y: b64u(pub.slice(33, 65)), d: env.VAPID_PRIVATE, ext: true };
+  const key = await crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const head = b64u(PTE.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
+  const body = b64u(PTE.encode(JSON.stringify({ aud: new URL(endpoint).origin, exp: Math.floor(Date.now() / 1000) + 43200, sub: env.PUSH_SUBJECT || 'mailto:hasin7jk@gmail.com' })));
+  const sig = b64u(new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, PTE.encode(head + '.' + body))));
+  return 'vapid t=' + head + '.' + body + '.' + sig + ', k=' + b64u(pub);
+}
+async function pushOne(env, sub, payload) {
+  try {
+    const res = await fetch(sub.endpoint, {
+      method: 'POST',
+      headers: { Authorization: await pushVapid(env, sub.endpoint), 'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream', TTL: '43200', Urgency: 'normal' },
+      body: await pushEncrypt(sub.p256dh, sub.auth, JSON.stringify(payload)),
+    });
+    if (res.status === 404 || res.status === 410) {   /* 브라우저가 구독을 버렸으면 지운다 */
+      await sbReq(env, 'DELETE', 'hub_push?endpoint=eq.' + encodeURIComponent(sub.endpoint), null, 'return=minimal').catch(() => {});
+    }
+    return res.ok;
+  } catch { return false; }
+}
+async function pushUser(env, uid, payload) {
+  if (!env.VAPID_PUBLIC || !env.VAPID_PRIVATE) throw httpErr(500, '웹 알림 설정이 아직 없어요 (VAPID_PUBLIC · VAPID_PRIVATE)');
+  const subs = await sbReq(env, 'GET', 'hub_push?select=endpoint,p256dh,auth&user_id=eq.' + encodeURIComponent(uid) + '&limit=10');
+  const list = Array.isArray(subs) ? subs : [];
+  const r = await Promise.all(list.map((x) => pushOne(env, x, payload)));
+  return { ok: true, sent: r.filter(Boolean).length, subs: list.length };
+}
+async function pushSub(env, uid, sub) {
+  const ep = String((sub && sub.endpoint) || '');
+  const k = (sub && sub.keys) || {};
+  if (!/^https:\/\/[^\s]+$/.test(ep) || ep.length > 1000 || !k.p256dh || !k.auth) throw httpErr(400, '알림 구독 정보가 올바르지 않아요');
+  await sbReq(env, 'POST', 'hub_push?on_conflict=endpoint', { endpoint: ep, user_id: uid, p256dh: String(k.p256dh).slice(0, 200), auth: String(k.auth).slice(0, 100) }, 'resolution=merge-duplicates,return=minimal');
+  return { ok: true };
+}
+async function pushUnsub(env, uid, endpoint) {
+  const ep = String(endpoint || '');
+  if (ep) await sbReq(env, 'DELETE', 'hub_push?user_id=eq.' + encodeURIComponent(uid) + '&endpoint=eq.' + encodeURIComponent(ep), null, 'return=minimal');
+  return { ok: true };
 }
 
 /* ───────────── 공용 ───────────── */
