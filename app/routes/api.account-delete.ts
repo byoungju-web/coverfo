@@ -309,10 +309,10 @@ async function execute(c: SB, env: Env, user: { id: string; email: string }, acc
 async function stopSubs(c: SB, userId: string) {
   const now = new Date().toISOString();
 
-  await fetch(`${c.url}/rest/v1/cf_subs?user_id=eq.${encodeURIComponent(userId)}&status=in.(active,pending,charging)`, {
+  await fetch(`${c.url}/rest/v1/cf_subs?user_id=eq.${encodeURIComponent(userId)}&status=in.(active,canceled,pending,charging)`, {
     method: 'PATCH',
     headers: hdr(c, { Prefer: 'return=minimal' }),
-    body: JSON.stringify({ status: 'canceled', next_at: null, billing_key: null, canceled_at: now, updated_at: now }),
+    body: JSON.stringify({ status: 'canceled', next_at: null, billing_key: null, paid_until: now, canceled_at: now, updated_at: now }), /* v290: 환불했으니 이용 기간도 그 자리에서 끝 ('○○까지 이용'·'해지 취소'가 안 보이게) */
   }).catch(() => undefined);
 }
 
