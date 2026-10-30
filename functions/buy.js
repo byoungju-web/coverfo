@@ -65,6 +65,7 @@ th{color:#666;font-weight:600}
   <div class="card">
     <h1>크레딧 충전</h1>
     <p class="sub">1크레딧 ≈ 99원 · 결제일로부터 1년 동안 사용 · 결제 즉시 충전 · 실패한 생성은 자동 환불</p>
+    <a href="/subscribe" style="display:block;margin:-4px 0 14px;padding:11px 14px;border-radius:14px;background:#F5F3FF;color:#5b21b6;font-size:13.5px;font-weight:700;text-decoration:none">📅 매달 자동 충전이 편하다면 · 크레딧 월 구독 (월 9,900원부터, 언제든 해지) ›</a>
     <div class="pk" id="pk"></div>
     <div class="methods" id="methods">
       <button type="button" class="chip on" data-m="CARD">💳 카드 · 간편결제</button>
@@ -95,7 +96,7 @@ th{color:#666;font-weight:600}
     <table><thead><tr><th>날짜</th><th>크레딧</th><th>금액</th><th>상태</th></tr></thead><tbody id="orders"><tr><td colspan="4" style="color:#888">아직 없습니다.</td></tr></tbody></table>
   </div>
 
-  <div class="foot">문의: hasin7jk@gmail.com · 표시된 금액은 부가세 포함 · <a href="/pricing">요금제 안내</a></div>
+  <div class="foot">문의: hasin7jk@gmail.com · 표시된 금액은 부가세 포함 · <a href="/pricing">요금제 안내</a> · <a href="/subscribe">월 구독</a></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>

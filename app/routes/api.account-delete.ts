@@ -17,6 +17,10 @@
  *     · 성공한 건마다 cf_refunds 에 기록 + cf_topup(-크레딧). 한 건이라도 실패하면 거기서 멈추고 계정은 지우지 않음
  *   필요한 것: Cloudflare 변수 TOSS_SECRET_KEY (결제에 이미 씀), sql/cf_refunds.sql 1회 실행
  *
+ *   v3 (2026-10-30, 📅 크레딧 월 구독):
+ *     · 구독 결제 주문(주문번호 cfsub_…)은 빌링 상점 키 TOSS_BILLING_SECRET_KEY 로 취소 (일반 충전은 지금처럼 TOSS_SECRET_KEY)
+ *     · 구독 결제를 환불하거나 탈퇴하면 구독(cf_subs)도 해지 → 다음 달 자동 결제 없음 (표가 없으면 그냥 넘어감)
+ *
  *   v2 (2026-10-22, 토스 보안 체크리스트):
  *     · 토스 취소 요청 전에 같은 회차(주문번호:rf:회차)를 cf_refunds 에 'pending' 으로 먼저 잡음 → 환불 버튼을 연달아 눌러도
  *       크레딧이 두 번 깎이지 않음 (sql/cf_toss_security.sql 의 idem_key 고유 규칙 필요. 실행 전에는 예전처럼 동작)
@@ -223,8 +227,9 @@ async function patchRefund(c: SB, idem: string, patch: any) {
 /** 계획대로 실행. 실패하면 거기서 멈추고 {done, failed} 반환 */
 async function execute(c: SB, env: Env, user: { id: string; email: string }, account?: Account) {
   const secret = String(env.TOSS_SECRET_KEY || '');
+  const billSecret = String(env.TOSS_BILLING_SECRET_KEY || ''); /* v3: 구독 결제(cfsub_…)는 빌링 상점 키 */
 
-  if (!secret) {
+  if (!secret && !billSecret) {
     throw new Error('TOSS_SECRET_KEY 가 없습니다');
   }
 
@@ -238,6 +243,13 @@ async function execute(c: SB, env: Env, user: { id: string; email: string }, acc
       break;
     }
 
+    const key = it.order_id.startsWith('cfsub_') ? billSecret : secret;
+
+    if (!key) {
+      failed = { order_id: it.order_id, error: it.order_id.startsWith('cfsub_') ? 'TOSS_BILLING_SECRET_KEY 가 없습니다' : 'TOSS_SECRET_KEY 가 없습니다' };
+      break;
+    }
+
     const o = (await rows<Order>(c, `cf_orders?select=order_id,payment_key&order_id=eq.${encodeURIComponent(it.order_id)}`))[0];
     const idem = `${it.order_id}:rf:${it.seq}`;
     const lock = await lockRefund(c, user, it, idem);
@@ -248,7 +260,7 @@ async function execute(c: SB, env: Env, user: { id: string; email: string }, acc
     }
 
     try {
-      const tx = await tossCancel(secret, String(o?.payment_key || ''), idem, it.net, it.needsAccount ? account : undefined);
+      const tx = await tossCancel(key, String(o?.payment_key || ''), idem, it.net, it.needsAccount ? account : undefined);
 
       let saved = false;
 
@@ -285,7 +297,23 @@ async function execute(c: SB, env: Env, user: { id: string; email: string }, acc
     }
   }
 
+  /* v3: 구독 결제를 환불했으면 구독도 해지 (다음 달 자동 결제 없음) */
+  if (done.some((i) => i.order_id.startsWith('cfsub_'))) {
+    await stopSubs(c, user.id);
+  }
+
   return { done, failed, total: done.reduce((s, i) => s + i.net, 0) };
+}
+
+/* v3: 📅 월 구독 해지 — 표(cf_subs)가 없거나 실패해도 환불·탈퇴는 그대로 진행 */
+async function stopSubs(c: SB, userId: string) {
+  const now = new Date().toISOString();
+
+  await fetch(`${c.url}/rest/v1/cf_subs?user_id=eq.${encodeURIComponent(userId)}&status=in.(active,pending,charging)`, {
+    method: 'PATCH',
+    headers: hdr(c, { Prefer: 'return=minimal' }),
+    body: JSON.stringify({ status: 'canceled', next_at: null, billing_key: null, canceled_at: now, updated_at: now }),
+  }).catch(() => undefined);
 }
 
 async function deleteUser(c: SB, userId: string) {
@@ -348,6 +376,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
         }
       }
 
+      await stopSubs(c, user.id); /* v3: 탈퇴하면 월 구독도 해지 */
       await deleteUser(c, user.id);
 
       return ok({ ok: true, refund });
