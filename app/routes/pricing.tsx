@@ -500,7 +500,8 @@ function ChargeBox() {
       </div>
 
       {/* v287 탭 2개 — 안내문(충전 · 포도톡 연결) 대신 */}
-      <div className="grid grid-cols-2 gap-1 rounded-xl bg-bolt-elements-background-depth-2 p-1">
+      {/* v288 고른 탭은 진한 보라 바탕 + ✓, 안 고른 탭은 흰 바탕 + 회색 글씨 (전에는 고른 탭이 흰색이라 반대로 보였음) */}
+      <div className="grid grid-cols-2 gap-2">
         {(
           [
             ['once', '⚡ 한 번 충전'],
@@ -512,10 +513,12 @@ function ChargeBox() {
             type="button"
             onClick={() => setTab(k)}
             className={
-              'rounded-lg px-3 py-2.5 text-sm font-semibold transition ' +
-              (tab === k ? 'bg-white text-indigo-700 shadow-sm' : 'text-bolt-elements-textSecondary')
+              'rounded-xl border-2 px-3 py-3 text-sm font-bold transition ' +
+              (tab === k ? 'border-indigo-700 bg-indigo-700 text-white shadow-md' : 'border-gray-200 bg-white text-gray-500')
             }
+            aria-pressed={tab === k}
           >
+            {tab === k ? '✓ ' : ''}
             {label}
           </button>
         ))}

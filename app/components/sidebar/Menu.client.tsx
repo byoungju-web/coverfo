@@ -871,25 +871,6 @@ export const Menu = ({ overlay = false }: { overlay?: boolean } = {}) => {
             {footOpen && (
               <div className="pl-3 space-y-0.5">
                 {/* 홈(coverfo.com) 사이드바와 같은 항목·순서. 약관·개인정보·탈퇴·나라 시험은 홈의 창(#terms 등)으로 엽니다 */}
-                {!myEmail && (
-                  <a
-                    href="/"
-                    className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  >
-                    <span className="i-ph:sign-in h-4 w-4 shrink-0" />
-                    <span>로그인 (홈에서)</span>
-                  </a>
-                )}
-                {myEmail && (
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  >
-                    <span className="i-ph:power h-4 w-4 shrink-0" />
-                    <span>로그아웃</span>
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={handleSettingsClick}
@@ -924,7 +905,7 @@ export const Menu = ({ overlay = false }: { overlay?: boolean } = {}) => {
                   className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
                   <span className="i-ph:credit-card h-4 w-4 shrink-0" />
-                  <span>이용료 · 충전 · 포도톡 연결</span>
+                  <span>이용료 · 충전</span>
                   <span className="ml-auto text-xs text-gray-400">›</span>
                 </a>
                 <a
@@ -959,6 +940,26 @@ export const Menu = ({ overlay = false }: { overlay?: boolean } = {}) => {
                   <span>계정 탈퇴</span>
                   <span className="ml-auto text-xs text-gray-400">›</span>
                 </a>
+                {/* v288 로그인·로그아웃은 맨 아래 (계정 탈퇴 다음) */}
+                {!myEmail && (
+                  <a
+                    href="/"
+                    className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <span className="i-ph:sign-in h-4 w-4 shrink-0" />
+                    <span>로그인 (홈에서)</span>
+                  </a>
+                )}
+                {myEmail && (
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <span className="i-ph:power h-4 w-4 shrink-0" />
+                    <span>로그아웃</span>
+                  </button>
+                )}
               </div>
             )}
         </div>
