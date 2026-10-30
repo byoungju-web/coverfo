@@ -153,6 +153,194 @@ function loadToss(): Promise<any> {
   });
 }
 
+/* v287 📅 매달 자동 충전(크레딧 월 구독) — 서버는 /api/billing (functions/api/billing.js · 토스 빌링 상점). 한 번 충전(/api/pay)과 따로 */
+type SubPlan = { id: string; credits: number; amount: number };
+type SubCfg = { enabled?: boolean; clientKey?: string; plans?: SubPlan[]; testMode?: boolean };
+type Sub = { plan: string; credits: number; amount: number; status: string; card?: string; period?: number; paid_until?: string; next_at?: string; last_error?: string };
+const SUB_NAME: Record<string, string> = { sub100: '베이직', sub300: '스탠다드', sub550: '플러스' };
+
+function day(s?: string) {
+  if (!s) {
+    return '-';
+  }
+
+  const d = new Date(s);
+
+  return d.getFullYear() + '. ' + (d.getMonth() + 1) + '. ' + d.getDate() + '.';
+}
+
+function subLeft(sub: Sub | null) {
+  return !!(sub && sub.status === 'canceled' && sub.paid_until && new Date(sub.paid_until) > new Date());
+}
+
+function SubBox({ token, scfg, sub, reload }: { token: string; scfg: SubCfg | null; sub: Sub | null; reload: () => void }) {
+  const plans = scfg?.plans || [];
+  const [plan, setPlan] = useState<string>('');
+  const [agree, setAgree] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ t: string; h: string } | null>(null);
+
+  useEffect(() => {
+    if (!plan && plans.length) {
+      setPlan((plans[1] || plans[0]).id);
+    }
+  }, [plans.length]);
+
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+
+    if (q.get('done')) {
+      setMsg({ t: 'ok', h: '구독을 시작했어요! 첫 달 +' + (q.get('credits') || '') + ' 크레딧이 충전됐습니다.' });
+    } else if (q.get('fail')) {
+      setMsg({ t: 'err', h: String(q.get('fail')).replace(/[<>&]/g, '') });
+    }
+
+    if (q.get('done') || q.get('fail')) {
+      history.replaceState({}, '', '/pricing?tab=sub#charge');
+    }
+  }, []);
+
+  const bapi = (body: any) =>
+    fetch('/api/billing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify(body),
+    }).then((r) => r.json().catch(() => ({})).then((j: any) => ({ ...j, __status: r.status })));
+
+  const chosen = plans.find((x) => x.id === plan);
+  const active = !!(sub && sub.status === 'active');
+  const left = subLeft(sub);
+  const can = !!(chosen && token && scfg?.enabled && agree && !active && !left && !busy);
+
+  const start = async () => {
+    if (!can || !chosen) {
+      return;
+    }
+
+    setBusy(true);
+    setMsg({ t: 'info', h: '카드 등록창을 여는 중입니다…' });
+
+    try {
+      const j: any = await bapi({ op: 'start', plan: chosen.id });
+
+      if (j.__status !== 200) {
+        throw new Error(j.error || '구독 신청 실패');
+      }
+
+      const TossPayments = await loadToss();
+      const payment = TossPayments(scfg?.clientKey).payment({ customerKey: j.customerKey });
+      await payment.requestBillingAuth({
+        method: 'CARD',
+        successUrl: location.origin + '/api/billing?op=auth',
+        failUrl: location.origin + '/pricing?tab=sub&fail=' + encodeURIComponent('카드 등록이 취소되었거나 실패했습니다') + '#charge',
+        customerEmail: j.email || undefined,
+      });
+    } catch (e: any) {
+      setMsg({ t: 'err', h: String(e?.message || e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const cancel = async () => {
+    if (!sub || !confirm('구독을 해지할까요?\n\n· ' + day(sub.paid_until) + '까지 이용할 수 있고, 그 뒤로는 결제되지 않아요.\n· 이미 충전된 크레딧은 그대로 쓸 수 있어요.')) {
+      return;
+    }
+
+    const j: any = await bapi({ op: 'cancel' });
+    setMsg(j.__status === 200 ? { t: 'ok', h: '해지했어요. ' + day(sub.paid_until) + '까지 이용할 수 있고, 그 뒤로는 결제되지 않아요.' } : { t: 'err', h: j.error || '해지 실패' });
+    reload();
+  };
+  const resume = async () => {
+    const j: any = await bapi({ op: 'resume' });
+    setMsg(j.__status === 200 ? { t: 'ok', h: '구독을 계속합니다. 다음 결제일에 자동 결제돼요.' } : { t: 'err', h: j.error || '실패' });
+    reload();
+  };
+
+  const msgCls =
+    msg?.t === 'err' ? 'bg-red-50 text-red-700' : msg?.t === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-indigo-50 text-indigo-700';
+  const stLabel = (st: string) => (({ active: '구독 중', canceled: '해지됨 (이용 기간까지 사용)', stopped: '결제 실패로 멈춤' } as any)[st] || st);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {sub ? (
+        <div className="rounded-xl border border-bolt-elements-borderColor p-4">
+          <div className="text-sm font-semibold text-bolt-elements-textPrimary">📅 내 구독</div>
+          <table className="mt-2 w-full text-sm">
+            <tbody className="text-bolt-elements-textPrimary">
+              <tr><td className="w-28 py-1 text-bolt-elements-textSecondary">상태</td><td className="py-1 font-semibold">{stLabel(sub.status)}</td></tr>
+              <tr><td className="py-1 text-bolt-elements-textSecondary">요금제</td><td className="py-1">{(SUB_NAME[sub.plan] || sub.plan) + ' · ' + won(sub.amount) + '/월 · 매달 ' + sub.credits + ' 크레딧'}</td></tr>
+              <tr><td className="py-1 text-bolt-elements-textSecondary">결제 카드</td><td className="py-1">{sub.card || '-'}</td></tr>
+              <tr><td className="py-1 text-bolt-elements-textSecondary">이용 기간</td><td className="py-1">{sub.paid_until ? '~ ' + day(sub.paid_until) : '-'}</td></tr>
+              <tr><td className="py-1 text-bolt-elements-textSecondary">다음 결제일</td><td className="py-1">{active && sub.next_at ? day(sub.next_at) : '없음'}</td></tr>
+              {sub.status === 'stopped' && sub.last_error ? <tr><td className="py-1 text-bolt-elements-textSecondary">멈춘 이유</td><td className="py-1">{sub.last_error}</td></tr> : null}
+            </tbody>
+          </table>
+          {active ? (
+            <button type="button" onClick={cancel} className="mt-3 w-full rounded-full border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700">
+              구독 해지 (다음 결제일부터 결제 안 함)
+            </button>
+          ) : null}
+          {left ? (
+            <button type="button" onClick={resume} className="mt-3 w-full rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white">
+              해지 취소하고 계속 구독
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {!active && !left ? (
+        <>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {plans.map((p, i) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setPlan(p.id)}
+                className={'rounded-xl border p-4 text-left transition ' + (plan === p.id ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-bolt-elements-borderColor')}
+              >
+                <div className="text-xs font-semibold text-indigo-700">{(SUB_NAME[p.id] || p.id) + (i === 1 ? ' · 추천' : '')}</div>
+                <div className="mt-1 text-2xl font-bold text-bolt-elements-textPrimary">
+                  {won(p.amount)} <span className="text-xs font-medium text-bolt-elements-textSecondary">/월</span>
+                </div>
+                <div className="text-sm font-semibold text-bolt-elements-textPrimary">매달 {p.credits.toLocaleString()} 크레딧</div>
+                <div className="text-xs text-bolt-elements-textSecondary">1크레딧당 {Math.round(p.amount / p.credits)}원 · 1개월마다 자동 갱신</div>
+              </button>
+            ))}
+          </div>
+
+          <div className="rounded-xl bg-bolt-elements-background-depth-2 p-4 text-sm leading-relaxed text-bolt-elements-textPrimary">
+            <div><b>서비스 제공 기간</b> · 결제일부터 1개월. 매월 같은 날 자동 결제(1개월 단위 자동 갱신)</div>
+            <div><b>해지</b> · 언제든 이 화면에서 직접. 해지하면 다음 결제일부터 결제하지 않으며, 이미 충전된 크레딧은 그대로 쓸 수 있어요</div>
+            <div><b>크레딧</b> · 한 번 충전과 같은 지갑 · 결제일로부터 1년 동안 사용</div>
+            <div>
+              <b>환불</b> · 결제 7일 이내이고 그 결제로 받은 크레딧을 쓰지 않았으면 전액, 그 외에는 남은 충전 크레딧 금액에서 10%를 공제하고 환불 (결제 1년 이내 ·{' '}
+              <a href="/refund" className="underline">환불정책</a>). 환불하면 구독도 함께 해지돼요
+            </div>
+            <div><b>결제 수단</b> · 신용·체크카드 (토스페이먼츠 카드 등록)</div>
+          </div>
+
+          <label className="flex cursor-pointer items-start gap-2 text-sm text-bolt-elements-textPrimary">
+            <input type="checkbox" className="mt-0.5 h-4 w-4" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+            <span>위 내용과 <b>매월 자동 결제</b>에 동의합니다. (해지 전까지 매월 같은 날 선택한 금액이 결제됩니다)</span>
+          </label>
+
+          <button
+            type="button"
+            onClick={start}
+            disabled={!can}
+            className="rounded-full bg-indigo-700 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {!token ? '로그인하면 구독할 수 있어요' : chosen ? '카드 등록하고 ' + won(chosen.amount) + '/월 구독 시작' : '요금제를 골라 주세요'}
+          </button>
+          {scfg && !scfg.enabled ? <div className="rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700">구독 결제 준비 중입니다. 지금은 한 번 충전을 이용해 주세요.</div> : null}
+        </>
+      ) : null}
+
+      {msg ? <div className={'rounded-lg px-3 py-2 text-sm ' + msgCls}>{msg.h}</div> : null}
+    </div>
+  );
+}
+
 function ChargeBox() {
   const [cfg, setCfg] = useState<Cfg | null>(null);
   const [token, setToken] = useState<string>('');
@@ -161,8 +349,10 @@ function ChargeBox() {
   const [method, setMethod] = useState<string>('CARD');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ t: string; h: string } | null>(null);
-  const [code, setCode] = useState<string | null>(null);
-  const [wmsg, setWmsg] = useState('');
+  /* v287 탭: ⚡ 한 번 충전(기본) · 📅 매달 자동 충전 (?tab=sub 로 열면 구독 탭) */
+  const [tab, setTab] = useState<'once' | 'sub'>(() => (new URLSearchParams(location.search).get('tab') === 'sub' ? 'sub' : 'once'));
+  const [scfg, setScfg] = useState<SubCfg | null>(null);
+  const [sub, setSub] = useState<Sub | null>(null);
 
   const api = (m: string, qs: string, body?: any) =>
     fetch('/api/pay' + qs, {
@@ -170,12 +360,20 @@ function ChargeBox() {
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     }).then((r) => r.json().then((j: any) => ({ ...j, __status: r.status })));
-  const wapi = (body: any) =>
-    fetch('/api/wallet', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify(body),
-    }).then((r) => r.json().then((j: any) => ({ ...j, __status: r.status })));
+  const loadSub = () => {
+    if (!token) {
+      return;
+    }
+
+    fetch('/api/billing', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ op: 'me' }) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: any) => {
+        if (j) {
+          setSub(j.sub || null);
+        }
+      })
+      .catch(() => undefined);
+  };
 
   useEffect(() => {
     let alive = true;
@@ -188,6 +386,10 @@ function ChargeBox() {
         }
 
         setCfg(c);
+        fetch('/api/billing?config=1')
+          .then((r) => (r.ok ? r.json() : null))
+          .then((j: any) => alive && j && setScfg(j))
+          .catch(() => undefined);
         setPkg((c.packages || []).find((x) => x.id === 'plus')?.id || (c.packages || [])[1]?.id || (c.packages || [])[0]?.id || ''); // 기본 선택: 550(plus)
 
         if (!c.enabled) {
@@ -221,11 +423,7 @@ function ChargeBox() {
         setMe(j);
       }
     });
-    wapi({ op: 'balance' }).then((j: any) => {
-      if (j.__status === 200) {
-        setCode(j.code || null);
-      }
-    });
+    loadSub();
   }, [token]);
 
   const pay = async () => {
@@ -263,44 +461,6 @@ function ChargeBox() {
     }
   };
 
-  const makeCode = async () => {
-    if (code && !confirm('새 코드를 만들면 지금 코드로 연결된 포도톡은 끊깁니다. 다시 넣어야 해요. 계속할까요?')) {
-      return;
-    }
-
-    const j: any = await wapi({ op: code ? 'newcode' : 'code' });
-
-    if (j.__status !== 200) {
-      setWmsg(j.error || '실패');
-      return;
-    }
-
-    setCode(j.code);
-    setWmsg('코드를 만들었습니다. 포도톡 설정 → 크레딧 지갑 → coverfo 지갑에 연결하기 칸에 넣어 주세요.');
-  };
-  const unlink = async () => {
-    if (!confirm('연결을 끊으면 포도톡은 다시 자체 지갑을 씁니다. 계속할까요?')) {
-      return;
-    }
-
-    const j: any = await wapi({ op: 'unlink' });
-    setCode(j.__status === 200 ? null : code);
-    setWmsg(j.__status === 200 ? '연결을 끊었습니다.' : j.error || '실패');
-  };
-  const copy = async () => {
-    if (!code) {
-      setWmsg('먼저 코드를 만들어 주세요.');
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(code);
-      setWmsg('복사했습니다: ' + code);
-    } catch {
-      setWmsg('복사가 안 되면 길게 눌러 복사해 주세요: ' + code);
-    }
-  };
-
   const chosen = (cfg?.packages || []).find((x) => x.id === pkg);
   const msgCls =
     msg?.t === 'err' ? 'bg-red-50 text-red-700' : msg?.t === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-indigo-50 text-indigo-700';
@@ -322,6 +482,12 @@ function ChargeBox() {
             <div className="mt-3 text-xs leading-relaxed text-bolt-elements-textSecondary">
               {me?.email ? me.email + ' · ' : ''}coverfo · 포도톡 · 포도야 어디서 써도 같은 지갑입니다. 충전·환불은 coverfo 에서 합니다. (포도톡·포도야는 충전 크레딧만 씁니다)
             </div>
+            {sub && (sub.status === 'active' || subLeft(sub)) ? (
+              <button type="button" onClick={() => setTab('sub')} className="mt-3 w-full rounded-lg bg-indigo-50 px-3 py-2 text-left text-xs font-semibold text-indigo-700">
+                📅 {sub.status === 'active' ? '구독 중' : '해지됨'} · {(SUB_NAME[sub.plan] || sub.plan) + ' ' + won(sub.amount) + '/월'} ·{' '}
+                {sub.status === 'active' ? '다음 결제일 ' + day(sub.next_at) : day(sub.paid_until) + '까지 이용'} ›
+              </button>
+            ) : null}
           </>
         ) : (
           <div className="mt-2 text-sm text-bolt-elements-textSecondary">
@@ -333,17 +499,36 @@ function ChargeBox() {
         )}
       </div>
 
-      <div>
-        <h2 className="text-base font-semibold text-bolt-elements-textPrimary">충전 · 포도톡 연결</h2>
-        <p className="mt-1 text-sm text-bolt-elements-textSecondary">
-          여기서 바로 충전하고, 포도톡·포도야에 연결하는 코드도 만듭니다. 1크레딧 = 99원, 세 서비스가 같은 지갑을 씁니다.
-        </p>
+      {/* v287 탭 2개 — 안내문(충전 · 포도톡 연결) 대신 */}
+      <div className="grid grid-cols-2 gap-1 rounded-xl bg-bolt-elements-background-depth-2 p-1">
+        {(
+          [
+            ['once', '⚡ 한 번 충전'],
+            ['sub', '📅 매달 자동 충전'],
+          ] as const
+        ).map(([k, label]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setTab(k)}
+            className={
+              'rounded-lg px-3 py-2.5 text-sm font-semibold transition ' +
+              (tab === k ? 'bg-white text-indigo-700 shadow-sm' : 'text-bolt-elements-textSecondary')
+            }
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      {cfg?.testMode ? (
+      {(tab === 'once' ? cfg?.testMode : scfg?.testMode) ? (
         <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">🧪 테스트 결제 모드 — 실제 돈은 빠져나가지 않습니다.</div>
       ) : null}
 
+      {tab === 'sub' ? (
+        <SubBox token={token} scfg={scfg} sub={sub} reload={loadSub} />
+      ) : (
+      <>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {(cfg?.packages || []).map((p, i) => (
           <button
@@ -392,41 +577,8 @@ function ChargeBox() {
         {chosen ? won(chosen.amount) + ' 결제하기 (' + chosen.credits.toLocaleString() + '크레딧)' : '패키지를 골라 주세요'}
       </button>
       {msg ? <div className={'rounded-lg px-3 py-2 text-sm ' + msgCls} dangerouslySetInnerHTML={{ __html: msg.h }} /> : null}
-
-      {token ? (
-        <div className="rounded-xl border border-bolt-elements-borderColor p-4">
-          <div className="text-sm font-semibold text-bolt-elements-textPrimary">🍇 포도톡 · 포도야에 연결</div>
-          <p className="mt-1 text-xs text-bolt-elements-textSecondary">
-            아래 코드를 포도톡 <b>설정 → 크레딧 지갑 → coverfo 지갑에 연결하기</b> 칸에 넣으면 포도톡(포도야 포함)이 이 크레딧을 같이 씁니다. 계정마다 코드는 하나이고,
-            다시 만들면 옛 코드는 꺼집니다. coverfo 홈 안에서 포도톡을 열면 코드 없이 자동 연결됩니다.
-          </p>
-          <div className="mt-3 flex items-center gap-2">
-            <input
-              readOnly
-              value={code || ''}
-              placeholder="아직 코드가 없습니다"
-              className="h-11 flex-1 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 text-center text-base font-bold tracking-wider text-bolt-elements-textPrimary"
-            />
-            <button type="button" onClick={copy} className="h-11 rounded-lg bg-indigo-700 px-4 text-sm font-semibold text-white">
-              복사
-            </button>
-          </div>
-          <div className="mt-2 flex gap-2">
-            <button type="button" onClick={makeCode} className="h-11 flex-1 rounded-lg bg-black text-sm font-semibold text-white">
-              {code ? '코드 다시 만들기' : '코드 만들기'}
-            </button>
-            {code ? (
-              <button type="button" onClick={unlink} className="h-11 flex-1 rounded-lg bg-gray-200 text-sm font-semibold text-gray-800">
-                연결 끊기
-              </button>
-            ) : null}
-          </div>
-          {wmsg ? <div className="mt-2 text-xs text-bolt-elements-textSecondary">{wmsg}</div> : null}
-          <div className="mt-2 text-xs text-bolt-elements-textSecondary">
-            1크레딧 = 99원 · 받아쓰기 0.1 · 빠른 답 0.2 · 웹검색 0.4 · 고품질 답 0.8 · 전화통역 6/분 — 어디서 써도 같은 지갑입니다. 포도톡 크레딧 10 = coverfo 크레딧 1 (같은 금액)이라, 포도톡에 남은 크레딧을 먼저 쓰고 그다음 이 지갑에서 나갑니다.
-          </div>
-        </div>
-      ) : null}
+      </>
+      )}
 
       {me?.orders?.length ? (
         <div>
@@ -445,7 +597,8 @@ function ChargeBox() {
                 const d = new Date(o.paid_at || o.created_at);
                 const label =
                   (({ paid: '완료', manual: '수동 충전', pending: '미완료', failed: '실패', canceled: '취소', refunded: '환불 완료' } as any)[o.status] || o.status) +
-                  (o.status === 'refunded' && o.fee > 0 ? ` (수수료 ${won(o.fee)})` : '');
+                  (o.status === 'refunded' && o.fee > 0 ? ` (수수료 ${won(o.fee)})` : '') +
+                  (/^sub/.test(String(o.package || '')) ? ' · 월 구독' : '');
 
                 return (
                   <tr key={i} className="border-t border-bolt-elements-borderColor text-bolt-elements-textPrimary">
@@ -472,7 +625,7 @@ export default function Pricing() {
       <ClientOnly>{() => <Menu overlay />}</ClientOnly>
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
-        {/* v209 순서: 내 크레딧 잔액 → 충전(패키지·결제) → 포도톡 연결 → 요금제 */}
+        {/* v209 순서: 내 크레딧 잔액 → 충전(v287: ⚡ 한 번 충전 · 📅 매달 자동 충전 탭) → 충전 내역 → 요금제. v287 포도톡 연결 칸 삭제(연결 코드는 /buy 에 그대로) */}
         <div id="charge" className="scroll-mt-16 rounded-xl border border-bolt-elements-borderColor p-4 sm:p-6">
           <ClientOnly fallback={<div className="py-6 text-center text-sm text-bolt-elements-textSecondary">내 크레딧 불러오는 중…</div>}>
             {() => <ChargeBox />}
