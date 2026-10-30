@@ -145,9 +145,18 @@ async function charge(c, sub, n, attempt) {
     } catch (e) {}
     if (!r) { r = { ok: false, status: 0 }; d = { message: '토스 응답 없음 (잠시 뒤 다시 시도)' }; }
   }
-  const okPay = r.ok && d && d.status === 'DONE' && String(d.orderId || '') === orderId && Number(d.totalAmount) === Number(sub.amount) && (!c.mid || !d.mId || String(d.mId) === c.mid);
+  /* v289: 상점아이디(mId) 대조는 라이브 키일 때만 — 테스트 키 결제는 토스 테스트 상점아이디로 응답해서 bill_coverjany 와 달라 늘 실패했다 */
+  const live = /^live_/.test(c.secretKey);
+  const bad = [];
+  if (!(r.ok && d && d.status === 'DONE')) bad.push('상태 ' + ((d && d.status) || r.status));
+  else {
+    if (String(d.orderId || '') !== orderId) bad.push('주문번호 ' + (d.orderId || '-'));
+    if (Number(d.totalAmount) !== Number(sub.amount)) bad.push('금액 ' + d.totalAmount);
+    if (live && c.mid && d.mId && String(d.mId) !== c.mid) bad.push('상점아이디 ' + d.mId);
+  }
+  const okPay = bad.length === 0;
   if (!okPay) {
-    const why = String((d && (d.message || d.code)) || (r.ok ? '결제 응답이 주문과 맞지 않음 (' + (d.status || '') + ')' : '토스 결제 실패 ' + r.status)).slice(0, 200);
+    const why = String((d && d.status !== 'DONE' && (d.message || d.code)) || (r.ok ? '결제 응답이 주문과 맞지 않음 (' + bad.join(', ') + ')' + (d && d.paymentKey ? ' · 결제키 ' + d.paymentKey : '') : '토스 결제 실패 ' + r.status)).slice(0, 200);
     await sbPatch(c, 'cf_orders?order_id=eq.' + encodeURIComponent(orderId) + '&status=eq.pending', { status: 'failed', note: why }).catch(() => null);
     return { ok: false, error: why, orderId };
   }
