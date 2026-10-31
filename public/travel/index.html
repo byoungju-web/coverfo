@@ -63,6 +63,16 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .tip{display:flex;gap:10px;align-items:flex-start;background:var(--soft);border-radius:16px;padding:14px 16px;font-size:14px;line-height:1.6;color:#3b2a86}
 footer{border-top:1px solid var(--line);margin-top:20px;padding:22px 0 40px;color:#8a879a;font-size:12.5px}
 footer a{color:#5d5a70}
+/*GUIDES-CSS*/.glist{display:grid;grid-template-columns:1fr;gap:10px}
+@media(min-width:620px){.glist{grid-template-columns:1fr 1fr}}
+.gcard{display:flex;gap:12px;align-items:flex-start;text-decoration:none;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;transition:transform .15s,box-shadow .15s}
+.gcard:hover{transform:translateY(-1px);box-shadow:0 10px 24px -14px rgba(0,0,0,.25)}
+.gemo{flex:none;width:44px;height:44px;border-radius:12px;background:var(--soft);display:grid;place-items:center;font-size:22px}
+.gtx{flex:1;min-width:0}
+.gcat{display:block;font-size:12px;font-weight:700;color:#6b5bd6;margin-bottom:3px}
+.gtx b{display:block;font-size:15px;line-height:1.35;margin-bottom:4px}
+.gsum{display:block;font-size:13px;color:var(--sub);line-height:1.5}
+
 </style>
 </head>
 <body>
@@ -102,6 +112,15 @@ footer a{color:#5d5a70}
     </div>
   </section>
 
+  <!--GUIDES-->
+  <section id="guides">
+    <h2>Korea travel guides</h2>
+    <p class="h2s">Practical guides for first-time visitors — fact-checked, with sources.</p>
+    <div class="glist"><a class="gcard" href="/travel/guides/korea-travel-apps/"><span class="gemo">📱</span><span class="gtx"><span class="gcat">Planning · 7 min read</span><b>Korea&#x27;s Essential Travel Apps: What to Install Before You Go</b><span class="gsum">The Korea travel apps worth installing before you fly: Naver Map, Kakao T and K.ride, KORAIL+, Papago, Baemin and T-money, with tips on English and payment.</span></span><span class="go">›</span></a><a class="gcard" href="/travel/guides/korea-travel-checklist/"><span class="gemo">✅</span><span class="gtx"><span class="gcat">Planning · 8 min read</span><b>Korea Travel Checklist: Everything to Sort Out Before You Fly</b><span class="gsum">Before you fly to Korea: K-ETA and e-Arrival Card rules as of October 2026, SIM and eSIM options, T-money, cards and cash, tax refunds, plugs and voltage.</span></span><span class="go">›</span></a><a class="gcard" href="/travel/guides/korea-taxi-guide/"><span class="gemo">🚕</span><span class="gtx"><span class="gcat">Transport · 7 min read</span><b>How to Take a Taxi in Korea as a Foreigner</b><span class="gsum">How to take a taxi in Korea as a visitor: hailing a cab, Kakao T, K.ride and Uber, Seoul fares and night surcharges, airport taxis, payment and overcharge tips.</span></span><span class="go">›</span></a><a class="gcard" href="/travel/guides/seoul-to-busan-ktx/"><span class="gemo">🚄</span><span class="gtx"><span class="gcat">Transport · 8 min read</span><b>Seoul to Busan by KTX: How to Book and Ride in 2026</b><span class="gsum">How to take the KTX from Seoul to Busan in 2026: the new merged KTX-SRT network, Korail+ booking, stations, fares, travel time and boarding tips.</span></span><span class="go">›</span></a></div>
+    <p style="margin:14px 0 0"><a class="btn btn-ghost" href="/travel/guides/">See all guides →</a></p>
+  </section>
+<!--/GUIDES-->
+
   <section>
     <h2>How it works</h2>
     <ol class="steps">
@@ -128,7 +147,7 @@ footer a{color:#5d5a70}
   </section>
 </main>
 
-<footer><div class="wrap">© 2026 coverfo · <a href="/" data-en="1">coverfo.com</a></div></footer>
+<footer><div class="wrap">© 2026 coverfo · <a href="/travel/guides/">Travel guides</a> · <a href="/" data-en="1">coverfo.com</a></div></footer>
 
 <script>
 /* 예시 누르면: coverfo 홈을 영어 화면으로 열고(처음 한 번만 — 이미 언어를 골라 둔 사람은 그대로), 그 문장을 입력칸에 채운다(/?q=…). */
