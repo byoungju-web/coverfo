@@ -11,6 +11,8 @@
    · 쇼핑(v7·v8): 판별되면 홈 화면의 쇼핑 화면(cf-shop)이 쇼핑몰별 공개 검색 주소를 보여 준다. 제재국·개인정보는 shop() 에서 먼저 막는다.
      비공식 스킴·자동 결제 없음 — 송금·예약은 앱이 채워진 채 열리고 비밀번호/결제는 본인이 누른다.
    · 규칙에 안 걸리면 /api/quick-intent (Claude Fable 5.1, 크레딧 소액 차감) 에게 한 번 물어보고, 그래도 아니면 채팅으로.
+   · 🧳 한 번에 준비(v43): "내일 제주 1박 출장 준비해줘" 처럼 여행·출장 + 준비·계획이거나 항공·숙소·렌터카 중 2가지 이상이면 kind "plan".
+     /api/plan 이 계획(어디서·어디로·날짜·인원·단계·준비물)만 세우고, 단계마다 이 파일의 build()(항공권·숙소·렌터카·날씨 …)를 그대로 부른다 (홈 cf-plan-js).
    홈(landing-html.ts)과 시험 페이지(quick-test.html)가 같이 쓴다. */
 (function () {
   if (window.cfQuick) return;
@@ -612,6 +614,7 @@
   function classify(t) {
     t = String(t || "").trim(); if (!t) return null;
     var en = classifyKE(t), lr = classifyL(t);
+    if (en && en.kind === "plan") return en;   /* 🧳 한 번에 준비(v43): 여러 일 부탁은 현지어 규칙보다 먼저 */
     /* 배달 앱 이름(uber eats·doordash·grubhub)이 있으면 현지어 규칙(예: 'uber' → 택시)보다 배달 판정을 먼저 쓴다 (v13) */
     if (en && en.kind === "delivery" && /uber\s*eats|doordash|door\s*dash|grubhub/i.test(t)) return en;
     /* 항공권(v18): 영어·한국어 항공권 문장은 현지어 규칙보다 먼저 */
@@ -625,8 +628,19 @@
     return en;
   }
   /* 한국어·영어 규칙 */
+  /* 🧳 한 번에 준비(v43): 여행·출장 + 준비·계획 말, 또는 항공·숙소·렌터카 중 2가지 이상이 한 문장에. 보고서·메일 같은 문서 일은 빼고, 사용법 질문도 뺀다 */
+  var PLAN_TRIP = /(출장|여행|휴가|워크숍|워크샵|연수|신혼\s*여행)/;
+  var PLAN_DO = /(준비|챙겨|계획|짜\s*줘|짜\s*봐|플랜|세워\s*줘|한\s*번에|한꺼번에|다\s*알아\s*봐|싹\s*다)/;
+  var PLAN_EN_TRIP = /\b(trip|travel|vacation|holiday|getaway)\b/i, PLAN_EN_DO = /\b(plan|prepare|prep|organi[sz]e|get\s+ready|arrange)\b/i;
+  var PLAN_NOT = /(보고서|문서|자료|발표|ppt|슬라이드|메일|이메일|정산|경비|품의|결재|계획서|신청서|서류|일지|후기|사진|영상|블로그|report|e-?mail|slides?|expense)/i;
+  function isPlan(q) {
+    if (!notQuestion(q) || PLAN_NOT.test(q)) return false;
+    if ((PLAN_TRIP.test(q) && PLAN_DO.test(q)) || (PLAN_EN_TRIP.test(q) && PLAN_EN_DO.test(q))) return true;
+    return (any(R.flight, q) ? 1 : 0) + (any(R.rental, q) ? 1 : 0) + (any(R.stayWord, q) ? 1 : 0) >= 2;
+  }
   function classifyKE(t) {
     var q = t;
+    if (isPlan(q)) return { kind: "plan", q: q };
     /* 카톡(v32): "OO한테 안녕이라고 카톡" → 메시지 복사 + 카카오톡 열기. 받는 사람은 카톡에서 본인이 고른다(연락처를 받거나 저장하지 않음) */
     if (/(카톡|카카오톡)/.test(q) && notQuestion(q) && (/(보내|전송|해\s*줘|줘|열어)/.test(q) || /(이?라고|다고|라구)\s*(카톡|카카오톡)\s*$/.test(q.trim())) && !/(오픈\s*(채팅|카톡|톡)|선물|이모티콘|송금|친구\s*추가|방법|어떻게)/.test(q)) return { kind: "kakao", q: q };
     if (any(R.pay, q) && notQuestion(q) && !/문자|메시지|카톡/.test(q) && (amountOf(q) || /토스|송금|이체|venmo|paypal|cash\s*app|zelle|upi|transfer/i.test(q))) return { kind: "pay", q: q };
@@ -807,6 +821,13 @@
     if (k === "rental") return rental(q, c, q);
     if (k === "delivery") return delivery(r.query || q, c, q);
     if (k === "pay") return pay(q, c);
+    /* 🧳 한 번에 준비(v43): 홈 화면(cf-plan-js)이 /api/plan 으로 계획을 받는다. u 는 그 화면이 없는 옛 홈에서만 쓰는 길(채팅) */
+    if (k === "plan") {
+      if (SANCTIONED[c]) return { u: "", w: "한 번에 준비", none: "이 지역에서는 여행 연결을 제공하지 않습니다 (국제 제재 대상 지역)." };
+      var ppk = piiKind(q, true);
+      if (ppk) return { u: "", w: "한 번에 준비", none: ppk + " 같은 개인정보가 들어 있어 보내지 않았어요. 목적지·날짜·인원만 적어 주세요. (coverfo는 개인정보를 저장하지 않습니다)" };
+      return { u: "/chat?prompt=" + E(q) + "&mode=discuss", w: "🧳 한 번에 준비", plan: { text: q, c: c } };
+    }
     if (k === "kakao") return kakao(q);
     if (k === "stay") { if (r.lang) { var sres = stay(q, c), nm = stripL(stayInfo(q).stay, r.lang, ["stay", "book"]); if (nm && nm !== sres.info.stay) { sres.u = sres.u.split(E(sres.info.stay)).join(E(nm)); if (sres.alt) sres.alt.u = sres.alt.u.split(E(sres.info.stay)).join(E(nm)); sres.info.stay = nm; } return sres; } return stay(q, c); }
     return null;
