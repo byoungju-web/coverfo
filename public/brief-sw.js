@@ -1,4 +1,4 @@
-// coverfo ☀️ 아침 브리핑 알림 전용 Service Worker (v284)
+// coverfo ☀️ 아침 브리핑 · 💬 채팅 새 메시지 알림 전용 Service Worker (v284 · v299 채팅 알림도 이 일꾼이 띄움)
 // · coverfo.com/brief 페이지에서만 등록한다 (scope '/brief'). 캐시·네트워크는 건드리지 않고 알림만 맡는다.
 // · 서버(/api/hub)가 보낸 웹 알림을 띄우고, 누르면 coverfo.com/brief?play=1 을 연다.
 self.addEventListener('install', () => self.skipWaiting());
@@ -11,7 +11,7 @@ self.addEventListener('push', (event) => {
     body: d.body,
     icon: '/coverfo-icon-192.png',
     badge: '/coverfo-icon-192.png',
-    tag: 'coverfo-brief',
+    tag: d.tag || 'coverfo-brief',   /* v299: 채팅 알림은 방마다 따로(cfc-방ID) — 같은 방 새 메시지는 한 장으로 바뀜 */
     renotify: true,
     data: { url: d.url || '/brief' },
   }));

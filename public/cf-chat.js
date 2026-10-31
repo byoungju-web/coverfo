@@ -1,4 +1,4 @@
-/* coverfo 💬 채팅 · 👥 일반채팅 — public/cf-chat.js (v296)
+/* coverfo 💬 채팅 · 👥 일반채팅 — public/cf-chat.js (v296 · v299: 알림을 누르면 #cr=방ID 로 그 방 열기)
    · 홈의 💬 채팅 · 👥 일반채팅 아이콘을 누르면 포도톡 창 대신 이 화면이 coverfo 안에서 바로 열린다 (🌐 통역톡은 cf-trans.js)
    · 💬 채팅 = 둘이서 (1:1, 2명) · 👥 일반채팅 = 코드로만 들어오는 방 (100명) · 🌏 오픈채팅 = 목록에 보여 누구나 들어오는 방
    · 서버 /api/chat (coverfo 로그인) · 무료 — 크레딧을 쓰지 않는다
@@ -119,9 +119,10 @@
       '<div id="cfc-list"><div class="c-lead">내 채팅방을 불러오는 중…</div></div>';
     api({ op: 'rooms', kind: direct ? 'direct' : 'group' }).then(function (j) {
       var rs = j.rooms || [];
+      if (!$('cfc-list')) return;   /* 그새 방으로 들어갔으면(목록 칸이 없으면) 그냥 둔다 */
       $('cfc-list').innerHTML = rs.length ? rs.map(function (r) { return roomRow(r); }).join('')
         : '<div class="c-lead">' + (direct ? '1:1 대화가 없어요. 방을 만들고 초대 링크를 보내 보세요.' : '방이 없어요. 새로 만들어 보세요!') + '</div>';
-    }, function (e) { $('cfc-list').innerHTML = errBox(e); });
+    }, function (e) { if ($('cfc-list')) $('cfc-list').innerHTML = errBox(e); });
   }
 
   /* 🌏 오픈채팅: 공개방 목록 */
@@ -135,10 +136,11 @@
   function loadPub(q) {
     api({ op: 'public', q: q }).then(function (j) {
       var rs = j.rooms || [];
+      if (!$('cfc-list')) return;
       $('cfc-list').innerHTML = rs.length ? rs.map(function (r) {
         return roomRow(r, '<button type="button" class="c-btn ' + (r.joined ? 'g ' : '') + 's" data-a="pjoin" data-id="' + esc(r.id) + '">' + (r.joined ? '입장' : '참여') + '</button>');
       }).join('') : '<div class="c-lead">' + (q ? '찾는 방이 없어요.' : '공개방이 없어요. 👥 일반채팅에서 방을 만들 때 <b>🌏 오픈채팅으로</b>를 켜면 여기에 보여요.') + '</div>';
-    }, function (e) { $('cfc-list').innerHTML = errBox(e); });
+    }, function (e) { if ($('cfc-list')) $('cfc-list').innerHTML = errBox(e); });
   }
   function saveNick() { var n = $('cfc-nick'); var v = n ? n.value.trim() : myNick(); if (n) ls.set('cfc_nick', v); return v; }
 
@@ -311,4 +313,14 @@
   }
   invite();
   window.addEventListener('hashchange', invite);
+
+  /* v299 🔔 알림을 누르면 coverfo.com/#cr=방ID → 그 채팅방을 바로 연다 (이름·종류는 첫 메시지를 받을 때 채워짐) */
+  function fromPush() {
+    var m = String(location.hash || '').match(/^#cr=([0-9a-f-]{36})$/);
+    if (!m) return;
+    try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
+    setTimeout(function () { open('gen'); enter({ id: m[1], name: '채팅', code: '', kind: 'group', pub: false, mine: false }); }, 600);
+  }
+  fromPush();
+  window.addEventListener('hashchange', fromPush);
 })();

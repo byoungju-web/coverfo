@@ -1,4 +1,4 @@
-// functions/api/chat.js — coverfo 💬 채팅 · 👥 일반채팅 (v296) · 포도톡을 거치지 않고 coverfo 안에서 도는 채팅
+// functions/api/chat.js — coverfo 💬 채팅 · 👥 일반채팅 (v296 · v299 차단 목록 · 🔔 새 메시지 알림) · 포도톡을 거치지 않고 coverfo 안에서 도는 채팅
 // © 2026 coverfo All Rights Reserved
 //
 // POST /api/chat  (Authorization: Bearer coverfo 로그인키) · 무료 (크레딧을 쓰지 않음)
@@ -13,6 +13,9 @@
 //   { op:'leave', room } · { op:'delete', room } → 나가기 · (만든 사람) 방 지우기
 //   { op:'block', msg } · { op:'unblock_all' } → 그 말을 한 사람 차단 · 차단 모두 풀기
 //   { op:'report', msg, reason }               → 신고 (cf_chat_reports 에 쌓임)
+//   v299 { op:'blocks' } → 내가 차단한 사람 [{id, nick, at}] · { op:'unblock', id } → 한 사람 풀기
+//   v299 🔔 새 메시지 알림: 보내면 방의 다른 사람(나를 차단한 사람 빼고)의 브라우저로 웹 알림을 보낸다.
+//        아침 브리핑과 같은 구독(hub_push 표 · 비밀값 VAPID_PUBLIC · VAPID_PRIVATE)을 쓴다. 구독은 사이드바 → 🔔 알림에서 켠다. 설정이 없으면 조용히 건너뛴다.
 // · 필요한 것: sql/cf_chat.sql 1회 실행. 대화는 30일 뒤 자동 삭제 (요청 중 가끔 지움).
 // · 결제·크레딧 코드는 쓰지도 건드리지도 않는다.
 
@@ -37,7 +40,16 @@ export async function onRequestPost(context) {
     if (op === 'create') return json(await create(c, uid, user, b));
     if (op === 'join') return json(await join(c, uid, user, b));
     if (op === 'msgs') return json(await msgs(c, uid, b));
-    if (op === 'send') return json(await send(c, uid, b));
+    if (op === 'send') return json(await send(c, uid, b, env, context));
+    if (op === 'blocks') {
+      const l = await get(c, `cf_chat_blocks?select=blocked,nick,created_at&user_id=eq.${uid}&order=created_at.desc&limit=200`);
+      return json({ ok: true, blocks: l.map((x) => ({ id: x.blocked, nick: x.nick || '', at: x.created_at })) });
+    }
+    if (op === 'unblock') {
+      if (!idOk(b.id)) throw httpErr(400, '누구를 풀지 골라 주세요');
+      await del(c, `cf_chat_blocks?user_id=eq.${uid}&blocked=eq.${b.id}`);
+      return json({ ok: true });
+    }
     if (op === 'rename') return json(await rename(c, uid, b));
     if (op === 'nick') return json(await setNick(c, uid, user, b));
     if (op === 'leave') return json(await leave(c, uid, b, false));
@@ -144,13 +156,18 @@ async function msgs(c, uid, b) {
     msgs: rows.map((m) => (bl.has(m.user_id) ? { id: m.id, hidden: true } : { id: m.id, mine: m.user_id === uid, nick: m.nick, text: m.body, at: m.created_at })),
   };
 }
-async function send(c, uid, b) {
+async function send(c, uid, b, env, context) {
   const me = await member(c, uid, b.room);
   const text = String(b.text || '').replace(/[\u0000-\u0008\u000b-\u001f]/g, ' ').trim().slice(0, MAX_TEXT);
   if (!text) throw httpErr(400, '보낼 말을 적어 주세요');
   const r = await post(c, 'cf_chat_msgs', { room_id: b.room, user_id: uid, nick: me.nick, body: text });
   if (!r.ok) throw httpErr(500, '메시지를 저장하지 못했어요');
   await patch(c, `cf_chat_rooms?id=eq.${b.room}`, { last_body: text.slice(0, 80), last_nick: me.nick, last_at: new Date().toISOString() }).catch(() => {});
+  /* v299 🔔 다른 사람에게 알림 — 응답은 기다리지 않고 바로 돌려준다 */
+  if (env && env.VAPID_PUBLIC && env.VAPID_PRIVATE) {
+    const job = notify(c, env, uid, b.room, me.nick, text).catch(() => {});
+    if (context && typeof context.waitUntil === 'function') context.waitUntil(job); else await job;
+  }
   return { ok: true, id: r.rows[0] && r.rows[0].id };
 }
 async function rename(c, uid, b) {
@@ -201,6 +218,64 @@ async function report(c, uid, b) {
   if (!r.ok) throw httpErr(500, '신고를 저장하지 못했어요');
   return { ok: true };
 }
+/* ───────────── v299 🔔 새 메시지 알림 (hub.js 의 웹 알림과 같은 방식 · RFC 8291 aes128gcm + VAPID) ───────────── */
+async function notify(c, env, uid, room, nick, text) {
+  const ms = (await get(c, `cf_chat_members?select=user_id&room_id=eq.${room}`)).map((m) => m.user_id).filter((x) => x !== uid);
+  if (!ms.length) return;
+  const bl = new Set((await get(c, `cf_chat_blocks?select=user_id&blocked=eq.${uid}&user_id=in.(${ms.join(',')})`)).map((x) => x.user_id));
+  const to = ms.filter((x) => !bl.has(x)).slice(0, 100);
+  if (!to.length) return;
+  const subs = await get(c, `hub_push?select=endpoint,p256dh,auth,user_id&user_id=in.(${to.join(',')})&limit=300`).catch(() => []);
+  if (!subs.length) return;
+  const rm = (await get(c, `cf_chat_rooms?select=name,kind&id=eq.${room}`))[0] || {};
+  const payload = { title: (rm.kind === 'direct' ? '💬 ' : '👥 ') + (rm.name || '채팅'), body: (nick ? nick + ': ' : '') + text.slice(0, 90), url: '/#cr=' + room, tag: 'cfc-' + room };
+  await Promise.all(subs.map((s) => pushOne(c, env, s, payload)));
+}
+const PTE = new TextEncoder();
+function b64u(bytes) { let s = ''; const a = new Uint8Array(bytes); for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function fromB64u(v) { v = String(v).replace(/-/g, '+').replace(/_/g, '/'); while (v.length % 4) v += '='; return Uint8Array.from(atob(v), (ch) => ch.charCodeAt(0)); }
+function pcat(...a) { const n = a.reduce((x, y) => x + y.length, 0); const o = new Uint8Array(n); let i = 0; for (const x of a) { o.set(x, i); i += x.length; } return o; }
+async function phmac(keyBytes, data) {
+  const k = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return new Uint8Array(await crypto.subtle.sign('HMAC', k, data));
+}
+async function phkdf(salt, ikm, info, len) { const prk = await phmac(salt, ikm); return (await phmac(prk, pcat(info, new Uint8Array([1])))).slice(0, len); }
+async function pushEncrypt(p256dh, auth, payloadStr) {
+  const ua = fromB64u(p256dh), authSecret = fromB64u(auth);
+  const kp = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const asPub = new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey));
+  const uaKey = await crypto.subtle.importKey('raw', ua, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: uaKey }, kp.privateKey, 256));
+  const ikm = await phkdf(authSecret, shared, pcat(PTE.encode('WebPush: info\0'), ua, asPub), 32);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const cek = await phkdf(salt, ikm, PTE.encode('Content-Encoding: aes128gcm\0'), 16);
+  const nonce = await phkdf(salt, ikm, PTE.encode('Content-Encoding: nonce\0'), 12);
+  const key = await crypto.subtle.importKey('raw', cek, { name: 'AES-GCM' }, false, ['encrypt']);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, key, pcat(PTE.encode(payloadStr), new Uint8Array([2]))));
+  const rs = new Uint8Array(4); new DataView(rs.buffer).setUint32(0, 4096);
+  return pcat(salt, rs, new Uint8Array([asPub.length]), asPub, ct);
+}
+async function pushVapid(env, endpoint) {
+  const pub = fromB64u(env.VAPID_PUBLIC);
+  const jwk = { kty: 'EC', crv: 'P-256', x: b64u(pub.slice(1, 33)), y: b64u(pub.slice(33, 65)), d: env.VAPID_PRIVATE, ext: true };
+  const key = await crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const head = b64u(PTE.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
+  const body = b64u(PTE.encode(JSON.stringify({ aud: new URL(endpoint).origin, exp: Math.floor(Date.now() / 1000) + 43200, sub: env.PUSH_SUBJECT || 'mailto:hasin7jk@gmail.com' })));
+  const sig = b64u(new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, PTE.encode(head + '.' + body))));
+  return 'vapid t=' + head + '.' + body + '.' + sig + ', k=' + b64u(pub);
+}
+async function pushOne(c, env, sub, payload) {
+  try {
+    const res = await fetch(sub.endpoint, {
+      method: 'POST',
+      headers: { Authorization: await pushVapid(env, sub.endpoint), 'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream', TTL: '86400', Urgency: 'high' },
+      body: await pushEncrypt(sub.p256dh, sub.auth, JSON.stringify(payload)),
+    });
+    if (res.status === 404 || res.status === 410) await del(c, 'hub_push?endpoint=eq.' + encodeURIComponent(sub.endpoint)).catch(() => {});   /* 버려진 구독은 지운다 */
+    return res.ok;
+  } catch { return false; }
+}
+
 async function cleanup(c) {
   const since = new Date(Date.now() - KEEP_DAYS * 864e5).toISOString();
   await del(c, `cf_chat_msgs?created_at=lt.${since}`);

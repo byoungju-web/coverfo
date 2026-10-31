@@ -1,4 +1,7 @@
-/* coverfo 🍇 포도야 비서 · 🔌 고급기능 — public/cf-podoya.js (v298 · 1차 + 2차: 업무 자동화 · 내 기억 · 상품 시작하기)
+/* coverfo 🍇 포도야 비서 · 🔌 고급기능 — public/cf-podoya.js (v299)
+   · v298: 2차 (업무 자동화 · 내 기억 · 상품 시작하기)
+   · v299: 🧩 포도야 기능(격자) · 📁 저장루틴(= 커넥션 허브 2.0 레시피) 을 coverfo 안에서 · 소리 "○○ 루틴 실행해" → 레시피 (window.cfRoutineRun)
+           사이드바 설정: 🧠 내 기억 · 🔔 알림 · 🚫 차단한 사람 · 🛡️ 오픈채팅 안전 수칙 · 📞 전화통역 기록 (data-cfp-view)
    · 홈의 '포도야 비서' · '🔌 고급기능' 을 누르면 포도톡 창 대신 이 화면이 coverfo 안에서 바로 열린다 (하단 탭 없음)
    · 서버 /api/podoya (coverfo 로그인 · coverfo 지갑): 해외 응대 1 · 문서 만들기 1 · 웹 스크래핑 1 · 시맨틱 검색 1 · 유튜브→블로그 2 · 리서치 3 크레딧
    · coverfo 에 이미 있는 것은 그리로 연결: 대화로 시키기·에이전트팀 → 홈 입력칸 / 커넥션 허브 → 허브 2.0(/hub) / 친구에게 알리기 → 공유
@@ -8,7 +11,8 @@
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); };
   var ls = { get: function (k, d) { try { var v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
   var COST = { intl: 1, doc: 1, scrape: 1, search: 1, yt: 2, research: 3, work: 2, launch: 1, img: 2 };
-  var TITLE = { assist: '🍇 포도야 비서', adv: '🔌 고급기능', intl: '🌍 해외 응대', doc: '📄 문서 만들기', scrape: '🔍 웹 스크래핑', search: '🧠 시맨틱 검색', yt: '🎬 유튜브 → 블로그', research: '📊 리서치 파이프라인', work: '📊 업무 자동화', launch: '🎨 상품 시작하기', me: '🧠 내 기억' };
+  var TITLE = { assist: '🍇 포도야 비서', adv: '🔌 고급기능', intl: '🌍 해외 응대', doc: '📄 문서 만들기', scrape: '🔍 웹 스크래핑', search: '🧠 시맨틱 검색', yt: '🎬 유튜브 → 블로그', research: '📊 리서치 파이프라인', work: '📊 업무 자동화', launch: '🎨 상품 시작하기', me: '🧠 내 기억', feat: '🧩 포도야 기능', routine: '📁 저장루틴', notify: '🔔 알림', blocks: '🚫 차단한 사람', safety: '🛡️ 오픈채팅 안전 수칙', calls: '📞 전화통역 기록' };
+  var HOMES = ['assist', 'adv', 'feat', 'routine', 'me', 'notify', 'blocks', 'safety', 'calls'];
   var DOC_KINDS = [['quote', '📋', '견적서'], ['inv', '🌍', 'INVOICE'], ['state', '🧾', '거래명세서'], ['order', '📦', '발주서'], ['recpt', '🧻', '영수증']];
 
   /* ── 모양 (통역톡·채팅과 같은 결) ── */
@@ -50,10 +54,10 @@
     try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('sb-') === 0 && k.indexOf('-auth-token') > 0) { var v = JSON.parse(localStorage.getItem(k) || 'null'); if (v && v.access_token) return Promise.resolve(v.access_token); } } } catch (e) {}
     return Promise.resolve(null);
   }
-  function api(body) {
+  function api(body, path) {
     return token().then(function (t) {
       if (!t) { var e = new Error('login'); e.login = true; throw e; }
-      return fetch('/api/podoya', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify(body) })
+      return fetch(path || '/api/podoya', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify(body) })
         .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.error || ('오류 ' + r.status)); e.status = r.status; e.login = r.status === 401; throw e; } return j; }); });
     });
   }
@@ -88,6 +92,12 @@
     var b = $('cfp-body'); b.scrollTop = 0;
     if (S.view === 'assist') return assistView(b);
     if (S.view === 'adv') return advView(b);
+    if (S.view === 'feat') return featView(b);
+    if (S.view === 'routine') return routineView(b);
+    if (S.view === 'notify') return notifyView(b);
+    if (S.view === 'blocks') return blocksView(b);
+    if (S.view === 'safety') return safetyView(b);
+    if (S.view === 'calls') return callsView(b);
     return toolView(b, S.view);
   }
   function assistView(b) {
@@ -385,6 +395,175 @@
     setTimeout(function () { try { w.focus(); w.print(); } catch (e) {} setTimeout(function () { f.remove(); }, 60000); }, 250);
   }
 
+
+  /* ══════════ v299 🧩 포도야 기능 (격자) ══════════
+     go: coverfo 안 화면(view) · url: coverfo 주소 · ext: 새 창 · pt: 아직 옮기지 않은 것 → 포도톡 화면(아래 탭 없이) · soon: 아직 없음 */
+  var FEATS = [
+    ['🏠', '집안 기기', { pt: 'home' }], ['📊', '매일 리포트', { pt: 'report' }], ['📄', '문서 만들기', { go: 'doc' }], ['📽️', '발표자료', { soon: 1 }],
+    ['🌍', '해외 응대', { go: 'intl' }], ['🎨', '상품 시작하기', { go: 'launch' }], ['📰', '예약브리핑', { url: '/brief' }], ['✈️', '텔레그램', { pt: 'f_tgfeat' }],
+    ['🤗', 'AI 컴패니언', { pt: 'f_companion' }], ['👵', '시니어', { pt: 'f_senior' }], ['🗣️', '말로 열기', { pt: 'f_voiceact' }], ['🔎', 'AI 리서치', { go: 'research' }],
+    ['⚙️', 'AI 자동화', { go: 'work' }], ['📚', 'AI 학습', { pt: 'f_study' }], ['📇', 'AI 명함', { pt: 'f_cardscan' }], ['💼', '사장님비서', { pt: 'f_biz' }],
+    ['💰', 'AI가계부', { pt: 'f_ledger' }], ['🇺🇸', '영어회화', { pt: 'f_english' }], ['🧳', '여행플래너', { pt: 'f_travel' }], ['🍳', '냉장고요리', { pt: 'f_fridge' }],
+    ['✍️', '작명', { pt: 'f_naming' }], ['🔮', '운세', { pt: 'f_fortune' }], ['❓', '퀴즈생성', { pt: 'f_quiz' }], ['📷', '사물인식', { ext: '/lens-snap/' }],
+    ['🔤', '글자인식', { ext: '/lens-snap/' }], ['🧪', '성분스캐너', { ext: '/lens-snap/' }], ['🖼️', '이미지 생성', { url: '/studio' }], ['📝', 'AI 글쓰기', { home: 1 }],
+    ['🎬', 'AI 릴', { url: '/studio' }], ['🍇', '포도다', { ext: 'https://pododa.kr/' }]
+  ];
+  function featView(b) {
+    b.innerHTML = '<div class="p-lead">누르면 바로 열려요. <span class="tag o">포도톡</span> 표시는 아직 포도톡 화면으로 열려요 (아래 탭 없이) — 차례로 coverfo 로 옮겨요.</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">' + FEATS.map(function (f, i) {
+        var t = f[2].pt ? '<span class="tag o" style="font-size:9.5px;padding:1px 5px">포도톡</span>' : f[2].soon ? '<span class="tag o" style="font-size:9.5px;padding:1px 5px">준비 중</span>' : '';
+        return '<button type="button" data-a="feat" data-i="' + i + '" style="background:#fff;border:1px solid #ebe6f5;border-radius:14px;padding:10px 2px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;font-family:inherit;color:inherit"><span style="font-size:24px">' + f[0] + '</span><span style="font-size:11.5px;font-weight:800;line-height:1.25;text-align:center">' + f[1] + '</span>' + t + '</button>';
+      }).join('') + '</div>';
+  }
+  function featGo(i) {
+    var f = FEATS[i]; if (!f) return; var o = f[2];
+    if (o.go) { S.view = o.go; S.last = null; W.file = null; return render(); }
+    if (o.url) { close(); location.href = o.url; return; }
+    if (o.ext) { window.open(o.ext, '_blank', 'noopener'); return; }
+    if (o.home) return toHome('입력칸에 쓸 글을 적고 「무엇이든 물어보기」를 누르세요 (예: 신상품 소개 글 써줘)');
+    if (o.pt) return toPodotalk(o.pt);
+    alert('발표자료는 다음 단계에서 coverfo 로 새로 만들어요.');
+  }
+
+  /* ══════════ v299 📁 저장루틴 = 커넥션 허브 2.0 레시피 (/api/hub) ══════════
+     실행 5크레딧 · 확인 뒤 이어서 2크레딧 (hub.js 설정). 예약·앱 연결은 허브 2.0(/hub) 화면에서 */
+  var RECO = [
+    ['📥', '어제 온 문의 정리', '지메일에서 어제 받은 문의 메일을 모아 보낸 사람·내용·요구사항을 읽기 좋게 요약해 줘', '지메일'],
+    ['✉️', '문의 답장 + 장부 기록', '지메일에서 안 읽은 문의 메일을 찾아 정중한 한국어 답장을 써서 보내고, 구글 시트 문의장부에 누가·언제·무엇을 문의했는지 한 줄 추가해 줘', '지메일 · 구글 시트'],
+    ['📅', '아침 브리핑', '오늘 구글 캘린더 일정과 오늘 받은 중요한 메일을 한 장으로 요약해 줘', '구글 캘린더 · 지메일'],
+    ['🧾', '오늘 매출 기록', '구글 시트 매출장부에 오늘 날짜와 매출 내용을 한 줄 추가해 줘', '구글 시트']
+  ];
+  var HUB = '/api/hub';
+  function routineView(b) {
+    b.innerHTML = '<div class="p-lead">📁 자주 시키는 일을 <b>레시피</b>로 저장해 두고 한 번에 돌려요. 지메일·캘린더·시트 같은 앱은 <a href="/hub" style="color:#6d28d9;font-weight:800">🔗 커넥션 허브</a>에서 연결해요.<br>💳 실행 1번 5크레딧 · 보내기 전 확인 뒤 이어서 2크레딧 · 🗣️ 소리에게 "○○ 루틴 실행해"라고 말해도 돼요.</div>' +
+      '<div id="cfp-rres"></div><div class="p-sec">내 레시피</div><div id="cfp-rlist"><div class="p-wait">불러오는 중…</div></div>' +
+      '<div class="p-sec">＋ 새 레시피</div><div class="p-card"><div class="p-lb">이름</div><input class="p-in" id="cfp-rname" maxlength="30" placeholder="예: 월요일 정리">' +
+      '<div class="p-lb">시킬 말</div><textarea class="p-in" id="cfp-rgoal" style="min-height:70px" placeholder="예: 지난주 받은 견적 메일을 모아 구글 시트에 정리해 줘"></textarea><button type="button" class="p-btn" data-a="rsave">💾 저장</button></div>' +
+      '<div class="p-sec">✨ 추천 루틴 · 1인 사업자</div><div class="p-list">' + RECO.map(function (r, i) {
+        return '<div class="p-row" style="cursor:default"><span class="ic">' + r[0] + '</span><span class="mid"><span class="nm">' + r[1] + '</span><span class="sub">' + esc(r[2]) + '<br>🔗 필요한 연결: ' + r[3] + '</span></span><button type="button" class="p-btn g" data-a="rreco" data-i="' + i + '" style="width:auto;margin:0;padding:8px 12px;font-size:12.5px">담기</button></div>';
+      }).join('') + '</div><div class="p-mut" style="margin:10px 4px">포도톡에 저장했던 루틴은 그 폰 안에만 있어서 옮겨 오지 못해요. 필요한 것은 위 ＋ 새 레시피로 다시 담아 주세요.</div>';
+    loadRecipes();
+  }
+  function loadRecipes(cb) {
+    return api({ op: 'recipes' }, HUB).then(function (j) {
+      S.recipes = j.recipes || []; var box = $('cfp-rlist'); if (cb) cb(S.recipes); if (!box) return;
+      box.innerHTML = S.recipes.length ? '<div class="p-list">' + S.recipes.map(function (r) {
+        return '<div class="p-row" style="cursor:default;flex-wrap:wrap"><span class="mid"><span class="nm">' + esc(r.name) + '</span><span class="sub">' + esc(r.goal).slice(0, 120) + (r.sched && r.sched.on ? '<br>⏰ ' + esc(r.sched.text || '예약됨') : '') + (r.runs ? ' · ' + r.runs + '번 실행' : '') + '</span></span>' +
+          '<span style="display:flex;gap:6px"><button type="button" class="p-btn" data-a="rrun" data-id="' + r.id + '" style="width:auto;margin:0;padding:8px 12px;font-size:12.5px">▶ 실행</button><a href="/hub" class="p-btn g" style="width:auto;margin:0;padding:8px 10px;font-size:12.5px;text-decoration:none">⏰</a><button type="button" class="p-btn g" data-a="rdel" data-id="' + r.id + '" style="width:auto;margin:0;padding:8px 10px;font-size:12.5px">🗑</button></span></div>';
+      }).join('') + '</div>' : '<div class="p-mut" style="margin:0 4px">아직 레시피가 없어요. 아래 ✨ 추천 루틴을 담거나 ＋ 새 레시피로 만들어 보세요.</div>';
+    }, function (e) { var box = $('cfp-rlist'); if (box) box.innerHTML = errBox(e); if (cb) cb(null, e); });
+  }
+  function hubHandle(j) {
+    var box = $('cfp-rres'); if (!box) return;
+    var steps = (j.steps || []).map(function (s) { return '<div style="font-size:12.5px">' + (s.ok ? '✅' : '⚠️') + ' ' + esc(s.label) + (s.note ? ' <span class="p-mut">' + esc(s.note) + '</span>' : '') + '</div>'; }).join('');
+    if (j.status === 'confirm') {
+      S.hubState = j.state;
+      box.innerHTML = '<div class="p-card" style="border-color:#e5dcfb"><b>🙋 이렇게 할까요?</b>' + (j.items || []).map(function (it) { return '<div style="margin-top:8px"><b style="font-size:13px">' + (it.kind === 'kakao' ? '💬 ' : '') + esc(it.title) + '</b><pre style="white-space:pre-wrap;font-size:12.5px;background:#faf9fc;border-radius:10px;padding:8px;margin:4px 0 0">' + esc(it.detail || '') + '</pre></div>'; }).join('') +
+        (steps ? '<div style="margin-top:8px">' + steps + '</div>' : '') + '<div class="p-two"><button type="button" class="p-btn" data-a="rok">네, 진행해요 · 2크레딧</button><button type="button" class="p-btn g" data-a="rno" style="margin-top:10px">취소</button></div></div>';
+      return;
+    }
+    S.hubKakao = j.client || [];
+    box.innerHTML = '<div class="p-res" style="white-space:normal">' + (j.say ? '<h4>' + esc(j.say) + '</h4>' : '') + '<div style="white-space:pre-wrap">' + esc(j.text || '') + '</div>' + (steps ? '<div style="margin-top:8px;border-top:1px solid #f1eef7;padding-top:8px">' + steps + '</div>' : '') +
+      (j.need_connect ? '<a href="/hub" class="p-btn" style="display:block;text-align:center;text-decoration:none">🔗 커넥션 허브에서 앱 연결하기</a>' : '') +
+      S.hubKakao.map(function (k, i) { return '<button type="button" class="p-btn g" data-a="rkakao" data-i="' + i + '">💬 카톡 보내기' + (k.to && k.to.length ? ' → ' + esc(k.to.join(', ')) : '') + '</button>'; }).join('') + '</div>';
+  }
+  function hubRun(body, label) {
+    var box = $('cfp-rres'); if (!box) return Promise.resolve();
+    box.innerHTML = '<div class="p-wait">⏳ ' + esc(label || '진행 중') + '… 1분쯤 걸릴 수 있어요</div>';
+    try { box.scrollIntoView({ block: 'start' }); } catch (e) {}
+    return api(body, HUB).then(function (j) { hubHandle(j); loadRecipes(); }, function (e) { box.innerHTML = errBox(e); });
+  }
+  /* 🗣️ 소리 "○○ 루틴 실행해" — 레시피 이름(또는 when: today·yesterday·latest)으로 찾아 이 화면에서 실행. 결과 {ok,name} | {ok:false,names} */
+  function rNorm(t) { return String(t || '').toLowerCase().replace(/[^0-9a-z가-힣]/g, '').replace(/(루틴|레시피|routine)$/g, ''); }
+  function rDay(ts, back) { var d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - back); var e = new Date(d.getTime()); e.setDate(e.getDate() + 1); return ts >= d.getTime() && ts < e.getTime(); }
+  window.cfRoutineRun = function (name, when) {
+    return new Promise(function (res) {
+      open('routine');
+      loadRecipes(function (list, err) {
+        if (!list) { res({ ok: false, note: (err && err.message) || 'Could not read recipes.' }); return; }
+        var arr = list.slice().map(function (r) { return { r: r, ts: Date.parse(r.created_at || '') || 0 }; }).sort(function (a, b) { return b.ts - a.ts; });
+        if (when === 'today') arr = arr.filter(function (x) { return rDay(x.ts, 0); });
+        if (when === 'yesterday') arr = arr.filter(function (x) { return rDay(x.ts, 1); });
+        var q = rNorm(name), best = null, bs = 0;
+        if (!q) best = arr[0] ? arr[0].r : null;
+        else arr.forEach(function (x) { var n = rNorm(x.r.name), sc = 0; if (n === q) sc = 100; else if (n.indexOf(q) >= 0) sc = 80; else if (q.indexOf(n) >= 0 && n.length >= 2) sc = 70; else if (rNorm(x.r.goal).indexOf(q) >= 0) sc = 50; if (sc > bs) { bs = sc; best = x.r; } });
+        if (!best) { res({ ok: false, names: list.map(function (r) { return r.name; }) }); return; }
+        hubRun({ op: 'recipe_run', id: best.id }, '"' + best.name + '" 실행 중');
+        res({ ok: true, name: best.name });
+      });
+    });
+  };
+
+  /* ══════════ v299 사이드바 설정 화면들 ══════════ */
+  /* 🔔 알림 — 아침 브리핑과 같은 웹 알림(커넥션 허브 2.0 · /brief-sw.js)에 채팅 새 메시지도 함께 온다 */
+  function b64ToBytes(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; var r = atob(s), o = new Uint8Array(r.length); for (var i = 0; i < r.length; i++) o[i] = r.charCodeAt(i); return o; }
+  function pushOk() { return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+  function notifyView(b) {
+    b.innerHTML = '<div class="p-lead">🔔 이 브라우저(폰)로 알림을 받아요.<br>· 💬 채팅 · 👥 일반채팅 · 🌏 오픈채팅의 <b>새 메시지</b><br>· ☀️ <b>아침 브리핑</b> (브리핑에서 받기를 켠 경우)<br>알림을 누르면 그 채팅방이 바로 열려요.</div><div class="p-card" id="cfp-nbox"><div class="p-wait">확인하는 중…</div></div>';
+    var box = $('cfp-nbox');
+    if (!pushOk()) { box.innerHTML = '<div class="p-err">이 브라우저는 웹 알림을 지원하지 않아요. 크롬·엣지에서 열거나, 아이폰은 "홈 화면에 추가"한 앱에서 켜 주세요.</div>'; return; }
+    navigator.serviceWorker.getRegistration('/brief').then(function (reg) { return reg && reg.pushManager ? reg.pushManager.getSubscription() : null; })
+      .then(function (sub) { drawNotify(!!sub && Notification.permission === 'granted'); }, function () { drawNotify(false); });
+  }
+  function drawNotify(on, msg) {
+    var box = $('cfp-nbox'); if (!box) return;
+    box.innerHTML = '<div style="font-size:15px;font-weight:800">' + (on ? '🔔 알림 켜짐' : '🔕 알림 꺼짐') + '</div>' +
+      (on ? '<button type="button" class="p-btn g" data-a="ntest">시험 알림 보내기</button><button type="button" class="p-btn g" data-a="noff" style="color:#b42318">이 폰 알림 끄기</button>'
+        : '<button type="button" class="p-btn" data-a="non">🔔 알림 켜기</button><div class="p-mut" style="margin-top:8px">누르면 브라우저가 "알림 허용"을 물어봐요 → <b>허용</b>을 눌러 주세요.</div>') + (msg || '');
+  }
+  function waitActive(reg) { return new Promise(function (ok) { if (reg.active) { ok(reg); return; } var w = reg.installing || reg.waiting; if (!w) { ok(reg); return; } w.addEventListener('statechange', function () { if (w.state === 'activated') ok(reg); }); setTimeout(function () { ok(reg); }, 8000); }); }
+  function notifyOn(btn) {
+    btn.disabled = true;
+    Notification.requestPermission().then(function (p) {
+      if (p !== 'granted') throw new Error('알림이 막혀 있어요. 주소창 왼쪽 자물쇠(또는 ⓘ) → 알림 → 허용으로 바꾼 뒤 다시 눌러 주세요.');
+      return navigator.serviceWorker.register('/brief-sw.js', { scope: '/brief' });
+    }).then(waitActive).then(function (reg) {
+      return api({ op: 'push_key' }, HUB).then(function (k) {
+        if (!k.key) throw new Error('웹 알림 설정이 아직 없어요 (서버 VAPID 키)');
+        return reg.pushManager.getSubscription().then(function (old) { return old || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(k.key) }); });
+      });
+    }).then(function (sub) { return api({ op: 'push_sub', sub: sub.toJSON() }, HUB); })
+      .then(function () { drawNotify(true, '<div class="p-ok">이 폰으로 알림을 받아요</div>'); }, function (e) { btn.disabled = false; drawNotify(false, errBox(e)); });
+  }
+  function notifyOff() {
+    navigator.serviceWorker.getRegistration('/brief').then(function (reg) { return reg && reg.pushManager.getSubscription(); })
+      .then(function (sub) { if (!sub) return; var ep = sub.endpoint; return sub.unsubscribe().then(function () { return api({ op: 'push_unsub', endpoint: ep }, HUB); }); })
+      .then(function () { drawNotify(false, '<div class="p-ok">이 폰 알림을 껐어요</div>'); }, function (e) { drawNotify(true, errBox(e)); });
+  }
+  /* 🚫 차단한 사람 (coverfo 채팅) */
+  function blocksView(b) {
+    b.innerHTML = '<div class="p-lead">🚫 채팅에서 차단한 사람이에요. 차단한 사람의 말은 모든 방에서 나에게 보이지 않아요. 상대는 차단된 걸 알 수 없어요.</div><div id="cfp-blist"><div class="p-wait">불러오는 중…</div></div>';
+    api({ op: 'blocks' }, '/api/chat').then(function (j) {
+      var l = j.blocks || [], box = $('cfp-blist'); if (!box) return;
+      box.innerHTML = l.length ? '<div class="p-list">' + l.map(function (x) { return '<div class="p-row" style="cursor:default"><span class="ic">🚫</span><span class="mid"><span class="nm">' + esc(x.nick || '(이름 없음)') + '</span><span class="sub">' + esc(String(x.at || '').slice(0, 10)) + ' 차단</span></span><button type="button" class="p-btn g" data-a="unblock" data-id="' + esc(x.id) + '" style="width:auto;margin:0;padding:8px 12px;font-size:12.5px">차단 풀기</button></div>'; }).join('') + '</div>'
+        : '<div class="p-mut" style="margin:0 4px">차단한 사람이 없어요. 채팅방에서 상대 말풍선을 누르면 🚫 차단할 수 있어요.</div>';
+    }, function (e) { var box = $('cfp-blist'); if (box) box.innerHTML = errBox(e); });
+  }
+  /* 🛡️ 오픈채팅 안전 수칙 */
+  function safetyView(b) {
+    var R = [['🔒', '개인정보는 올리지 마세요', '전화번호·주소·계좌번호·주민등록번호·사진 속 개인정보는 오픈채팅에 올리지 마세요. 오픈채팅의 말은 그 방에 들어온 누구나 볼 수 있어요.'],
+      ['💸', '돈 이야기는 의심부터', '"선입금", "투자 수익 보장", "링크로 결제" 같은 말은 사기일 수 있어요. 모르는 사람에게 돈을 보내지 마세요.'],
+      ['🔗', '모르는 링크는 누르지 마세요', '앱 설치·로그인을 요구하는 링크는 계정을 빼앗는 데 쓰일 수 있어요.'],
+      ['🙅', '이런 말은 금지예요', '욕설·혐오·성적인 말, 협박·괴롭힘, 불법 상품·광고, 미성년자에게 해로운 내용. 어기면 방이나 이용이 제한될 수 있어요.'],
+      ['🚨', '불쾌하면 바로 차단·신고', '상대 말풍선을 누르면 🚫 차단 · 🚨 신고가 나와요. 신고는 운영자가 확인해요. 급한 위험이 있으면 112(경찰)에 먼저 알려 주세요.'],
+      ['🗑️', '대화는 30일 뒤 지워져요', '모든 채팅 메시지는 30일이 지나면 자동으로 지워져요. 방을 만든 사람은 언제든 방을 지울 수 있어요.']];
+    b.innerHTML = '<div class="p-lead">🛡️ coverfo 채팅을 모두가 안전하게 쓰기 위한 약속이에요.</div><div class="p-list">' + R.map(function (r) { return '<div class="p-row" style="cursor:default;align-items:flex-start"><span class="ic">' + r[0] + '</span><span class="mid"><span class="nm">' + r[1] + '</span><span class="sub" style="font-size:13px;color:#5d566f">' + r[2] + '</span></span></div>'; }).join('') + '</div>' +
+      '<button type="button" class="p-btn g" data-a="go-blocks">🚫 차단한 사람 보기</button>';
+  }
+  /* 📞 전화통역 기록 — 통화 기록은 포도랑 화면이 이 폰에 저장한다 (coverfo 📞 전화 탭에서 건 통화) */
+  function callsView(b) {
+    var k = S.callTab || 'log';
+    b.innerHTML = '<div class="p-chips" style="margin-bottom:10px">' + [['log', '📜 통화기록'], ['set', '⚙️ 통역 설정'], ['my', '💾 저장현황']].map(function (x) { return '<button type="button" data-a="ctab" data-v="' + x[0] + '" class="' + (k === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="p-mut" style="margin:0 4px 8px">통화기록은 <b>이 폰 안에만</b> 저장돼요 (coverfo 🌐 통역톡 → 📞 전화에서 건 통화). 포도톡 앱에서 건 통화는 따로 저장돼서 여기 안 보일 수 있어요.</div><div id="cfp-cbox"><div class="p-wait">여는 중…</div></div>';
+    api({ op: 'call_ticket' }, '/api/trans').then(function (j) {
+      var box = $('cfp-cbox'); if (!box) return;
+      box.innerHTML = '<iframe class="cfp-call" allow="microphone; autoplay; clipboard-write" style="width:100%;min-height:600px;border:0;border-radius:14px;background:#fff" src="https://podolang.kr/?' + k + '&uid=' + encodeURIComponent(j.ticket) + '"></iframe>';
+    }, function (e) { var box = $('cfp-cbox'); if (box) box.innerHTML = errBox(e); });
+  }
+  window.addEventListener('message', function (ev) {
+    try { if (!ev.data || ev.data.podolang !== 'h' || String(ev.origin || '').indexOf('podolang.kr') < 0) return; var f = ov.querySelector('iframe.cfp-call'); if (f) f.style.height = Math.max(600, ev.data.h | 0) + 'px'; } catch (e) {}
+  });
+
   /* ── 다른 곳으로 연결 ── */
   function toHome(hint) {
     close();
@@ -430,6 +609,23 @@
     if (a === 'meadd') { var fi = $('cfp-fact'), fv = fi ? fi.value.trim() : ''; if (!fv) return; var m1 = meCollect(); m1.facts = (Array.isArray(m1.facts) ? m1.facts : []); if (m1.facts.indexOf(fv) >= 0) return; if (m1.facts.length >= 40) { alert('40개까지 기억할 수 있어요'); return; } m1.facts.push(fv); return meSave(m1, '＋ 기억했어요'); }
     if (a === 'medel') { var m2 = meCollect(); m2.facts = (m2.facts || []).filter(function (x, i) { return String(i) !== el.getAttribute('data-i'); }); return meSave(m2, '지웠어요'); }
     if (a === 'meclear') { if (!confirm('기억을 전부 지울까요? 되돌릴 수 없어요.')) return; return meSave({}, '모두 지웠어요'); }
+    if (a === 'feat') return featGo(+el.getAttribute('data-i'));
+    if (a === 'rrun') { var rr = (S.recipes || []).filter(function (x) { return String(x.id) === el.getAttribute('data-id'); })[0]; return hubRun({ op: 'recipe_run', id: +el.getAttribute('data-id') }, rr ? '"' + rr.name + '" 실행 중' : '실행 중'); }
+    if (a === 'rok' || a === 'rno') { if (!S.hubState) return; var st = S.hubState; S.hubState = null; return hubRun({ op: 'confirm', state: st, approve: a === 'rok' }, a === 'rok' ? '이어서 진행 중' : '취소하는 중'); }
+    if (a === 'rkakao') { var kk = (S.hubKakao || [])[+el.getAttribute('data-i')]; if (kk) share(kk.text || '', '카톡', null); return; }
+    if (a === 'rdel') { if (!confirm('이 레시피를 지울까요?')) return; return api({ op: 'recipe_delete', id: +el.getAttribute('data-id') }, HUB).then(function () { loadRecipes(); }, function (er) { $('cfp-rres').innerHTML = errBox(er); }); }
+    if (a === 'rsave' || a === 'rreco') {
+      var nm = a === 'rreco' ? RECO[+el.getAttribute('data-i')][1] : val('cfp-rname'), gl = a === 'rreco' ? RECO[+el.getAttribute('data-i')][2] : val('cfp-rgoal');
+      if (!nm || !gl) { $('cfp-rres').innerHTML = '<div class="p-err">이름과 시킬 말을 적어 주세요</div>'; return; }
+      el.disabled = true;
+      return api({ op: 'recipe_save', name: nm, goal: gl }, HUB).then(function (j) { el.disabled = false; $('cfp-rres').innerHTML = '<div class="p-ok">📁 "' + esc(nm) + '" ' + (j.updated ? '레시피를 바꿨어요' : '레시피로 담았어요') + '</div>'; if (a === 'rsave') { $('cfp-rname').value = ''; $('cfp-rgoal').value = ''; } loadRecipes(); }, function (er) { el.disabled = false; $('cfp-rres').innerHTML = errBox(er); });
+    }
+    if (a === 'non') return notifyOn(el);
+    if (a === 'noff') return notifyOff();
+    if (a === 'ntest') return api({ op: 'push_test' }, HUB).then(function (j) { drawNotify(true, '<div class="p-ok">' + (j.sent ? '시험 알림을 보냈어요' : '보낼 곳이 없어요. 알림을 다시 켜 주세요') + '</div>'); }, function (er) { drawNotify(true, errBox(er)); });
+    if (a === 'unblock') return api({ op: 'unblock', id: el.getAttribute('data-id') }, '/api/chat').then(function () { blocksView($('cfp-body')); }, function (er) { $('cfp-blist').insertAdjacentHTML('afterbegin', errBox(er)); });
+    if (a === 'go-blocks') { S.home = 'blocks'; S.view = 'blocks'; return render(); }
+    if (a === 'ctab') { S.callTab = el.getAttribute('data-v'); return callsView($('cfp-body')); }
     if (a === 'copy' || a === 'share') {
       var j = S.last || {}, k = el.getAttribute('data-k'), t = k === 'doc' ? docText(j) : k === 'prod' ? prodText(j) : k === 'insta' ? String(j.insta || '') + '\n\n' + (j.hash || []).map(function (x) { return '#' + x; }).join(' ') : String(j[k] || '');
       if (j.sources && j.sources.length && (k === 'answer' || k === 'report')) t += '\n\n' + j.sources.map(function (s, i) { return '[' + (i + 1) + '] ' + s.url; }).join('\n');
@@ -438,7 +634,7 @@
   });
 
   function open(home) {
-    S.home = home === 'adv' ? 'adv' : 'assist'; S.view = S.home; S.last = null; W.file = null;
+    S.home = HOMES.indexOf(home) >= 0 ? home : 'assist'; S.view = S.home; S.last = null; W.file = null;
     ov.classList.add('on'); document.body.classList.add('cfp-lock');
     try { if (!(history.state && history.state.cfp)) history.pushState({ cfp: 1 }, ''); } catch (e) {}
     render();
@@ -457,9 +653,10 @@
 
   /* 홈의 '포도야 비서' · '🔌 고급기능': 포도톡 창 대신 이 화면 (캡처 단계에서 먼저 받는다) */
   window.addEventListener('click', function (e) {
-    var b = e.target && e.target.closest ? e.target.closest('#cf-talk [data-tk="secretary"], #cf-talk [data-tk="adv"]') : null;
+    var b = e.target && e.target.closest ? e.target.closest('#cf-talk [data-tk="secretary"], #cf-talk [data-tk="adv"], #cf-talk [data-tk="pfn"], #cf-talk [data-tk="routine"], [data-cfp-view]') : null;
     if (!b) return;
     e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation();
-    open(b.getAttribute('data-tk') === 'adv' ? 'adv' : 'assist');
+    var k = b.getAttribute('data-cfp-view') || ({ secretary: 'assist', adv: 'adv', pfn: 'feat', routine: 'routine' })[b.getAttribute('data-tk')];
+    open(k);
   }, true);
 })();
