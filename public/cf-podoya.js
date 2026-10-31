@@ -1,4 +1,6 @@
-/* coverfo 🍇 포도야 비서 · 🔌 고급기능 — public/cf-podoya.js (v300)
+/* coverfo 🍇 포도야 비서 · 🔌 고급기능 — public/cf-podoya.js (v301)
+   · v301: 🧩 포도야 기능 도구형 10칸 — 작명 · 운세 · 퀴즈생성 · 여행플래너 · AI 학습 · 발표자료 · AI가계부 · 냉장고요리 · AI 명함 (1번 1크레딧 · 가계부 적기는 무료)
+           🗣️ 말로 열기 → coverfo 🗣️ 소리 (같은 일: 말하면 앱·사이트를 열어 줌)
    · v300: 🧩 포도야 기능 대화형 4칸 (🤗 AI 컴패니언 · 🇺🇸 영어회화 · 👵 시니어 · 💼 사장님비서) 을 coverfo 대화 화면으로 — 답 1번 0.2크레딧 · 대화는 이 폰에만
    · v298: 2차 (업무 자동화 · 내 기억 · 상품 시작하기)
    · v299: 🧩 포도야 기능(격자) · 📁 저장루틴(= 커넥션 허브 2.0 레시피) 을 coverfo 안에서 · 소리 "○○ 루틴 실행해" → 레시피 (window.cfRoutineRun)
@@ -94,7 +96,7 @@
     return '<button type="button" class="p-row" data-a="' + a + '"><span class="ic">' + ic + '</span><span class="mid"><span class="nm">' + nm + '</span><span class="sub">' + sub + '</span></span>' + (tag ? '<span class="tag ' + (tagCls || '') + '">' + tag + '</span>' : '') + '<span style="color:#c9c3d8;font-size:18px">›</span></button>';
   }
   function render() {
-    $('cfp-title').textContent = S.view === 'talk' ? TALKS[S.persona].t : (TITLE[S.view] || '🍇 포도야 비서');
+    $('cfp-title').textContent = S.view === 'talk' ? TALKS[S.persona].t : S.view === 'tool' ? TU[S.tool].t : (TITLE[S.view] || '🍇 포도야 비서');
     $('cfp-foot').innerHTML = ''; try { speechSynthesis.cancel(); } catch (e) {}
     if (S.view !== 'talk') ov.classList.remove('big');
     ov.querySelector('[data-a="back"]').hidden = (S.view === S.home);
@@ -103,6 +105,7 @@
     if (S.view === 'adv') return advView(b);
     if (S.view === 'feat') return featView(b);
     if (S.view === 'talk') return talkView(b);
+    if (S.view === 'tool') return S.tool === 'ledger' ? ledgerView(b) : toolUI(b);
     if (S.view === 'routine') return routineView(b);
     if (S.view === 'notify') return notifyView(b);
     if (S.view === 'blocks') return blocksView(b);
@@ -474,15 +477,153 @@
     try { r.start(); } catch (e) { S.rec = null; btn.classList.remove('on'); }
   }
 
+
+  /* ══════════ v301 🧩 도구형 (지시문은 서버 functions/api/podoya.js · 1번 1크레딧) ══════════ */
+  var TU = {
+    naming: { t: '✍️ 작명', lead: '가게·아기·반려동물·채널 이름 후보를 6~8개 지어 드려요.', btn: '✨ 이름 짓기',
+      chips: [{ k: 'target', l: '무엇의 이름', o: ['가게/브랜드', '아기', '반려동물', '유튜브 채널', '닉네임'] }, { k: 'styles', l: '스타일 (여러 개 가능)', multi: 1, o: ['한글', '영어', '세련된', '귀여운', '고급스러운', '짧고 임팩트'] }],
+      fields: [{ k: 'kw', l: '키워드 · 분위기', ph: '예: 따뜻한 감성 카페, 동네 빵집' }] },
+    fortune: { t: '🔮 운세', lead: '사주 · 타로 · 꿈해몽을 <b>재미로</b> 봐요.', btn: '🔮 보기',
+      chips: [{ k: 'mode', l: '무엇을 볼까요', o: ['사주', '타로', '꿈해몽'] }],
+      fields: [{ k: 'q', area: 1, ph: function (f) { return ({ 사주: '생년월일과 태어난 시간 (예: 1990년 3월 5일 오전 8시경, 남)', 타로: '고민이나 궁금한 점 (예: 올해 이직운이 좋을까?)', 꿈해몽: '꾼 꿈을 적어 주세요 (예: 맑은 강에서 큰 물고기를 잡았어)' })[f.mode || '사주']; } }] },
+    quiz: { t: '❓ 퀴즈생성', lead: '주제나 공부한 내용을 넣으면 퀴즈와 정답·해설을 만들어 줘요.', btn: '❓ 퀴즈 만들기',
+      chips: [{ k: 'count', l: '문제 수', o: ['3', '5', '10'], d: '5' }, { k: 'type', l: '형식', o: ['객관식', 'OX', '주관식'] }, { k: 'level', l: '난이도', o: ['쉬움', '보통', '어려움'], d: '보통' }],
+      fields: [{ k: 'topic', area: 1, ph: '예: 한국사 조선시대 / 공부한 내용을 붙여 넣어도 돼요' }] },
+    travel: { t: '🧳 여행플래너', lead: '목적지와 기간을 고르면 날짜별 일정을 짜 드려요. <b>출장</b>을 고르면 경비 예상과 챙길 것까지.', btn: '🧳 일정 짜기',
+      chips: [{ k: 'mode', l: '종류', o: ['관광', '출장'] }, { k: 'days', l: '기간', o: ['당일치기', '1박2일', '2박3일', '3박4일', '4박5일 이상'], d: '2박3일' },
+        { k: 'styles', l: '여행 스타일 (여러 개 가능)', multi: 1, o: ['관광/명소', '맛집', '자연', '쇼핑', '힐링/휴양', '액티비티', '사진 명소'], when: function (f) { return f.mode !== '출장'; } }],
+      fields: [{ k: 'dest', l: '목적지', ph: '예: 제주도, 도쿄, 다낭' }, { k: 'purpose', l: '출장 목적', ph: '예: 거래처 미팅 2건, 전시회', when: function (f) { return f.mode === '출장'; } },
+        { k: 'budget', l: '예산', ph: '예: 200만원 / 1500 USD', when: function (f) { return f.mode === '출장'; } }] },
+    study: { t: '📚 AI 학습', lead: '모르는 문제를 적거나 <b>사진으로 찍어</b> 올리면 단계별로 풀이해 줘요.', btn: '📚 풀이 보기', photo: 1,
+      chips: [{ k: 'subject', l: '과목', o: ['수학', '영어', '과학', '국어/사회', '요약', '자유'] }], fields: [{ k: 'q', area: 1, ph: '예: 이차방정식 x²-5x+6=0 풀어줘 (사진만 올려도 돼요)' }] },
+    fridge: { t: '🍳 냉장고요리', lead: '가진 재료를 적거나 <b>냉장고 사진</b>을 올리면 만들 수 있는 요리를 추천해 줘요.', btn: '🍳 요리 추천받기', photo: 1,
+      chips: [{ k: 'type', l: '원하는 종류', o: ['아무거나', '한식', '양식', '중식', '일식', '간단요리'] }], fields: [{ k: 'ing', l: '가진 재료', ph: '예: 계란, 양파, 김치 (사진만 올려도 돼요)' }] },
+    card: { t: '📇 AI 명함', lead: '명함을 찍으면 이름·회사·전화·메일을 읽어 줘요. 저장한 명함은 <b>이 폰에만</b> 남고, 폰 연락처로도 저장할 수 있어요.', btn: '🤖 명함 읽기', photo: 2, chips: [], fields: [] },
+    ppt: { t: '📽️ 발표자료', lead: '주제를 넣으면 <b>장표 개요</b>(제목·핵심 문장·발표 메모)를 만들고 장표로 보여 줘요. PDF로 저장할 수 있어요.', btn: '📽️ 발표자료 만들기',
+      chips: [{ k: 'slides', l: '장 수', o: ['5', '8', '10'], d: '8' }], fields: [{ k: 'topic', area: 1, l: '주제 · 담을 내용', ph: '예: 우리 동네 빵집 신메뉴 소개 — 흑임자 라떼, 주말 할인, 단체 주문' }, { k: 'who', l: '듣는 사람 (선택)', ph: '예: 투자자 / 직원 / 손님' }] },
+    ledger: { t: '💰 AI가계부' }
+  };
+  function tf() { if (!S.tf) { S.tf = {}; (TU[S.tool].chips || []).forEach(function (c) { S.tf[c.k] = c.multi ? [] : (c.d || c.o[0]); }); } return S.tf; }
+  function toolUI(b) {
+    var U = TU[S.tool], f = tf(), h = '<div class="p-lead">' + U.lead + '<br>💳 1번 1크레딧</div><div class="p-card">';
+    (U.chips || []).forEach(function (c) {
+      if (c.when && !c.when(f)) return;
+      h += '<div class="p-lb">' + c.l + '</div><div class="p-chips">' + c.o.map(function (o) { var on = c.multi ? f[c.k].indexOf(o) >= 0 : f[c.k] === o; return '<button type="button" data-a="tchip" data-k="' + c.k + '" data-v="' + esc(o) + '" class="' + (on ? 'on' : '') + '">' + esc(o) + (c.k === 'count' || c.k === 'slides' ? (c.k === 'slides' ? '장' : '문제') : '') + '</button>'; }).join('') + '</div>';
+    });
+    (U.fields || []).forEach(function (x) {
+      if (x.when && !x.when(f)) return;
+      var ph = typeof x.ph === 'function' ? x.ph(f) : x.ph;
+      h += (x.l ? '<div class="p-lb">' + x.l + '</div>' : '<div style="height:10px"></div>') + (x.area ? '<textarea class="p-in" data-tf="' + x.k + '" placeholder="' + esc(ph) + '">' + esc(f[x.k] || '') + '</textarea>' : '<input class="p-in" data-tf="' + x.k + '" placeholder="' + esc(ph) + '" value="' + esc(f[x.k] || '') + '">');
+    });
+    if (U.photo) h += '<div class="p-lb">' + (U.photo === 2 ? '명함 사진' : '사진 <span style="font-weight:600;color:#9a93ad">(선택)</span>') + '</div><label style="display:block;border:1.5px dashed #d6cfe8;border-radius:12px;padding:12px;text-align:center;cursor:pointer;font-size:13.5px;color:#6b6385"><input type="file" id="cfp-photo" accept="image/*" style="display:none"><span id="cfp-photo-l">' + (f._img ? '🖼️ 사진 준비됨 · 바꾸려면 누르기' : '📷 눌러서 찍거나 고르기') + '</span></label>' + (f._img ? '<img src="' + f._img + '" alt="" style="display:block;max-width:100%;max-height:220px;margin:8px auto 0;border-radius:10px">' : '');
+    h += '<button type="button" class="p-btn" data-a="trun">' + U.btn + ' · 1크레딧</button><div class="p-out" id="cfp-out"></div></div>';
+    if (S.tool === 'card') h += '<div class="p-sec">저장한 명함</div><div id="cfp-cards"></div>';
+    b.innerHTML = h;
+    if (S.tool === 'card') cardList();
+    if (S.last) toolShow(S.last);
+  }
+  function tfCollect() { var f = tf(); Array.prototype.forEach.call(ov.querySelectorAll('[data-tf]'), function (x) { f[x.getAttribute('data-tf')] = x.value.trim(); }); return f; }
+  /* 사진은 폰에서 긴 변 1280px JPEG 로 줄여서 보낸다 */
+  function shrink(file, cb) {
+    var rd = new FileReader();
+    rd.onload = function () {
+      var im = new Image();
+      im.onload = function () { var m = 1280, w = im.width, hh = im.height, r = Math.min(1, m / Math.max(w, hh)); var c = document.createElement('canvas'); c.width = Math.round(w * r); c.height = Math.round(hh * r); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); cb(c.toDataURL('image/jpeg', 0.85)); };
+      im.onerror = function () { cb(''); }; im.src = rd.result;
+    };
+    rd.readAsDataURL(file);
+  }
+  function toolRun(btn) {
+    if (S.busy) return;
+    var f = tfCollect(), U = TU[S.tool], body = { op: 'tool', kind: S.tool };
+    Object.keys(f).forEach(function (k) { if (k !== '_img') body[k] = f[k]; });
+    if (f.mode && S.tool === 'travel') body.mode = f.mode === '출장' ? 'biz' : 'tour';
+    if (U.photo && f._img) body.img = f._img;
+    if (U.photo === 2 && !f._img) return say('명함 사진을 올려 주세요');
+    S.busy = true; btn.disabled = true; $('cfp-out').innerHTML = '<div class="p-wait">⏳ ' + (body.img ? '사진을 읽는 중…' : '만드는 중…') + '</div>';
+    api(body).then(function (j) { S.busy = false; btn.disabled = false; S.last = j; toolShow(j); }, function (e) { S.busy = false; btn.disabled = false; $('cfp-out').innerHTML = errBox(e); });
+  }
+  function toolShow(j) {
+    var o = $('cfp-out'); if (!o) return; var paid = '<div class="p-mut" style="margin-top:8px">💳 ' + j.cost + '크레딧 사용</div>';
+    if (j.card) { o.innerHTML = cardForm(j.card) + paid; return; }
+    if (j.deck) { o.innerHTML = deckHtml(j.deck) + '<div class="p-two"><button type="button" class="p-btn" data-a="pprint">📄 PDF로 저장</button><button type="button" class="p-btn g" data-a="copy" data-k="outline" style="margin-top:10px">📋 개요 복사</button></div><div id="cfp-msg"></div><div class="p-mut" style="margin-top:8px">PDF로 저장을 누르면 인쇄 화면이 떠요 → 프린터를 <b>"PDF로 저장"</b>으로 바꾸면 한 장에 한 장표씩 파일이 만들어져요.</div>' + paid; return; }
+    o.innerHTML = '<div class="p-res">' + esc(j.text) + '</div>' + tools('text') + paid;
+  }
+  /* 📽️ 장표 */
+  function deckOutline(d) { return d.title + (d.subtitle ? '\n' + d.subtitle : '') + '\n\n' + d.slides.map(function (s, i) { return (i + 1) + '. ' + s.title + '\n' + s.bullets.map(function (x) { return '  - ' + x; }).join('\n') + (s.note ? '\n  (메모) ' + s.note : ''); }).join('\n\n'); }
+  function slideHtml(inner, big) { return '<div style="aspect-ratio:16/9;background:#fff;border:1px solid #e6e1f2;border-radius:10px;padding:5% 6%;box-sizing:border-box;display:flex;flex-direction:column;justify-content:' + (big ? 'center' : 'flex-start') + ';margin-bottom:10px;overflow:hidden">' + inner + '</div>'; }
+  function deckSlides(d) {
+    return slideHtml('<div style="font-size:clamp(18px,5vw,34px);font-weight:900;color:#2e1065;line-height:1.3">' + esc(d.title) + '</div>' + (d.subtitle ? '<div style="margin-top:8px;font-size:clamp(12px,3vw,18px);color:#6b6385">' + esc(d.subtitle) + '</div>' : '') + '<div style="width:56px;height:5px;background:#6d28d9;border-radius:3px;margin-top:14px"></div>', true) +
+      d.slides.map(function (s, i) { return slideHtml('<div style="font-size:clamp(11px,2.4vw,14px);color:#9a93ad;font-weight:800">' + (i + 1) + ' / ' + d.slides.length + '</div><div style="font-size:clamp(15px,4vw,26px);font-weight:900;color:#2e1065;margin:4px 0 10px;line-height:1.3">' + esc(s.title) + '</div><ul style="margin:0;padding-left:1.2em;font-size:clamp(12px,3.1vw,19px);line-height:1.55;color:#1c1830">' + s.bullets.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>'); }).join('');
+  }
+  function deckHtml(d) { return deckSlides(d) + '<details style="margin-top:4px"><summary>🗒️ 발표 메모 보기</summary><div class="p-mut" style="white-space:pre-wrap;margin-top:6px">' + d.slides.map(function (s, i) { return (i + 1) + '. ' + esc(s.title) + '\n' + esc(s.note || ''); }).join('\n\n') + '</div></details>'; }
+  function deckPrint(d) {
+    var html = '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(d.title) + '</title><style>@page{size:A4 landscape;margin:0}body{margin:0;font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}.pg{width:297mm;height:210mm;box-sizing:border-box;padding:18mm 22mm;page-break-after:always;display:flex;flex-direction:column}.pg h1{font-size:40px;color:#2e1065;margin:auto 0 0}.pg h2{font-size:30px;color:#2e1065;margin:6px 0 18px}.pg li{font-size:22px;line-height:1.6}.pg .n{color:#9a93ad;font-weight:800;font-size:16px}</style></head><body>' +
+      '<div class="pg"><h1>' + esc(d.title) + '</h1><p style="font-size:22px;color:#6b6385;margin:12px 0 auto">' + esc(d.subtitle || '') + '</p></div>' +
+      d.slides.map(function (s, i) { return '<div class="pg"><div class="n">' + (i + 1) + ' / ' + d.slides.length + '</div><h2>' + esc(s.title) + '</h2><ul>' + s.bullets.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>'; }).join('') + '</body></html>';
+    var fr = document.createElement('iframe'); fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.appendChild(fr);
+    var w = fr.contentWindow; w.document.open(); w.document.write(html); w.document.close();
+    setTimeout(function () { try { w.focus(); w.print(); } catch (e) {} setTimeout(function () { fr.remove(); }, 60000); }, 300);
+  }
+  /* 📇 명함 (이 폰에만) */
+  var CARD_F = [['name', '이름'], ['company', '회사'], ['title', '직책'], ['phone', '전화'], ['email', '이메일'], ['address', '주소'], ['website', '웹사이트'], ['memo', '메모']];
+  function cards() { try { var a = JSON.parse(ls.get('cfp_cards', '[]')); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  function cardForm(c) {
+    return '<div class="p-res" style="white-space:normal">' + CARD_F.map(function (f) { return '<div class="p-lb">' + f[1] + '</div><input class="p-in" data-cf="' + f[0] + '" value="' + esc(c[f[0]] || '') + '">'; }).join('') +
+      '<button type="button" class="p-btn" data-a="csave">💾 명함 저장 (이 폰)</button><button type="button" class="p-btn g" data-a="cvcf">📱 폰 연락처로 저장 (.vcf)</button></div><div id="cfp-msg"></div>';
+  }
+  function cardFromForm() { var c = {}; Array.prototype.forEach.call(ov.querySelectorAll('[data-cf]'), function (x) { c[x.getAttribute('data-cf')] = x.value.trim(); }); return c; }
+  function vcf(c) {
+    var e = function (v) { return String(v || '').replace(/([,;\\])/g, '\\$1').replace(/\n/g, '\\n'); };
+    var t = 'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:' + e(c.name) + '\r\nN:' + e(c.name) + ';;;;\r\n' + (c.company ? 'ORG:' + e(c.company) + '\r\n' : '') + (c.title ? 'TITLE:' + e(c.title) + '\r\n' : '') + (c.phone ? 'TEL;TYPE=CELL:' + e(c.phone) + '\r\n' : '') + (c.email ? 'EMAIL:' + e(c.email) + '\r\n' : '') + (c.address ? 'ADR:;;' + e(c.address) + ';;;;\r\n' : '') + (c.website ? 'URL:' + e(c.website) + '\r\n' : '') + (c.memo ? 'NOTE:' + e(c.memo) + '\r\n' : '') + 'END:VCARD\r\n';
+    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([t], { type: 'text/vcard' })); a.download = (c.name || 'contact') + '.vcf'; document.body.appendChild(a); a.click(); setTimeout(function () { a.remove(); }, 1000);
+  }
+  function cardList() {
+    var box = $('cfp-cards'); if (!box) return; var l = cards();
+    box.innerHTML = l.length ? '<div class="p-list">' + l.map(function (c, i) {
+      var tel = String(c.phone || '').replace(/[^0-9+]/g, '');
+      return '<div class="p-row" style="cursor:default;flex-wrap:wrap"><span class="ic">📇</span><span class="mid"><span class="nm">' + esc(c.name || '(이름 없음)') + '</span><span class="sub">' + esc([c.company, c.title].filter(Boolean).join(' · ')) + (c.phone ? '<br>' + esc(c.phone) : '') + (c.email ? '<br>' + esc(c.email) : '') + '</span></span>' +
+        '<span style="display:flex;gap:5px;flex-wrap:wrap">' + (tel ? '<a class="p-btn g" href="tel:' + esc(tel) + '" style="width:auto;margin:0;padding:7px 9px;font-size:12px;text-decoration:none">📞</a><a class="p-btn g" href="sms:' + esc(tel) + '" style="width:auto;margin:0;padding:7px 9px;font-size:12px;text-decoration:none">💬</a>' : '') +
+        (c.email ? '<a class="p-btn g" href="mailto:' + esc(c.email) + '" style="width:auto;margin:0;padding:7px 9px;font-size:12px;text-decoration:none">✉️</a>' : '') + '<button type="button" class="p-btn g" data-a="cvcfi" data-i="' + i + '" style="width:auto;margin:0;padding:7px 9px;font-size:12px">📱</button><button type="button" class="p-btn g" data-a="cdel" data-i="' + i + '" style="width:auto;margin:0;padding:7px 9px;font-size:12px">🗑</button></span></div>';
+    }).join('') + '</div>' : '<div class="p-mut" style="margin:0 4px">아직 저장한 명함이 없어요.</div>';
+  }
+
+  /* 💰 AI가계부 — 적기·보기는 무료(이 폰에만) · 영수증 읽기 1 · 이번 달 분석 1 */
+  var LED_H = ['식비', '카페', '교통', '쇼핑', '생활', '의료', '기타'], LED_B = ['접대비', '차량유지', '통신비', '소모품', '광고선전', '지급수수료', '복리후생', '여비교통', '임차료', '기타'];
+  function led() { try { var a = JSON.parse(ls.get('cfp_ledger', '[]')); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  function ledSave(a) { ls.set('cfp_ledger', JSON.stringify(a.slice(0, 3000))); }
+  function ledBiz() { return ls.get('cfp_ledger_mode', 'home') === 'biz'; }
+  function ymNow() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2); }
+  function dayNow() { var d = new Date(); return ymNow() + '-' + ('0' + d.getDate()).slice(-2); }
+  function ledgerView(b) {
+    var biz = ledBiz(), cats = biz ? LED_B : LED_H; S.lcat = cats.indexOf(S.lcat) >= 0 ? S.lcat : cats[0];
+    var ym = ymNow(), mon = led().filter(function (e) { return (e.date || '').indexOf(ym) === 0 && !!e.biz === biz; }), tot = 0, by = {};
+    mon.forEach(function (e) { tot += e.amount; by[e.cat] = (by[e.cat] || 0) + e.amount; });
+    b.innerHTML = '<div class="p-lead">돈 쓴 걸 적어 두면 이번 달 합계와 항목별로 보여 줘요. <b>적기·보기는 무료</b>이고 기록은 <b>이 폰에만</b> 남아요.<br>💳 📷 영수증 읽기 1크레딧 · 🤖 이번 달 분석 1크레딧</div>' +
+      '<div class="p-chips" style="margin-bottom:10px"><button type="button" data-a="lmode" data-v="home" class="' + (biz ? '' : 'on') + '">🏠 생활</button><button type="button" data-a="lmode" data-v="biz" class="' + (biz ? 'on' : '') + '">💼 사업 경비</button></div>' +
+      '<div class="p-card"><div class="p-lb">금액 (원)</div><input class="p-in" id="cfp-lamt" inputmode="numeric" placeholder="예: 12000" value="' + esc(S.lpre && S.lpre.amount || '') + '">' +
+      '<div class="p-lb">' + (biz ? '경비 항목' : '분류') + '</div><div class="p-chips">' + cats.map(function (c) { return '<button type="button" data-a="lcat" data-v="' + c + '" class="' + (S.lcat === c ? 'on' : '') + '">' + c + '</button>'; }).join('') + '</div>' +
+      '<div class="p-lb">메모 · 상호</div><input class="p-in" id="cfp-lmemo" placeholder="예: 점심 김밥" value="' + esc(S.lpre && S.lpre.store || '') + '"><div class="p-lb">날짜</div><input class="p-in" id="cfp-ldate" type="date" value="' + dayNow() + '">' +
+      (S.lpre && S.lpre.ded ? '<div class="p-mut" style="margin-top:6px">💼 경비 처리: <b>' + esc(S.lpre.ded) + '</b> ' + esc(S.lpre.why || '') + ' (참고용)</div>' : '') +
+      '<div class="p-two"><button type="button" class="p-btn" data-a="ladd">＋ 적기 (무료)</button><label class="p-btn g" style="margin-top:10px;text-align:center;cursor:pointer">📷 영수증 읽기 · 1<input type="file" id="cfp-receipt" accept="image/*" style="display:none"></label></div><div id="cfp-out"></div></div>' +
+      '<div class="p-card"><div style="display:flex;justify-content:space-between;align-items:baseline"><b>' + ym.replace('-', '년 ') + '월 ' + (biz ? '경비' : '지출') + '</b><b style="font-size:20px">' + won(tot) + '원</b></div>' +
+      (Object.keys(by).length ? '<div style="margin-top:8px">' + Object.keys(by).sort(function (a, c) { return by[c] - by[a]; }).map(function (c) { var pc = tot ? Math.round(by[c] * 100 / tot) : 0; return '<div style="font-size:13px;margin:5px 0">' + esc(c) + ' <b>' + won(by[c]) + '원</b> <span class="p-mut">' + pc + '%</span><div style="height:6px;background:#f1eef7;border-radius:3px"><div style="height:6px;width:' + pc + '%;background:#6d28d9;border-radius:3px"></div></div></div>'; }).join('') + '</div>' : '<div class="p-mut" style="margin-top:6px">이번 달 기록이 없어요.</div>') +
+      (mon.length ? '<button type="button" class="p-btn g" data-a="lai">🤖 이번 달 ' + (biz ? '경비' : '지출') + ' 분석 · 1크레딧</button><div id="cfp-lai"></div>' : '') + '</div>' +
+      '<div class="p-sec">기록 (' + mon.length + '건)</div><div class="p-list">' + (mon.length ? mon.slice().sort(function (a, c) { return (c.date + c.ts) > (a.date + a.ts) ? 1 : -1; }).map(function (e) {
+        return '<div class="p-row" style="cursor:default"><span class="mid"><span class="nm">' + won(e.amount) + '원 <span class="tag">' + esc(e.cat) + '</span>' + (e.ded ? ' <span class="tag o">' + esc(e.ded) + '</span>' : '') + '</span><span class="sub">' + esc(e.date) + (e.memo ? ' · ' + esc(e.memo) : '') + '</span></span><button type="button" class="p-btn g" data-a="ldel" data-ts="' + e.ts + '" style="width:auto;margin:0;padding:7px 10px;font-size:12px">🗑</button></div>';
+      }).join('') : '<div class="p-row" style="cursor:default"><span class="p-mut">아직 없어요</span></div>') + '</div>' +
+      (biz ? '<div class="p-mut" style="margin:10px 4px">⚠️ 경비·공제 판단은 참고용이에요. 실제 처리는 세무사나 홈택스에서 꼭 확인하세요.</div>' : '');
+  }
+
   /* ══════════ v299 🧩 포도야 기능 (격자) ══════════
      go: coverfo 안 화면(view) · url: coverfo 주소 · ext: 새 창 · pt: 아직 옮기지 않은 것 → 포도톡 화면(아래 탭 없이) · soon: 아직 없음 */
   var FEATS = [
-    ['🏠', '집안 기기', { pt: 'home' }], ['📊', '매일 리포트', { pt: 'report' }], ['📄', '문서 만들기', { go: 'doc' }], ['📽️', '발표자료', { soon: 1 }],
+    ['🏠', '집안 기기', { pt: 'home' }], ['📊', '매일 리포트', { pt: 'report' }], ['📄', '문서 만들기', { go: 'doc' }], ['📽️', '발표자료', { tool: 'ppt' }],
     ['🌍', '해외 응대', { go: 'intl' }], ['🎨', '상품 시작하기', { go: 'launch' }], ['📰', '예약브리핑', { url: '/brief' }], ['✈️', '텔레그램', { pt: 'f_tgfeat' }],
-    ['🤗', 'AI 컴패니언', { talk: 'companion' }], ['👵', '시니어', { talk: 'senior' }], ['🗣️', '말로 열기', { pt: 'f_voiceact' }], ['🔎', 'AI 리서치', { go: 'research' }],
-    ['⚙️', 'AI 자동화', { go: 'work' }], ['📚', 'AI 학습', { pt: 'f_study' }], ['📇', 'AI 명함', { pt: 'f_cardscan' }], ['💼', '사장님비서', { talk: 'biz' }],
-    ['💰', 'AI가계부', { pt: 'f_ledger' }], ['🇺🇸', '영어회화', { talk: 'english' }], ['🧳', '여행플래너', { pt: 'f_travel' }], ['🍳', '냉장고요리', { pt: 'f_fridge' }],
-    ['✍️', '작명', { pt: 'f_naming' }], ['🔮', '운세', { pt: 'f_fortune' }], ['❓', '퀴즈생성', { pt: 'f_quiz' }], ['📷', '사물인식', { ext: '/lens-snap/' }],
+    ['🤗', 'AI 컴패니언', { talk: 'companion' }], ['👵', '시니어', { talk: 'senior' }], ['🗣️', '말로 열기', { live: 1 }], ['🔎', 'AI 리서치', { go: 'research' }],
+    ['⚙️', 'AI 자동화', { go: 'work' }], ['📚', 'AI 학습', { tool: 'study' }], ['📇', 'AI 명함', { tool: 'card' }], ['💼', '사장님비서', { talk: 'biz' }],
+    ['💰', 'AI가계부', { tool: 'ledger' }], ['🇺🇸', '영어회화', { talk: 'english' }], ['🧳', '여행플래너', { tool: 'travel' }], ['🍳', '냉장고요리', { tool: 'fridge' }],
+    ['✍️', '작명', { tool: 'naming' }], ['🔮', '운세', { tool: 'fortune' }], ['❓', '퀴즈생성', { tool: 'quiz' }], ['📷', '사물인식', { ext: '/lens-snap/' }],
     ['🔤', '글자인식', { ext: '/lens-snap/' }], ['🧪', '성분스캐너', { ext: '/lens-snap/' }], ['🖼️', '이미지 생성', { url: '/studio' }], ['📝', 'AI 글쓰기', { home: 1 }],
     ['🎬', 'AI 릴', { url: '/studio' }], ['🍇', '포도다', { ext: 'https://pododa.kr/' }]
   ];
@@ -500,6 +641,8 @@
     if (o.ext) { window.open(o.ext, '_blank', 'noopener'); return; }
     if (o.home) return toHome('입력칸에 쓸 글을 적고 「무엇이든 물어보기」를 누르세요 (예: 신상품 소개 글 써줘)');
     if (o.talk) { S.persona = o.talk; S.view = 'talk'; return render(); }
+    if (o.tool) { S.tool = o.tool; S.tf = null; S.view = 'tool'; S.last = null; return render(); }
+    if (o.live) { close(); setTimeout(function () { var lb = document.getElementById('cf-live-btn'); if (lb) lb.click(); }, 250); return; }
     if (o.pt) return toPodotalk(o.pt);
     alert('발표자료는 다음 단계에서 coverfo 로 새로 만들어요.');
   }
@@ -662,7 +805,17 @@
   }
 
   /* ── 누르기 ── */
-  ov.addEventListener('change', function (e) { if (e.target && e.target.id === 'cfp-file') pickFile(e.target); });
+  ov.addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'cfp-file') pickFile(e.target);
+    if (e.target && e.target.id === 'cfp-photo' && e.target.files && e.target.files[0]) { tfCollect(); $('cfp-photo-l').textContent = '⏳ 사진 준비 중…'; shrink(e.target.files[0], function (d) { tf()._img = d; toolUI($('cfp-body')); }); }
+    if (e.target && e.target.id === 'cfp-receipt' && e.target.files && e.target.files[0]) {
+      var o = $('cfp-out'); o.innerHTML = '<div class="p-wait">⏳ 영수증 읽는 중…</div>';
+      shrink(e.target.files[0], function (d) {
+        if (!d) { o.innerHTML = '<div class="p-err">사진을 읽지 못했어요</div>'; return; }
+        api({ op: 'tool', kind: 'receipt', img: d, biz: ledBiz() }).then(function (j) { S.lpre = j; S.lcat = j.cat; ledgerView($('cfp-body')); $('cfp-out').innerHTML = '<div class="p-ok">📷 읽었어요 · 확인하고 <b>＋ 적기</b>를 누르세요 (💳 ' + j.cost + '크레딧)</div>'; }, function (er) { o.innerHTML = errBox(er); });
+      });
+    }
+  });
   ov.addEventListener('keydown', function (e) { if (e.target && e.target.id === 'cfp-tin' && e.key === 'Enter' && !e.shiftKey && !e.isComposing && S.persona !== 'biz') { e.preventDefault(); tSend(); } });
   ov.addEventListener('click', function (e) {
     var el = e.target.closest ? e.target.closest('[data-a]') : null; if (!el) return;
@@ -690,6 +843,27 @@
     if (a === 'medel') { var m2 = meCollect(); m2.facts = (m2.facts || []).filter(function (x, i) { return String(i) !== el.getAttribute('data-i'); }); return meSave(m2, '지웠어요'); }
     if (a === 'meclear') { if (!confirm('기억을 전부 지울까요? 되돌릴 수 없어요.')) return; return meSave({}, '모두 지웠어요'); }
     if (a === 'feat') return featGo(+el.getAttribute('data-i'));
+    if (a === 'tchip') { var f0 = tfCollect(), ck = el.getAttribute('data-k'), cv = el.getAttribute('data-v'), cdef = (TU[S.tool].chips || []).filter(function (c) { return c.k === ck; })[0]; if (cdef && cdef.multi) { var ix = f0[ck].indexOf(cv); if (ix >= 0) f0[ck].splice(ix, 1); else f0[ck].push(cv); } else f0[ck] = cv; return toolUI($('cfp-body')); }
+    if (a === 'trun') return toolRun(el);
+    if (a === 'pprint') { if (S.last && S.last.deck) deckPrint(S.last.deck); return; }
+    if (a === 'csave') { var cc = cardFromForm(); if (!cc.name && !cc.phone) { $('cfp-msg').innerHTML = '<div class="p-err">이름이나 전화번호를 넣어 주세요</div>'; return; } var cl = cards(); cc.t = Date.now(); cl.unshift(cc); ls.set('cfp_cards', JSON.stringify(cl.slice(0, 300))); $('cfp-msg').innerHTML = '<div class="p-ok">📇 저장했어요 (이 폰)</div>'; return cardList(); }
+    if (a === 'cvcf') return vcf(cardFromForm());
+    if (a === 'cvcfi') { var c1 = cards()[+el.getAttribute('data-i')]; if (c1) vcf(c1); return; }
+    if (a === 'cdel') { if (!confirm('이 명함을 지울까요?')) return; var c2 = cards(); c2.splice(+el.getAttribute('data-i'), 1); ls.set('cfp_cards', JSON.stringify(c2)); return cardList(); }
+    if (a === 'lmode') { ls.set('cfp_ledger_mode', el.getAttribute('data-v')); S.lpre = null; return ledgerView($('cfp-body')); }
+    if (a === 'lcat') { S.lcat = el.getAttribute('data-v'); Array.prototype.forEach.call(el.parentNode.children, function (x) { x.classList.toggle('on', x === el); }); return; }
+    if (a === 'ladd') {
+      var amt = parseInt(String($('cfp-lamt').value || '').replace(/[^0-9]/g, ''), 10) || 0; if (!amt) { $('cfp-out').innerHTML = '<div class="p-err">금액을 넣어 주세요</div>'; return; }
+      var la = led(); la.push({ ts: Date.now(), date: $('cfp-ldate').value || dayNow(), amount: amt, cat: S.lcat, memo: $('cfp-lmemo').value.trim().slice(0, 60), biz: ledBiz(), ded: S.lpre && S.lpre.ded || '', why: S.lpre && S.lpre.why || '' }); ledSave(la); S.lpre = null; return ledgerView($('cfp-body'));
+    }
+    if (a === 'ldel') { if (!confirm('이 기록을 지울까요?')) return; ledSave(led().filter(function (x) { return String(x.ts) !== el.getAttribute('data-ts'); })); return ledgerView($('cfp-body')); }
+    if (a === 'lai') {
+      var biz2 = ledBiz(), ym2 = ymNow(), mm = led().filter(function (e) { return (e.date || '').indexOf(ym2) === 0 && !!e.biz === biz2; }), by2 = {}, tt = 0, dd = {};
+      mm.forEach(function (e) { by2[e.cat] = (by2[e.cat] || 0) + e.amount; tt += e.amount; if (e.ded) dd[e.ded] = (dd[e.ded] || 0) + 1; });
+      var sum = '이번 달 총 ' + (biz2 ? '경비' : '지출') + ': ' + tt + '원\n' + (biz2 ? '경비 항목별: ' : '카테고리별: ') + Object.keys(by2).map(function (c) { return c + ' ' + by2[c] + '원'; }).join(', ') + '\n건수: ' + mm.length + '건' + (Object.keys(dd).length ? '\n공제 판정: ' + Object.keys(dd).map(function (k) { return k + ' ' + dd[k] + '건'; }).join(', ') : '');
+      el.disabled = true; $('cfp-lai').innerHTML = '<div class="p-wait">⏳ 분석 중…</div>';
+      return api({ op: 'tool', kind: 'ledger', summary: sum, biz: biz2 }).then(function (j) { el.disabled = false; S.last = j; $('cfp-lai').innerHTML = '<div class="p-res" style="margin-top:8px">' + esc(j.text) + '</div><div class="p-mut" style="margin-top:6px">💳 ' + j.cost + '크레딧 사용</div>'; }, function (e2) { el.disabled = false; $('cfp-lai').innerHTML = errBox(e2); });
+    }
     if (a === 'tsend') return tSend();
     if (a === 'tmic') return tMic(el);
     if (a === 'tread') { var on = !tRead(); ls.set('cfp_read_' + S.persona, on ? '1' : '0'); el.textContent = on ? '🔊 읽어주기 켬' : '🔇 읽어주기 끔'; if (!on) { try { speechSynthesis.cancel(); } catch (x) {} } return; }
@@ -713,7 +887,7 @@
     if (a === 'go-blocks') { S.home = 'blocks'; S.view = 'blocks'; return render(); }
     if (a === 'ctab') { S.callTab = el.getAttribute('data-v'); return callsView($('cfp-body')); }
     if (a === 'copy' || a === 'share') {
-      var j = S.last || {}, k = el.getAttribute('data-k'), t = k === 'doc' ? docText(j) : k === 'prod' ? prodText(j) : k === 'insta' ? String(j.insta || '') + '\n\n' + (j.hash || []).map(function (x) { return '#' + x; }).join(' ') : String(j[k] || '');
+      var j = S.last || {}, k = el.getAttribute('data-k'), t = k === 'outline' ? deckOutline(j.deck) : k === 'doc' ? docText(j) : k === 'prod' ? prodText(j) : k === 'insta' ? String(j.insta || '') + '\n\n' + (j.hash || []).map(function (x) { return '#' + x; }).join(' ') : String(j[k] || '');
       if (j.sources && j.sources.length && (k === 'answer' || k === 'report')) t += '\n\n' + j.sources.map(function (s, i) { return '[' + (i + 1) + '] ' + s.url; }).join('\n');
       return a === 'copy' ? copy(t, $('cfp-msg')) : share(t, TITLE[S.view], $('cfp-msg'));
     }

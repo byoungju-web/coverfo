@@ -1,4 +1,4 @@
-// functions/api/podoya.js — coverfo 🍇 포도야 비서 · 🔌 고급기능 (v298 · 1차 + 2차 · v300 대화형 4칸) · 포도톡을 거치지 않고 coverfo 안에서 돈다
+// functions/api/podoya.js — coverfo 🍇 포도야 비서 · 🔌 고급기능 (v298 · 1차 + 2차 · v300 대화형 4칸 · v301 도구형) · 포도톡을 거치지 않고 coverfo 안에서 돈다
 // © 2026 coverfo All Rights Reserved
 //
 // POST /api/podoya  (Authorization: Bearer coverfo 로그인키) — 모두 coverfo 지갑에서 차감
@@ -16,6 +16,10 @@
 //   ── v300 · 🧩 포도야 기능 대화형 4칸 ──
 //   { op:'talk', persona, msgs:[{role,content}…], task, tone }   🤗 AI 컴패니언 · 🇺🇸 영어회화 · 👵 시니어 · 💼 사장님비서 — 답 1번 0.2크레딧
 //        0.2 는 통역톡과 같은 0.1 묶음(cf_tr_pack · sql/cf_trans.sql)에서 꺼낸다. 답을 못 만들면 묶음으로 돌려준다. 대화는 서버에 남기지 않는다(폰에만).
+//   ── v301 · 🧩 포도야 기능 도구형 ── { op:'tool', kind, … } 1번 1크레딧 (실패하면 돌려줌)
+//   kind: naming(target,styles,kw) · fortune(mode,q) · quiz(count,type,level,topic) · travel(mode,dest,days,styles,budget,purpose)
+//         study(subject,q,img?) · fridge(type,ing,img?) · card(img) · receipt(img,biz) · ledger(summary,biz) · ppt(topic,slides,who)
+//   img = 폰에서 줄인 JPEG data URL (3MB 이하). 사진·결과는 서버에 저장하지 않는다. 가계부·명함 목록은 폰에만.
 //   { op:'me_get' } · { op:'me_save', data }   🧠 내 기억 읽기·저장 (무료 · sql/cf_me.sql) — 해외 응대·문서·상품 기획 답에 반영
 //
 // · 크레딧: 기존 차감 함수 cf_spend 로 먼저 빼고, 실패하면 cf_refund 로 돌려준다 (hub.js 와 같은 방식).
@@ -24,8 +28,8 @@
 // · 검색: BRAVE_API_KEY (coverfo 에 이미 있는 키). 새 키는 필요 없다.
 // · 저장하지 않는다: 넣은 글·결과는 서버에 남기지 않고 바로 돌려준다 (크레딧 기록에 기능 이름과 앞부분 40자만 남음).
 
-const COST = { intl: 1, doc: 1, scrape: 1, search: 1, yt: 2, research: 3, work: 2, launch: 1, img: 2 };
-const NAME = { intl: '해외 응대', doc: '문서 만들기', scrape: '웹 스크래핑', search: '시맨틱 검색', yt: '유튜브→블로그', research: '리서치', work: '업무 자동화', launch: '상품 시작하기', img: '상품 디자인' };
+const COST = { intl: 1, doc: 1, scrape: 1, search: 1, yt: 2, research: 3, work: 2, launch: 1, img: 2, tool: 1 };
+const NAME = { intl: '해외 응대', doc: '문서 만들기', scrape: '웹 스크래핑', search: '시맨틱 검색', yt: '유튜브→블로그', research: '리서치', work: '업무 자동화', launch: '상품 시작하기', img: '상품 디자인', tool: '도구' };
 const MAX_IN = 8000;
 
 export async function onRequestPost(context) {
@@ -57,7 +61,7 @@ export async function onRequestPost(context) {
   try { input = check(op, b); } catch (e) { return json({ error: e.message }, e.status || 400); }
   if ((op === 'search' || op === 'research') && !env.BRAVE_API_KEY) return json({ error: '검색 설정(BRAVE_API_KEY)이 없어요' }, 500);
 
-  if (op === 'intl' || op === 'doc' || op === 'launch') input.me = meCtx(await meGet(c, user.id).catch(() => null));
+  if (op === 'intl' || op === 'doc' || op === 'launch' || (op === 'tool' && input.useMe)) input.me = meCtx(await meGet(c, user.id).catch(() => null));
 
   /* 업무 자동화 '고쳐 주기': 처음 실행 때 받은 표가 맞으면 크레딧을 다시 빼지 않는다 */
   let free = false;
@@ -68,7 +72,7 @@ export async function onRequestPost(context) {
   const cost = free ? 0 : costs(env)[op];
   let job = null;
   if (!free) {
-    try { job = await spend(env, user.id, cost, '[포도야 ' + NAME[op] + '] ' + String(input.label || '').slice(0, 40)); }
+    try { job = await spend(env, user.id, cost, '[포도야 ' + (input.name || NAME[op]) + '] ' + String(input.label || '').slice(0, 40)); }
     catch (e) { return json({ error: String((e && e.message) || e) }, 500); }
     if (job === false) return json({ error: '크레딧이 부족합니다 (' + NAME[op] + ' ' + cost + '크레딧)', need: cost }, 402);
   }
@@ -102,6 +106,7 @@ function check(op, b) {
   }
   if (op === 'launch') { const q = txt(b.q, 1000); if (!q) throw httpErr(400, '뭘 팔고 싶은지 적어 주세요'); return { q, label: q }; }
   if (op === 'img') { const pr = txt(b.prompt, 800); if (pr.length < 3) throw httpErr(400, '그릴 내용이 없어요'); return { prompt: pr, label: pr }; }
+  if (op === 'tool') return toolCheck(b);
   if (op === 'yt') {
     const id = ytId(b.url); const tr = txt(b.transcript, 30000);
     if (!id && !tr) throw httpErr(400, '유튜브 주소를 넣어 주세요');
@@ -208,6 +213,8 @@ const RUN = {
       insta: str(d.insta, 1500), imgs: (Array.isArray(d.imgs) ? d.imgs : []).slice(0, 3).map((p) => str(p, 600)),
     };
   },
+  /* v301 🧩 도구형 */
+  async tool(env, x) { return TOOLS[x.kind].run(env, x); },
   /* 🎨 상품 디자인 1장 — 저장하지 않고 그림을 그대로 돌려준다 (폰에서 길게 눌러 저장) */
   async img(env, x) {
     if (!env.OPENAI_API_KEY) throw new Error('이미지 설정(OPENAI_API_KEY)이 없어요');
@@ -223,6 +230,100 @@ const RUN = {
     return { img: 'data:image/png;base64,' + b64 };
   },
 };
+
+/* ───────────── v301 🧩 도구형 (성격·지시문은 포도톡 ai.html 그대로 옮김) ───────────── */
+
+const pick = (v, list, d) => (list.includes(v) ? v : d);
+const pickMany = (v, list) => (Array.isArray(v) ? v.filter((x) => list.includes(x)).slice(0, list.length) : []);
+function imgOk(v) {
+  const s = String(v || '');
+  if (!s) return '';
+  if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(s) || s.length > 3 * 1024 * 1024) throw httpErr(400, '사진이 너무 크거나 형식이 맞지 않아요');
+  return s;
+}
+const NAME_T = ['가게/브랜드', '아기', '반려동물', '유튜브 채널', '닉네임'], NAME_S = ['한글', '영어', '세련된', '귀여운', '고급스러운', '짧고 임팩트'];
+const TRIP_D = ['당일치기', '1박2일', '2박3일', '3박4일', '4박5일 이상'], TRIP_S = ['관광/명소', '맛집', '자연', '쇼핑', '힐링/휴양', '액티비티', '사진 명소'];
+const STUDY = ['수학', '영어', '과학', '국어/사회', '요약', '자유'], FRIDGE = ['아무거나', '한식', '양식', '중식', '일식', '간단요리'];
+const LED_HOME = ['식비', '카페', '교통', '쇼핑', '생활', '의료', '기타'], LED_BIZ = ['접대비', '차량유지', '통신비', '소모품', '광고선전', '지급수수료', '복리후생', '여비교통', '임차료', '기타'];
+const TOOLS = {
+  naming: { name: '작명', check: (b) => { const kw = txt(b.kw, 300); if (!kw) throw httpErr(400, '원하는 분위기나 키워드를 적어 주세요'); return { kw, target: pick(b.target, NAME_T, '가게/브랜드'), styles: pickMany(b.styles, NAME_S) }; },
+    run: (env, x) => ai(env, '너는 작명 전문가야. 사용자의 대상·키워드·스타일에 맞춰 이름 후보를 6~8개 추천해줘. 각 이름마다 짧은 의미나 느낌을 한 줄로 곁들여. 발음하기 쉽고 기억에 남는 이름 위주로, 한국어로. 마크다운 별표 금지.',
+      '대상: ' + x.target + '\n키워드/분위기: ' + x.kw + '\n스타일: ' + (x.styles.join(', ') || '자유') + '\n어울리는 이름을 추천해줘.', 1100).then((t) => ({ text: t })) },
+  fortune: { name: '운세', check: (b) => { const q = txt(b.q, 600); if (!q) throw httpErr(400, '내용을 적어 주세요'); return { q, mode: pick(b.mode, ['사주', '타로', '꿈해몽'], '사주') }; },
+    run: (env, x) => ai(env, ({
+      사주: '너는 따뜻한 사주·명리 상담가야. 생년월일(과 시간)을 바탕으로 타고난 기질과 올해 흐름, 도움이 될 조언을 한국어로 풀어줘. 재미로 보는 것임을 가볍게 전제하고, 불안을 조성하거나 단정적으로 예언하지 말고 긍정적이고 응원하는 톤으로.',
+      타로: '너는 친절한 타로 리더야. 사용자의 고민에 대해 카드 3장(과거/현재/미래 또는 상황/조언/결과)을 뽑아 각 카드 이름과 의미, 종합 메시지를 한국어로 풀어줘. 재미와 위로 중심으로, 긍정적이고 따뜻하게.',
+      꿈해몽: '너는 꿈해몽 해석가야. 사용자가 꾼 꿈의 상징적 의미와 심리적 통찰을 한국어로 따뜻하게 풀어줘. 미신적 단정보다 재미와 긍정적 통찰 중심으로.' })[x.mode] + ' 마크다운 별표 금지.', x.q, 1200).then((t) => ({ text: t })) },
+  quiz: { name: '퀴즈생성', check: (b) => { const topic = txt(b.topic, 3000); if (!topic) throw httpErr(400, '퀴즈 주제나 내용을 적어 주세요'); return { topic, count: pick(String(b.count), ['3', '5', '10'], '5'), type: pick(b.type, ['객관식', 'OX', '주관식'], '객관식'), level: pick(b.level, ['쉬움', '보통', '어려움'], '보통') }; },
+    run: (env, x) => ai(env, '너는 퀴즈 출제자야. 주어진 주제/내용으로 ' + x.type + ' 문제 ' + x.count + '개를 ' + x.level + ' 난이도로 한국어로 만들어줘. 각 문제에 번호를 붙이고, 객관식이면 보기 4개를 제시해. 모든 문제를 먼저 보여준 뒤 마지막에 [정답]과 짧은 해설을 모아서 적어줘. 마크다운 별표 금지.', '주제/내용: ' + x.topic, 1600).then((t) => ({ text: t })) },
+  travel: { name: '여행플래너', check: (b) => { const dest = txt(b.dest, 100); if (!dest) throw httpErr(400, '여행 목적지를 적어 주세요 (예: 제주도, 도쿄)'); const biz = b.mode === 'biz'; return { dest, biz, useMe: biz, days: pick(b.days, TRIP_D, '2박3일'), styles: pickMany(b.styles, TRIP_S), budget: txt(b.budget, 60), purpose: txt(b.purpose, 200) }; },
+    run: (env, x) => ai(env, x.biz
+      ? '너는 한국 1인 사업자의 출장 비서야. 한국어로 짧고 실용적으로.\n' + (x.me || '') + '형식(그대로 · 마크다운 별표 금지):\n💼 <목적지> <기간> 출장\n\n── 경비 예상 ──\n항공 <금액>\n숙소 <금액>\n식비 <금액>\n현지교통 <금액>\n예비 <금액>\n합계 <금액> (예산 대비 <남음/초과>)\n\n── 일정 ──\nDay 1 · <날짜감>\n  <시간> <할 일>  ← 이동시간 반영, 미팅 앞뒤로 여유 30분\n\n── 챙길 것 ──\n▪ <비자·전원·유심 등 그 나라 특이사항 2~3개>\n\n── 경비 처리 ──\n▪ <영수증 꼭 챙길 항목 한 줄>\n규칙: 예산이 있으면 그 안에서 배분해라. 항공·숙소 실제 가격은 모르니 "대략"임을 밝히고 범위로 적어라. 환율을 지어내지 마라.\n[중요] 비자·입국 규정은 자주 바뀐다. 단정하지 말고 "대사관·항공사 확인 필요"라고 적어라.'
+      : '너는 전문 여행 플래너야. 사용자의 목적지·기간·취향에 맞춰 한국어로 현실적이고 동선이 효율적인 day별 여행 일정을 짜줘. 각 날짜마다 오전/점심/오후/저녁으로 나눠 추천 장소와 맛집, 간단한 이동 팁을 적어줘. 마지막에 짧은 꿀팁 2~3개. 너무 길지 않게 핵심만 간결하게. 마크다운 별표 금지.',
+      x.biz ? '목적지: ' + x.dest + '\n기간: ' + x.days + (x.purpose ? '\n출장 목적: ' + x.purpose : '') + '\n예산: ' + (x.budget || '미지정') + '\n위 조건으로 출장 계획을 짜줘.'
+        : '목적지: ' + x.dest + '\n기간: ' + x.days + '\n여행 스타일: ' + (x.styles.join(', ') || '두루두루') + '\n위 조건으로 여행 일정을 짜줘.', 1600).then((t) => ({ text: t })) },
+  study: { name: 'AI 학습', check: (b) => { const q = txt(b.q, 2000), img = imgOk(b.img); if (!q && !img) throw httpErr(400, '질문을 적거나 문제 사진을 올려 주세요'); return { q, img, subject: pick(b.subject, STUDY, '수학') }; },
+    run: (env, x) => { const sys = (x.subject === '요약' ? '너는 학습 도우미야. 주어진 내용을 한국어로 핵심만 알기 쉽게 요약하고 중요한 포인트를 정리해줘.' : '너는 친절한 ' + (x.subject === '자유' ? '' : x.subject + ' ') + '과외 선생님이야. 학생이 이해할 수 있게 한국어로 단계별로 풀이/설명해줘. 정답만 주지 말고 풀이 과정과 왜 그런지, 핵심 개념을 짚어줘. 필요하면 쉬운 예시도 들어줘.') + ' 수식은 읽기 쉬운 글자로(LaTeX 금지). 마크다운 별표 금지.';
+      return (x.img ? aiVision(env, sys, (x.q ? '[질문] ' + x.q + '\n\n' : '') + '사진 속 문제/내용을 풀이하고 설명해줘.', x.img, 1400) : ai(env, sys, x.q, 1400)).then((t) => ({ text: t })); } },
+  fridge: { name: '냉장고요리', check: (b) => { const ing = txt(b.ing, 500), img = imgOk(b.img); if (!ing && !img) throw httpErr(400, '가진 재료를 적거나 냉장고 사진을 올려 주세요'); return { ing, img, type: pick(b.type, FRIDGE, '아무거나') }; },
+    run: (env, x) => { const sys = '너는 친절한 요리 도우미야. 사용자가 가진 재료로 만들 수 있는 요리를 2~3개 추천해줘. 각 요리마다 제목, 추가로 필요한 흔한 재료(있으면), 간단한 조리 순서를 한국어로 알려줘. 집에 흔한 재료 위주로 현실적으로, 너무 길지 않게. 마크다운 별표 금지.';
+      const u = (x.img ? '먼저 사진 속에 보이는 재료를 한 줄로 적고(🥕 보이는 재료: …), 그 재료로 추천해줘.\n' : '') + (x.ing ? '가진 재료: ' + x.ing + '\n' : '') + '원하는 종류: ' + x.type + '\n이 재료로 만들 수 있는 요리를 추천해줘.';
+      return (x.img ? aiVision(env, sys, u, x.img, 1300) : ai(env, sys, u, 1300)).then((t) => ({ text: t })); } },
+  card: { name: 'AI 명함', check: (b) => { const img = imgOk(b.img); if (!img) throw httpErr(400, '명함 사진을 올려 주세요'); return { img }; },
+    run: async (env, x) => {
+      const t = await aiVision(env, '명함을 읽는 도우미야. JSON만 출력.', '이 명함 이미지에서 다음 정보를 JSON으로만 추출해줘. 없는 항목은 빈 문자열로. 글자를 그대로 옮기고 지어내지 마.\n{"name":"이름","company":"회사명","title":"직책","phone":"전화번호(대표 1개)","email":"이메일","address":"주소","website":"웹사이트"}', x.img, 600);
+      const m = t.match(/\{[\s\S]*\}/); let d = null; try { d = m ? JSON.parse(m[0]) : null; } catch {}
+      if (!d) throw httpErr(422, '명함 글자를 읽지 못했어요. 밝은 곳에서 정면으로 다시 찍어 주세요');
+      const o = {}; for (const k of ['name', 'company', 'title', 'phone', 'email', 'address', 'website']) o[k] = str(d[k], 200);
+      if (!o.name && !o.phone && !o.email) throw httpErr(422, '명함 글자를 읽지 못했어요. 밝은 곳에서 정면으로 다시 찍어 주세요');
+      return { card: o };
+    } },
+  receipt: { name: 'AI가계부 영수증', check: (b) => { const img = imgOk(b.img); if (!img) throw httpErr(400, '영수증 사진을 올려 주세요'); const biz = !!b.biz; return { img, biz }; },
+    run: async (env, x) => {
+      const t = await aiVision(env, '영수증을 읽는 도우미야.', x.biz
+        ? '이 영수증 사진에서 총 결제금액(숫자만, 콤마 없이), 상호명, 경비 분류, 사업 경비 처리 가능성을 추출해줘.\n분류는 다음 중 하나: ' + LED_BIZ.join(', ') + '\n가능성은 다음 중 하나: 가능성높음, 확인필요, 어려움\n사유는 15자 이내 한국어 한 마디(예: 거래처 식사로 보임).\n설명 없이 반드시 이 형식으로만 답해: 금액|상호|분류|가능성|사유'
+        : '이 영수증 사진에서 총 결제금액(숫자만, 콤마 없이), 상호명, 지출 분류를 추출해줘. 분류는 다음 중 하나: ' + LED_HOME.join(', ') + '. 설명 없이 반드시 이 형식으로만 답해: 금액|상호|분류', x.img, 200);
+      const p = String(t).trim().split('|');
+      const amount = parseInt(String(p[0] || '').replace(/[^0-9]/g, ''), 10) || 0;
+      if (!amount) throw httpErr(422, '금액을 읽지 못했어요. 영수증 전체가 보이게 다시 찍어 주세요');
+      const cats = x.biz ? LED_BIZ : LED_HOME, cat = cats.includes((p[2] || '').trim()) ? p[2].trim() : '기타';
+      return { amount, store: str(p[1], 60).trim(), cat, ded: x.biz ? pick((p[3] || '').trim(), ['가능성높음', '확인필요', '어려움'], '확인필요') : '', why: x.biz ? str(p[4], 40).trim() : '' };
+    } },
+  ledger: { name: 'AI가계부 분석', check: (b) => { const summary = txt(b.summary, 2000); if (!summary) throw httpErr(400, '이번 달 기록이 없어요'); const biz = !!b.biz; return { summary, biz, useMe: biz }; },
+    run: (env, x) => ai(env, x.biz
+      ? '너는 한국 1인 사업자의 경비 정리를 돕는 비서야. 이번 달 경비 요약을 보고 한국어로 짧게 알려줘.\n' + (x.me || '') + '형식(그대로 · 마크다운 별표 금지 · 항목 사이 빈 줄 한 개):\n💼 이번 달 경비 <총액>원 · <건수>건\n\n▪ <가장 큰 항목과 금액 한 줄>\n\n▪ <눈에 띄는 점 한 줄>\n\n⚠️ <주의할 점 한 줄. 없으면 이 줄 생략>\n\n📌 <다음 달에 챙기면 좋을 것 한 줄>\n규칙: 요약에 있는 숫자만 쓴다. 없는 숫자를 지어내지 마라.\n[중요] 세법은 나라·업종·상황마다 달라. 절대 "공제된다/안 된다"로 단정하지 마라. "공제 가능성이 있어 보인다", "세무사 확인이 필요하다"처럼만 말해라. 세액이나 환급액을 계산하지 마라.'
+      : '너는 친절한 가계부 분석가야. 이번 달 지출 요약을 보고 한국어로 (1) 지출 패턴 한두 줄 요약, (2) 가장 큰 비중과 눈에 띄는 점, (3) 부담 없이 실천할 절약 팁 2~3개를 따뜻하게 알려줘. 잔소리하지 말고 격려하는 톤으로 짧게. 마크다운 별표 금지.', x.summary, 900)
+      .then((t) => ({ text: t + (x.biz ? '\n\n───────────\n⚠️ 경비·공제 판단은 참고용이에요. 실제 처리는 세무사나 홈택스에서 꼭 확인하세요.' : '') })) },
+  /* 📽️ 발표자료 — 포도톡에는 화면 함수(openPptMaker)가 없어 coverfo 에서 새로 만듦: 주제 → 장표 개요(JSON) → 폰에서 장표로 그리고 PDF 저장 */
+  ppt: { name: '발표자료', check: (b) => { const topic = txt(b.topic, 1500); if (!topic) throw httpErr(400, '발표 주제나 내용을 적어 주세요'); return { topic, useMe: true, slides: pick(String(b.slides), ['5', '8', '10'], '8'), who: txt(b.who, 100) }; },
+    run: async (env, x) => {
+      const d = await aiJson(env, '너는 발표자료 기획자야. 주어진 주제로 장표 ' + x.slides + '장짜리 한국어 발표 개요를 만들어. JSON만 출력(설명·코드펜스 금지).\n' + (x.me || '') +
+        '{"title":"발표 제목","subtitle":"부제 한 줄","slides":[{"title":"장표 제목","bullets":["핵심 문장 3~5개, 각 40자 이내"],"note":"발표자가 말할 내용 2~3문장"}]}\n규칙: 첫 장은 목차나 문제 제기, 마지막 장은 요약·다음 할 일. 사용자가 준 내용에 없는 숫자·통계·사례를 지어내지 마라(필요하면 "[자료 확인]"이라고 표시).',
+        '주제/내용: ' + x.topic + (x.who ? '\n듣는 사람: ' + x.who : ''), 2600);
+      const slides = (d && Array.isArray(d.slides) ? d.slides : []).slice(0, 12).map((s) => ({ title: str(s.title, 80), bullets: (Array.isArray(s.bullets) ? s.bullets : []).slice(0, 6).map((b) => str(b, 120)), note: str(s.note, 600) })).filter((s) => s.title);
+      if (!slides.length) throw new Error('개요를 만들지 못했어요');
+      return { deck: { title: str(d.title, 80) || x.topic.slice(0, 40), subtitle: str(d.subtitle, 120), slides } };
+    } },
+};
+function toolCheck(b) {
+  const T = TOOLS[String(b.kind || '')];
+  if (!T) throw httpErr(400, '잘못된 요청입니다');
+  const x = T.check(b);
+  x.kind = String(b.kind); x.name = T.name;
+  x.label = x.kw || x.q || x.topic || x.dest || x.ing || (x.img ? '사진' : '') || '';
+  return x;
+}
+async function aiVision(env, sys, prompt, dataUrl, maxTokens) {
+  if (!env.OPENAI_API_KEY) throw new Error('사진 분석 설정(OPENAI_API_KEY)이 없어요');
+  const r = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + env.OPENAI_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: env.PODOYA_VISION_MODEL || env.PODOYA_MODEL || 'gpt-4o-mini', temperature: 0.2, max_tokens: maxTokens || 1000,
+      messages: [{ role: 'system', content: sys }, { role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl, detail: 'high' } }] }] }), signal: AbortSignal.timeout(60000) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error('사진 분석 오류 ' + r.status + ': ' + String((j.error && j.error.message) || '').slice(0, 100));
+  const out = String((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
+  if (!out) throw new Error('사진 분석 답이 비었어요');
+  return out;
+}
 
 /* ───────────── v300 💬 대화형 4칸 ───────────── */
 
