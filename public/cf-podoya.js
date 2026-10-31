@@ -1,4 +1,4 @@
-/* coverfo 🍇 포도야 비서 · 🔌 고급기능 — public/cf-podoya.js (v297 · 1차)
+/* coverfo 🍇 포도야 비서 · 🔌 고급기능 — public/cf-podoya.js (v298 · 1차 + 2차: 업무 자동화 · 내 기억 · 상품 시작하기)
    · 홈의 '포도야 비서' · '🔌 고급기능' 을 누르면 포도톡 창 대신 이 화면이 coverfo 안에서 바로 열린다 (하단 탭 없음)
    · 서버 /api/podoya (coverfo 로그인 · coverfo 지갑): 해외 응대 1 · 문서 만들기 1 · 웹 스크래핑 1 · 시맨틱 검색 1 · 유튜브→블로그 2 · 리서치 3 크레딧
    · coverfo 에 이미 있는 것은 그리로 연결: 대화로 시키기·에이전트팀 → 홈 입력칸 / 커넥션 허브 → 허브 2.0(/hub) / 친구에게 알리기 → 공유
@@ -7,8 +7,8 @@
   if (window.cfPodoyaOpen) return;
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); };
   var ls = { get: function (k, d) { try { var v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
-  var COST = { intl: 1, doc: 1, scrape: 1, search: 1, yt: 2, research: 3 };
-  var TITLE = { assist: '🍇 포도야 비서', adv: '🔌 고급기능', intl: '🌍 해외 응대', doc: '📄 문서 만들기', scrape: '🔍 웹 스크래핑', search: '🧠 시맨틱 검색', yt: '🎬 유튜브 → 블로그', research: '📊 리서치 파이프라인' };
+  var COST = { intl: 1, doc: 1, scrape: 1, search: 1, yt: 2, research: 3, work: 2, launch: 1, img: 2 };
+  var TITLE = { assist: '🍇 포도야 비서', adv: '🔌 고급기능', intl: '🌍 해외 응대', doc: '📄 문서 만들기', scrape: '🔍 웹 스크래핑', search: '🧠 시맨틱 검색', yt: '🎬 유튜브 → 블로그', research: '📊 리서치 파이프라인', work: '📊 업무 자동화', launch: '🎨 상품 시작하기', me: '🧠 내 기억' };
   var DOC_KINDS = [['quote', '📋', '견적서'], ['inv', '🌍', 'INVOICE'], ['state', '🧾', '거래명세서'], ['order', '📦', '발주서'], ['recpt', '🧻', '영수증']];
 
   /* ── 모양 (통역톡·채팅과 같은 결) ── */
@@ -97,10 +97,13 @@
       row('go-agent', '🤖', '에이전트팀으로 실행', '홈 입력칸 「무엇이든 시켜만 주세요」에 적어서 여러 단계로', 'coverfo') +
       row('t-intl', '🌍', '해외 응대', '받은 메일 번역 + 그 나라 말로 답장', COST.intl + '크레딧') +
       row('t-doc', '📄', '문서 만들기', '견적서·거래명세서·INVOICE 를 PDF로', COST.doc + '크레딧') +
+      row('t-work', '📊', '업무 자동화', '말만 하면 엑셀·데이터를 정리해요', COST.work + '크레딧') +
+      row('t-launch', '🎨', '상품 시작하기', '이름·설명·가격 + 디자인 3장', COST.launch + '크레딧~') +
       row('pt-routine', '📁', '루틴', '저장한 것 · 추천 루틴 담기', '포도톡', 'o') +
       row('pt-report', '📊', '매일 리포트', '아침에 매출·트래픽을 한 장으로', '포도톡', 'o') +
       row('pt-report', '🔔', '아침 알림', '정해진 시각에 깨워줘요', '포도톡', 'o') +
       '</div><div class="p-sec">비서에게 알려주기</div><div class="p-list">' +
+      row('t-me', '🧠', '내 기억', '상호·말투·거래처를 기억해서 답에 반영', '무료', 'g') +
       row('go-hub', '🔗', '커넥션 허브', 'Gmail·슬랙·노션 등 외부앱 연결 (허브 2.0)', 'coverfo') +
       row('pt-home', '🏠', '집안 기기', '불·플러그·에어컨을 말로', '포도톡', 'o') +
       row('pt-deliver', '📮', '발송 채널', '결과를 어디로 받을지 (포도톡·텔레그램)', '포도톡', 'o') +
@@ -150,6 +153,21 @@
     } else if (v === 'research') {
       h = '<div class="p-lead"><b>검색 → 페이지 읽기 → 종합 → 초안</b>까지 한 번에. 근거 번호가 붙은 보고서 초안을 만들어 줘요 (30초~1분 걸려요).</div><div class="p-card">' +
         '<div class="p-lb">주제</div><input class="p-in" id="cfp-a" placeholder="예: 2026년 무인카페 창업 시장 동향">' + runBtn('research', '📊 리서치 시작') + '</div>';
+    } else if (v === 'work') {
+      var PRE = [['📊 매출 정리', '올린 파일에서 월별 매출 합계를 내고, 막대그래프로 그려줘'], ['🏆 베스트셀러', '올린 파일에서 품목별 판매량과 매출을 집계해서 많이 팔린 순서대로 표로 보여줘'], ['🧾 부가세 계산', '올린 파일의 금액 합계, 부가세(10%), 공급가액을 계산해서 표로 정리해줘'], ['📦 발주 목록', '올린 파일에서 재고가 부족한 품목(수량 10 이하)을 찾아 발주 목록을 만들어줘'], ['🧹 데이터 정리', '올린 파일을 깔끔하게 정리(빈칸·중복 제거)하고 요약 통계를 보여줘']];
+      h = '<div class="p-lead">엑셀·CSV 를 올리고 <b>하고 싶은 일을 말로</b> 적으면, AI 가 처리 방법(파이썬)을 만들고 <b>이 폰 안에서</b> 바로 돌려 결과를 보여 줘요. 파일은 서버에 올라가지 않아요 (앞부분 몇 줄만 방법을 짜는 데 써요).<br>처음 한 번은 계산 도구(약 10MB)를 받느라 조금 걸려요.</div><div class="p-card">' +
+        '<div class="p-lb">① 파일 <span style="font-weight:600;color:#9a93ad">(엑셀·CSV · 선택)</span></div>' +
+        '<label style="display:block;border:1.5px dashed #d6cfe8;border-radius:12px;padding:14px;text-align:center;cursor:pointer;font-size:13.5px;color:#6b6385"><input type="file" id="cfp-file" accept=".csv,.xlsx,.xls,.txt,.json,.tsv" style="display:none"><span id="cfp-fname">📂 눌러서 파일 고르기 (없어도 돼요)</span></label>' +
+        '<div class="p-lb">② 무엇을 하고 싶으세요?</div><div class="p-chips" style="margin-bottom:8px">' + PRE.map(function (x) { return '<button type="button" data-a="preset" data-p="' + esc(x[1]) + '">' + x[0] + '</button>'; }).join('') + '</div>' +
+        '<textarea class="p-in" id="cfp-a" placeholder="예: 매출 엑셀에서 상위 5개 품목만 뽑아서 그래프로 그려줘"></textarea>' +
+        runBtn('work', '⚙️ 자동으로 처리하기') + '</div>';
+    } else if (v === 'launch') {
+      h = '<div class="p-lead">팔고 싶은 걸 말해 보세요. <b>이름·설명·가격·인스타 글</b>을 잡아 주고, 원하면 <b>디자인 3장</b>도 그려 드려요 (한 장 ' + COST.img + '크레딧).</div><div class="p-card">' +
+        '<div class="p-lb">무엇을 팔고 싶으세요?</div><textarea class="p-in" id="cfp-a" style="min-height:70px" placeholder="예: 강아지 그림 티셔츠 / 수제 원두 드립백 / 캘리그라피 엽서"></textarea>' +
+        runBtn('launch', '✨ 상품으로 만들기') + '</div>';
+    } else if (v === 'me') {
+      h = '<div class="p-lead">🧠 여기 적어 두면 매번 설명하지 않아도 돼요. <b>해외 응대 · 문서 만들기 · 상품 시작하기</b> 답에 반영돼요.<br>coverfo 계정에 저장돼서 다른 폰에서도 같아요 · 무료 · 탈퇴하면 함께 지워져요.</div><div id="cfp-mebox"><div class="p-wait">불러오는 중…</div></div>';
+      b.innerHTML = h; return meLoad();
     }
     b.innerHTML = h;
   }
@@ -158,12 +176,14 @@
   function val(id) { var e = $(id); return e ? String(e.value || '').trim() : ''; }
   function run(op, btn) {
     if (S.busy) return;
+    if (op === 'work') return runWork(btn);
     var body = { op: op };
     if (op === 'intl') { body.text = val('cfp-a'); body.my = val('cfp-b'); body.tone = S.tone; if (!body.text) return say('받은 메일을 붙여 넣어 주세요'); }
     if (op === 'doc') { body.text = val('cfp-a'); body.kind = S.kind; if (!body.text) return say('무엇을 만들지 적어 주세요'); }
     if (op === 'scrape') { body.url = val('cfp-a'); body.ask = val('cfp-b'); if (!body.url) return say('페이지 주소를 넣어 주세요'); }
     if (op === 'search' || op === 'research') { body.q = val('cfp-a'); if (body.q.length < 2) return say('찾을 내용을 적어 주세요'); }
     if (op === 'yt') { body.url = val('cfp-a'); body.transcript = val('cfp-b'); if (!body.url && !body.transcript) return say('유튜브 주소를 넣어 주세요'); }
+    if (op === 'launch') { body.q = val('cfp-a'); if (!body.q) return say('뭘 팔고 싶은지 적어 주세요'); }
     S.busy = true; btn.disabled = true;
     var out = $('cfp-out'); out.innerHTML = '<div class="p-wait">⏳ ' + (op === 'research' ? '찾아서 읽는 중… (30초~1분)' : op === 'yt' ? '자막을 가져와 글을 쓰는 중…' : '만드는 중…') + '</div>';
     api(body).then(function (j) { S.busy = false; btn.disabled = false; S.last = j; show(op, j); },
@@ -197,10 +217,129 @@
       o.innerHTML = '<div class="p-res">' + esc(j.blog) + '</div>' + tools('blog') + paid;
     } else if (op === 'research') {
       o.innerHTML = '<div class="p-res">' + esc(j.report) + '</div>' + srcList(j.sources) + tools('report') + paid;
+    } else if (op === 'launch') {
+      var hash = (j.hash || []).map(function (x) { return '#' + x; }).join(' ');
+      o.innerHTML = '<div class="p-res" style="white-space:normal"><div style="font-size:17px;font-weight:900">' + esc(j.name) + '</div><div style="color:#6d28d9;font-weight:700;font-size:13px">' + esc(j.tag) + '</div>' +
+        '<div style="white-space:pre-wrap;margin-top:8px;font-size:13.5px">' + esc(j.desc) + '</div>' +
+        '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f1eef7"><b style="font-size:20px">' + won(j.price) + '원</b> <span class="p-mut">' + esc(j.priceWhy) + '</span></div>' +
+        (j.target ? '<div class="p-mut">🎯 ' + esc(j.target) + '</div>' : '') + '</div>' +
+        '<div class="p-lb" style="margin-top:14px">🎨 디자인</div><div id="cfp-imgs" style="display:flex;gap:7px"></div>' +
+        (j.imgs && j.imgs.length ? '<button type="button" class="p-btn g" data-a="imgs" id="cfp-imgbtn">🎨 디자인 ' + j.imgs.length + '장 만들기 · ' + (COST.img * j.imgs.length) + '크레딧</button>' : '<div class="p-mut">이미지 아이디어가 없어요</div>') +
+        '<div class="p-lb" style="margin-top:14px">📸 인스타에 올릴 글</div><div class="p-res" style="background:#faf9fc;border-color:#ece8f5;font-size:13px">' + esc(j.insta) + '\n\n' + esc(hash) + '</div>' +
+        '<div class="p-two"><button type="button" class="p-btn" data-a="share" data-k="insta">📸 인스타 글 보내기</button><button type="button" class="p-btn g" data-a="copy" data-k="prod" style="margin-top:10px">📋 상품 정보 복사</button></div>' +
+        '<button type="button" class="p-btn g" data-a="pododa">🍇 포도다에서 팔기</button><div id="cfp-msg"></div>' +
+        '<div class="p-mut" style="margin-top:8px">⚠️ 가격·원가는 꼭 직접 확인하세요.</div>' + paid;
     }
   }
 
+  /* 🎨 상품 디자인: 한 장씩 따로 그려 받는다 (한 장 실패해도 나머지는 그대로 · 실패한 장은 크레딧을 돌려받음) */
+  function makeImgs(btn) {
+    var j = S.last; if (!j || !j.imgs || !j.imgs.length || S.imgBusy) return;
+    S.imgBusy = true; btn.disabled = true; btn.textContent = '⏳ 그리는 중… (1분쯤 걸려요)';
+    var box = $('cfp-imgs'); var left = j.imgs.length, okN = 0;
+    box.innerHTML = j.imgs.map(function (p, i) { return '<div style="flex:1;min-width:0" id="cfp-im' + i + '"><div style="aspect-ratio:1;border-radius:10px;background:#f1eef7;display:flex;align-items:center;justify-content:center;font-size:12px;color:#8a83a0">⏳</div></div>'; }).join('');
+    j.imgs.forEach(function (p, i) {
+      api({ op: 'img', prompt: p }).then(function (r) {
+        okN++;
+        $('cfp-im' + i).innerHTML = '<img src="' + r.img + '" alt="" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;border:1px solid #eee"><a href="' + r.img + '" download="coverfo-design-' + (i + 1) + '.png" class="p-btn g" style="display:block;text-align:center;text-decoration:none;font-size:12px;padding:7px;margin-top:5px">저장</a>';
+      }, function (e) {
+        $('cfp-im' + i).innerHTML = '<div class="p-err" style="font-size:11.5px;margin:0">' + esc((e && e.message) || '실패') + '</div>';
+      }).then(function () {
+        if (--left) return;
+        S.imgBusy = false; btn.disabled = false; btn.textContent = okN ? '🎨 다시 그리기 · ' + (COST.img * j.imgs.length) + '크레딧' : '🎨 다시 시도';
+        if (okN) $('cfp-msg').innerHTML = '<div class="p-mut" style="margin-top:6px">💳 ' + (COST.img * okN) + '크레딧 사용 · 그림을 길게 누르거나 [저장]을 누르세요</div>';
+      });
+    });
+  }
+
+  /* 📊 업무 자동화: 파일은 폰에만 · 파이썬은 따로 떨어진 작업 칸(Web Worker)에서 돌린다 → 이 페이지의 로그인 정보에 손댈 수 없다 */
+  var PYODIDE = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/';
+  var XLSX_JS = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  var W = { file: null, worker: null };
+  function loadScript(src) { return new Promise(function (ok, no) { var x = document.createElement('script'); x.src = src; x.onload = ok; x.onerror = function () { no(new Error('도구를 받지 못했어요')); }; document.head.appendChild(x); }); }
+  function pickFile(inp) {
+    var f = inp.files && inp.files[0]; W.file = null; if (!f) return;
+    var lb = $('cfp-fname');
+    if (f.size > 5 * 1024 * 1024) { lb.textContent = '⚠️ 5MB 이하 파일만 돼요'; return; }
+    lb.textContent = '⏳ ' + f.name + ' 읽는 중…';
+    var done = function (text) { W.file = { name: f.name, text: text }; lb.textContent = '📄 ' + f.name + ' (' + Math.max(1, Math.round(f.size / 1024)) + 'KB)'; };
+    var fail = function (e) { lb.textContent = '⚠️ 파일을 읽지 못했어요: ' + ((e && e.message) || e); };
+    var rd = new FileReader();
+    if (/\.(xlsx|xls)$/i.test(f.name)) {
+      rd.onload = function () {
+        (window.XLSX ? Promise.resolve() : loadScript(XLSX_JS)).then(function () {
+          var wb = window.XLSX.read(new Uint8Array(rd.result), { type: 'array' });
+          done(window.XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]));
+        }).catch(fail);
+      };
+      rd.readAsArrayBuffer(f);
+    } else { rd.onload = function () { done(String(rd.result || '')); }; rd.readAsText(f, 'utf-8'); }
+  }
+  function pyWorker() {
+    if (W.worker) return W.worker;
+    var src = "importScripts('" + PYODIDE + "pyodide.js');var py=null;" +
+      "onmessage=async function(e){try{if(!py){postMessage({st:'계산 도구 준비 중… (처음 한 번 · 10~30초)'});py=await loadPyodide({indexURL:'" + PYODIDE + "'});}" +
+      "postMessage({st:'⚙️ 실행 중…'});py.globals.set('DATA',e.data.data||'');py.runPython('import sys, io\\n_out=io.StringIO()\\nsys.stdout=_out');var err='';" +
+      "try{await py.runPythonAsync(e.data.code);}catch(x){err=String(x&&x.message||x);}" +
+      "var out=py.runPython('sys.stdout=sys.__stdout__\\n_out.getvalue()');postMessage({done:1,out:String(out||''),err:err});}catch(x){postMessage({done:1,out:'',err:String(x&&x.message||x),boot:1});}};";
+    W.worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+    return W.worker;
+  }
+  function pyRun(code, data, status) {
+    return new Promise(function (ok) {
+      var w = pyWorker(), t = setTimeout(function () { try { w.terminate(); } catch (e) {} W.worker = null; ok({ out: '', err: '시간이 너무 오래 걸려 멈췄어요 (2분)' }); }, 120000);
+      w.onmessage = function (e) { var m = e.data || {}; if (m.st) { status(m.st); return; } if (m.done) { clearTimeout(t); if (m.boot) { try { w.terminate(); } catch (x) {} W.worker = null; } ok(m); } };
+      w.onerror = function (e) { clearTimeout(t); try { w.terminate(); } catch (x) {} W.worker = null; ok({ out: '', err: '계산 도구를 받지 못했어요 (인터넷을 확인해 주세요)', boot: 1 }); };
+      w.postMessage({ code: code, data: data });
+    });
+  }
+  function runWork(btn) {
+    var ask = val('cfp-a'); if (!ask) return say('무엇을 하고 싶은지 적어 주세요');
+    var f = W.file, out = $('cfp-out');
+    var st = function (m) { out.innerHTML = '<div class="p-wait">' + esc(m) + '</div>'; };
+    var body = { op: 'work', ask: ask, preview: f ? f.text.slice(0, 1200) : '', fname: f ? f.name : '' };
+    S.busy = true; btn.disabled = true; st('🧠 AI 가 처리 방법을 만드는 중…');
+    var finish = function () { S.busy = false; btn.disabled = false; };
+    api(body).then(function (j) {
+      var cost = j.cost;
+      return pyRun(j.code, f ? f.text : '', st).then(function (r) {
+        if (!r.err || r.boot) return { j: j, r: r, cost: cost };
+        st('🔧 오류가 나서 한 번 고치는 중… (추가 크레딧 없음)');
+        return api({ op: 'work', ask: ask, preview: body.preview, fname: body.fname, fix: { code: j.code, error: r.err.slice(-1200) }, t: j.t }).then(function (j2) {
+          return pyRun(j2.code, f ? f.text : '', st).then(function (r2) { return { j: j2, r: r2, cost: cost }; });
+        }, function () { return { j: j, r: r, cost: cost }; });
+      });
+    }).then(function (x) {
+      finish(); S.last = { result: x.r.out, code: x.j.code };
+      out.innerHTML = (x.r.err ? '<div class="p-err">실행 오류: ' + esc(x.r.err.slice(-600)) + '<br>요청을 조금 바꿔 다시 시도해 보세요.</div>' : '') +
+        (x.r.out ? '<div class="p-res" style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;line-height:1.55;overflow:auto;white-space:pre">' + esc(x.r.out) + '</div>' + tools('result') : (x.r.err ? '' : '<div class="p-mut">출력이 없어요</div>')) +
+        '<details style="margin-top:10px"><summary>🔧 실행한 코드 보기</summary><pre style="font-size:11.5px;background:#faf9fc;border:1px solid #ece8f5;border-radius:10px;padding:10px;overflow:auto;margin-top:6px">' + esc(x.j.code) + '</pre></details>' +
+        '<div class="p-mut" style="margin-top:8px">💳 ' + x.cost + '크레딧 사용</div>';
+    }, function (e) { finish(); out.innerHTML = errBox(e); });
+  }
+
+  /* 🧠 내 기억 */
+  var ME_F = [['name', '내 이름 / 호칭', '예: 이병주 · 사장님'], ['biz', '상호 (사업체명)', '예: 포도상회'], ['job', '하는 일 / 업종', '예: 온라인 농산물 판매'], ['tone', '메시지 말투', '예: 정중하고 짧게 · 이모지 조금'], ['hours', '영업 / 근무시간', '예: 평일 9시~18시, 주말 휴무'], ['note', '기타', '예: 견적은 항상 부가세 별도로 표기']];
+  function meLoad() {
+    api({ op: 'me_get' }).then(function (j) { S.me = j.me || {}; meDraw(); }, function (e) { var b = $('cfp-mebox'); if (b) b.innerHTML = errBox(e); });
+  }
+  function meDraw(msg) {
+    var m = S.me || {}, facts = Array.isArray(m.facts) ? m.facts : [], b = $('cfp-mebox'); if (!b) return;
+    b.innerHTML = '<div class="p-card">' + ME_F.map(function (f) {
+      return '<div class="p-lb">' + f[1] + '</div>' + (f[0] === 'note' ? '<textarea class="p-in" style="min-height:60px" data-mek="' + f[0] + '" placeholder="' + esc(f[2]) + '">' + esc(m[f[0]] || '') + '</textarea>' : '<input class="p-in" data-mek="' + f[0] + '" placeholder="' + esc(f[2]) + '" value="' + esc(m[f[0]] || '') + '">');
+    }).join('') + '<button type="button" class="p-btn" data-a="mesave">💾 저장</button></div>' +
+      '<div class="p-card"><div class="p-lb">기억해 둔 사실 <span style="color:#9a93ad">(' + facts.length + '/40)</span></div>' +
+      (facts.length ? facts.map(function (f, i) { return '<div style="display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-top:1px solid #f1eef7"><span style="flex:1;font-size:13.5px;line-height:1.5;word-break:break-word">• ' + esc(f) + '</span><button type="button" data-a="medel" data-i="' + i + '" style="border:0;background:none;color:#b9b2c9;font-size:18px;cursor:pointer">×</button></div>'; }).join('') : '<div class="p-mut">아직 없어요. 아래에 한 줄씩 적어 주세요.</div>') +
+      '<div style="display:flex;gap:7px;margin-top:10px"><input class="p-in" id="cfp-fact" maxlength="200" placeholder="예: 거래처 ○○상사 담당은 김대리"><button type="button" class="p-btn" data-a="meadd" style="width:auto;margin:0;padding:0 16px">＋</button></div></div>' +
+      '<button type="button" class="p-btn g" data-a="meclear" style="color:#b42318">기억 전체 지우기</button>' + (msg || '');
+  }
+  function meCollect() { var m = S.me || {}; Array.prototype.forEach.call(ov.querySelectorAll('[data-mek]'), function (x) { m[x.getAttribute('data-mek')] = x.value.trim(); }); return m; }
+  function meSave(m, note) {
+    api({ op: 'me_save', data: m }).then(function (j) { S.me = j.me; meDraw('<div class="p-ok">' + note + '</div>'); }, function (e) { var b = $('cfp-mebox'); if (b) b.insertAdjacentHTML('beforeend', errBox(e)); });
+  }
+
   /* 📄 문서 (ai.html 과 같은 모양) */
+  function prodText(d) { return (d.name || '') + '\n' + (d.tag || '') + '\n\n' + (d.desc || '') + '\n\n가격: ' + won(d.price) + '원' + (d.priceWhy ? ' (' + d.priceWhy + ')' : ''); }
   function docMe() { try { var m = JSON.parse(ls.get('cfp_docme', '{}')); return m && typeof m === 'object' ? m : {}; } catch (e) { return {}; } }
   function won(n) { return (Number(n) || 0).toLocaleString('ko-KR'); }
   function today() { var d = new Date(); return d.getFullYear() + '. ' + (d.getMonth() + 1) + '. ' + d.getDate() + '.'; }
@@ -265,13 +404,14 @@
   }
 
   /* ── 누르기 ── */
+  ov.addEventListener('change', function (e) { if (e.target && e.target.id === 'cfp-file') pickFile(e.target); });
   ov.addEventListener('click', function (e) {
     var el = e.target.closest ? e.target.closest('[data-a]') : null; if (!el) return;
     var a = el.getAttribute('data-a');
     if (a === 'close') return close();
     if (a === 'login') return openLogin();
     if (a === 'back') { S.view = S.home; return render(); }
-    if (a.indexOf('t-') === 0) { S.view = a.slice(2); return render(); }
+    if (a.indexOf('t-') === 0) { S.view = a.slice(2); S.last = null; W.file = null; return render(); }
     if (a.indexOf('pt-') === 0) return toPodotalk(a.slice(3));
     if (a === 'go-chat') return toHome('입력칸에 시킬 일을 적고 「무엇이든 물어보기」를 누르세요');
     if (a === 'go-agent') return toHome('입력칸 「무엇이든 시켜만 주세요」에 여러 단계 일을 한 번에 적어 보세요');
@@ -283,15 +423,22 @@
     if (a === 'saveme') { var m = docMe(); Array.prototype.forEach.call(ov.querySelectorAll('[data-me]'), function (x) { m[x.getAttribute('data-me')] = x.value.trim(); }); ls.set('cfp_docme', JSON.stringify(m)); $('cfp-me-msg').innerHTML = '<div class="p-ok">🏢 저장했어요 · 문서에 자동으로 들어가요</div>'; if (S.last && S.last.items && $('cfp-out').querySelector('.paper')) show('doc', S.last); return; }
     if (a === 'print') { if (S.last && S.last.items) printDoc(S.last); return; }
     if (a === 'intl2doc') { S.kind = 'inv'; S.view = 'doc'; return render(); }
+    if (a === 'imgs') return makeImgs(el);
+    if (a === 'preset') { var ta = $('cfp-a'); if (ta) ta.value = el.getAttribute('data-p'); Array.prototype.forEach.call(el.parentNode.children, function (x) { x.classList.toggle('on', x === el); }); return; }
+    if (a === 'pododa') { var pj = S.last || {}; copy(prodText(pj), $('cfp-msg')); setTimeout(function () { window.open('https://pododa.kr/', '_blank', 'noopener'); }, 300); $('cfp-msg').innerHTML = '<div class="p-ok">📋 상품 정보를 복사했어요 · 포도다 상품 등록 칸에 붙여 넣으세요</div>'; return; }
+    if (a === 'mesave') { var mm = meCollect(); return meSave(mm, '🧠 기억했어요 · 이제 답에 반영돼요'); }
+    if (a === 'meadd') { var fi = $('cfp-fact'), fv = fi ? fi.value.trim() : ''; if (!fv) return; var m1 = meCollect(); m1.facts = (Array.isArray(m1.facts) ? m1.facts : []); if (m1.facts.indexOf(fv) >= 0) return; if (m1.facts.length >= 40) { alert('40개까지 기억할 수 있어요'); return; } m1.facts.push(fv); return meSave(m1, '＋ 기억했어요'); }
+    if (a === 'medel') { var m2 = meCollect(); m2.facts = (m2.facts || []).filter(function (x, i) { return String(i) !== el.getAttribute('data-i'); }); return meSave(m2, '지웠어요'); }
+    if (a === 'meclear') { if (!confirm('기억을 전부 지울까요? 되돌릴 수 없어요.')) return; return meSave({}, '모두 지웠어요'); }
     if (a === 'copy' || a === 'share') {
-      var j = S.last || {}, k = el.getAttribute('data-k'), t = k === 'doc' ? docText(j) : String(j[k] || '');
+      var j = S.last || {}, k = el.getAttribute('data-k'), t = k === 'doc' ? docText(j) : k === 'prod' ? prodText(j) : k === 'insta' ? String(j.insta || '') + '\n\n' + (j.hash || []).map(function (x) { return '#' + x; }).join(' ') : String(j[k] || '');
       if (j.sources && j.sources.length && (k === 'answer' || k === 'report')) t += '\n\n' + j.sources.map(function (s, i) { return '[' + (i + 1) + '] ' + s.url; }).join('\n');
       return a === 'copy' ? copy(t, $('cfp-msg')) : share(t, TITLE[S.view], $('cfp-msg'));
     }
   });
 
   function open(home) {
-    S.home = home === 'adv' ? 'adv' : 'assist'; S.view = S.home; S.last = null;
+    S.home = home === 'adv' ? 'adv' : 'assist'; S.view = S.home; S.last = null; W.file = null;
     ov.classList.add('on'); document.body.classList.add('cfp-lock');
     try { if (!(history.state && history.state.cfp)) history.pushState({ cfp: 1 }, ''); } catch (e) {}
     render();
