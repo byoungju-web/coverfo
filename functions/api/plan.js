@@ -104,7 +104,7 @@ function system(country) {
     '  food — only if the user asked about restaurants/맛집.',
     '- checklist: 6-12 short items fitting the trip (business: 신분증, 노트북·충전기, 명함, 회의 자료 …; abroad: 여권, 환전·카드, 유심/로밍, 여행자보험, 전원 어댑터 …; Jeju with rental: 운전면허증). User\'s language.',
     '- tip: one short practical tip, or "". Never state prices, flight times or availability.',
-    'Call make_plan exactly once.',
+    'Always answer by calling the make_plan tool exactly once (no other text). If you cannot call it, reply with only the same JSON object.',
   ].join('\n');
 }
 
@@ -116,7 +116,7 @@ async function askAI(env, text, country) {
       max_tokens: 1200,
       system: system(country),
       tools: [PLAN_TOOL],
-      tool_choice: { type: 'tool', name: 'make_plan' },
+      /* v293: 이 모델은 tool_choice 로 도구를 강제하는 것(type tool·any)을 받지 않는다 (AI 오류 400 실측) → 기본(auto) + 지시문으로 부르게 하고, 글로 답하면 그 안의 JSON 을 읽는다 */
       messages: [{ role: 'user', content: text }],
     }),
   });
@@ -125,8 +125,11 @@ async function askAI(env, text, country) {
   try { j = JSON.parse(t); } catch {}
   if (!r.ok || !j || !Array.isArray(j.content)) throw new Error('AI 오류 ' + r.status + ': ' + ((j && j.error && j.error.message) || t).slice(0, 120));
   const tu = j.content.find((c) => c && c.type === 'tool_use' && c.name === 'make_plan');
-  if (!tu || !tu.input || typeof tu.input !== 'object') throw new Error('AI 가 계획을 돌려주지 않았어요');
-  return tu.input;
+  if (tu && tu.input && typeof tu.input === 'object') return tu.input;
+  const txt = j.content.filter((c) => c && c.type === 'text').map((c) => c.text || '').join('\n');
+  const m = txt.match(/\{[\s\S]*\}/);
+  if (m) { try { const o = JSON.parse(m[0]); if (o && typeof o === 'object') return o; } catch {} }
+  throw new Error('AI 가 계획을 돌려주지 않았어요');
 }
 
 /* ───────────── 받은 계획 다듬기 (모양·길이·날짜 확인 + 출발지 기본값) ───────────── */
