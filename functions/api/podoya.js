@@ -1,4 +1,4 @@
-// functions/api/podoya.js — coverfo 🍇 포도야 비서 · 🔌 고급기능 (v298 · 1차 + 2차) · 포도톡을 거치지 않고 coverfo 안에서 돈다
+// functions/api/podoya.js — coverfo 🍇 포도야 비서 · 🔌 고급기능 (v298 · 1차 + 2차 · v300 대화형 4칸) · 포도톡을 거치지 않고 coverfo 안에서 돈다
 // © 2026 coverfo All Rights Reserved
 //
 // POST /api/podoya  (Authorization: Bearer coverfo 로그인키) — 모두 coverfo 지갑에서 차감
@@ -13,6 +13,9 @@
 //   { op:'work', ask, preview, fname, fix:{code,error}, t }  위 코드가 폰에서 오류 나면 한 번 고쳐 줌 (t = 처음 받은 표, 15분 · 무료)
 //   { op:'launch', q }              🎨 상품 시작하기: 이름·설명·가격·인스타 글·이미지 아이디어   1크레딧
 //   { op:'img', prompt }            🎨 상품 디자인 1장 (OpenAI 이미지 · 이미지 단가와 같게)      2크레딧
+//   ── v300 · 🧩 포도야 기능 대화형 4칸 ──
+//   { op:'talk', persona, msgs:[{role,content}…], task, tone }   🤗 AI 컴패니언 · 🇺🇸 영어회화 · 👵 시니어 · 💼 사장님비서 — 답 1번 0.2크레딧
+//        0.2 는 통역톡과 같은 0.1 묶음(cf_tr_pack · sql/cf_trans.sql)에서 꺼낸다. 답을 못 만들면 묶음으로 돌려준다. 대화는 서버에 남기지 않는다(폰에만).
 //   { op:'me_get' } · { op:'me_save', data }   🧠 내 기억 읽기·저장 (무료 · sql/cf_me.sql) — 해외 응대·문서·상품 기획 답에 반영
 //
 // · 크레딧: 기존 차감 함수 cf_spend 로 먼저 빼고, 실패하면 cf_refund 로 돌려준다 (hub.js 와 같은 방식).
@@ -33,9 +36,15 @@ export async function onRequestPost(context) {
   try { b = await context.request.json(); } catch { return json({ error: '잘못된 요청입니다' }, 400); }
   const op = String(b.op || '');
   if (op === 'prices') return json({ ok: true, cost: costs(env) });
-  if (!COST[op] && op !== 'me_get' && op !== 'me_save') return json({ error: '잘못된 요청입니다' }, 400);
+  if (!COST[op] && op !== 'me_get' && op !== 'me_save' && op !== 'talk') return json({ error: '잘못된 요청입니다' }, 400);
   const user = await getUser(c, context.request);
   if (!user) return json({ error: '로그인이 필요합니다', login: true }, 401);
+
+  /* v300 💬 대화형 4칸 — 답 1번 0.2크레딧 (0.1 묶음) */
+  if (op === 'talk') {
+    try { return json(await talk(env, c, user.id, b)); }
+    catch (e) { return json({ error: String((e && e.message) || e).slice(0, 300) }, e && e.status ? e.status : 500); }
+  }
 
   /* 🧠 내 기억 (무료) */
   if (op === 'me_get' || op === 'me_save') {
@@ -214,6 +223,81 @@ const RUN = {
     return { img: 'data:image/png;base64,' + b64 };
   },
 };
+
+/* ───────────── v300 💬 대화형 4칸 ───────────── */
+
+const TALK_TENTHS = 2;   // 답 1번 0.2크레딧
+const BIZ_TASKS = ['리뷰 답변', '홍보 문구', '안내 문자', '견적·문의', '가게 소개글'];
+const BIZ_TONES = { 정중하게: '정중하고 프로페셔널한', 친근하게: '친근하고 따뜻한', 간결하게: '간결하고 핵심만 담은' };
+/* 성격(시스템 문장)은 포도톡 ai.html 의 것을 그대로 옮겼다 */
+function talkSystem(persona, task, tone) {
+  if (persona === 'companion') return "너는 '포도', 사용자의 다정한 AI 친구야. 따뜻하고 공감하며 친구처럼 반말로 자연스럽게 대화해. 짧고 편안하게, 이모지는 가끔 1개만. 사용자의 기분을 살피고 진심으로 들어주고 응원해줘. 훈계하거나 길게 설명하지 말고 친구처럼 반응해. 사용자가 위험하거나 매우 힘든 상황을 말하면 공감하면서 믿을 만한 사람이나 전문 상담(자살예방 상담전화 109 등)을 권해.";
+  if (persona === 'english') return "You are 'Leo', a friendly and patient English conversation partner for a Korean learner. Have a natural, encouraging English conversation. Use simple clear English (beginner-intermediate). Keep each reply short (2-3 sentences) and end with a question to keep the conversation going. If the user makes a notable mistake, add ONE short gentle correction in Korean at the very end like: (💡 자연스러운 표현: ...). Never lecture.";
+  if (persona === 'senior') return '너는 어르신을 돕는 친절한 도우미야. 아주 쉽고 짧은 한국어 존댓말로, 천천히 또박또박 설명하듯 답해 주세요. 어려운 용어나 영어는 풀어서 쉽게, 한 번에 너무 많이 말하지 말고 핵심만 3~4문장으로. 따뜻하고 공손하게, 어려운 약어나 기호는 쓰지 마. 마크다운 별표나 샵 기호를 쓰지 마.';
+  const t = BIZ_TONES[tone] || BIZ_TONES['정중하게'];
+  const T = {
+    '리뷰 답변': '너는 가게 사장님의 리뷰 답변 도우미야. 고객 리뷰에 대해 ' + t + ' 답글을 한국어로 써줘. 감사 인사와 구체적 언급을 넣고, 불만 리뷰면 진심 어린 사과와 개선 약속을 담아. 바로 복사해 쓸 수 있게, 너무 길지 않게.',
+    '홍보 문구': '너는 가게 홍보 카피라이터야. 주어진 내용을 ' + t + ' SNS/매장 홍보 문구로 한국어로 만들어줘. 짧은 버전 2~3개를 제시하고 어울리는 해시태그도 몇 개 곁들여.',
+    '안내 문자': '너는 가게 고객 안내문 작성 도우미야. 전할 내용을 ' + t + ' 단체 안내 문자로 한국어로 만들어줘. 짧고 명확하게, 바로 발송 가능하게.',
+    '견적·문의': '너는 가게 사장님의 고객 문의 응대 도우미야. 고객 문의에 ' + t + ' 답변을 한국어로 써줘. 명확하고 신뢰감 있게, 필요하면 추가로 확인할 점도 물어봐.',
+    '가게 소개글': '너는 가게 소개글 작성 도우미야. 주어진 가게 정보로 ' + t + ' 소개/프로필 문구를 한국어로 만들어줘. 매력 포인트가 드러나게 한두 가지 버전으로.',
+  };
+  return (T[BIZ_TASKS.includes(task) ? task : '리뷰 답변']) + ' 마크다운 별표는 쓰지 마. 사실이 아닌 가격·약속은 지어내지 마.';
+}
+async function talk(env, c, uid, b) {
+  const persona = ['companion', 'english', 'senior', 'biz'].includes(b.persona) ? b.persona : '';
+  if (!persona) throw httpErr(400, '잘못된 요청입니다');
+  const raw = Array.isArray(b.msgs) ? b.msgs.slice(-12) : [];
+  const msgs = raw.map((m) => ({ role: m && m.role === 'assistant' ? 'assistant' : 'user', content: txt(m && m.content, 2000) })).filter((m) => m.content);
+  while (msgs.length && msgs[0].role !== 'user') msgs.shift();
+  if (!msgs.length || msgs[msgs.length - 1].role !== 'user') throw httpErr(400, '보낼 말을 적어 주세요');
+  let sys = talkSystem(persona, String(b.task || ''), String(b.tone || ''));
+  if (persona === 'biz') sys += meCtx(await meGet(c, uid).catch(() => null));
+  sys += GUARD;
+  const paid = await charge(env, uid, TALK_TENTHS, '[포도야 ' + ({ companion: 'AI 컴패니언', english: '영어회화', senior: '시니어', biz: '사장님비서' })[persona] + '] ' + msgs[msgs.length - 1].content.slice(0, 40));
+  if (!paid.ok) throw httpErr(402, '크레딧이 부족합니다 (답 1번 0.2크레딧)');
+  try {
+    const out = await aiChat(env, sys, msgs, persona === 'biz' ? 1300 : 700);
+    return { ok: true, text: out, cost: TALK_TENTHS / 10 };
+  } catch (e) {
+    await rpc(c, 'cf_tr_add', { p_user: uid, p_add: TALK_TENTHS }).catch(() => {});
+    throw httpErr(500, '답을 만들지 못했어요 · 크레딧은 돌려드렸어요 (' + String((e && e.message) || e).slice(0, 100) + ')');
+  }
+}
+async function aiChat(env, sys, msgs, maxTokens) {
+  let out = '';
+  if (env.OPENAI_API_KEY) {
+    const r = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + env.OPENAI_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: env.PODOYA_MODEL || 'gpt-4o-mini', temperature: 0.7, max_tokens: maxTokens || 700, messages: [{ role: 'system', content: sys }].concat(msgs) }), signal: AbortSignal.timeout(45000) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error('AI 오류 ' + r.status + ': ' + String((j.error && j.error.message) || '').slice(0, 100));
+    out = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
+  } else {
+    const r = await anthropicFetch(env, '/v1/messages', { method: 'POST', body: JSON.stringify({ model: env.HUB_MODEL || 'claude-sonnet-5-5', max_tokens: maxTokens || 700, system: sys, messages: msgs }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error('AI 오류 ' + r.status);
+    out = (j.content || []).filter((x) => x.type === 'text').map((x) => x.text).join('');
+  }
+  out = String(out).trim();
+  if (!out) throw new Error('AI 답이 비었어요');
+  return out.slice(0, 6000);
+}
+/* 0.1 단위 묶음 (functions/api/trans.js 와 같은 방식 · cf_spend · cf_tr_take · cf_tr_add 만 씀) */
+async function charge(env, uid, tenths, label) {
+  const c = sb(env);
+  let t;
+  try { t = await rpc(c, 'cf_tr_take', { p_user: uid, p_need: tenths }); }
+  catch (e) { throw httpErr(500, '0.1크레딧 묶음이 없어요 (sql/cf_trans.sql 을 실행해 주세요)'); }
+  if (t && t.ok) return { ok: true };
+  const lack = tenths - ((t && t.left) || 0);
+  const whole = Math.max(1, Math.ceil(lack / 10));
+  const job = await spend(env, uid, whole, label);
+  if (job === false) return { ok: false };
+  await doneJob(env, job);
+  await rpc(c, 'cf_tr_add', { p_user: uid, p_add: whole * 10 });
+  t = await rpc(c, 'cf_tr_take', { p_user: uid, p_need: tenths });
+  return { ok: !!(t && t.ok) };
+}
 
 /* ───────────── 🧠 내 기억 (sql/cf_me.sql · 탈퇴하면 함께 지워짐) ───────────── */
 

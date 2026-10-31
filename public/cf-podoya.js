@@ -1,4 +1,5 @@
-/* coverfo 🍇 포도야 비서 · 🔌 고급기능 — public/cf-podoya.js (v299)
+/* coverfo 🍇 포도야 비서 · 🔌 고급기능 — public/cf-podoya.js (v300)
+   · v300: 🧩 포도야 기능 대화형 4칸 (🤗 AI 컴패니언 · 🇺🇸 영어회화 · 👵 시니어 · 💼 사장님비서) 을 coverfo 대화 화면으로 — 답 1번 0.2크레딧 · 대화는 이 폰에만
    · v298: 2차 (업무 자동화 · 내 기억 · 상품 시작하기)
    · v299: 🧩 포도야 기능(격자) · 📁 저장루틴(= 커넥션 허브 2.0 레시피) 을 coverfo 안에서 · 소리 "○○ 루틴 실행해" → 레시피 (window.cfRoutineRun)
            사이드바 설정: 🧠 내 기억 · 🔔 알림 · 🚫 차단한 사람 · 🛡️ 오픈채팅 안전 수칙 · 📞 전화통역 기록 (data-cfp-view)
@@ -40,10 +41,16 @@
     '#cfp .p-wait{color:#6d28d9;font-size:13px;font-weight:700;margin-top:10px}' +
     '#cfp .p-src a{display:block;font-size:12.5px;color:#4338ca;text-decoration:none;padding:5px 0;border-top:1px solid #f1eef7;word-break:break-all}' +
     '#cfp .paper{overflow:auto;border:1px solid #e6e6e6;border-radius:12px;background:#fff}#cfp details summary{cursor:pointer;font-size:13px;font-weight:800;color:#4a4460}' +
+    '#cfp .t-chat{display:flex;flex-direction:column;gap:8px;padding-bottom:6px}#cfp .t-m{max-width:84%;padding:10px 13px;border-radius:15px;font-size:15px;line-height:1.6;white-space:pre-wrap;word-break:break-word}' +
+    '#cfp .t-m.me{align-self:flex-end;background:#6d28d9;color:#fff;border-bottom-right-radius:4px}#cfp .t-m.ai{align-self:flex-start;background:#fff;border:1px solid #ebe6f5;border-bottom-left-radius:4px}' +
+    '#cfp .t-m .t-tools{display:flex;gap:6px;margin-top:6px;white-space:normal}#cfp .t-m .t-tools button{border:0;background:#f3f0fa;color:#5b21b6;border-radius:8px;padding:4px 9px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit}' +
+    '#cfp.big .t-m{font-size:19px;line-height:1.7}#cfp .t-send{flex:none;display:flex;gap:8px;align-items:flex-end;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:#fff;border-top:1px solid #ece8f5}' +
+    '#cfp .t-send textarea{flex:1;min-height:46px;max-height:130px;resize:none;border:1px solid #ddd6ec;border-radius:12px;padding:11px 12px;font-size:15px;font-family:inherit;box-sizing:border-box}#cfp.big .t-send textarea{font-size:18px}' +
+    '#cfp .t-mic{width:50px;height:46px;border:0;border-radius:12px;background:#efeaf9;font-size:21px;cursor:pointer}#cfp .t-mic.on{background:#ef4444;color:#fff}#cfp .t-go{border:0;border-radius:12px;height:46px;padding:0 16px;background:#6d28d9;color:#fff;font-weight:800;font-size:15px;cursor:pointer}' +
     'body.cfp-lock{overflow:hidden}';
   document.head.appendChild(css);
   var ov = document.createElement('div'); ov.id = 'cfp'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true');
-  ov.innerHTML = '<div class="p-bar"><button type="button" class="p-back" data-a="back" hidden>←</button><b id="cfp-title">🍇 포도야 비서</b><button type="button" class="p-x" data-a="close">✕ 닫기</button></div><div class="p-body" id="cfp-body"></div>';
+  ov.innerHTML = '<div class="p-bar"><button type="button" class="p-back" data-a="back" hidden>←</button><b id="cfp-title">🍇 포도야 비서</b><button type="button" class="p-x" data-a="close">✕ 닫기</button></div><div class="p-body" id="cfp-body"></div><div id="cfp-foot"></div>';
   document.body.appendChild(ov);
   var $ = function (id) { return document.getElementById(id); };
   var S = { home: 'assist', view: 'assist', tone: '정중', kind: 'quote', busy: false, last: null };
@@ -87,12 +94,15 @@
     return '<button type="button" class="p-row" data-a="' + a + '"><span class="ic">' + ic + '</span><span class="mid"><span class="nm">' + nm + '</span><span class="sub">' + sub + '</span></span>' + (tag ? '<span class="tag ' + (tagCls || '') + '">' + tag + '</span>' : '') + '<span style="color:#c9c3d8;font-size:18px">›</span></button>';
   }
   function render() {
-    $('cfp-title').textContent = TITLE[S.view] || '🍇 포도야 비서';
+    $('cfp-title').textContent = S.view === 'talk' ? TALKS[S.persona].t : (TITLE[S.view] || '🍇 포도야 비서');
+    $('cfp-foot').innerHTML = ''; try { speechSynthesis.cancel(); } catch (e) {}
+    if (S.view !== 'talk') ov.classList.remove('big');
     ov.querySelector('[data-a="back"]').hidden = (S.view === S.home);
     var b = $('cfp-body'); b.scrollTop = 0;
     if (S.view === 'assist') return assistView(b);
     if (S.view === 'adv') return advView(b);
     if (S.view === 'feat') return featView(b);
+    if (S.view === 'talk') return talkView(b);
     if (S.view === 'routine') return routineView(b);
     if (S.view === 'notify') return notifyView(b);
     if (S.view === 'blocks') return blocksView(b);
@@ -396,14 +406,82 @@
   }
 
 
+
+  /* ══════════ v300 💬 대화형 4칸 (성격은 포도톡 ai.html 그대로 · 대화는 이 폰에만 · 답 1번 0.2크레딧) ══════════ */
+  var TALKS = {
+    companion: { t: '🤗 AI 컴패니언', lang: 'ko-KR', read: true, hi: '안녕! 나는 포도야 🍇 오늘 하루 어땠어? 편하게 아무 얘기나 해 줘.', lead: '다정한 AI 친구 <b>포도</b>와 편하게 이야기해요. 반말로 들어 주고 응원해 줘요.', ph: '편하게 말해 줘…' },
+    english: { t: '🇺🇸 영어회화', lang: 'en-US', read: true, hi: "Hi! I'm Leo 😊 Let's practice English together. How's your day going?", lead: '영어 친구 <b>Leo</b>와 짧게 주고받으며 연습해요. 틀린 표현은 끝에 한국어로 살짝 알려 줘요. 🎤 를 누르고 영어로 말해 보세요.', ph: 'Type in English…' },
+    senior: { t: '👵 시니어', lang: 'ko-KR', read: true, big: true, hi: '안녕하세요. 궁금한 것을 편하게 물어보세요. 🎤 를 누르고 말씀하셔도 돼요.', lead: '어르신을 위한 <b>쉽고 짧은</b> 도우미예요. 글자가 크고, 답을 소리로 읽어 드려요.', ph: '예) 김치찌개 끓이는 법 알려줘' },
+    biz: { t: '💼 사장님비서', lang: 'ko-KR', read: false, hi: '사장님, 무엇을 써 드릴까요? 위에서 할 일과 말투를 고르고 내용을 적어 주세요.', lead: '리뷰 답변·홍보 문구·안내 문자·문의 답변·가게 소개글을 바로 써 드려요. <b>🧠 내 기억</b>의 상호·말투가 반영돼요.', ph: '' }
+  };
+  var BIZ_T = [['리뷰 답변', '고객 리뷰를 붙여 넣어 주세요 (예: 음식은 맛있는데 대기가 길었어요)'], ['홍보 문구', '홍보할 내용 (예: 신메뉴 흑임자 라떼 출시, 주말 20% 할인)'], ['안내 문자', '전할 내용 (예: 이번 주 수요일 임시 휴무)'], ['견적·문의', '고객 문의 (예: 단체 10명 예약 가능한가요?)'], ['가게 소개글', '가게 정보 (예: 5년 된 동네 베이커리, 천연발효빵 전문)']];
+  function tKey() { return 'cfp_talk_' + S.persona; }
+  function tHist() { try { var a = JSON.parse(ls.get(tKey(), '[]')); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  function tSave(a) { ls.set(tKey(), JSON.stringify(a.slice(-40))); }
+  function tRead() { return ls.get('cfp_read_' + S.persona, TALKS[S.persona].read ? '1' : '0') === '1'; }
+  function talkView(b) {
+    var P = TALKS[S.persona], biz = S.persona === 'biz';
+    S.bizTask = S.bizTask || '리뷰 답변'; S.bizTone = S.bizTone || '정중하게';
+    ov.classList.toggle('big', !!P.big);
+    b.innerHTML = '<div class="p-lead">' + P.lead + '<br>💳 답 1번 0.2크레딧 · 대화는 이 폰에만 저장돼요.</div>' +
+      (biz ? '<div class="p-card" style="padding:12px"><div class="p-lb">할 일</div><div class="p-chips">' + BIZ_T.map(function (x) { return '<button type="button" data-a="btask" data-v="' + x[0] + '" class="' + (S.bizTask === x[0] ? 'on' : '') + '">' + x[0] + '</button>'; }).join('') + '</div>' +
+        '<div class="p-lb">말투</div><div class="p-chips">' + ['정중하게', '친근하게', '간결하게'].map(function (x) { return '<button type="button" data-a="btone" data-v="' + x + '" class="' + (S.bizTone === x ? 'on' : '') + '">' + x + '</button>'; }).join('') + '</div></div>' : '') +
+      '<div style="display:flex;gap:6px;justify-content:flex-end;margin:0 0 8px"><button type="button" class="p-btn g" data-a="tread" style="width:auto;margin:0;padding:7px 11px;font-size:12.5px">' + (tRead() ? '🔊 읽어주기 켬' : '🔇 읽어주기 끔') + '</button><button type="button" class="p-btn g" data-a="tclear" style="width:auto;margin:0;padding:7px 11px;font-size:12.5px">🗑 대화 지우기</button></div>' +
+      '<div class="t-chat" id="cfp-tchat"></div>';
+    $('cfp-foot').innerHTML = '<div class="t-send"><button type="button" class="t-mic" data-a="tmic" title="말로 입력">🎤</button><textarea id="cfp-tin" maxlength="2000" placeholder="' + esc(biz ? BIZ_T.filter(function (x) { return x[0] === S.bizTask; })[0][1] : P.ph) + '"></textarea><button type="button" class="t-go" data-a="tsend">보내기</button></div>';
+    tDraw();
+  }
+  function tBubble(m, i) {
+    var biz = S.persona === 'biz';
+    return '<div class="t-m ' + (m.role === 'user' ? 'me' : 'ai') + '">' + (m.tag ? '<div style="font-size:11.5px;font-weight:800;opacity:.75;margin-bottom:2px">' + esc(m.tag) + '</div>' : '') + esc(m.content) +
+      (m.role === 'assistant' && i >= 0 ? '<div class="t-tools"><button type="button" data-a="tcopy" data-i="' + i + '">📋 복사</button>' + (biz ? '<button type="button" data-a="tshare" data-i="' + i + '">💬 공유</button>' : '<button type="button" data-a="tsay" data-i="' + i + '">🔊 듣기</button>') + '</div>' : '') + '</div>';
+  }
+  function tDraw() {
+    var box = $('cfp-tchat'); if (!box) return;
+    var h = tHist();
+    box.innerHTML = tBubble({ role: 'assistant', content: TALKS[S.persona].hi }, -1) + h.map(tBubble).join('');
+    var bd = $('cfp-body'); bd.scrollTop = bd.scrollHeight;
+  }
+  function tSpeak(text) {
+    try { if (!window.speechSynthesis || !text) return; speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance(String(text).replace(/\(💡[\s\S]*$/, '').slice(0, 600)); u.lang = TALKS[S.persona].lang; u.rate = S.persona === 'senior' ? 0.9 : 1; speechSynthesis.speak(u); } catch (e) {}
+  }
+  function tSend() {
+    var ta = $('cfp-tin'); if (!ta || S.busy) return; var t = ta.value.trim(); if (!t) return;
+    var h = tHist(), biz = S.persona === 'biz';
+    h.push({ role: 'user', content: t, tag: biz ? S.bizTask + ' · ' + S.bizTone : '' });
+    tSave(h); ta.value = ''; tDraw();
+    var box = $('cfp-tchat'); box.insertAdjacentHTML('beforeend', '<div class="t-m ai" id="cfp-twait">…</div>'); $('cfp-body').scrollTop = 1e9;
+    S.busy = true;
+    /* 사장님비서는 한 건씩 따로 쓰는 일이라 이번 글만 보낸다. 나머지는 앞 대화(최근 12개)를 함께 보낸다 */
+    var send = biz ? [{ role: 'user', content: t }] : h.slice(-12).map(function (m) { return { role: m.role, content: m.content }; });
+    api({ op: 'talk', persona: S.persona, msgs: send, task: S.bizTask, tone: S.bizTone }).then(function (j) {
+      S.busy = false; var w = $('cfp-twait'); if (w) w.remove();
+      var h2 = tHist(); h2.push({ role: 'assistant', content: j.text }); tSave(h2); tDraw();
+      if (tRead()) tSpeak(j.text);
+    }, function (e) {
+      S.busy = false; var w = $('cfp-twait'); if (w) w.outerHTML = errBox(e);
+      var h2 = tHist(); if (h2.length && h2[h2.length - 1].role === 'user' && h2[h2.length - 1].content === t) { h2.pop(); tSave(h2); }
+      var ta2 = $('cfp-tin'); if (ta2 && !ta2.value) ta2.value = t;
+    });
+  }
+  function tMic(btn) {
+    var R = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!R) { alert('이 브라우저는 말로 입력을 지원하지 않아요. 글로 써 주세요.'); return; }
+    if (S.rec) { try { S.rec.stop(); } catch (e) {} S.rec = null; btn.classList.remove('on'); return; }
+    var r = new R(); r.lang = TALKS[S.persona].lang; r.interimResults = false; S.rec = r; btn.classList.add('on');
+    r.onresult = function (ev) { var x = ''; try { x = ev.results[0][0].transcript; } catch (e) {} if (x) { var ta = $('cfp-tin'); ta.value = (ta.value ? ta.value + ' ' : '') + x; if (S.persona !== 'biz') tSend(); } };
+    r.onend = r.onerror = function () { S.rec = null; btn.classList.remove('on'); };
+    try { r.start(); } catch (e) { S.rec = null; btn.classList.remove('on'); }
+  }
+
   /* ══════════ v299 🧩 포도야 기능 (격자) ══════════
      go: coverfo 안 화면(view) · url: coverfo 주소 · ext: 새 창 · pt: 아직 옮기지 않은 것 → 포도톡 화면(아래 탭 없이) · soon: 아직 없음 */
   var FEATS = [
     ['🏠', '집안 기기', { pt: 'home' }], ['📊', '매일 리포트', { pt: 'report' }], ['📄', '문서 만들기', { go: 'doc' }], ['📽️', '발표자료', { soon: 1 }],
     ['🌍', '해외 응대', { go: 'intl' }], ['🎨', '상품 시작하기', { go: 'launch' }], ['📰', '예약브리핑', { url: '/brief' }], ['✈️', '텔레그램', { pt: 'f_tgfeat' }],
-    ['🤗', 'AI 컴패니언', { pt: 'f_companion' }], ['👵', '시니어', { pt: 'f_senior' }], ['🗣️', '말로 열기', { pt: 'f_voiceact' }], ['🔎', 'AI 리서치', { go: 'research' }],
-    ['⚙️', 'AI 자동화', { go: 'work' }], ['📚', 'AI 학습', { pt: 'f_study' }], ['📇', 'AI 명함', { pt: 'f_cardscan' }], ['💼', '사장님비서', { pt: 'f_biz' }],
-    ['💰', 'AI가계부', { pt: 'f_ledger' }], ['🇺🇸', '영어회화', { pt: 'f_english' }], ['🧳', '여행플래너', { pt: 'f_travel' }], ['🍳', '냉장고요리', { pt: 'f_fridge' }],
+    ['🤗', 'AI 컴패니언', { talk: 'companion' }], ['👵', '시니어', { talk: 'senior' }], ['🗣️', '말로 열기', { pt: 'f_voiceact' }], ['🔎', 'AI 리서치', { go: 'research' }],
+    ['⚙️', 'AI 자동화', { go: 'work' }], ['📚', 'AI 학습', { pt: 'f_study' }], ['📇', 'AI 명함', { pt: 'f_cardscan' }], ['💼', '사장님비서', { talk: 'biz' }],
+    ['💰', 'AI가계부', { pt: 'f_ledger' }], ['🇺🇸', '영어회화', { talk: 'english' }], ['🧳', '여행플래너', { pt: 'f_travel' }], ['🍳', '냉장고요리', { pt: 'f_fridge' }],
     ['✍️', '작명', { pt: 'f_naming' }], ['🔮', '운세', { pt: 'f_fortune' }], ['❓', '퀴즈생성', { pt: 'f_quiz' }], ['📷', '사물인식', { ext: '/lens-snap/' }],
     ['🔤', '글자인식', { ext: '/lens-snap/' }], ['🧪', '성분스캐너', { ext: '/lens-snap/' }], ['🖼️', '이미지 생성', { url: '/studio' }], ['📝', 'AI 글쓰기', { home: 1 }],
     ['🎬', 'AI 릴', { url: '/studio' }], ['🍇', '포도다', { ext: 'https://pododa.kr/' }]
@@ -421,6 +499,7 @@
     if (o.url) { close(); location.href = o.url; return; }
     if (o.ext) { window.open(o.ext, '_blank', 'noopener'); return; }
     if (o.home) return toHome('입력칸에 쓸 글을 적고 「무엇이든 물어보기」를 누르세요 (예: 신상품 소개 글 써줘)');
+    if (o.talk) { S.persona = o.talk; S.view = 'talk'; return render(); }
     if (o.pt) return toPodotalk(o.pt);
     alert('발표자료는 다음 단계에서 coverfo 로 새로 만들어요.');
   }
@@ -584,6 +663,7 @@
 
   /* ── 누르기 ── */
   ov.addEventListener('change', function (e) { if (e.target && e.target.id === 'cfp-file') pickFile(e.target); });
+  ov.addEventListener('keydown', function (e) { if (e.target && e.target.id === 'cfp-tin' && e.key === 'Enter' && !e.shiftKey && !e.isComposing && S.persona !== 'biz') { e.preventDefault(); tSend(); } });
   ov.addEventListener('click', function (e) {
     var el = e.target.closest ? e.target.closest('[data-a]') : null; if (!el) return;
     var a = el.getAttribute('data-a');
@@ -610,6 +690,12 @@
     if (a === 'medel') { var m2 = meCollect(); m2.facts = (m2.facts || []).filter(function (x, i) { return String(i) !== el.getAttribute('data-i'); }); return meSave(m2, '지웠어요'); }
     if (a === 'meclear') { if (!confirm('기억을 전부 지울까요? 되돌릴 수 없어요.')) return; return meSave({}, '모두 지웠어요'); }
     if (a === 'feat') return featGo(+el.getAttribute('data-i'));
+    if (a === 'tsend') return tSend();
+    if (a === 'tmic') return tMic(el);
+    if (a === 'tread') { var on = !tRead(); ls.set('cfp_read_' + S.persona, on ? '1' : '0'); el.textContent = on ? '🔊 읽어주기 켬' : '🔇 읽어주기 끔'; if (!on) { try { speechSynthesis.cancel(); } catch (x) {} } return; }
+    if (a === 'tclear') { if (!confirm('이 대화를 지울까요?')) return; tSave([]); return tDraw(); }
+    if (a === 'tcopy' || a === 'tshare' || a === 'tsay') { var hm = tHist()[+el.getAttribute('data-i')]; if (!hm) return; if (a === 'tsay') return tSpeak(hm.content); return a === 'tcopy' ? copy(hm.content, null) : share(hm.content, '사장님비서', null); }
+    if (a === 'btask' || a === 'btone') { if (a === 'btask') S.bizTask = el.getAttribute('data-v'); else S.bizTone = el.getAttribute('data-v'); Array.prototype.forEach.call(el.parentNode.children, function (x) { x.classList.toggle('on', x === el); }); var ph = BIZ_T.filter(function (x) { return x[0] === S.bizTask; })[0]; if (ph && $('cfp-tin')) $('cfp-tin').placeholder = ph[1]; return; }
     if (a === 'rrun') { var rr = (S.recipes || []).filter(function (x) { return String(x.id) === el.getAttribute('data-id'); })[0]; return hubRun({ op: 'recipe_run', id: +el.getAttribute('data-id') }, rr ? '"' + rr.name + '" 실행 중' : '실행 중'); }
     if (a === 'rok' || a === 'rno') { if (!S.hubState) return; var st = S.hubState; S.hubState = null; return hubRun({ op: 'confirm', state: st, approve: a === 'rok' }, a === 'rok' ? '이어서 진행 중' : '취소하는 중'); }
     if (a === 'rkakao') { var kk = (S.hubKakao || [])[+el.getAttribute('data-i')]; if (kk) share(kk.text || '', '카톡', null); return; }
@@ -639,7 +725,7 @@
     try { if (!(history.state && history.state.cfp)) history.pushState({ cfp: 1 }, ''); } catch (e) {}
     render();
   }
-  function hide() { ov.classList.remove('on'); document.body.classList.remove('cfp-lock'); }
+  function hide() { ov.classList.remove('on'); ov.classList.remove('big'); document.body.classList.remove('cfp-lock'); try { speechSynthesis.cancel(); } catch (e) {} if (S.rec) { try { S.rec.stop(); } catch (e) {} } }
   function close(fromPop) {
     hide();
     if (fromPop !== true) { try { if (history.state && history.state.cfp) history.back(); } catch (e) {} }
