@@ -41,6 +41,9 @@ const INSTRUCTIONS = [
   'When the user says things like "홈으로", "홈 화면", "이전 화면", "돌아가", "대화 보여줘", "대화 목록" (go home / go back / show the conversation), call the tool show_chat and say a very short line like "대화 화면을 열게요."',
   'After run_command, coverfo often shows a result screen with buttons (weather: 네이버 날씨 / 기상청 날씨누리 / Google 날씨; shopping: 쿠팡 / 네이버 가격비교 / 다나와; navigation: 카카오내비 / 카카오맵 / 네이버지도; hotel: Trip.com, and so on).',
   'When the user then picks one of those ("네이버 날씨 열어 줘", "쿠팡으로", "카카오맵으로 해 줘"), call press_button with that button name instead of run_command. If press_button returns ok:false it lists the visible buttons — tell the user briefly or pick the right one.',
+  /* v294 🧳 한 번에 준비: 여행·출장 준비(항공권·숙소·렌터카·날씨·준비물을 한 화면에)도 run_command 로 홈 화면에 넘긴다 */
+  'TRIP PREPARATION: when the user asks to prepare or plan a trip or business trip with a destination (e.g. "내일 제주 1박 출장 준비해줘", "다음 주 오사카 2박3일 여행 계획 짜줘", "부산 출장 항공권이랑 숙소 알아봐줘"), call run_command with one sentence that keeps the destination, dates, nights, people and departure city they said and ends with "준비해줘" (e.g. "내일 제주 1박 출장 준비해줘"). Do NOT use run_relay for this. Say only "네, 준비할게요." before calling.',
+  'The trip result screen has buttons 항공권 / 기차 / 숙소 / 렌터카 / 날씨 / 맛집. When the user picks one ("숙소 열어 줘", "항공권 보여 줘"), call press_button with that name. Booking and payment are done by the user on each site.',
   'For questions, chit-chat or explanations, just answer by voice without the tool — still briefly.',
   'Never ask for or repeat card numbers, ID numbers, passwords or bank account numbers. coverfo does not take payments; payment happens on each shop\'s site by the user.',
 ].join(' ');
@@ -58,7 +61,7 @@ function appInstructions(name) {
 
 /* v277 커넥션 허브 2.0: 연결한 앱(캘린더·지메일·드라이브·구글문서·노션)과 카톡으로 여러 단계를 한 번에 */
 const RELAY_INSTR = [
-  'For tasks that use the user\'s connected apps — Google Calendar, Gmail, Google Drive, Google Docs, Notion, or sending KakaoTalk messages — such as "내일 10시 미팅 준비해", "오늘 일정 알려줘", "참석자에게 메일 보내", "드라이브에서 계약서 찾아 요약해", call run_relay with the whole request as one sentence. Say only "네, 할게요." before calling. It can take up to a minute; stay quiet while waiting.',
+  'For tasks that use the user\'s connected apps — Google Calendar, Gmail, Google Drive, Google Docs, Notion, or sending KakaoTalk messages — such as "내일 10시 미팅 준비해", "오늘 일정 알려줘", "참석자에게 메일 보내", "드라이브에서 계약서 찾아 요약해", call run_relay with the whole request as one sentence. (Trip/business-trip preparation with a destination such as "제주 출장 준비해줘" is NOT a relay task — use run_command.) Say only "네, 할게요." before calling. It can take up to a minute; stay quiet while waiting.',
   'If run_relay or relay_answer returns status "confirm", ask the user the given question in ONE short sentence and wait. When they answer yes (응/네/보내/해) call relay_answer with approve true; no (아니/취소/하지마) approve false.',
   'When the result has status "done", say its "say" text (one sentence). If it says an app must be connected, tell them to connect it in 커넥션 허브.',
   /* v279 커넥션 허브 레시피: "아침 브리핑 실행해" 처럼 저장해 둔 레시피 이름 + 실행 */
