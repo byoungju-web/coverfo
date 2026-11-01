@@ -25,6 +25,8 @@
 //   v284 🔔 웹 알림 (sql/hub_push.sql + 비밀값 VAPID_PUBLIC · VAPID_PRIVATE):
 //   { op:"push_key" } 공개 키 · { op:"push_sub", sub } 이 브라우저 구독 · { op:"push_unsub", endpoint } 끊기 · { op:"push_test" } 시험 알림
 //   브리핑이 만들어지면 알림 시각(push_at)에 cron_due 가 구독한 브라우저로 "☀️ 오늘 아침 브리핑" 알림을 보낸다.
+//   v302 📮 발송 채널: 예약 실행 결과를 지메일(있으면)에 더해 계정의 cf_deliver 설정대로 텔레그램 · 🔔 coverfo 알림으로도 보낸다
+//        (sql/cf_deliver.sql · 설정은 /api/podoya deliver_save). 표가 없거나 보내기에 실패해도 실행 결과에는 영향 없음.
 //   { op:"cron_run", id }                 → 그 레시피를 사람 없이 실행. 남에게 보내기·수정은 하지 않고 '확인 대기'로 멈춘다.
 //                                            결과(또는 확인 요청)는 지메일이 연결돼 있으면 내 메일 주소로만 보낸다.
 //
@@ -827,6 +829,7 @@ async function cronRun(env, id) {
         : '';
       try { await mailMe(env, cu, uid, subj, String(out.body || out.say || '') + tail + '\n\n— coverfo 커넥션 허브 예약 실행 (' + schedText(rec) + ') · coverfo.com/hub'); } catch {}
     }
+    try { await deliverExtra(env, uid, rec, out); } catch {}
     return { ok: true, status: out.status };
   };
   if (!connected.length) return finishRun({ status: 'error', say: '연결된 앱이 없어요', body: '커넥션 허브에서 앱을 연결해 주세요.' });
@@ -848,6 +851,20 @@ async function cronRun(env, id) {
   const items = r.pause;
   const body = '아래 일을 하려면 확인이 필요해요.\n\n' + items.map((x) => '• ' + x.title + (x.detail ? '\n  ' + String(x.detail).replace(/\n/g, '\n  ').slice(0, 600) : '')).join('\n\n');
   return finishRun({ status: 'wait', say: items.map((x) => x.title).join(', ').slice(0, 200) + ' — 확인 대기', body, items, state: JSON.stringify(st) });
+}
+
+/* v302 📮 발송 채널 — 텔레그램 · 🔔 coverfo 알림 (cf_deliver 표가 없으면 조용히 건너뜀) */
+async function deliverExtra(env, uid, rec, out) {
+  const rows = await sbReq(env, 'GET', 'cf_deliver?select=*&user_id=eq.' + encodeURIComponent(uid) + '&limit=1').catch(() => null);
+  const d = Array.isArray(rows) && rows[0];
+  const head = out.status === 'wait' ? '🙋 확인이 필요해요 · ' + rec.name : out.status === 'done' ? '📁 ' + rec.name + ' · 결과' : '⚠️ ' + rec.name + ' · 실행하지 못했어요';
+  if (d && d.tg_token && d.tg_chat) {
+    const text = head + '\n\n' + String(out.body || out.say || '').slice(0, 3500) + (out.status === 'wait' ? '\n\n24시간 안에 coverfo.com/hub → 예약 실행 기록에서 [보내기] 또는 [취소]를 눌러 주세요.' : '') + '\n\n— coverfo 예약 실행 (' + schedText(rec) + ')';
+    await fetch('https://api.telegram.org/bot' + d.tg_token + '/sendMessage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: d.tg_chat, text, disable_web_page_preview: true }) }).catch(() => {});
+  }
+  if ((!d || d.push !== false) && env.VAPID_PUBLIC && env.VAPID_PRIVATE) {
+    await pushUser(env, uid, { title: head, body: String(out.say || out.body || '').slice(0, 120), url: out.status === 'wait' ? '/hub' : '/#cfp=routine', tag: 'cf-run-' + rec.id }).catch(() => {});
+  }
 }
 
 /* 결과를 '내 메일 주소로만' 보낸다 (지메일 연결이 있을 때). 받는 사람은 coverfo 계정 이메일로 고정 — AI 가 정하지 않음 */

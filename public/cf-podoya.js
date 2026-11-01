@@ -1,4 +1,5 @@
-/* coverfo 🍇 포도야 비서 · 🔌 고급기능 — public/cf-podoya.js (v301)
+/* coverfo 🍇 포도야 비서 · 🔌 고급기능 — public/cf-podoya.js (v302)
+   · v302: 🏠 집안 기기 · 📊 매일 리포트(= 허브 레시피 + 매일 예약) · 📮 발송 채널(텔레그램 · coverfo 알림) 도 coverfo 안에서 — 이제 포도톡 화면으로 가는 칸 없음
    · v301: 🧩 포도야 기능 도구형 10칸 — 작명 · 운세 · 퀴즈생성 · 여행플래너 · AI 학습 · 발표자료 · AI가계부 · 냉장고요리 · AI 명함 (1번 1크레딧 · 가계부 적기는 무료)
            🗣️ 말로 열기 → coverfo 🗣️ 소리 (같은 일: 말하면 앱·사이트를 열어 줌)
    · v300: 🧩 포도야 기능 대화형 4칸 (🤗 AI 컴패니언 · 🇺🇸 영어회화 · 👵 시니어 · 💼 사장님비서) 을 coverfo 대화 화면으로 — 답 1번 0.2크레딧 · 대화는 이 폰에만
@@ -14,8 +15,8 @@
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); };
   var ls = { get: function (k, d) { try { var v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
   var COST = { intl: 1, doc: 1, scrape: 1, search: 1, yt: 2, research: 3, work: 2, launch: 1, img: 2 };
-  var TITLE = { assist: '🍇 포도야 비서', adv: '🔌 고급기능', intl: '🌍 해외 응대', doc: '📄 문서 만들기', scrape: '🔍 웹 스크래핑', search: '🧠 시맨틱 검색', yt: '🎬 유튜브 → 블로그', research: '📊 리서치 파이프라인', work: '📊 업무 자동화', launch: '🎨 상품 시작하기', me: '🧠 내 기억', feat: '🧩 포도야 기능', routine: '📁 저장루틴', notify: '🔔 알림', blocks: '🚫 차단한 사람', safety: '🛡️ 오픈채팅 안전 수칙', calls: '📞 전화통역 기록' };
-  var HOMES = ['assist', 'adv', 'feat', 'routine', 'me', 'notify', 'blocks', 'safety', 'calls'];
+  var TITLE = { assist: '🍇 포도야 비서', adv: '🔌 고급기능', intl: '🌍 해외 응대', doc: '📄 문서 만들기', scrape: '🔍 웹 스크래핑', search: '🧠 시맨틱 검색', yt: '🎬 유튜브 → 블로그', research: '📊 리서치 파이프라인', work: '📊 업무 자동화', launch: '🎨 상품 시작하기', me: '🧠 내 기억', feat: '🧩 포도야 기능', routine: '📁 저장루틴', notify: '🔔 알림', blocks: '🚫 차단한 사람', safety: '🛡️ 오픈채팅 안전 수칙', calls: '📞 전화통역 기록', home: '🏠 집안 기기', report: '📊 매일 리포트', deliver: '📮 발송 채널' };
+  var HOMES = ['assist', 'adv', 'feat', 'routine', 'me', 'notify', 'blocks', 'safety', 'calls', 'home', 'report', 'deliver'];
   var DOC_KINDS = [['quote', '📋', '견적서'], ['inv', '🌍', 'INVOICE'], ['state', '🧾', '거래명세서'], ['order', '📦', '발주서'], ['recpt', '🧻', '영수증']];
 
   /* ── 모양 (통역톡·채팅과 같은 결) ── */
@@ -111,6 +112,9 @@
     if (S.view === 'blocks') return blocksView(b);
     if (S.view === 'safety') return safetyView(b);
     if (S.view === 'calls') return callsView(b);
+    if (S.view === 'home') return homeView(b);
+    if (S.view === 'report') return reportView(b);
+    if (S.view === 'deliver') return deliverView(b);
     return toolView(b, S.view);
   }
   function assistView(b) {
@@ -122,17 +126,17 @@
       row('t-doc', '📄', '문서 만들기', '견적서·거래명세서·INVOICE 를 PDF로', COST.doc + '크레딧') +
       row('t-work', '📊', '업무 자동화', '말만 하면 엑셀·데이터를 정리해요', COST.work + '크레딧') +
       row('t-launch', '🎨', '상품 시작하기', '이름·설명·가격 + 디자인 3장', COST.launch + '크레딧~') +
-      row('pt-routine', '📁', '루틴', '저장한 것 · 추천 루틴 담기', '포도톡', 'o') +
-      row('pt-report', '📊', '매일 리포트', '아침에 매출·트래픽을 한 장으로', '포도톡', 'o') +
-      row('pt-report', '🔔', '아침 알림', '정해진 시각에 깨워줘요', '포도톡', 'o') +
+      row('t-routine', '📁', '루틴', '저장한 것 · 추천 루틴 담기 (허브 레시피)', '5크레딧') +
+      row('t-report', '📊', '매일 리포트', '정한 시각에 여러 곳을 조회해 한 장으로', '5크레딧') +
+      row('t-notify', '🔔', '아침 알림', '리포트·브리핑·채팅 알림을 이 폰으로', '무료', 'g') +
       '</div><div class="p-sec">비서에게 알려주기</div><div class="p-list">' +
       row('t-me', '🧠', '내 기억', '상호·말투·거래처를 기억해서 답에 반영', '무료', 'g') +
       row('go-hub', '🔗', '커넥션 허브', 'Gmail·슬랙·노션 등 외부앱 연결 (허브 2.0)', 'coverfo') +
-      row('pt-home', '🏠', '집안 기기', '불·플러그·에어컨을 말로', '포도톡', 'o') +
-      row('pt-deliver', '📮', '발송 채널', '결과를 어디로 받을지 (포도톡·텔레그램)', '포도톡', 'o') +
+      row('t-home', '🏠', '집안 기기', '불·플러그·에어컨을 버튼이나 말로 (SmartThings)', '무료~') +
+      row('t-deliver', '📮', '발송 채널', '예약 실행 결과를 어디로 받을지 (텔레그램·알림·메일)', '무료', 'g') +
       '</div><div class="p-sec">알리기</div><div class="p-list">' +
       row('go-share', '📣', '친구에게 알리기', '카톡으로 coverfo 링크 보내기') +
-      '</div><div class="p-mut" style="margin:14px 4px 0">「포도톡」 표시는 아직 포도톡 화면으로 열려요 (아래 탭 없이). 차례로 coverfo 로 옮겨요.</div>';
+      '</div>';
   }
   function advView(b) {
     b.innerHTML = '<div class="p-lead">🔌 웹을 읽고 찾아서 정리해 주는 기능이에요. <b>키를 넣을 필요 없이</b> coverfo 크레딧으로 바로 돌아가요.</div><div class="p-list">' +
@@ -478,6 +482,88 @@
   }
 
 
+
+  /* ══════════ v302 🏠 집안 기기 (SmartThings · 토큰·기기 목록은 이 폰에만) ══════════ */
+  function stTok() { return ls.get('cfp_st_token', ''); }
+  function stDevs() { try { var a = JSON.parse(ls.get('cfp_st_devs', '[]')); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  var ST_KO = { switch: '전원', switchLevel: '밝기', lock: '잠금', thermostatCoolingSetpoint: '냉방 온도', airConditionerMode: '에어컨 모드', colorControl: '색상', fanSpeed: '바람 세기' };
+  function homeView(b) {
+    var tok = stTok(), devs = stDevs();
+    b.innerHTML = '<div class="p-lead">🏠 삼성 <b>SmartThings</b>에 등록된 기기(LG·필립스·샤오미 등 브랜드 상관없음)를 버튼이나 말로 켜고 꺼요.<br>💳 버튼은 무료 · 💬 말로 시키기 1번 0.2크레딧 · 토큰과 기기 목록은 <b>이 폰에만</b> 저장돼요.</div>' +
+      '<div class="p-card"><div class="p-lb">SmartThings 토큰</div><div style="display:flex;gap:7px"><input class="p-in" id="cfp-sttok" type="password" placeholder="토큰을 붙여 넣으세요" value="' + esc(tok) + '"><button type="button" class="p-btn g" data-a="stsave" style="width:auto;margin:0;padding:0 14px">저장</button></div>' +
+      '<a href="https://account.smartthings.com/tokens" target="_blank" rel="noopener" style="display:block;text-align:right;font-size:12.5px;color:#4338ca;margin-top:6px">토큰 받기 (account.smartthings.com) →</a>' +
+      '<div class="p-mut" style="margin-top:4px">⏰ 2024년 12월 30일 이후 받은 토큰은 <b>24시간만</b> 쓸 수 있어요(삼성 정책). 기한이 지나면 새로 받아 넣어 주세요.</div>' +
+      '<button type="button" class="p-btn" data-a="stload">🔄 내 기기 불러오기</button></div>' +
+      (devs.length ? '<div class="p-card"><div class="p-lb">💬 말로 시키기 · 0.2크레딧</div><div style="display:flex;gap:7px"><input class="p-in" id="cfp-stsay" placeholder="예: 거실 불 꺼줘 / 에어컨 24도로"><button type="button" class="p-btn" data-a="stsay" style="width:auto;margin:0;padding:0 14px">실행</button></div><div id="cfp-stout"></div></div>' : '') +
+      '<div class="p-sec">내 기기 ' + (devs.length ? '(' + devs.length + ')' : '') + '</div><div id="cfp-stlist">' + (devs.length ? '<div class="p-list">' + devs.map(function (d, i) {
+        var sw = d.caps.indexOf('switch') >= 0;
+        return '<div class="p-row" style="cursor:default"><span class="mid"><span class="nm">' + esc(d.name) + '</span><span class="sub">' + esc(d.caps.slice(0, 4).map(function (c) { return ST_KO[c] || c; }).join(' · ') || '-') + '</span><span class="sub" id="cfp-st' + i + '"></span></span>' +
+          (sw ? '<span style="display:flex;gap:6px"><button type="button" class="p-btn" data-a="ston" data-i="' + i + '" style="width:auto;margin:0;padding:8px 12px;font-size:12.5px">켜기</button><button type="button" class="p-btn g" data-a="stoff" data-i="' + i + '" style="width:auto;margin:0;padding:8px 12px;font-size:12.5px">끄기</button></span>' : '') + '</div>';
+      }).join('') + '</div>' : '<div class="p-mut" style="margin:0 4px">토큰을 넣고 🔄 내 기기 불러오기를 눌러 주세요.</div>') + '</div>';
+  }
+  function stCmd(i, cmd) {
+    var d = stDevs()[i], el = $('cfp-st' + i); if (!d) return;
+    if (el) { el.style.color = '#6d28d9'; el.textContent = '⏳ 보내는 중…'; }
+    api({ op: 'home_cmd', token: stTok(), deviceId: d.id, capability: 'switch', command: cmd }).then(function () { if (el) { el.style.color = '#067647'; el.textContent = cmd === 'on' ? '✅ 켰어요' : '✅ 껐어요'; } }, function (e) { if (el) { el.style.color = '#b42318'; el.textContent = (e && e.message) || '실패'; } });
+  }
+
+  /* ══════════ v302 📊 매일 리포트 = 허브 레시피(이름 앞 📊) + 매일 예약 · 실행 1번 5크레딧 ══════════ */
+  var REP_T = [['📥 신규 문의', '지메일에서 어제 받은 문의 메일'], ['📅 오늘 일정', '구글 캘린더의 오늘 일정'], ['📋 매출 장부', '구글 시트 매출장부의 이번 주 데이터'], ['💼 슬랙', '슬랙에서 어제 올라온 주요 채널 메시지'], ['✅ 할 일', '투두이스트의 오늘 할 일']];
+  function reportView(b) {
+    S.rp = S.rp || { picks: [] };
+    b.innerHTML = '<div class="p-lead">📊 정한 시각에 여러 곳을 <b>조회만</b> 해서 한 장으로 요약하고, 어제와 비교해 눈에 띄는 점을 짚어 줘요. 결과는 <b>📮 발송 채널</b>(텔레그램·알림)과 지메일로 와요.<br>💳 실행 1번 5크레딧 (커넥션 허브 레시피와 같아요) · 앱 연결은 <a href="/hub" style="color:#6d28d9;font-weight:800">🔗 커넥션 허브</a>에서</div>' +
+      '<div id="cfp-rres"></div><div class="p-sec">내 리포트</div><div id="cfp-rplist"><div class="p-wait">불러오는 중…</div></div>' +
+      '<div class="p-sec">＋ 새 리포트</div><div class="p-card"><div class="p-lb">이름</div><input class="p-in" id="cfp-rpname" maxlength="24" placeholder="예: 아침 매출 리포트" value="' + esc(S.rp.name || '') + '">' +
+      '<div class="p-lb">무엇을 조회할까요 (여러 개)</div><div class="p-chips">' + REP_T.map(function (x, i) { return '<button type="button" data-a="rppick" data-i="' + i + '" class="' + (S.rp.picks.indexOf(i) >= 0 ? 'on' : '') + '">' + x[0] + '</button>'; }).join('') + '</div>' +
+      '<div class="p-lb">더 조회할 것 (한 줄에 하나 · 선택)</div><textarea class="p-in" id="cfp-rpmore" style="min-height:60px" placeholder="예: 노션 업무 페이지의 이번 주 변경">' + esc(S.rp.more || '') + '</textarea>' +
+      '<div class="p-lb">특히 보고 싶은 것 (선택)</div><input class="p-in" id="cfp-rpask" placeholder="예: 문의가 평소보다 많으면 꼭 알려줘" value="' + esc(S.rp.ask || '') + '">' +
+      '<div class="p-lb">언제</div><div style="display:flex;gap:7px"><select class="p-in" id="cfp-rpkind" style="flex:1"><option value="daily">매일</option><option value="weekdays">평일만</option></select><input class="p-in" id="cfp-rptime" type="time" value="' + esc(S.rp.time || '08:00') + '" style="flex:1"></div>' +
+      '<button type="button" class="p-btn" data-a="rpsave">📊 리포트 만들고 예약하기</button><div class="p-mut" style="margin-top:6px">스트라이프·구글 애널리틱스·허브스팟은 아직 커넥션 허브에서 연결할 수 없어 목록에 없어요.</div></div>' +
+      '<div class="p-sec">최근 결과</div><div id="cfp-rpruns"><div class="p-wait">불러오는 중…</div></div>';
+    loadReports();
+  }
+  function isRep(r) { return /^📊/.test(r.name || ''); }
+  function loadReports() {
+    api({ op: 'recipes' }, HUB).then(function (j) {
+      var l = (j.recipes || []).filter(isRep); S.recipes = j.recipes || []; var box = $('cfp-rplist'); if (!box) return;
+      box.innerHTML = l.length ? '<div class="p-list">' + l.map(function (r) {
+        return '<div class="p-row" style="cursor:default;flex-wrap:wrap"><span class="mid"><span class="nm">' + esc(r.name) + '</span><span class="sub">' + (r.sched && r.sched.on ? '⏰ ' + esc(r.sched.text || '예약됨') : '⏸ 예약 꺼짐') + (r.runs ? ' · ' + r.runs + '번 실행' : '') + '</span></span>' +
+          '<span style="display:flex;gap:6px"><button type="button" class="p-btn" data-a="rrun" data-id="' + r.id + '" style="width:auto;margin:0;padding:8px 10px;font-size:12.5px">▶ 지금</button><button type="button" class="p-btn g" data-a="rpon" data-id="' + r.id + '" data-on="' + (r.sched && r.sched.on ? 0 : 1) + '" style="width:auto;margin:0;padding:8px 10px;font-size:12.5px">' + (r.sched && r.sched.on ? '⏸ 끄기' : '⏰ 켜기') + '</button><button type="button" class="p-btn g" data-a="rdel" data-id="' + r.id + '" style="width:auto;margin:0;padding:8px 10px;font-size:12.5px">🗑</button></span></div>';
+      }).join('') + '</div>' : '<div class="p-mut" style="margin:0 4px">아직 리포트가 없어요. 아래에서 만들어 보세요.</div>';
+    }, function (e) { var box = $('cfp-rplist'); if (box) box.innerHTML = errBox(e); });
+    api({ op: 'runs' }, HUB).then(function (j) {
+      var l = (j.runs || []).filter(function (x) { return /^📊/.test(x.recipe_name || ''); }).slice(0, 5), box = $('cfp-rpruns'); if (!box) return;
+      box.innerHTML = l.length ? l.map(function (x) { return '<details class="p-card" style="padding:10px 12px"><summary>' + (x.status === 'done' ? '✅' : x.status === 'wait' ? '🙋' : '⚠️') + ' ' + esc(x.recipe_name) + ' <span class="p-mut">' + esc(String(x.created_at || '').replace('T', ' ').slice(0, 16)) + '</span></summary><div style="white-space:pre-wrap;font-size:13.5px;margin-top:6px">' + esc(x.body || x.say || '') + '</div></details>'; }).join('') : '<div class="p-mut" style="margin:0 4px">예약 실행 결과가 아직 없어요.</div>';
+    }, function () { var box = $('cfp-rpruns'); if (box) box.innerHTML = '<div class="p-mut" style="margin:0 4px">결과를 불러오지 못했어요.</div>'; });
+  }
+  function rpSave(btn) {
+    var nm = (val('cfp-rpname') || '아침 리포트').replace(/^📊\s*/, ''), more = val('cfp-rpmore').split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
+    var items = S.rp.picks.map(function (i) { return REP_T[i][1]; }).concat(more), ask = val('cfp-rpask'), tm = (val('cfp-rptime') || '08:00').split(':'), kind = $('cfp-rpkind').value;
+    if (!items.length) { $('cfp-rres').innerHTML = '<div class="p-err">무엇을 조회할지 하나 이상 골라 주세요</div>'; return; }
+    var goal = '매일 리포트: 아래를 조회만 해서 한 장으로 요약하고, 어제와 비교해 눈에 띄는 점이나 이상한 점을 짚어 줘. 아무에게도 보내거나 바꾸지 마.\n' + items.map(function (x) { return '- ' + x; }).join('\n') + (ask ? '\n특히: ' + ask : '');
+    btn.disabled = true;
+    api({ op: 'recipe_save', name: '📊 ' + nm, goal: goal }, HUB).then(function (j) {
+      return api({ op: 'recipe_schedule', id: j.id, on: true, kind: kind, hh: +tm[0] || 0, mm: +tm[1] || 0, mail_me: true }, HUB);
+    }).then(function () { btn.disabled = false; S.rp = { picks: [] }; reportView($('cfp-body')); $('cfp-rres').innerHTML = '<div class="p-ok">📊 "' + esc(nm) + '" 리포트를 ' + (kind === 'weekdays' ? '평일' : '매일') + ' ' + esc(tm.join(':')) + '에 받아요</div>'; },
+      function (e) { btn.disabled = false; $('cfp-rres').innerHTML = errBox(e); });
+  }
+
+  /* ══════════ v302 📮 발송 채널 ══════════ */
+  function deliverView(b) {
+    b.innerHTML = '<div class="p-lead">📮 예약 실행(📁 저장루틴 · 📊 매일 리포트) <b>결과를 어디로 받을지</b> 골라요. 여러 개 켜도 돼요.<br>지메일이 연결돼 있으면 내 메일로도 와요 (레시피마다).</div><div id="cfp-dvbox"><div class="p-wait">불러오는 중…</div></div>';
+    api({ op: 'deliver_get' }).then(function (d) { drawDeliver(d); }, function (e) { var x = $('cfp-dvbox'); if (x) x.innerHTML = errBox(e); });
+  }
+  function drawDeliver(d, msg) {
+    d = d || { push: true }; S.dv = d; var x = $('cfp-dvbox'); if (!x) return;
+    x.innerHTML = '<div class="p-card"><label style="display:flex;gap:10px;align-items:center;font-weight:800"><input type="checkbox" id="cfp-dvpush"' + (d.push ? ' checked' : '') + ' style="width:20px;height:20px"> 🔔 coverfo 알림으로 받기</label><div class="p-mut" style="margin-top:4px">사이드바 → 🔔 알림을 켠 폰으로 와요. <a href="#" data-a="go-notify" style="color:#6d28d9;font-weight:800">알림 켜기 →</a></div></div>' +
+      '<div class="p-card"><div style="font-weight:800">✈️ 텔레그램 봇 ' + (d.tg ? '<span class="tag g">연결됨 ' + esc(d.tg_tail) + '</span>' : '<span class="tag o">연결 안 됨</span>') + '</div>' +
+      (d.tg ? '<div class="p-two"><button type="button" class="p-btn" data-a="tgtest">시험 메시지</button><button type="button" class="p-btn g" data-a="tgclear" style="margin-top:10px;color:#b42318">연결 끊기</button></div>'
+        : '<ol style="font-size:13px;color:#5d566f;line-height:1.7;padding-left:18px;margin:8px 0">' +
+          '<li>텔레그램에서 <b>@BotFather</b> 와 대화 → <b>/newbot</b> → 이름 두 번 정하기</li><li>받은 <b>봇 토큰</b>(123456789:AA…)을 아래에 붙여 넣기</li><li>내가 만든 봇과 대화방을 열고 <b>아무 말이나 한 번</b> 보내기</li><li><b>🔍 대화 찾기</b> → 내 이름을 누르면 끝</li></ol>' +
+          '<input class="p-in" id="cfp-tgtok" placeholder="봇 토큰" autocomplete="off"><button type="button" class="p-btn g" data-a="tgfind">🔍 대화 찾기</button><div id="cfp-tgchats"></div>') + '</div>' +
+      '<div class="p-mut" style="margin:6px 4px">텔레그램 봇 토큰은 coverfo 서버에 저장되고(예약 실행 때 보내려고), 화면에는 끝 4자리만 보여요. 연결 끊기를 누르면 바로 지워져요.</div>' + (msg || '');
+  }
+
   /* ══════════ v301 🧩 도구형 (지시문은 서버 functions/api/podoya.js · 1번 1크레딧) ══════════ */
   var TU = {
     naming: { t: '✍️ 작명', lead: '가게·아기·반려동물·채널 이름 후보를 6~8개 지어 드려요.', btn: '✨ 이름 짓기',
@@ -618,8 +704,8 @@
   /* ══════════ v299 🧩 포도야 기능 (격자) ══════════
      go: coverfo 안 화면(view) · url: coverfo 주소 · ext: 새 창 · pt: 아직 옮기지 않은 것 → 포도톡 화면(아래 탭 없이) · soon: 아직 없음 */
   var FEATS = [
-    ['🏠', '집안 기기', { pt: 'home' }], ['📊', '매일 리포트', { pt: 'report' }], ['📄', '문서 만들기', { go: 'doc' }], ['📽️', '발표자료', { tool: 'ppt' }],
-    ['🌍', '해외 응대', { go: 'intl' }], ['🎨', '상품 시작하기', { go: 'launch' }], ['📰', '예약브리핑', { url: '/brief' }], ['✈️', '텔레그램', { pt: 'f_tgfeat' }],
+    ['🏠', '집안 기기', { go: 'home' }], ['📊', '매일 리포트', { go: 'report' }], ['📄', '문서 만들기', { go: 'doc' }], ['📽️', '발표자료', { tool: 'ppt' }],
+    ['🌍', '해외 응대', { go: 'intl' }], ['🎨', '상품 시작하기', { go: 'launch' }], ['📰', '예약브리핑', { url: '/brief' }], ['✈️', '텔레그램', { go: 'deliver' }],
     ['🤗', 'AI 컴패니언', { talk: 'companion' }], ['👵', '시니어', { talk: 'senior' }], ['🗣️', '말로 열기', { live: 1 }], ['🔎', 'AI 리서치', { go: 'research' }],
     ['⚙️', 'AI 자동화', { go: 'work' }], ['📚', 'AI 학습', { tool: 'study' }], ['📇', 'AI 명함', { tool: 'card' }], ['💼', '사장님비서', { talk: 'biz' }],
     ['💰', 'AI가계부', { tool: 'ledger' }], ['🇺🇸', '영어회화', { talk: 'english' }], ['🧳', '여행플래너', { tool: 'travel' }], ['🍳', '냉장고요리', { tool: 'fridge' }],
@@ -806,6 +892,7 @@
 
   /* ── 누르기 ── */
   ov.addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'cfp-dvpush') { api({ op: 'deliver_save', push: e.target.checked }).then(function (d) { S.dv = d; }, function (er) { drawDeliver(S.dv, errBox(er)); }); }
     if (e.target && e.target.id === 'cfp-file') pickFile(e.target);
     if (e.target && e.target.id === 'cfp-photo' && e.target.files && e.target.files[0]) { tfCollect(); $('cfp-photo-l').textContent = '⏳ 사진 준비 중…'; shrink(e.target.files[0], function (d) { tf()._img = d; toolUI($('cfp-body')); }); }
     if (e.target && e.target.id === 'cfp-receipt' && e.target.files && e.target.files[0]) {
@@ -843,6 +930,27 @@
     if (a === 'medel') { var m2 = meCollect(); m2.facts = (m2.facts || []).filter(function (x, i) { return String(i) !== el.getAttribute('data-i'); }); return meSave(m2, '지웠어요'); }
     if (a === 'meclear') { if (!confirm('기억을 전부 지울까요? 되돌릴 수 없어요.')) return; return meSave({}, '모두 지웠어요'); }
     if (a === 'feat') return featGo(+el.getAttribute('data-i'));
+    if (a === 'stsave') { ls.set('cfp_st_token', val('cfp-sttok')); return homeView($('cfp-body')); }
+    if (a === 'stload') { ls.set('cfp_st_token', val('cfp-sttok')); el.disabled = true; el.textContent = '⏳ 불러오는 중…'; return api({ op: 'home_devices', token: stTok() }).then(function (j) { ls.set('cfp_st_devs', JSON.stringify(j.devices || [])); homeView($('cfp-body')); }, function (er) { el.disabled = false; el.textContent = '🔄 내 기기 불러오기'; el.insertAdjacentHTML('afterend', errBox(er)); }); }
+    if (a === 'ston' || a === 'stoff') return stCmd(+el.getAttribute('data-i'), a === 'ston' ? 'on' : 'off');
+    if (a === 'stsay' || a === 'stok') {
+      var so = $('cfp-stout'), sbody = a === 'stok' ? Object.assign({ op: 'home_cmd', token: stTok() }, S.stConfirm) : { op: 'home_say', token: stTok(), text: val('cfp-stsay'), devices: stDevs() };
+      if (a === 'stsay' && !sbody.text) return; el.disabled = true; so.innerHTML = '<div class="p-wait">⏳ 보내는 중…</div>';
+      return api(sbody).then(function (j) {
+        el.disabled = false;
+        if (a === 'stok') { S.stConfirm = null; so.innerHTML = '<div class="p-ok">✅ 실행했어요</div>'; return; }
+        if (j.confirm) { S.stConfirm = j.confirm; so.innerHTML = '<div class="p-card" style="margin-top:8px;border-color:#fed7aa"><b>🙋 ' + esc(j.name) + '</b> — ' + esc(j.say) + '<br><span class="p-mut">잠금·문·밸브처럼 되돌리기 어려운 일이라 한 번 더 확인해요.</span><button type="button" class="p-btn" data-a="stok">네, 실행해요</button></div>'; return; }
+        so.innerHTML = '<div class="' + (j.done ? 'p-ok' : 'p-err') + '">' + esc(j.say) + '</div><div class="p-mut" style="margin-top:4px">💳 ' + j.cost + '크레딧</div>';
+      }, function (er) { el.disabled = false; so.innerHTML = errBox(er); });
+    }
+    if (a === 'rppick') { S.rp.name = val('cfp-rpname'); S.rp.more = val('cfp-rpmore'); S.rp.ask = val('cfp-rpask'); S.rp.time = val('cfp-rptime'); var pi = +el.getAttribute('data-i'), px = S.rp.picks.indexOf(pi); if (px >= 0) S.rp.picks.splice(px, 1); else S.rp.picks.push(pi); el.classList.toggle('on'); return; }
+    if (a === 'rpsave') return rpSave(el);
+    if (a === 'rpon') { var rid = +el.getAttribute('data-id'), on1 = el.getAttribute('data-on') === '1', rr2 = (S.recipes || []).filter(function (x) { return x.id === rid; })[0] || {}, sc = rr2.sched || {}; return api({ op: 'recipe_schedule', id: rid, on: on1, kind: sc.kind === 'weekdays' ? 'weekdays' : 'daily', hh: sc.hh == null ? 8 : sc.hh, mm: sc.mm || 0, mail_me: sc.mail_me !== false }, HUB).then(loadReports, function (er) { $('cfp-rres').innerHTML = errBox(er); }); }
+    if (a === 'go-notify') { e.preventDefault(); S.home = 'notify'; S.view = 'notify'; return render(); }
+    if (a === 'tgfind') { var tk = val('cfp-tgtok'); el.disabled = true; return api({ op: 'tg_find', tg_token: tk }).then(function (j) { el.disabled = false; $('cfp-tgchats').innerHTML = (j.chats || []).length ? '<div class="p-list" style="margin-top:8px">' + j.chats.map(function (c) { return '<button type="button" class="p-row" data-a="tgpick" data-id="' + esc(c.id) + '"><span class="ic">💬</span><span class="mid"><span class="nm">' + esc(c.name) + '</span><span class="sub">' + esc(c.type) + ' · ' + esc(c.id) + '</span></span>›</button>'; }).join('') + '</div>' : '<div class="p-err">아직 봇에게 온 메시지가 없어요. 텔레그램에서 내 봇에게 아무 말이나 보낸 뒤 다시 눌러 주세요.</div>'; }, function (er) { el.disabled = false; $('cfp-tgchats').innerHTML = errBox(er); }); }
+    if (a === 'tgpick') return api({ op: 'deliver_save', push: S.dv ? S.dv.push : true, tg_token: val('cfp-tgtok'), tg_chat: el.getAttribute('data-id') }).then(function (d) { drawDeliver(d, '<div class="p-ok">✈️ 텔레그램을 연결했어요. 시험 메시지를 보내 보세요</div>'); }, function (er) { $('cfp-tgchats').innerHTML = errBox(er); });
+    if (a === 'tgtest') return api({ op: 'tg_test' }).then(function () { drawDeliver(S.dv, '<div class="p-ok">시험 메시지를 보냈어요. 텔레그램을 확인해 보세요</div>'); }, function (er) { drawDeliver(S.dv, errBox(er)); });
+    if (a === 'tgclear') { if (!confirm('텔레그램 연결을 끊을까요? 봇 토큰이 지워져요.')) return; return api({ op: 'deliver_save', push: S.dv ? S.dv.push : true, tg_clear: true }).then(function (d) { drawDeliver(d, '<div class="p-ok">연결을 끊었어요</div>'); }, function (er) { drawDeliver(S.dv, errBox(er)); }); }
     if (a === 'tchip') { var f0 = tfCollect(), ck = el.getAttribute('data-k'), cv = el.getAttribute('data-v'), cdef = (TU[S.tool].chips || []).filter(function (c) { return c.k === ck; })[0]; if (cdef && cdef.multi) { var ix = f0[ck].indexOf(cv); if (ix >= 0) f0[ck].splice(ix, 1); else f0[ck].push(cv); } else f0[ck] = cv; return toolUI($('cfp-body')); }
     if (a === 'trun') return toolRun(el);
     if (a === 'pprint') { if (S.last && S.last.deck) deckPrint(S.last.deck); return; }
@@ -910,6 +1018,13 @@
     close(true);
   });
   window.cfPodoyaOpen = open; window.cfPodoyaClose = close;
+  /* v302: 알림을 누르면 coverfo.com/#cfp=화면 → 그 화면을 연다 (예약 실행 결과 → 📁 저장루틴) */
+  function fromHash() {
+    var m = String(location.hash || '').match(/^#cfp=([a-z]+)$/); if (!m || HOMES.indexOf(m[1]) < 0) return;
+    try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
+    setTimeout(function () { open(m[1]); }, 600);
+  }
+  fromHash(); window.addEventListener('hashchange', fromHash);
 
   /* 홈의 '포도야 비서' · '🔌 고급기능': 포도톡 창 대신 이 화면 (캡처 단계에서 먼저 받는다) */
   window.addEventListener('click', function (e) {

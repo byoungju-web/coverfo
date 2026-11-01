@@ -1,4 +1,4 @@
-// functions/api/podoya.js — coverfo 🍇 포도야 비서 · 🔌 고급기능 (v298 · 1차 + 2차 · v300 대화형 4칸 · v301 도구형) · 포도톡을 거치지 않고 coverfo 안에서 돈다
+// functions/api/podoya.js — coverfo 🍇 포도야 비서 · 🔌 고급기능 (v298 · 1차 + 2차 · v300 대화형 4칸 · v301 도구형 · v302 집안 기기 · 발송 채널) · 포도톡을 거치지 않고 coverfo 안에서 돈다
 // © 2026 coverfo All Rights Reserved
 //
 // POST /api/podoya  (Authorization: Bearer coverfo 로그인키) — 모두 coverfo 지갑에서 차감
@@ -20,6 +20,13 @@
 //   kind: naming(target,styles,kw) · fortune(mode,q) · quiz(count,type,level,topic) · travel(mode,dest,days,styles,budget,purpose)
 //         study(subject,q,img?) · fridge(type,ing,img?) · card(img) · receipt(img,biz) · ledger(summary,biz) · ppt(topic,slides,who)
 //   img = 폰에서 줄인 JPEG data URL (3MB 이하). 사진·결과는 서버에 저장하지 않는다. 가계부·명함 목록은 폰에만.
+//   ── v302 ──
+//   🏠 집안 기기 (삼성 SmartThings · 토큰은 폰에만 두고 요청마다 보냄 · 서버는 저장하지 않고 대신 전해 주기만):
+//     { op:'home_devices', token } → 기기 목록 (무료) · { op:'home_cmd', token, deviceId, capability, command, args } → 켜기·끄기 등 (무료)
+//     { op:'home_say', token, text, devices } → 말 → AI 가 기기·명령을 고름 (답 1번 0.2크레딧). 잠금·문·밸브 등은 실행하지 않고 확인을 받는다.
+//   📮 발송 채널 (sql/cf_deliver.sql): { op:'deliver_get' } · { op:'deliver_save', push, tg_token?, tg_chat?, tg_clear? }
+//     { op:'tg_find', tg_token } → 봇에게 말을 건 대화 찾기 · { op:'tg_test' } → 시험 메시지
+//     예약 실행 결과(저장루틴·매일 리포트)는 hub.js 가 이 설정대로 텔레그램 · coverfo 알림으로도 보낸다.
 //   { op:'me_get' } · { op:'me_save', data }   🧠 내 기억 읽기·저장 (무료 · sql/cf_me.sql) — 해외 응대·문서·상품 기획 답에 반영
 //
 // · 크레딧: 기존 차감 함수 cf_spend 로 먼저 빼고, 실패하면 cf_refund 로 돌려준다 (hub.js 와 같은 방식).
@@ -40,9 +47,15 @@ export async function onRequestPost(context) {
   try { b = await context.request.json(); } catch { return json({ error: '잘못된 요청입니다' }, 400); }
   const op = String(b.op || '');
   if (op === 'prices') return json({ ok: true, cost: costs(env) });
-  if (!COST[op] && op !== 'me_get' && op !== 'me_save' && op !== 'talk') return json({ error: '잘못된 요청입니다' }, 400);
+  if (!COST[op] && !FREE_OPS.includes(op)) return json({ error: '잘못된 요청입니다' }, 400);
   const user = await getUser(c, context.request);
   if (!user) return json({ error: '로그인이 필요합니다', login: true }, 401);
+
+  /* v302 🏠 집안 기기 · 📮 발송 채널 */
+  if (/^(home_|deliver_|tg_)/.test(op)) {
+    try { return json(await (op.indexOf('home_') === 0 ? home(env, c, user.id, op, b) : deliver(env, c, user, op, b))); }
+    catch (e) { return json({ error: String((e && e.message) || e).slice(0, 300) }, e && e.status ? e.status : 500); }
+  }
 
   /* v300 💬 대화형 4칸 — 답 1번 0.2크레딧 (0.1 묶음) */
   if (op === 'talk') {
@@ -230,6 +243,110 @@ const RUN = {
     return { img: 'data:image/png;base64,' + b64 };
   },
 };
+
+/* ───────────── v302 🏠 집안 기기 (SmartThings) ───────────── */
+
+const FREE_OPS = ['me_get', 'me_save', 'talk', 'home_devices', 'home_cmd', 'home_say', 'deliver_get', 'deliver_save', 'tg_find', 'tg_test'];
+const ST_RISKY = ['lock', 'garageDoorControl', 'valve', 'doorControl', 'thermostatMode', 'securitySystem'];
+function stTok(b) { const t = String(b.token || '').trim(); if (!/^[A-Za-z0-9-]{20,80}$/.test(t)) throw httpErr(400, 'SmartThings 토큰을 넣어 주세요'); return t; }
+async function stCall(tok, path, init) {
+  const r = await fetch('https://api.smartthings.com/v1' + path, Object.assign({ headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15000) }, init || {}));
+  const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch {}
+  if (r.status === 401 || r.status === 403) throw httpErr(401, 'SmartThings 토큰이 맞지 않거나 기한이 지났어요. 새 토큰을 받아 넣어 주세요');
+  if (!r.ok) throw httpErr(502, 'SmartThings 오류 ' + r.status + ': ' + String((j && (j.error && j.error.message || j.message)) || t).slice(0, 120));
+  return j || {};
+}
+async function stRun(tok, a) {
+  const id = String(a.deviceId || ''), cap = String(a.capability || ''), cmd = String(a.command || '');
+  if (!/^[0-9a-f-]{20,64}$/i.test(id) || !/^[A-Za-z0-9.]{2,60}$/.test(cap) || !/^[A-Za-z0-9]{1,40}$/.test(cmd)) throw httpErr(400, '기기나 명령이 올바르지 않아요');
+  let args = Array.isArray(a.args) ? a.args : (a.args == null || a.args === '' ? [] : [a.args]);
+  args = args.slice(0, 3).map((x) => (typeof x === 'number' ? x : String(x).slice(0, 40)));
+  await stCall(tok, '/devices/' + encodeURIComponent(id) + '/commands', { method: 'POST', body: JSON.stringify({ commands: [{ component: 'main', capability: cap, command: cmd, arguments: args }] }) });
+  return { ok: true };
+}
+async function home(env, c, uid, op, b) {
+  const tok = stTok(b);
+  if (op === 'home_devices') {
+    const d = await stCall(tok, '/devices');
+    const list = ((d && d.items) || []).slice(0, 200).map((x) => {
+      const caps = []; try { (x.components || []).forEach((cc) => (cc.capabilities || []).forEach((p) => { if (!caps.includes(p.id)) caps.push(p.id); })); } catch {}
+      return { id: x.deviceId, name: str(x.label || x.name || '기기', 60), caps: caps.slice(0, 30) };
+    });
+    return { ok: true, devices: list };
+  }
+  if (op === 'home_cmd') return stRun(tok, b);
+  /* home_say: 말 → 명령 (0.2크레딧) */
+  const text = txt(b.text, 300); if (!text) throw httpErr(400, '무엇을 할지 말하거나 적어 주세요');
+  const devs = (Array.isArray(b.devices) ? b.devices : []).slice(0, 60).map((d) => ({ id: str(d.id, 64), name: str(d.name, 60), caps: (Array.isArray(d.caps) ? d.caps : []).slice(0, 8).map((x) => str(x, 40)) })).filter((d) => d.id);
+  if (!devs.length) throw httpErr(400, '먼저 🔄 내 기기 불러오기를 눌러 주세요');
+  const paid = await charge(env, uid, TALK_TENTHS, '[포도야 집안 기기] ' + text.slice(0, 40));
+  if (!paid.ok) throw httpErr(402, '크레딧이 부족합니다 (한 번 0.2크레딧)');
+  let plan;
+  try {
+    plan = await aiJson(env, '너는 집안 기기 리모컨이야. 사용자의 말을 보고 아래 기기 중 하나와 SmartThings 명령 하나를 골라. JSON만 출력.\n' +
+      '{"deviceId":"기기 id","capability":"switch 등","command":"on 등","args":[],"say":"한국어로 무엇을 하는지 한 줄"}\n못 고르겠으면 {"deviceId":"","say":"이유 한 줄"}.\n자주 쓰는 것: switch(on/off) · switchLevel(setLevel [0~100]) · thermostatCoolingSetpoint(setCoolingSetpoint [온도]) · airConditionerMode(setAirConditionerMode ["cool"]) · lock(lock/unlock)\n' +
+      '기기 목록:\n' + devs.map((d) => '· ' + d.name + ' [id:' + d.id + '] 기능:' + (d.caps.join(',') || '-')).join('\n') + GUARD, text, 300);
+  } catch (e) { await rpc(c, 'cf_tr_add', { p_user: uid, p_add: TALK_TENTHS }).catch(() => {}); throw httpErr(500, '말을 알아듣지 못했어요 · 크레딧은 돌려드렸어요'); }
+  const dev = plan && devs.find((d) => d.id === plan.deviceId);
+  if (!dev) return { ok: true, done: false, say: str((plan && plan.say) || '어느 기기인지 못 찾았어요. 기기 이름을 넣어 다시 말해 주세요', 200), cost: TALK_TENTHS / 10 };
+  const act = { deviceId: dev.id, capability: str(plan.capability, 60), command: str(plan.command, 40), args: plan.args };
+  if (ST_RISKY.includes(act.capability)) return { ok: true, done: false, confirm: act, name: dev.name, say: str(plan.say, 200) || dev.name, cost: TALK_TENTHS / 10 };
+  await stRun(tok, act);
+  return { ok: true, done: true, name: dev.name, say: str(plan.say, 200) || '✅ ' + dev.name, cost: TALK_TENTHS / 10 };
+}
+
+/* ───────────── v302 📮 발송 채널 (sql/cf_deliver.sql) ───────────── */
+
+async function dvGet(c, uid) {
+  const r = await fetch(c.url + '/rest/v1/cf_deliver?select=*&user_id=eq.' + uid, { headers: hdr(c) });
+  if (r.status === 404) throw httpErr(500, '발송 채널 저장소가 없어요 (sql/cf_deliver.sql 을 실행해 주세요)');
+  if (!r.ok) throw new Error('DB 읽기 실패 ' + r.status);
+  return (await r.json())[0] || null;
+}
+async function dvPut(c, uid, row) {
+  const r = await fetch(c.url + '/rest/v1/cf_deliver', { method: 'POST', headers: hdr(c, { Prefer: 'resolution=merge-duplicates,return=minimal' }), body: JSON.stringify(Object.assign({ user_id: uid, updated_at: new Date().toISOString() }, row)) });
+  if (r.status === 404) throw httpErr(500, '발송 채널 저장소가 없어요 (sql/cf_deliver.sql 을 실행해 주세요)');
+  if (!r.ok) throw new Error('저장 실패 ' + r.status);
+}
+function tgTokOk(t) { return /^\d{5,15}:[A-Za-z0-9_-]{30,50}$/.test(String(t || '')); }
+async function tgSend(tok, chat, text) {
+  const r = await fetch('https://api.telegram.org/bot' + tok + '/sendMessage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chat, text: String(text).slice(0, 4000), disable_web_page_preview: true }), signal: AbortSignal.timeout(12000) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.ok) throw httpErr(400, '텔레그램으로 보내지 못했어요: ' + String(j.description || r.status).slice(0, 120));
+}
+async function deliver(env, c, user, op, b) {
+  const uid = user.id;
+  const cur = await dvGet(c, uid);
+  const view = (d) => ({ ok: true, push: !d || d.push !== false, tg: !!(d && d.tg_token && d.tg_chat), tg_tail: d && d.tg_token ? '…' + String(d.tg_token).slice(-4) : '', tg_chat: d && d.tg_chat ? String(d.tg_chat) : '' });
+  if (op === 'deliver_get') return view(cur);
+  if (op === 'deliver_save') {
+    const row = { push: b.push !== false };
+    if (b.tg_clear) { row.tg_token = null; row.tg_chat = null; }
+    else if (b.tg_token || b.tg_chat) {
+      const tok = String(b.tg_token || (cur && cur.tg_token) || '').trim(), chat = String(b.tg_chat || '').trim();
+      if (!tgTokOk(tok)) throw httpErr(400, '봇 토큰 모양이 아니에요 (예: 123456789:AA…)');
+      if (!/^-?\d{3,20}$/.test(chat)) throw httpErr(400, '대화 ID 를 찾아 주세요 (🔍 찾기)');
+      row.tg_token = tok; row.tg_chat = chat;
+    }
+    await dvPut(c, uid, row);
+    return view(Object.assign({}, cur || {}, row));
+  }
+  if (op === 'tg_find') {
+    const tok = String(b.tg_token || '').trim(); if (!tgTokOk(tok)) throw httpErr(400, '봇 토큰 모양이 아니에요 (예: 123456789:AA…)');
+    const r = await fetch('https://api.telegram.org/bot' + tok + '/getUpdates?limit=50', { signal: AbortSignal.timeout(12000) });
+    const j = await r.json().catch(() => ({}));
+    if (!j.ok) throw httpErr(400, '봇 토큰이 맞지 않아요 (' + String(j.description || r.status).slice(0, 80) + ')');
+    const seen = {}, chats = [];
+    (j.result || []).forEach((u) => { const m = u.message || u.channel_post || u.my_chat_member; const ch = m && m.chat; if (ch && !seen[ch.id]) { seen[ch.id] = 1; chats.push({ id: String(ch.id), name: str(ch.title || [ch.first_name, ch.last_name].filter(Boolean).join(' ') || ch.username || '대화', 60), type: ch.type }); } });
+    return { ok: true, chats };
+  }
+  if (op === 'tg_test') {
+    if (!cur || !cur.tg_token || !cur.tg_chat) throw httpErr(400, '먼저 텔레그램을 연결해 주세요');
+    await tgSend(cur.tg_token, cur.tg_chat, '🍇 coverfo 시험 메시지예요. 예약 실행 결과가 이 대화로 와요.');
+    return { ok: true };
+  }
+  throw httpErr(400, '잘못된 요청입니다');
+}
 
 /* ───────────── v301 🧩 도구형 (성격·지시문은 포도톡 ai.html 그대로 옮김) ───────────── */
 
