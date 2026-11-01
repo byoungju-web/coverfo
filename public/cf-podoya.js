@@ -1001,8 +1001,8 @@
     }
   });
 
-  function open(home) {
-    S.home = HOMES.indexOf(home) >= 0 ? home : 'assist'; S.view = S.home; S.last = null; W.file = null;
+  function open(home, view) {
+    S.home = HOMES.indexOf(home) >= 0 ? home : 'assist'; S.view = view || S.home; S.last = null; W.file = null;   /* v303: view = 비서 안의 한 화면부터 (뒤로 → 비서 메뉴) */
     ov.classList.add('on'); document.body.classList.add('cfp-lock');
     try { if (!(history.state && history.state.cfp)) history.pushState({ cfp: 1 }, ''); } catch (e) {}
     render();
@@ -1026,11 +1026,13 @@
   }
   fromHash(); window.addEventListener('hashchange', fromHash);
 
-  /* 홈의 '포도야 비서' · '🔌 고급기능': 포도톡 창 대신 이 화면 (캡처 단계에서 먼저 받는다) */
+  /* 홈의 '포도야 비서' · '🔌 고급기능': 포도톡 창 대신 이 화면 (캡처 단계에서 먼저 받는다)
+     v303: 홈 '📊 매일 리포트' 아이콘 = 포도야 비서 › 매일 리포트 (같은 화면 하나) */
   window.addEventListener('click', function (e) {
-    var b = e.target && e.target.closest ? e.target.closest('#cf-talk [data-tk="secretary"], #cf-talk [data-tk="adv"], #cf-talk [data-tk="pfn"], #cf-talk [data-tk="routine"], [data-cfp-view]') : null;
+    var b = e.target && e.target.closest ? e.target.closest('#cf-talk [data-tk="secretary"], #cf-talk [data-tk="adv"], #cf-talk [data-tk="pfn"], #cf-talk [data-tk="routine"], #cf-talk [data-tk="report"], [data-cfp-view]') : null;
     if (!b) return;
     e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation();
+    if (b.getAttribute('data-tk') === 'report') return open('assist', 'report');
     var k = b.getAttribute('data-cfp-view') || ({ secretary: 'assist', adv: 'adv', pfn: 'feat', routine: 'routine' })[b.getAttribute('data-tk')];
     open(k);
   }, true);
