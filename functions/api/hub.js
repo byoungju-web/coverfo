@@ -9,7 +9,7 @@
 //   { op:"confirm", state, approve }      → 보내기 전 확인에 대한 대답 (approve true/false) → 이어서 실행
 //   v279 레시피 (Supabase 표 hub_recipes — sql/hub_recipes.sql 1번 실행 필요):
 //   { op:"recipes" }                      → 내 레시피 목록
-//   { op:"recipe_save", name, goal }      → 저장 (같은 이름이면 덮어씀, 1인 30개까지)
+//   { op:"recipe_save", name, goal }      → 저장 (같은 이름이면 덮어씀, v305: 일반·베이직 20 · 스탠다드 50 · 플러스 100개까지 — 👑 멤버십)
 //   { op:"recipe_delete", id }            → 지우기
 //   { op:"recipe_run", id }               → 그 레시피의 "시킬 말"로 run 과 똑같이 실행
 //   · run 의 goal 이 "○○ 실행해 / 돌려 줘 / 시작해" 이고 ○○ 가 내 레시피 이름이면 그 레시피로 실행한다 (소리야 음성용)
@@ -70,7 +70,18 @@ const APPS = [
   { app: 'todoist',        name: '투두이스트',  icon: '✅', what: '할 일 보기 · 추가', more: true },
   { app: 'github',         name: '깃허브',      icon: '🐙', what: '이슈 · 저장소 확인', more: true },
 ];
-const RECIPE_MAX = 30;
+const RECIPE_MAX = 100;   /* v305: 목록으로 읽어 오는 최대 개수 (멤버십 가장 큰 한도). 저장 한도는 아래 recipeLimit */
+/* v305 👑 멤버십 저장 한도 — 구독(active 또는 해지했지만 이용 기간이 남음)의 월 금액으로 등급을 정한다.
+   이미 한도보다 많이 저장한 사람의 레시피는 지우지 않고, 새로 저장만 막는다. 구독 표가 없거나 읽기에 실패하면 일반 한도. */
+const RECIPE_LIMIT = { free: 20, basic: 20, standard: 50, plus: 100 };
+const TIER_NAME = { free: '일반', basic: '베이직', standard: '스탠다드', plus: '플러스' };
+async function memberTier(env, uid) {
+  try {
+    const rows = await sbReq(env, 'GET', 'cf_subs?select=amount&user_id=eq.' + encodeURIComponent(uid) + '&status=in.(active,canceled)&paid_until=gt.' + encodeURIComponent(new Date().toISOString()) + '&order=amount.desc&limit=1');
+    const a = Array.isArray(rows) && rows[0] ? Number(rows[0].amount) || 0 : 0;
+    return a >= 49000 ? 'plus' : a >= 29000 ? 'standard' : a > 0 ? 'basic' : 'free';
+  } catch { return 'free'; }
+}
 const APP_SET = new Set(APPS.map((a) => a.app));
 /* 확인 없이 만들어도 되는 것 (내 드라이브·노션에 새 문서 만들기) */
 const SAFE_CREATE_APPS = new Set(['googledocs', 'googledrive', 'notion', 'googlesheets']);
@@ -662,7 +673,8 @@ async function recipeSave(env, uid, b) {
     await sbReq(env, 'PATCH', 'hub_recipes?user_id=eq.' + encodeURIComponent(uid) + '&id=eq.' + Number(same.id), { name, goal }, 'return=minimal');
     return { ok: true, id: same.id, updated: true };
   }
-  if (list.length >= RECIPE_MAX) throw httpErr(400, '레시피는 ' + RECIPE_MAX + '개까지 저장할 수 있어요. 안 쓰는 것을 지워 주세요.');
+  const tier = await memberTier(env, uid), lim = RECIPE_LIMIT[tier] || RECIPE_LIMIT.free;
+  if (list.length >= lim) throw httpErr(400, '레시피는 ' + TIER_NAME[tier] + ' ' + lim + '개까지 저장할 수 있어요. ' + (tier === 'plus' ? '안 쓰는 것을 지워 주세요.' : '안 쓰는 것을 지우거나, 👑 coverfo 멤버십(coverfo.com/pricing?tab=sub)으로 더 저장할 수 있어요.'));
   const rows = await sbReq(env, 'POST', 'hub_recipes', { user_id: uid, name, goal }, 'return=representation');
   return { ok: true, id: Array.isArray(rows) && rows[0] ? rows[0].id : null };
 }

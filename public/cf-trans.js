@@ -127,7 +127,7 @@
   function listView() {
     var multi = S.tab === 'multi', b = $('cft-body');
     b.innerHTML = '<div class="cft-lead">' + (multi
-      ? '여러 나라 사람이 <b>한 방에서 각자 자기 말로</b> 대화해요 (최대 10명). 말한 사람의 글이 방 안의 다른 언어로 번역돼요.'
+      ? '여러 나라 사람이 <b>한 방에서 각자 자기 말로</b> 대화해요 (최대 10명 · 👑 멤버십이 만든 방은 20~50명). 말한 사람의 글이 방 안의 다른 언어로 번역돼요.'
       : '두 사람이 <b>각자 자기 폰에서 자기 말로</b> 대화해요. 상대에게는 상대 언어로 보이고, 폰이 읽어 줘요.') +
       '<br>💳 번역 1개 0.1크레딧 (방 안의 다른 언어 수만큼 · 같은 언어끼리는 무료) · 말한 사람만 차감</div>' +
       '<div class="cft-card"><div class="cft-row" style="margin-bottom:8px"><span style="font-size:13px;font-weight:800">내 언어</span>' + langSel('cft-mylang', myLang()) + '</div>' +

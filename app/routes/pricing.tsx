@@ -156,8 +156,27 @@ function loadToss(): Promise<any> {
 /* v287 📅 매달 자동 충전(크레딧 월 구독) — 서버는 /api/billing (functions/api/billing.js · 토스 빌링 상점). 한 번 충전(/api/pay)과 따로 */
 type SubPlan = { id: string; credits: number; amount: number };
 type SubCfg = { enabled?: boolean; clientKey?: string; plans?: SubPlan[]; testMode?: boolean };
-type Sub = { plan: string; credits: number; amount: number; status: string; card?: string; period?: number; paid_until?: string; next_at?: string; last_error?: string };
+type Sub = { plan: string; credits: number; amount: number; status: string; card?: string; period?: number; paid_until?: string; next_at?: string; last_error?: string; sub_left?: number; expired?: { amount: number; reason: string; at: string }[] };
 const SUB_NAME: Record<string, string> = { sub100: '베이직', sub300: '스탠다드', sub550: '플러스' };
+
+/* v305 👑 coverfo 멤버십 혜택 — 서버 한도와 같은 숫자 (functions/api/hub.js RECIPE_LIMIT · functions/api/trans.js MULTI_LIMIT).
+   등급은 월 금액으로: 49,000원 이상 플러스 · 29,000원 이상 스탠다드 · 그 밖 베이직 */
+type Tier = 'basic' | 'standard' | 'plus';
+const tierOf = (amount: number): Tier => (amount >= 49000 ? 'plus' : amount >= 29000 ? 'standard' : 'basic');
+const PERK: Record<Tier, { recipes: number; room: number; support: boolean }> = {
+  basic: { recipes: 20, room: 20, support: false },
+  standard: { recipes: 50, room: 30, support: true },
+  plus: { recipes: 100, room: 50, support: true },
+};
+const subFmt = (n: number) => (Math.round((Number(n) || 0) * 10) / 10).toLocaleString('ko-KR', { maximumFractionDigits: 1 });
+function perkLines(amount: number) {
+  const k = PERK[tierOf(amount)];
+  return [
+    '📁 저장루틴 ' + k.recipes + '개 보관 (일반 20개)',
+    '🌐 다중 통역방 최대 ' + k.room + '명 (일반 10명)',
+    ...(k.support ? ['📮 우선 고객지원 (1영업일 안에 답변)'] : []),
+  ];
+}
 
 function day(s?: string) {
   if (!s) {
@@ -242,7 +261,7 @@ function SubBox({ token, scfg, sub, reload }: { token: string; scfg: SubCfg | nu
     }
   };
   const cancel = async () => {
-    if (!sub || !confirm('구독을 해지할까요?\n\n· ' + day(sub.paid_until) + '까지 이용할 수 있고, 그 뒤로는 결제되지 않아요.\n· 이미 충전된 크레딧은 그대로 쓸 수 있어요.')) {
+    if (!sub || !confirm('멤버십을 해지할까요?\n\n· ' + day(sub.paid_until) + '까지 이용할 수 있고, 그 뒤로는 결제되지 않아요.\n· 남은 구독 크레딧은 ' + day(sub.paid_until) + '까지 쓸 수 있고, 그 뒤 소멸돼요.\n· 한 번 충전한 크레딧은 그대로 남아요.')) {
       return;
     }
 
@@ -264,13 +283,30 @@ function SubBox({ token, scfg, sub, reload }: { token: string; scfg: SubCfg | nu
     <div className="flex flex-col gap-4">
       {sub ? (
         <div className="rounded-xl border border-bolt-elements-borderColor p-4">
-          <div className="text-sm font-semibold text-bolt-elements-textPrimary">📅 내 구독</div>
+          <div className="text-sm font-semibold text-bolt-elements-textPrimary">👑 내 멤버십</div>
           <table className="mt-2 w-full text-sm">
             <tbody className="text-bolt-elements-textPrimary">
               <tr><td className="w-28 py-1 text-bolt-elements-textSecondary">상태</td><td className="py-1 font-semibold">{stLabel(sub.status)}</td></tr>
               <tr><td className="py-1 text-bolt-elements-textSecondary">요금제</td><td className="py-1">{(SUB_NAME[sub.plan] || sub.plan) + ' · ' + won(sub.amount) + '/월 · 매달 ' + sub.credits + ' 크레딧'}</td></tr>
               <tr><td className="py-1 text-bolt-elements-textSecondary">결제 카드</td><td className="py-1">{sub.card || '-'}</td></tr>
               <tr><td className="py-1 text-bolt-elements-textSecondary">이용 기간</td><td className="py-1">{sub.paid_until ? '~ ' + day(sub.paid_until) : '-'}</td></tr>
+              {active || left ? (
+                <tr>
+                  <td className="py-1 text-bolt-elements-textSecondary">구독 크레딧</td>
+                  <td className="py-1">
+                    이번 달 남은 <b>{subFmt(sub.sub_left || 0)}</b> · {day(sub.paid_until)}에 소멸 (이월 불가)
+                  </td>
+                </tr>
+              ) : null}
+              {active || left ? (
+                <tr><td className="py-1 align-top text-bolt-elements-textSecondary">멤버 혜택</td><td className="py-1">{perkLines(sub.amount).join(' · ')}</td></tr>
+              ) : null}
+              {sub.expired && sub.expired.length ? (
+                <tr>
+                  <td className="py-1 align-top text-bolt-elements-textSecondary">최근 소멸</td>
+                  <td className="py-1">{sub.expired.map((x) => day(x.at) + ' ' + subFmt(x.amount)).join(' · ')}</td>
+                </tr>
+              ) : null}
               <tr><td className="py-1 text-bolt-elements-textSecondary">다음 결제일</td><td className="py-1">{active && sub.next_at ? day(sub.next_at) : '없음'}</td></tr>
               {sub.status === 'stopped' && sub.last_error ? <tr><td className="py-1 text-bolt-elements-textSecondary">멈춘 이유</td><td className="py-1">{sub.last_error}</td></tr> : null}
             </tbody>
@@ -304,24 +340,34 @@ function SubBox({ token, scfg, sub, reload }: { token: string; scfg: SubCfg | nu
                 </div>
                 <div className="text-sm font-semibold text-bolt-elements-textPrimary">매달 {p.credits.toLocaleString()} 크레딧</div>
                 <div className="text-xs text-bolt-elements-textSecondary">1크레딧당 {Math.round(p.amount / p.credits)}원 · 1개월마다 자동 갱신</div>
+                <ul className="mt-2 flex flex-col gap-0.5 text-xs text-bolt-elements-textPrimary">
+                  {perkLines(p.amount).map((t) => (
+                    <li key={t}>{t}</li>
+                  ))}
+                </ul>
               </button>
             ))}
           </div>
 
           <div className="rounded-xl bg-bolt-elements-background-depth-2 p-4 text-sm leading-relaxed text-bolt-elements-textPrimary">
-            <div><b>서비스 제공 기간</b> · 결제일부터 1개월. 매월 같은 날 자동 결제(1개월 단위 자동 갱신)</div>
+            <div><b>서비스 제공 기간</b> · 결제일부터 1개월. 매월 같은 날 자동 결제(1개월 단위 자동 갱신 · 연 단위 상품 없음)</div>
+            <div>
+              <b>멤버십 서비스</b> · 매달 크레딧과 함께: 저장루틴 보관 확대, 다중 통역방 인원 확대, 우선 고객지원(스탠다드·플러스). 모든 등급에 회원 간 채팅·통역톡, 아침 브리핑·매일 리포트 자동 발송(텔레그램·알림), 기기 간 대화 동기화 포함
+            </div>
             <div><b>해지</b> · 언제든 이 화면에서 직접. 해지하면 다음 결제일부터 결제하지 않으며, 이미 충전된 크레딧은 그대로 쓸 수 있어요</div>
-            <div><b>크레딧</b> · 한 번 충전과 같은 지갑 · 결제일로부터 1년 동안 사용</div>
+            <div>
+              <b>구독 크레딧</b> · 그 달(결제일부터 다음 결제일 전날까지)에만 사용, <b>남은 크레딧은 다음 결제일에 소멸(이월 불가)</b>. 크레딧을 쓸 때 무료 → 구독 → 한 번 충전 크레딧 순서로 빠져요. 한 번 충전 크레딧은 지금처럼 결제일부터 1년
+            </div>
             <div>
               <b>환불</b> · 결제 7일 이내이고 그 결제로 받은 크레딧을 쓰지 않았으면 전액, 그 외에는 남은 충전 크레딧 금액에서 10%를 공제하고 환불 (결제 1년 이내 ·{' '}
-              <a href="/refund" className="underline">환불정책</a>). 환불하면 구독도 함께 해지돼요
+              <a href="/refund" className="underline">환불정책</a>). 환불하면 구독도 함께 해지돼요. 이미 소멸한 구독 크레딧은 환불되지 않아요
             </div>
             <div><b>결제 수단</b> · 신용·체크카드 (토스페이먼츠 카드 등록)</div>
           </div>
 
           <label className="flex cursor-pointer items-start gap-2 text-sm text-bolt-elements-textPrimary">
             <input type="checkbox" className="mt-0.5 h-4 w-4" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
-            <span>위 내용과 <b>매월 자동 결제</b>에 동의합니다. (해지 전까지 매월 같은 날 선택한 금액이 결제됩니다)</span>
+            <span>위 내용과 <b>매월 자동 결제</b>, <b>구독 크레딧 이월 불가(다음 결제일 소멸)</b>에 동의합니다. (해지 전까지 매월 같은 날 선택한 금액이 결제됩니다)</span>
           </label>
 
           <button
@@ -330,7 +376,7 @@ function SubBox({ token, scfg, sub, reload }: { token: string; scfg: SubCfg | nu
             disabled={!can}
             className="rounded-full bg-indigo-700 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
           >
-            {!token ? '로그인하면 구독할 수 있어요' : chosen ? '카드 등록하고 ' + won(chosen.amount) + '/월 구독 시작' : '요금제를 골라 주세요'}
+            {!token ? '로그인하면 멤버십에 가입할 수 있어요' : chosen ? '카드 등록하고 ' + won(chosen.amount) + '/월 멤버십 시작' : '요금제를 골라 주세요'}
           </button>
           {scfg && !scfg.enabled ? <div className="rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700">구독 결제 준비 중입니다. 지금은 한 번 충전을 이용해 주세요.</div> : null}
         </>
@@ -369,7 +415,7 @@ function ChargeBox() {
       .then((r) => (r.ok ? r.json() : null))
       .then((j: any) => {
         if (j) {
-          setSub(j.sub || null);
+          setSub(j.sub ? { ...j.sub, sub_left: Number(j.sub_left || 0), expired: Array.isArray(j.expired) ? j.expired : [] } : null);
         }
       })
       .catch(() => undefined);
@@ -484,7 +530,7 @@ function ChargeBox() {
             </div>
             {sub && (sub.status === 'active' || subLeft(sub)) ? (
               <button type="button" onClick={() => setTab('sub')} className="mt-3 w-full rounded-lg bg-indigo-50 px-3 py-2 text-left text-xs font-semibold text-indigo-700">
-                📅 {sub.status === 'active' ? '구독 중' : '해지됨'} · {(SUB_NAME[sub.plan] || sub.plan) + ' ' + won(sub.amount) + '/월'} ·{' '}
+                👑 {sub.status === 'active' ? '멤버십 이용 중' : '해지됨'} · {(SUB_NAME[sub.plan] || sub.plan) + ' ' + won(sub.amount) + '/월'} · 구독 크레딧 {subFmt(sub.sub_left || 0)} ·{' '}
                 {sub.status === 'active' ? '다음 결제일 ' + day(sub.next_at) : day(sub.paid_until) + '까지 이용'} ›
               </button>
             ) : null}
@@ -505,7 +551,7 @@ function ChargeBox() {
         {(
           [
             ['once', '⚡ 한 번 충전'],
-            ['sub', '📅 매달 자동 충전'],
+            ['sub', '👑 coverfo 멤버십'],
           ] as const
         ).map(([k, label]) => (
           <button

@@ -24,6 +24,16 @@ const STEP = 1;                 // 번역 1개 = 0.1 크레딧 (= 묶음 1칸)
 const MAX_TEXT = 500;
 const KEEP_DAYS = 30;
 const LIMIT = { one: 2, multi: 10 };
+/* v305 👑 멤버십: 다중 통역방 인원은 방을 만든 사람의 등급으로 (일반 10 · 베이직 20 · 스탠다드 30 · 플러스 50).
+   구독(active 또는 해지했지만 이용 기간이 남음)의 월 금액으로 등급을 정한다. 이미 들어와 있는 사람은 내보내지 않는다. */
+const MULTI_LIMIT = { free: 10, basic: 20, standard: 30, plus: 50 };
+async function memberTier(c, uid) {
+  try {
+    const rows = await get(c, `cf_subs?select=amount&user_id=eq.${encodeURIComponent(uid)}&status=in.(active,canceled)&paid_until=gt.${encodeURIComponent(new Date().toISOString())}&order=amount.desc&limit=1`);
+    const a = rows && rows[0] ? Number(rows[0].amount) || 0 : 0;
+    return a >= 49000 ? 'plus' : a >= 29000 ? 'standard' : a > 0 ? 'basic' : 'free';
+  } catch { return 'free'; }
+}
 const LANGS = {
   KO: '한국어 Korean', EN: 'English', VI: 'Vietnamese', ZH: 'Chinese (Simplified)', TH: 'Thai', JA: 'Japanese', ID: 'Indonesian',
   UZ: 'Uzbek', NE: 'Nepali', MY: 'Burmese', KM: 'Khmer', MN: 'Mongolian', TL: 'Filipino (Tagalog)', RU: 'Russian', ES: 'Spanish',
@@ -129,7 +139,8 @@ async function join(c, uid, user, b) {
   const lang = langOk(b.lang) ? b.lang : 'KO';
   const ms = await get(c, `cf_tr_members?select=user_id&room_id=eq.${room.id}`);
   if (!ms.some((m) => m.user_id === uid)) {
-    if (ms.length >= (LIMIT[room.kind] || 2)) throw httpErr(409, room.kind === 'one' ? '1:1 통역방은 2명까지예요' : '이 방은 꽉 찼어요 (' + LIMIT.multi + '명)');
+    const cap = room.kind === 'multi' ? (MULTI_LIMIT[await memberTier(c, room.owner)] || LIMIT.multi) : (LIMIT[room.kind] || 2);
+    if (ms.length >= cap) throw httpErr(409, room.kind === 'one' ? '1:1 통역방은 2명까지예요' : '이 방은 꽉 찼어요 (' + cap + '명)');
     await post(c, 'cf_tr_members', { room_id: room.id, user_id: uid, nick: nickOf(user, b.nick), lang });
   }
   return { ok: true, room: { id: room.id, code: room.code, kind: room.kind, name: room.name } };

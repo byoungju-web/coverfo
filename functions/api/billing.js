@@ -1,4 +1,7 @@
 // functions/api/billing.js — coverfo 📅 크레딧 월 구독 (토스페이먼츠 빌링 · 자동결제) v286
+// v305 👑 멤버십: 결제 부분(charge·authReturn·start·cancel·resume)은 그대로. 바뀐 것은 두 곳뿐 —
+//   ① 예약 실행(cron) 끝에서 이용 기간이 끝난 구독 크레딧 소멸(sql/cf_member.sql 의 cf_sub_expire_due)
+//   ② 내 구독(me) 응답에 이번 달 남은 구독 크레딧(sub_left)·최근 소멸 기록(expired) 추가 (읽기만)
 // © 2026 coverfo All Rights Reserved
 //
 // 필요한 Secret (Cloudflare Pages → Settings → Variables and Secrets) — 기존 TOSS_CLIENT_KEY·TOSS_SECRET_KEY(크레딧 충전)와 따로:
@@ -222,6 +225,8 @@ async function cron(c) {
   }
   /* 해지 후 이용 기간이 끝난 구독은 빌링키를 지움 */
   await sbPatch(c, 'cf_subs?status=eq.canceled&billing_key=not.is.null&paid_until=lt.' + encodeURIComponent(now.toISOString()), { billing_key: null, updated_at: now.toISOString() }).catch(() => null);
+  /* v305: 이용 기간이 끝난 구독 크레딧 소멸 (이월 불가) — 실패해도 결제 처리에는 영향 없음 */
+  try { const ex = await rpc(c, 'cf_sub_expire_due', {}); if (ex && ex.users) out.expired = ex.users; } catch (e) { out.expire_error = String((e && e.message) || e).slice(0, 120); }
   return out;
 }
 
@@ -264,7 +269,11 @@ async function handlePost(context) {
   if (!user) return json({ error: 'login' }, 401);
 
   if (body.op === 'me') {
-    return json({ email: user.email || '', sub: subOut(await latestSub(c, user.id)), plans: c.plans, enabled: !!(c.clientKey && c.secretKey) });
+    /* v305: 이번 달 남은 구독 크레딧 · 최근 소멸 기록 (sql/cf_member.sql 을 아직 안 돌렸으면 0 · 빈 목록) */
+    let subLeft = 0, expired = [];
+    try { const cr = (await sbGet(c, 'cf_credits?select=sub_left&user_id=eq.' + encodeURIComponent(user.id)))[0]; subLeft = cr ? Number(cr.sub_left || 0) : 0; } catch (e) {}
+    try { expired = (await sbGet(c, 'cf_sub_expire?select=amount,reason,created_at&user_id=eq.' + encodeURIComponent(user.id) + '&order=id.desc&limit=3')).map((x) => ({ amount: Number(x.amount || 0), reason: x.reason, at: x.created_at })); } catch (e) {}
+    return json({ email: user.email || '', sub: subOut(await latestSub(c, user.id)), plans: c.plans, enabled: !!(c.clientKey && c.secretKey), sub_left: subLeft, expired });
   }
 
   if (body.op === 'start') {
