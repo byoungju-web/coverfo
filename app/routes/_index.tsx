@@ -19,7 +19,8 @@ export const loader = () => {
   return new Response(html, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-cache',
+      /* no-store: 뒤로가기 때 브라우저가 예전에 받아 둔 홈 화면(옛 버전)을 다시 보여주지 않고 항상 새로 받게 함 */
+      'Cache-Control': 'no-store',
     },
   });
 };
