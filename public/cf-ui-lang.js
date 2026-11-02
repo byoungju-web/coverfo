@@ -33,7 +33,9 @@
     Riyadh: ["ar", "사우디아라비아", "SA"], Istanbul: ["tr", "튀르키예", "TR"], Warsaw: ["pl", "폴란드", "PL"], Stockholm: ["sv", "스웨덴", "SE"], Oslo: ["no", "노르웨이", "NO"], Copenhagen: ["da", "덴마크", "DK"], Helsinki: ["fi", "핀란드", "FI"],
     Athens: ["el", "그리스", "GR"], Budapest: ["hu", "헝가리", "HU"], Bratislava: ["sk", "슬로바키아", "SK"], Sofia: ["bg", "불가리아", "BG"], Zagreb: ["hr", "크로아티아", "HR"], Belgrade: ["sr", "세르비아", "RS"],
     Ljubljana: ["sl", "슬로베니아", "SI"], Sarajevo: ["bs", "보스니아 헤르체고비나", "BA"], Tirane: ["sq", "알바니아", "AL"], Skopje: ["mk", "북마케도니아", "MK"], Chisinau: ["ro", "몰도바", "MD"], Minsk: ["ru", "벨라루스", "BY"],
-    Kuala_Lumpur: ["ms", "말레이시아", "MY"], Johannesburg: ["en", "남아프리카", "ZA"], Cairo: ["ar", "이집트", "EG"], Karachi: ["ur", "파키스탄", "PK"], Dhaka: ["bn", "방글라데시", "BD"]
+    Kuala_Lumpur: ["ms", "말레이시아", "MY"], Johannesburg: ["en", "남아프리카", "ZA"], Cairo: ["ar", "이집트", "EG"], Karachi: ["ur", "파키스탄", "PK"], Dhaka: ["bn", "방글라데시", "BD"],
+    /* v317: 여행·외국인 근로자가 많은 곳 — 전에는 목록에 없어 한국으로 처리되던 시간대 */
+    Guam: ["en", "괌", "GU"], Saipan: ["en", "사이판", "MP"], Makassar: ["id", "인도네시아", "ID"], Jayapura: ["id", "인도네시아", "ID"], Pontianak: ["id", "인도네시아", "ID"], Phnom_Penh: ["km", "캄보디아", "KH"], Yangon: ["my", "미얀마", "MM"], Rangoon: ["my", "미얀마", "MM"], Kathmandu: ["ne", "네팔", "NP"], Katmandu: ["ne", "네팔", "NP"], Tashkent: ["uz", "우즈베키스탄", "UZ"], Samarkand: ["uz", "우즈베키스탄", "UZ"], Ulaanbaatar: ["mn", "몽골", "MN"], Ulan_Bator: ["mn", "몽골", "MN"], Vientiane: ["lo", "라오스", "LA"], Saigon: ["vi", "베트남", "VN"], Colombo: ["si", "스리랑카", "LK"], Almaty: ["kk", "카자흐스탄", "KZ"], Moscow: ["ru", "러시아", "RU"], Vladivostok: ["ru", "러시아", "RU"]
   };
   function LS(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function LSS(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -49,10 +51,17 @@
     for (var i = 1; i < LANGS.length; i++) if (LANGS[i][0] === g) return g;
     return "en";
   }
-  function where() { var g = tzGuess(); return g[1] || ""; }
+  /* v317: 시간대로 못 맞추면 접속 나라(서버 /api/where — Cloudflare 가 알려주는 나라 코드. 위치(GPS)는 받지 않는다). 이 탭에서 한 번만 묻는다 */
+  var CN = { KR: "대한민국", US: "미국", JP: "일본", CN: "중국", TW: "대만", HK: "홍콩", MO: "마카오", TH: "태국", VN: "베트남", PH: "필리핀", ID: "인도네시아", MY: "말레이시아", SG: "싱가포르", KH: "캄보디아", MM: "미얀마", LA: "라오스", NP: "네팔", UZ: "우즈베키스탄", MN: "몽골", KZ: "카자흐스탄", LK: "스리랑카", IN: "인도", BD: "방글라데시", PK: "파키스탄", GU: "괌", MP: "사이판", AU: "호주", NZ: "뉴질랜드", CA: "캐나다", GB: "영국", FR: "프랑스", DE: "독일", IT: "이탈리아", ES: "스페인", PT: "포르투갈", NL: "네덜란드", RU: "러시아", TR: "튀르키예", AE: "아랍에미리트", SA: "사우디아라비아", EG: "이집트", MX: "멕시코", BR: "브라질" };
+  function ipCountry() { try { return sessionStorage.getItem("cf_ipc") || ""; } catch (e) { return ""; } }
+  function askIp() {
+    try { if (sessionStorage.getItem("cf_ipc") != null) return; sessionStorage.setItem("cf_ipc", ""); } catch (e) { return; }
+    try { fetch("/api/where", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { var c = j && /^[A-Z]{2}$/.test(j.country || "") ? j.country : ""; try { sessionStorage.setItem("cf_ipc", c); } catch (e) {} }).catch(function () {}); } catch (e) {}
+  }
+  function where() { var g = tzGuess(); if (g[2]) return g[1] || ""; var ip = ipCountry(); return ip ? countryName(ip) : (g[1] || ""); }
   /* 나라 코드 (US·KR…): 시간대로 어림. 못 맞추면 "" (cf-quick.js 가 KR 로 본다) */
-  function country() { var g = tzGuess(); return g[2] || ""; }
-  function countryName(code) { for (var k in TZ) if (TZ[k][2] === code) return TZ[k][1]; return code; }
+  function country() { var g = tzGuess(); if (g[2]) return g[2]; return ipCountry(); }
+  function countryName(code) { for (var k in TZ) if (TZ[k][2] === code) return TZ[k][1]; return CN[code] || code; }
   function cache(l) { try { return JSON.parse(LS("cf_uic_" + l) || "{}"); } catch (e) { return {}; } }
   function cacheSave(l, o) { LSS("cf_uic_" + l, JSON.stringify(o)); }
 
@@ -149,7 +158,7 @@
     watch();
   }
   /* 관리자가 빠른 실행 나라를 시험용으로 바꿔 두었으면 표시 (cf-quick.js 의 localStorage cf_country) */
-  function overrideNote() { var o = null; try { o = localStorage.getItem("cf_country"); } catch (e) {} return o ? ' · 빠른 실행은 <b>' + esc(countryName(o)) + "</b> (시험)" : ""; }
+  function overrideNote() { var o = null; try { o = localStorage.getItem("cf_country"); } catch (e) {} return o ? ' · 앱은 <b>' + esc(countryName(o)) + "</b> 기준 (직접 고름)" : ""; }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   /* 설정 칸에 넣는 칩 HTML (홈 사이드바·채팅 사이드바 공용). data-cf-noui: 이 칸 글자는 번역하지 않는다 */
   function chipsHtml() {
@@ -178,5 +187,6 @@
     (document.head || document.documentElement).appendChild(st);
   }
   window.cfUiLang = { LANGS: LANGS, pick: pick, lang: lang, where: where, country: country, countryName: countryName, translate: translate, set: set, chipsHtml: chipsHtml, mount: mount, paint: paintNow, watch: watch };
+  try { if (!tzGuess()[2]) askIp(); } catch (e) {}
   if (document.body) watch(); else document.addEventListener("DOMContentLoaded", watch);
 })();
