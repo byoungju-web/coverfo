@@ -1,4 +1,5 @@
 // functions/buy.js — coverfo.com/buy : 크레딧 충전 페이지 (토스페이먼츠 결제창)
+// v313: 화면 문구만 — 충전 완료 메시지의 엔진·스튜디오 링크, 포도톡·포도야 연결 칸 삭제. 결제 코드는 그대로.
 // © 2026 coverfo All Rights Reserved
 const HTML = `<!DOCTYPE html>
 <html lang="ko">
@@ -82,14 +83,7 @@ th{color:#666;font-weight:600}
     <a class="chip" href="/" style="display:inline-block;line-height:34px;background:#111;color:#fff;border-color:#111;text-decoration:none">홈으로 가서 로그인</a>
   </div>
 
-  <div class="card" id="wlbox" style="display:none">
-    <div style="font-size:16px;font-weight:800">🍇 포도톡 · 포도야에 연결</div>
-    <p class="sub" style="margin-top:4px">아래 코드를 포도톡 <b>설정 → 크레딧 지갑 → 연결 코드</b> 칸에 넣으면 포도톡(포도야 포함)이 이 크레딧을 같이 씁니다. 계정마다 코드는 하나이고, 다시 만들면 옛 코드는 꺼집니다. coverfo 홈 안에서 포도톡을 열면 코드 없이 자동 연결됩니다.</p>
-    <div class="wl-code"><input id="wlcode" readonly placeholder="아직 코드가 없습니다"><button type="button" class="wl-btn" id="wlcopy">복사</button></div>
-    <div class="wl-row"><button type="button" class="wl-btn sec" id="wlnew">코드 만들기</button><button type="button" class="wl-btn gray" id="wlunlink" style="display:none">연결 끊기</button></div>
-    <div class="wl-note" id="wlmsg"></div>
-    <div class="wl-note">1크레딧 = 99원 · 받아쓰기 0.1 · 빠른 답 0.2 · 웹검색 0.4 · 고품질 답 0.8 · 전화통역 6/분 — 어디서 써도 같은 지갑입니다.</div>
-  </div>
+  <!-- v313: 🍇 포도톡 · 포도야 연결 칸 삭제 (coverfo 안에서 다 쓰므로) -->
 
   <h3>충전 내역</h3>
   <div class="card" style="margin-top:0;padding:8px 12px">
@@ -200,12 +194,12 @@ th{color:#666;font-weight:600}
       var want = q.get('pkg'); if (want) { var found = (c.packages||[]).filter(function(p){ return p.id === want; })[0]; if (found) pkg = found; }
       var wm = q.get('m'); if (wm && /^(CARD|TRANSFER|MOBILE_PHONE)$/.test(wm)) { method = wm; Array.prototype.forEach.call(document.querySelectorAll('#methods .chip'), function(b){ b.classList.toggle('on', b.getAttribute('data-m') === wm); }); }
       renderPk();
-      try { wlInit(); } catch (e) {}
+      /* v313: 포도톡 연결 칸 삭제 — wlInit() 부르지 않음 */
       if (want) { show('info', '아래 <b>결제하기</b>를 누르면 결제창이 열립니다.'); try { $('go').scrollIntoView({ block:'center' }); } catch (e) {} history.replaceState({}, '', '/buy'); }
       return api('GET', '?me=1').then(function(j){ if (j.__status===200) { me = j; renderMe(); } });
     });
   }).then(function(){
-    if (q.get('done')) { show('ok', '충전됐습니다! +' + (q.get('credits')||'') + ' 크레딧. <a href="/engine">엔진으로 가기</a> · <a href="/studio">스튜디오로 가기</a>'); history.replaceState({}, '', '/buy'); }
+    if (q.get('done')) { show('ok', '충전됐습니다! +' + (q.get('credits')||'') + ' 크레딧');   /* v313: 엔진·스튜디오 링크 삭제 */ history.replaceState({}, '', '/buy'); }
     else if (q.get('fail')) { show('err', q.get('fail')); history.replaceState({}, '', '/buy'); }
   }).catch(function(e){ show('err', '설정을 불러오지 못했습니다: ' + e); });
 })();
