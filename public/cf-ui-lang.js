@@ -93,15 +93,50 @@
   /* 한 문장 번역(밖에서도 씀 — cf-quick.js 가 한국 밖에서 지도·쇼핑 검색어를 영어로 바꿀 때). 실패하면 "" */
   function translate(text, to, done) { var key = "cf_tr_" + to + "|" + text; var hit = LS(key); if (hit) { done(hit); return; } translateOne(String(text || ""), to || "en", function (out) { if (out) LSS(key, out); done(out || ""); }); }
 
-  var Q = [], busy = false, seen = {}, paintT = null;
-  function step() {
-    var job = Q.shift(); if (!job) { busy = false; return; }
-    busy = true;
-    translateOne(job.t, job.l, function (out) {
-      if (out) { var c = cache(job.l); c[job.t] = out; cacheSave(job.l, c); if (paintT) clearTimeout(paintT); paintT = setTimeout(paintNow, 220); }
-      setTimeout(step, 80);
-    });
+  /* v322: 처음 번역도 빠르게 — 예전에는 한 문장씩 차례로(한 번에 1개) 물어서 첫 화면이 오래 걸렸다.
+     · 여러 문장을 줄바꿈으로 묶어 한 번에 묻고(최대 25문장·1,800자), 묶음 4개를 동시에 보낸다.
+     · 돌아온 줄 수가 맞지 않으면 그 묶음만 예전처럼 한 문장씩 다시 묻는다 (틀린 줄에 엉뚱한 번역이 붙지 않게).
+     · 저장소(localStorage)는 한 번만 읽고, 쓰기는 모아서 0.4초 뒤에 한 번. 두 번째부터는 저장된 번역으로 바로 바뀐다(예전과 같음). */
+  var Q = [], busy = false, seen = {}, paintT = null, active = 0, MAXA = 4, MC = {}, saveT = null;
+  function memCache(l) { if (!MC[l]) MC[l] = cache(l); return MC[l]; }
+  function memPut(l, k, v) { memCache(l)[k] = v; if (saveT) clearTimeout(saveT); saveT = setTimeout(function () { saveT = null; for (var x in MC) cacheSave(x, MC[x]); }, 400); }
+  function trGoogleBatch(texts, to, ok, fail) {
+    try {
+      var u = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=ko&tl=" + encodeURIComponent(to) + "&dt=t&q=" + encodeURIComponent(texts.join("\n"));
+      var t = setTimeout(function () { t = null; fail(); }, 9000);
+      fetch(u).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (d) {
+        if (t === null) return; clearTimeout(t);
+        var seg = d && d[0]; if (!seg || !seg.length) { fail(); return; }
+        var out = ""; for (var i = 0; i < seg.length; i++) out += (seg[i][0] || "");
+        var lines = out.split(/\r?\n/);
+        while (lines.length > texts.length && !lines[lines.length - 1].trim()) lines.pop();
+        if (lines.length !== texts.length) { fail(); return; }
+        for (var j = 0; j < lines.length; j++) { lines[j] = lines[j].trim(); if (!lines[j]) { fail(); return; } }
+        ok(lines);
+      })["catch"](function () { if (t === null) return; clearTimeout(t); fail(); });
+    } catch (e) { fail(); }
   }
+  function got(l, k, out) { if (!out) return; memPut(l, k, out); if (paintT) clearTimeout(paintT); paintT = setTimeout(paintNow, 120); }
+  function pump() {
+    while (active < MAXA && Q.length) {
+      var l = Q[0].l, batch = [], chars = 0;
+      while (Q.length && Q[0].l === l && batch.length < 25 && chars + Q[0].t.length < 1800) { var j = Q.shift(); if (j.one) { if (!batch.length) batch.push(j); else Q.unshift(j); break; } batch.push(j); chars += j.t.length; }
+      if (!batch.length) batch.push(Q.shift());
+      active++;
+      (function (b, l) {
+        var fin = function () { active--; pump(); };
+        if (b.length === 1) { translateOne(b[0].t, l, function (out) { got(l, b[0].t, out); fin(); }); return; }
+        var texts = b.map(function (x) { return x.t; });
+        trGoogleBatch(texts, l, function (outs) {
+            /* 그대로 돌아온 줄(번역 안 된 줄)은 저장하지 않고 한 문장씩 다시 묻는다 */
+            for (var i = b.length - 1; i >= 0; i--) { if (outs[i] === b[i].t) Q.unshift({ t: b[i].t, l: l, one: 1 }); else got(l, b[i].t, outs[i]); }
+            fin(); },
+          function () { /* 묶음이 안 맞으면 한 문장씩 (앞쪽에 다시 넣어 먼저 처리) */ for (var i = b.length - 1; i >= 0; i--) Q.unshift({ t: b[i].t, l: l, one: 1 }); fin(); });
+      })(batch, l);
+    }
+    busy = active > 0 || Q.length > 0;
+  }
+  function step() { pump(); }
   var KO = /[가-힣]/;
   var SKIP = { SCRIPT: 1, STYLE: 1, TEXTAREA: 1, INPUT: 1, SELECT: 1, OPTION: 1, CODE: 1, PRE: 1, NOSCRIPT: 1 };
   function skipEl(pn) {
@@ -114,7 +149,7 @@
   }
   function paintNow() {
     var l = lang(); if (l === "ko") return;
-    var c = cache(l), miss = [];
+    var c = memCache(l), miss = [];
     var walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, { acceptNode: function (n) {
       if (!n.nodeValue || !KO.test(n.nodeValue)) return NodeFilter.FILTER_REJECT;
       if (skipEl(n.parentNode)) return NodeFilter.FILTER_REJECT;
@@ -144,10 +179,10 @@
     });
     /* v321: 맡긴 것만 '봤음' 표시 — 예전에는 한 번에 80개만 맡기고 나머지도 '봤음'으로 표시해 영영 번역되지 않았다.
        보이는 글자는 줄 맨 앞에, 나머지는 80개씩 (한 개 번역될 때마다 다시 훑으므로 남은 것은 다음 차례에 맡긴다) */
-    vis.slice(0, 80).reverse().forEach(function (t) { seen[l + "|" + t] = 1; Q.unshift({ t: t, l: l }); });
+    vis.slice(0, 80).reverse().forEach(function (t) { seen[l + "|" + t] = 1; Q.unshift({ t: t, l: l, one: /\n/.test(t) ? 1 : 0 }); });
     var room = Math.max(0, 80 - Q.length);
-    miss.slice(0, room).forEach(function (t) { if (seen[l + "|" + t]) return; seen[l + "|" + t] = 1; Q.push({ t: t, l: l }); });
-    if (Q.length && !busy) step();
+    miss.slice(0, room).forEach(function (t) { if (seen[l + "|" + t]) return; seen[l + "|" + t] = 1; Q.push({ t: t, l: l, one: /\n/.test(t) ? 1 : 0 }); });
+    if (Q.length) pump();
   }
   var obs = null, obsT = null;
   function watch() {
@@ -163,7 +198,7 @@
     LSS("cf_ui", v);
     /* 답변 언어도 같이 — 채팅 답변·렌즈 분석·음성 인식이 같은 말을 쓴다 */
     LSS("cf-answer-lang", v === "auto" ? "auto" : v);
-    seen = {};
+    seen = {}; MC = {};
     if (obs) { try { obs.disconnect(); } catch (e) {} obs = null; }
     if (lang() === "ko") { location.reload(); return; }   /* 한국어로 되돌릴 때는 새로 고쳐 원문을 되살린다 */
     watch();
