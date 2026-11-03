@@ -2,7 +2,9 @@
 // © 2026 coverfo All Rights Reserved
 //
 // POST /api/talk-live   (Authorization: Bearer 로그인토큰)
-//   { op:"start", sdp }  → 첫 1분 크레딧 차감 후 OpenAI Realtime 에 연결(WebRTC). 응답 { sdp, call, cost }
+//   { op:"start", sdp, country?, lang? }  → 첫 1분 크레딧 차감 후 OpenAI Realtime 에 연결(WebRTC). 응답 { sdp, call, cost }
+//                          v320 '세계 어디서나 비서': country = 화면의 '지금 있는 나라'(예 "TH"), lang = 화면 언어(예 "ko"·"auto").
+//                          안 보내면 Cloudflare 가 알려주는 접속 나라(request.cf.country). 위치(GPS)는 받지 않는다. 안내문에만 쓰고 저장하지 않는다.
 //   { op:"tick",  call } → 1분마다 화면이 부른다. 다음 1분 크레딧 차감. 부족하면 통화를 끊고 402
 //   { op:"end",   call } → 통화 끊기
 //   { op:"token", name } → (v267 안드로이드 앱 'coverfo 소리') 첫 1분 차감 후 1회용 임시 키(ek_…) 발급. 응답 { key, url, model, cost }
@@ -28,8 +30,9 @@ const MAX_OUT = 300;            // v276: 한 번 대답의 최대 길이 (말이
 const DEVICE_DAYS = 30;         // v276: 앱 대기용 기기 키 유효 기간
 
 const INSTRUCTIONS = [
-  "You are '소리', the voice assistant of coverfo (a Korean all-in-one assistant web app).",
-  'Speak in the same language as the user (default Korean, polite 해요체).',
+  "You are '소리', the voice assistant of coverfo — an all-in-one assistant web app that works wherever the user is in the world.",
+  /* v320: 말은 사용자가 쓰는 말로. 모르겠으면 CURRENT CONTEXT 의 화면 언어 (한국어는 해요체) */
+  'Always reply in the language the user is speaking. If unsure, use the screen language given in CURRENT CONTEXT below (for Korean, polite 해요체).',
   /* v276: 말 줄이기 — 묻는 것에만 짧게. 먼저 말을 꺼내거나 덧붙이지 않는다 */
   'BE BRIEF: answer in ONE short sentence whenever possible (two at most). Give only what was asked. No explanations, background, lists, greetings, or closing offers such as "더 궁금한 점 있으세요?" / "도와드릴까요?" unless the user asks for details.',
   'Never start talking on your own and never continue talking after you have answered. Respond only to what the user just said. If the request is unclear, ask ONE very short question.',
@@ -47,6 +50,26 @@ const INSTRUCTIONS = [
   'For questions, chit-chat or explanations, just answer by voice without the tool — still briefly.',
   'Never ask for or repeat card numbers, ID numbers, passwords or bank account numbers. coverfo does not take payments; payment happens on each shop\'s site by the user.',
 ].join(' ');
+
+/* ── v320 세계 어디서나 비서: 지금 있는 나라 · 화면 언어를 안내문 끝에 한 줄로 ──
+   화면이 보낸 값(country·lang)을 먼저, 없으면 Cloudflare 접속 나라. 형식이 맞지 않으면 버린다. 저장하지 않는다. */
+const CTRY_NAMES = { KR: 'South Korea', US: 'the United States', JP: 'Japan', CN: 'China', TW: 'Taiwan', HK: 'Hong Kong', MO: 'Macau', TH: 'Thailand', VN: 'Vietnam', PH: 'the Philippines', ID: 'Indonesia', MY: 'Malaysia', SG: 'Singapore', KH: 'Cambodia', MM: 'Myanmar', LA: 'Laos', NP: 'Nepal', UZ: 'Uzbekistan', MN: 'Mongolia', KZ: 'Kazakhstan', LK: 'Sri Lanka', IN: 'India', BD: 'Bangladesh', PK: 'Pakistan', GU: 'Guam', MP: 'Saipan (Northern Mariana Islands)', AU: 'Australia', NZ: 'New Zealand', CA: 'Canada', GB: 'the United Kingdom', FR: 'France', DE: 'Germany', IT: 'Italy', ES: 'Spain', PT: 'Portugal', NL: 'the Netherlands', RU: 'Russia', TR: 'Türkiye', AE: 'the United Arab Emirates', SA: 'Saudi Arabia', EG: 'Egypt', MX: 'Mexico', BR: 'Brazil' };
+const LANG_NAMES = { ko: 'Korean', en: 'English', ja: 'Japanese', zh: 'Chinese (Simplified)', 'zh-TW': 'Chinese (Traditional)', th: 'Thai', vi: 'Vietnamese', id: 'Indonesian', ms: 'Malay', tl: 'Filipino', km: 'Khmer', my: 'Burmese', ne: 'Nepali', uz: 'Uzbek', mn: 'Mongolian', hi: 'Hindi', ur: 'Urdu', bn: 'Bengali', es: 'Spanish', pt: 'Portuguese', fr: 'French', de: 'German', it: 'Italian', nl: 'Dutch', pl: 'Polish', ru: 'Russian', tr: 'Turkish', ar: 'Arabic' };
+function contextLine(b, request) {
+  let c = String((b && b.country) || '').toUpperCase();
+  if (!/^[A-Z]{2}$/.test(c)) c = String((request && request.cf && request.cf.country) || '').toUpperCase();
+  if (!/^[A-Z]{2}$/.test(c) || c === 'XX' || c === 'T1') c = '';
+  const lang = String((b && b.lang) || '');
+  const langName = LANG_NAMES[lang] || '';
+  const where = c ? (CTRY_NAMES[c] || c) : '';
+  const parts = ['CURRENT CONTEXT:'];
+  if (where) parts.push(`The user is currently in ${where} (country code ${c}).`);
+  parts.push(langName ? `Screen language: ${langName}.` : 'Screen language: automatic — follow the language the user speaks (default Korean).');
+  if (c && c !== 'KR') {
+    parts.push(`coverfo opens apps and sites used locally in ${where} (official links only, e.g. Google Maps, Uber, Grab, local train sites), so prefer local services in your answers. When calling run_command, pass the user's request in their own words — do not translate it into Korean. Do not suggest Korea-only apps (Kakao, Naver, Baemin) unless the user asks for them.`);
+  }
+  return parts.join(' ');
+}
 
 /* v276 앱(coverfo 소리) 전용: 부르는 이름 + 앱 열기 · 저장루틴 실행 · 대화 끝내기 */
 function appInstructions(name) {
@@ -94,7 +117,7 @@ const TOOLS = [{
   description: 'Run an action command on the coverfo home screen (opens maps, navigation, hotel booking, shopping/checkout, taxi, delivery, music, weather, flights, trains, call/SMS). The voice conversation continues after the command runs.',
   parameters: {
     type: 'object',
-    properties: { text: { type: 'string', description: 'One command sentence, e.g. "뉴욕 힐튼호텔 길안내 해줘" or "필립스 TAT1109 화이트 결제 화면 보여줘"' } },
+    properties: { text: { type: 'string', description: 'One command sentence in the user\'s own words and language (do not translate), e.g. "뉴욕 힐튼호텔 길안내 해줘", "call a taxi to the airport" or "필립스 TAT1109 화이트 결제 화면 보여줘"' } },
     required: ['text'],
   },
 }, {
@@ -166,7 +189,7 @@ export async function onRequestPost(context) {
   }
 
   /* 새 앱(v4)만 name 을 보낸다 → 그때만 앱 전용 도구. 업데이트 전 앱은 예전 도구 그대로 (처리 못 하는 도구를 받지 않게) */
-  if (op === 'token') return appToken(env, uid, cost, b.name ? cleanName(b.name) : '', !!(b.name && b.relay));
+  if (op === 'token') return appToken(env, uid, cost, b.name ? cleanName(b.name) : '', !!(b.name && b.relay), contextLine(b, context.request));
   if (op === 'device') {
     /* 기기 키는 진짜 로그인 키로만 받는다 (기기 키로 기기 키를 다시 받아 끝없이 늘리지 못하게) */
     if (isDevice(context.request)) return json({ error: '로그인 키가 필요합니다' }, 401);
@@ -187,7 +210,7 @@ export async function onRequestPost(context) {
     const session = {
       type: 'realtime',
       model: env.REALTIME_MODEL || MODEL_DEFAULT,
-      instructions: INSTRUCTIONS,
+      instructions: INSTRUCTIONS + ' ' + contextLine(b, context.request),
       audio: {
         input: {
           transcription: { model: 'gpt-4o-mini-transcribe' },
@@ -240,7 +263,7 @@ export async function onRequestPost(context) {
 /* ── v267 안드로이드 앱용 임시 키 (OpenAI POST /v1/realtime/client_secrets → value) ──
    · 키는 120초 안에 연결을 시작할 때만 쓰인다(연결 후 대화는 계속). 앱 화면·기기에 진짜 OpenAI 키가 남지 않는다.
    · 오디오는 PCM 16bit 24kHz 모노 (앱의 AudioRecord · AudioTrack 과 같은 형식). */
-async function appToken(env, uid, cost, name, relay) {
+async function appToken(env, uid, cost, name, relay, ctx) {
   let job;
   try { job = await spend(env, uid, cost, 'live:start'); }
   catch (e) { return json({ error: '크레딧 처리 실패: ' + String(e.message || e).slice(0, 200) }, 500); }
@@ -250,7 +273,7 @@ async function appToken(env, uid, cost, name, relay) {
   const session = {
     type: 'realtime',
     model,
-    instructions: name ? appInstructions(name) + (relay ? ' ' + RELAY_INSTR : '') : INSTRUCTIONS,
+    instructions: (name ? appInstructions(name) + (relay ? ' ' + RELAY_INSTR : '') : INSTRUCTIONS) + (ctx ? ' ' + ctx : ''),
     audio: {
       input: {
         format: fmt,
