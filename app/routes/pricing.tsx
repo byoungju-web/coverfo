@@ -321,6 +321,11 @@ function SubBox({ token, scfg, sub, reload }: { token: string; scfg: SubCfg | nu
               해지 취소하고 계속 구독
             </button>
           ) : null}
+          {left ? (
+            <div className="mt-2 text-xs text-bolt-elements-textSecondary">
+              해지한 구독의 이용 기간({day(sub.paid_until)})이 끝나면 요금제를 새로 골라 구독할 수 있어요.
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -661,6 +666,59 @@ function ChargeBox() {
   );
 }
 
+/* v314: 브라우저 번역(구글 번역 등)·확장 프로그램이 글자를 <font> 같은 태그로 감싸면, 탭을 바꿀 때 React 가
+   "insertBefore / removeChild … not a child of this node" 오류로 화면 전체가 Application Error 가 된다 (실험으로 재현함).
+   ① 충전 칸에 translate="no" (번역 안 함 표시) ② 그래도 누가 감쌌으면 감싼 태그 바깥 기준으로 넣고 빼게 한다. 결제 코드와 무관. */
+function installDomGuard() {
+  if (typeof window === 'undefined' || typeof Node !== 'function' || (window as any).__cfDomGuard) {
+    return;
+  }
+
+  (window as any).__cfDomGuard = true;
+
+  const origRemove = Node.prototype.removeChild;
+  const origInsert = Node.prototype.insertBefore;
+
+  Node.prototype.removeChild = function <T extends Node>(this: Node, child: T): T {
+    if (child && child.parentNode !== this) {
+      /* 감싼 태그 안에 들어가 있으면 그 태그째 빼서 원래 자리를 비운다 */
+      let w: Node | null = child.parentNode;
+
+      while (w && w.parentNode && w.parentNode !== this) {
+        w = w.parentNode;
+      }
+
+      if (w && w.parentNode === this) {
+        return origRemove.call(this, w) && child;
+      }
+
+      if (child.parentNode) {
+        return origRemove.call(child.parentNode, child) as T;
+      }
+
+      return child;
+    }
+
+    return origRemove.call(this, child) as T;
+  } as any;
+
+  Node.prototype.insertBefore = function <T extends Node>(this: Node, node: T, ref: Node | null): T {
+    if (ref && ref.parentNode !== this) {
+      let w: Node | null = ref.parentNode;
+
+      while (w && w.parentNode && w.parentNode !== this) {
+        w = w.parentNode;
+      }
+
+      return origInsert.call(this, node, w && w.parentNode === this ? w : null) as T;
+    }
+
+    return origInsert.call(this, node, ref) as T;
+  } as any;
+}
+
+installDomGuard();
+
 export default function Pricing() {
   return (
     <div className="flex min-h-full w-full flex-col bg-bolt-elements-background-depth-1">
@@ -670,7 +728,7 @@ export default function Pricing() {
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
         {/* v209 순서: 내 크레딧 잔액 → 충전(v287: ⚡ 한 번 충전 · 📅 매달 자동 충전 탭) → 충전 내역 → 요금제. v287 포도톡 연결 칸 삭제(연결 코드는 /buy 에 그대로) */}
-        <div id="charge" className="scroll-mt-16 rounded-xl border border-bolt-elements-borderColor p-4 sm:p-6">
+        <div id="charge" translate="no" className="notranslate scroll-mt-16 rounded-xl border border-bolt-elements-borderColor p-4 sm:p-6">
           <ClientOnly fallback={<div className="py-6 text-center text-sm text-bolt-elements-textSecondary">내 크레딧 불러오는 중…</div>}>
             {() => <ChargeBox />}
           </ClientOnly>
