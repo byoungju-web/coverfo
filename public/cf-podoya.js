@@ -34,7 +34,7 @@
     '#cfp .tag{flex:none;font-size:10.5px;font-weight:800;border-radius:7px;padding:2px 7px;background:#efeaf9;color:#5b21b6}#cfp .tag.g{background:#ecfdf3;color:#067647}#cfp .tag.o{background:#f4f4f5;color:#71717a}' +
     '#cfp .p-card{background:#fff;border:1px solid #ebe6f5;border-radius:16px;padding:14px;margin-bottom:12px}' +
     '#cfp .p-lb{font-size:12.5px;font-weight:800;color:#4a4460;margin:10px 2px 5px}#cfp .p-lb:first-child{margin-top:0}' +
-    '#cfp input.p-in,#cfp textarea.p-in{width:100%;border:1px solid #ddd6ec;border-radius:12px;padding:11px 12px;font-size:15px;background:#fff;color:#1c1830;font-family:inherit;box-sizing:border-box}#cfp textarea.p-in{min-height:96px;resize:vertical;line-height:1.55}' +
+    '#cfp input.p-in,#cfp textarea.p-in,#cfp select.p-in{width:100%;border:1px solid #ddd6ec;border-radius:12px;padding:11px 12px;font-size:15px;background:#fff;color:#1c1830;font-family:inherit;box-sizing:border-box}#cfp textarea.p-in{min-height:96px;resize:vertical;line-height:1.55}' +
     '#cfp .p-chips{display:flex;flex-wrap:wrap;gap:6px}#cfp .p-chips button{flex:1;min-width:72px;border:1.5px solid #e6e1f2;background:#fff;border-radius:10px;padding:9px 6px;font-size:12.5px;font-weight:800;color:#6b6385;cursor:pointer;font-family:inherit}#cfp .p-chips button.on{border-color:#6d28d9;background:#f5f3ff;color:#5b21b6}' +
     '#cfp .p-btn{width:100%;border:0;border-radius:12px;padding:13px 14px;background:#6d28d9;color:#fff;font-weight:800;font-size:15px;cursor:pointer;margin-top:12px;font-family:inherit}#cfp .p-btn.g{background:#efeaf9;color:#5b21b6;margin-top:8px}#cfp .p-btn:disabled{opacity:.55}' +
     '#cfp .p-two{display:flex;gap:8px}#cfp .p-two .p-btn{margin-top:10px}' +
@@ -354,11 +354,19 @@
     var m = S.me || {}, facts = Array.isArray(m.facts) ? m.facts : [], b = $('cfp-mebox'); if (!b) return;
     b.innerHTML = '<div class="p-card">' + ME_F.map(function (f) {
       return '<div class="p-lb">' + f[1] + '</div>' + (f[0] === 'note' ? '<textarea class="p-in" style="min-height:60px" data-mek="' + f[0] + '" placeholder="' + esc(f[2]) + '">' + esc(m[f[0]] || '') + '</textarea>' : '<input class="p-in" data-mek="' + f[0] + '" placeholder="' + esc(f[2]) + '" value="' + esc(m[f[0]] || '') + '">');
-    }).join('') + '<button type="button" class="p-btn" data-a="mesave">💾 저장</button></div>' +
+    }).join('') + meAsst(m) + '<button type="button" class="p-btn" data-a="mesave">💾 저장</button></div>' +
       '<div class="p-card"><div class="p-lb">기억해 둔 사실 <span style="color:#9a93ad">(' + facts.length + '/40)</span></div>' +
       (facts.length ? facts.map(function (f, i) { return '<div style="display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-top:1px solid #f1eef7"><span style="flex:1;font-size:13.5px;line-height:1.5;word-break:break-word">• ' + esc(f) + '</span><button type="button" data-a="medel" data-i="' + i + '" style="border:0;background:none;color:#b9b2c9;font-size:18px;cursor:pointer">×</button></div>'; }).join('') : '<div class="p-mut">아직 없어요. 아래에 한 줄씩 적어 주세요.</div>') +
       '<div style="display:flex;gap:7px;margin-top:10px"><input class="p-in" id="cfp-fact" maxlength="200" placeholder="예: 거래처 ○○상사 담당은 김대리"><button type="button" class="p-btn" data-a="meadd" style="width:auto;margin:0;padding:0 16px">＋</button></div></div>' +
       '<button type="button" class="p-btn g" data-a="meclear" style="color:#b42318">기억 전체 지우기</button>' + (msg || '');
+  }
+  /* v325 하나의 비서: 비서 이름 · 말투 · 잔소리 정도 — 🗣️ 소리 · 🤗 AI 컴패니언이 같이 따른다 */
+  function meAsst(m) {
+    var sel = function (k, opts) { return '<select class="p-in" data-mek="' + k + '">' + opts.map(function (o) { return '<option value="' + o[0] + '"' + ((m[k] || '') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>'; };
+    return '<div style="margin:14px 0 4px;padding-top:12px;border-top:1px dashed #e7e2f3"><b style="font-size:14px">🤖 나의 비서</b><div class="p-mut" style="margin:4px 0 8px">🗣️ 소리와 🤗 AI 컴패니언이 같은 이름·말투로 대답해요. (소리 앱에서 부르는 이름은 소리 창에서 따로 정해요)</div></div>' +
+      '<div class="p-lb">비서 이름</div><input class="p-in" data-mek="aname" maxlength="12" placeholder="예: 소리 · 포도 · 자비스" value="' + esc(m.aname || '') + '">' +
+      '<div class="p-lb">비서 말투</div>' + sel('aspeak', [['', '기본'], ['polite', '차분한 존댓말'], ['friendly', '친근한 존댓말 · 가벼운 유머'], ['casual', '친구처럼 반말']]) +
+      '<div class="p-lb">잔소리 정도</div>' + sel('nag', [['', '기본'], ['none', '없음'], ['little', '조금 (꼭 필요할 때만)'], ['normal', '보통 (한마디 정도)']]);
   }
   function meCollect() { var m = S.me || {}; Array.prototype.forEach.call(ov.querySelectorAll('[data-mek]'), function (x) { m[x.getAttribute('data-mek')] = x.value.trim(); }); return m; }
   function meSave(m, note) {
