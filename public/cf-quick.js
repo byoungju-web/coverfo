@@ -715,6 +715,7 @@
   function naviDest(q) {
     return String(q || "").replace(/(으?로\s*)?(길\s*안내|내비게이션|내비|네비게이션|네비|길\s*찾기|길찾기|가는\s*길|가는\s*법|어떻게\s*가(는|요|줘)?|찾아\s*가(줘|기)?|까지\s*가(줘|는|기)?|가는\s*방법|가려면|경로|루트|데려다\s*(줘)?|목적지|운전|틀어\s*줘?|켜\s*줘?|실행(해|해줘)?|알려\s*줘?|해\s*줘|(^|\s)해(?=\s|$)|줘|좀)/g, " ").replace(/(^|\s)길(?=\s|$)/g, " ")
       .replace(/\b(directions?\s*to|navigate\s*to|how\s*(do\s*i|to)\s*get\s*to|route\s*to|take\s*me\s*to|drive\s*to|way\s*to|please|the)\b/gi, " ")
+      .replace(/\b(give\s*me|show\s*me|get\s*me|can\s*you|could\s*you|i\s*want\s*to\s*go\s*to|i\s*need)\b/gi, " ").replace(/[.!?。]+\s*$/, "")
       .replace(/(까지|으로|로|에)\s*$/, "").replace(/\s+/g, " ").trim() || q;
   }
   /* ── 길안내(v11): "A에서 B까지" 면 출발지 A·도착지 B, 아니면 도착지만(출발은 현재 위치) ──

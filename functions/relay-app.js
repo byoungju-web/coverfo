@@ -794,6 +794,8 @@ render();
 <script src="/relay-pro.js"></script>
 <script src="/relay-set.js"></script>
 <script src="/relay-media.js"></script>
+<!-- v321: 화면 언어(번역) — 홈과 같은 cf-ui-lang.js -->
+<script src="/cf-ui-lang.js?v=5" defer></script>
 </body>
 </html>`;
 

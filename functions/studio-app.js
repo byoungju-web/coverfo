@@ -376,6 +376,8 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
   }).catch(function(e){ renderKind(); show('err','설정을 불러오지 못했습니다: '+e); });
 })();
 </script>
+<!-- v321: 화면 언어(번역) — 홈과 같은 cf-ui-lang.js -->
+<script src="/cf-ui-lang.js?v=5" defer></script>
 </body>
 </html>`;
 

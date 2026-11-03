@@ -121,22 +121,33 @@
       return NodeFilter.FILTER_ACCEPT;
     } });
     var n, list = []; while ((n = walk.nextNode())) list.push(n);
+    /* v321: 지금 화면에 보이는 글자를 먼저 번역 (숨은 창의 글자는 나중에) */
+    var vis = [], hid = {};
     list.forEach(function (node) {
       var raw = node.__ko || node.nodeValue, key = raw.trim(); if (!key) return;
       node.__ko = raw;
       if (c[key]) { node.nodeValue = raw.replace(key, c[key]); return; }
-      if (!seen[l + "|" + key]) { seen[l + "|" + key] = 1; miss.push(key); }
+      if (seen[l + "|" + key]) return;
+      var shown = false; try { shown = node.parentNode.getClientRects().length > 0; } catch (e) {}
+      if (shown) { if (vis.indexOf(key) < 0) vis.push(key); } else hid[key] = 1;
     });
+    for (var hk in hid) { if (vis.indexOf(hk) < 0) miss.push(hk); }
     [].forEach.call(document.querySelectorAll("input[placeholder],textarea[placeholder],[title]"), function (el) {
+      /* v321: 번역 제외 칸(data-cf-noui)은 안내 글자·제목도 그대로 둔다 (홈 입력칸은 다른 기능들이 안내 글자로 찾는다) */
+      try { if (el.closest && el.closest("[data-cf-noui]")) return; } catch (e) {}
       var isTitle = !el.hasAttribute("placeholder");
       var raw = el.__ko || el.getAttribute(isTitle ? "title" : "placeholder") || "";
       if (!KO.test(raw)) return;
       el.__ko = raw;
       if (c[raw]) { el.setAttribute(isTitle ? "title" : "placeholder", c[raw]); return; }
-      if (!seen[l + "|" + raw]) { seen[l + "|" + raw] = 1; miss.push(raw); }
+      if (!seen[l + "|" + raw] && miss.indexOf(raw) < 0) miss.push(raw);
     });
-    miss.slice(0, 80).forEach(function (t) { Q.push({ t: t, l: l }); });
-    if (miss.length && !busy) step();
+    /* v321: 맡긴 것만 '봤음' 표시 — 예전에는 한 번에 80개만 맡기고 나머지도 '봤음'으로 표시해 영영 번역되지 않았다.
+       보이는 글자는 줄 맨 앞에, 나머지는 80개씩 (한 개 번역될 때마다 다시 훑으므로 남은 것은 다음 차례에 맡긴다) */
+    vis.slice(0, 80).reverse().forEach(function (t) { seen[l + "|" + t] = 1; Q.unshift({ t: t, l: l }); });
+    var room = Math.max(0, 80 - Q.length);
+    miss.slice(0, room).forEach(function (t) { if (seen[l + "|" + t]) return; seen[l + "|" + t] = 1; Q.push({ t: t, l: l }); });
+    if (Q.length && !busy) step();
   }
   var obs = null, obsT = null;
   function watch() {

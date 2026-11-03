@@ -334,7 +334,8 @@ h3 .right{margin-left:auto}
     });
     renderMode();
   }
-  function setStage(n, state, label) { var el = $('st' + n); el.className = 'st ' + state; $('p' + n).textContent = label; }
+  function setStage(n, state, label) { var el = $('st' + n); el.className = 'st ' + state; $('p' + n).textContent = label; $('p' + n).setAttribute('data-lb', label); }   /* v321: 화면이 번역돼도 단계 판단은 원래 글자(data-lb)로 */
+  function lbOf(n) { var p = $('p' + n); return (p && (p.getAttribute('data-lb') || p.textContent)) || ''; }
   function setTime(n, ms) { $('t' + n).textContent = ms != null ? (ms / 1000).toFixed(1) + '초' : ''; }
   function out(n, html) { $('o' + n).innerHTML = html.indexOf('src=') >= 0 ? html : clean(html); } // 이미지·영상(base64) 은 글자 치환에서 제외
 
@@ -570,7 +571,7 @@ h3 .right{margin-left:auto}
     setStage(n, 'run', '진행 중');
     try {
       await fn();
-      if ($('p' + n).textContent === '진행 중') setStage(n, 'ok', '완료');
+      if (lbOf(n) === '진행 중') setStage(n, 'ok', '완료');
     } catch (e) {
       if (aborted) { setStage(n, 'skip', '중지'); throw e; }
       setStage(n, 'bad', '실패');
@@ -730,7 +731,7 @@ h3 .right{margin-left:auto}
     var produced = mode === 'app' ? !!finalHtml : !!(S.img1 || S.img2 || S.videoUrl || S.modelUrl);
     if (aborted || !produced) await refundCredit(aborted ? '중지' : '결과 없음'); else await settleCredit();
     if (aborted) show('err', '중지했습니다. 크레딧은 환불됐습니다.'); else { log('ok', '🎉 실행 끝'); show(produced ? 'ok' : 'err', mode === 'app' ? (finalHtml ? '완성됐습니다.' : '코드가 만들어지지 않았습니다. 크레딧은 환불됐습니다.') : (produced ? '3D 에셋이 준비됐습니다. 아래 "채팅으로 보내기"로 채팅 화면에서 볼 수 있습니다.' : '에셋이 만들어지지 않았습니다. 크레딧은 환불됐습니다.')); }
-    var summary = STAGES.map(function (s) { return s.n + ':' + ($('p' + s.n).textContent || '').replace('진행 중', '중단'); }).join(' ');
+    var summary = STAGES.map(function (s) { return s.n + ':' + lbOf(s.n).replace('진행 중', '중단'); }).join(' ');
     if (finalHtml && !aborted) { chatUrlId = await saveChat(S.title, finalHtml, prompt); if (chatUrlId) log('ok', '사이드바 "내 대화"에 저장했습니다'); }
     saveHist({ at: Date.now(), mode: mode, prompt: prompt, title: S.title, ok: !!finalHtml, size: finalHtml.length, html: finalHtml, stages: summary, chat: chatUrlId });
     renderMode();
@@ -826,7 +827,7 @@ h3 .right{margin-left:auto}
     setBusy(false);
     if (finalHtml && !aborted) await settleCredit(); else await refundCredit(aborted ? '중지' : '결과 없음');
     show(finalHtml ? 'ok' : 'err', finalHtml ? '완성됐습니다.' : '코드가 만들어지지 않았습니다. 크레딧은 환불됐습니다.');
-    var summary = STAGES.map(function (s) { return s.n + ':' + ($('p' + s.n).textContent || ''); }).join(' ');
+    var summary = STAGES.map(function (s) { return s.n + ':' + lbOf(s.n); }).join(' ');
     if (finalHtml) { chatUrlId = await saveChat(LAST.title, finalHtml, LAST.prompt); if (chatUrlId) log('ok', '사이드바 "내 대화"에 저장했습니다'); }
     saveHist({ at: Date.now(), mode: 'app', prompt: LAST.prompt, title: LAST.title, ok: !!finalHtml, size: finalHtml.length, html: finalHtml, stages: summary, chat: chatUrlId });
   });
@@ -987,6 +988,8 @@ h3 .right{margin-left:auto}
   renderStages();
 })();
 </script>
+<!-- v321: 화면 언어(번역) — 홈과 같은 cf-ui-lang.js -->
+<script src="/cf-ui-lang.js?v=5" defer></script>
 </body>
 </html>
 `;
