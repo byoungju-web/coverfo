@@ -27,6 +27,12 @@
 //   브리핑이 만들어지면 알림 시각(push_at)에 cron_due 가 구독한 브라우저로 "☀️ 오늘 아침 브리핑" 알림을 보낸다.
 //   v302 📮 발송 채널: 예약 실행 결과를 지메일(있으면)에 더해 계정의 cf_deliver 설정대로 텔레그램 · 🔔 coverfo 알림으로도 보낸다
 //        (sql/cf_deliver.sql · 설정은 /api/podoya deliver_save). 표가 없거나 보내기에 실패해도 실행 결과에는 영향 없음.
+//   v327 ⏰ 알림 (sql/cf_remind.sql 1번 실행 · 무료 · 켜 둔 알림 30개까지):
+//   { op:"remind_list" } → { items, subs(알림 받을 브라우저 수) } · { op:"remind_add", text, kind, at, off, hh, mm, dow, dom } · { op:"remind_del", id }
+//     kind: once·daily·weekly·monthly. at = 처음 울릴 때(ISO, 화면이 그 기기 시각으로 계산), off = 그 기기의 UTC 차이(분, 한국 540).
+//     울릴 때가 되면 cron_due 가 웹 알림(🔔 알림을 켠 브라우저)으로 보낸다. 정확도는 coverfo-cron 이 cron_due 를 부르는 간격만큼.
+//   v327 🏃 한 마디 루틴 (같은 sql · 무료 · 20개까지): { op:"mr_list" } · { op:"mr_save", name, cmds:[…최대 5], old? } · { op:"mr_del", name }
+//     "퇴근" 한 마디 → 명령 문장 여러 개를 홈 화면이 차례로 실행. 번호는 넣지 않는다(📒 내 연락처가 이 기기에서 채움).
 //   { op:"cron_run", id }                 → 그 레시피를 사람 없이 실행. 남에게 보내기·수정은 하지 않고 '확인 대기'로 멈춘다.
 //                                            결과(또는 확인 요청)는 지메일이 연결돼 있으면 내 메일 주소로만 보낸다.
 //
@@ -107,7 +113,7 @@ export async function onRequestPost(context) {
   let b = {};
   try { b = await context.request.json(); } catch { return json({ error: '잘못된 요청입니다' }, 400); }
   const op = String(b.op || '');
-  if (!env.COMPOSIO_API_KEY && !/^(brief_|push_)/.test(op)) return json({ error: '커넥션 허브가 아직 설정되지 않았어요 (COMPOSIO_API_KEY)', setup: true }, 500);
+  if (!env.COMPOSIO_API_KEY && !/^(brief_|push_|remind_|mr_)/.test(op)) return json({ error: '커넥션 허브가 아직 설정되지 않았어요 (COMPOSIO_API_KEY)', setup: true }, 500);
   const cu = 'cf_' + uid;
   try {
     if (op === 'apps') return json(await listApps(env, cu));
@@ -127,6 +133,13 @@ export async function onRequestPost(context) {
     if (op === 'push_unsub') return json(await pushUnsub(env, uid, b.endpoint));
     if (op === 'push_test') return json(await pushUser(env, uid, { title: '🔔 알림 시험', body: '이 브라우저로 coverfo 알림이 와요.', url: '/brief' }));
     if (op === 'brief_latest') return json(await briefLatest(env, uid));
+    /* v327 ⏰ 알림 · 🏃 한 마디 루틴 */
+    if (op === 'remind_list') return json(await remindList(env, uid));
+    if (op === 'remind_add') return json(await remindAdd(env, uid, b));
+    if (op === 'remind_del') return json(await remindDel(env, uid, b));
+    if (op === 'mr_list') return json({ ok: true, items: await mrList(env, uid) });
+    if (op === 'mr_save') return json(await mrSave(env, uid, b));
+    if (op === 'mr_del') return json(await mrDel(env, uid, b));
     if (op === 'runs') return json({ ok: true, runs: await runList(env, uid) });
     if (op === 'run_decide') return json(await runDecide(env, uid, cu, b));
     if (op === 'recipe_run') {
@@ -817,7 +830,120 @@ async function cronDue(env) {
       pushes++;
     }
   }
-  return { ok: true, ids, pushes };
+  /* v327 ⏰ 알림: 울릴 때가 된 것 → 웹 알림. 다음 시각을 먼저 옮겨(같은 값일 때만) 두 번 보내지 않게 */
+  let reminds = 0;
+  if (env.VAPID_PUBLIC && env.VAPID_PRIVATE) {
+    let rs = [];
+    try { rs = await sbReq(env, 'GET', 'cf_remind?select=*&is_on=eq.true&next_at=lte.' + encodeURIComponent(new Date(now).toISOString()) + '&order=next_at.asc&limit=100'); } catch {}
+    for (const r of Array.isArray(rs) ? rs : []) {
+      const nx = remindNext(r, Date.parse(r.next_at), now);
+      const upd = await sbReq(env, 'PATCH', 'cf_remind?id=eq.' + Number(r.id) + '&next_at=eq.' + encodeURIComponent(r.next_at),
+        nx ? { next_at: new Date(nx).toISOString() } : { is_on: false }, 'return=representation').catch(() => []);
+      if (!Array.isArray(upd) || !upd.length) continue;
+      /* 너무 늦게(6시간 넘게) 깨어났으면 지난 알림은 보내지 않고 다음 차례로만 옮긴다 */
+      if (now - Date.parse(r.next_at) > 6 * 3600e3) continue;
+      await pushUser(env, r.user_id, { title: '⏰ coverfo 알림', body: String(r.text || '알림'), url: '/', tag: 'cf-remind-' + r.id }).catch(() => {});
+      reminds++;
+    }
+    /* 울린 지 30일 지난 한 번짜리 알림은 지운다 */
+    if (Math.random() < 0.05) await sbReq(env, 'DELETE', 'cf_remind?is_on=eq.false&kind=eq.once&next_at=lt.' + encodeURIComponent(new Date(now - 30 * 86400e3).toISOString()), null, 'return=minimal').catch(() => {});
+  }
+  return { ok: true, ids, pushes, reminds };
+}
+
+/* ───────────── v327 ⏰ 알림 (sql/cf_remind.sql) ───────────── */
+const REMIND_MAX = 30;
+function remindErr(e) {
+  const m = String((e && e.message) || e);
+  if (/cf_remind|cf_mroutine/.test(m) && /404|42P01|does not exist|schema cache/.test(m)) return httpErr(500, '알림·루틴 표가 아직 없어요. Supabase 에서 sql/cf_remind.sql 을 한 번 실행해 주세요.');
+  return e;
+}
+/* 다음 울릴 때: 그 기기 시각(off 분) 기준으로 하루·일주일·한 달 뒤. 지금보다 뒤가 될 때까지 넘긴다 */
+function remindNext(r, from, now) {
+  const k = r.kind;
+  if (k === 'once') return null;
+  const off = Number(r.off_min) || 0;
+  let t = from;
+  for (let i = 0; i < 400 && t <= now; i++) {
+    if (k === 'daily') t += 86400e3;
+    else if (k === 'weekly') t += 7 * 86400e3;
+    else if (k === 'monthly') {
+      const L = new Date(t + off * 60e3);
+      const y = L.getUTCFullYear(), m = L.getUTCMonth() + 1;
+      const dim = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+      const d = Math.min(Number(r.dom) || L.getUTCDate(), dim);
+      t = Date.UTC(y, m, d, L.getUTCHours(), L.getUTCMinutes()) - off * 60e3;
+    } else return null;
+  }
+  return t > now ? t : null;
+}
+async function remindList(env, uid) {
+  try {
+    const items = await sbReq(env, 'GET', 'cf_remind?select=id,text,kind,next_at,hh,mm,dow,dom,is_on&user_id=eq.' + encodeURIComponent(uid) + '&order=is_on.desc,next_at.asc&limit=60');
+    let subs = 0;
+    try { const s = await sbReq(env, 'GET', 'hub_push?select=endpoint&user_id=eq.' + encodeURIComponent(uid) + '&limit=10'); subs = Array.isArray(s) ? s.length : 0; } catch {}
+    return { ok: true, items: Array.isArray(items) ? items : [], subs, push: !!(env.VAPID_PUBLIC && env.VAPID_PRIVATE), max: REMIND_MAX };
+  } catch (e) { throw remindErr(e); }
+}
+async function remindAdd(env, uid, b) {
+  const text = String(b.text || '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+  if (!text) throw httpErr(400, '알림 내용을 알려 주세요');
+  if (/(?:\d[\s.\-]?){9,}/.test(text)) throw httpErr(400, '전화·카드·계좌번호처럼 보이는 숫자는 알림에 넣지 않아요');
+  const kind = ['once', 'daily', 'weekly', 'monthly'].includes(b.kind) ? b.kind : '';
+  if (!kind) throw httpErr(400, '반복 방법이 올바르지 않아요');
+  const at = Date.parse(String(b.at || ''));
+  const now = Date.now();
+  if (!isFinite(at) || at < now - 5 * 60e3 || at > now + 400 * 86400e3) throw httpErr(400, '알림 시각이 올바르지 않아요');
+  const off = Math.max(-840, Math.min(840, Math.round(Number(b.off) || 0)));
+  const hh = Math.max(0, Math.min(23, Math.round(Number(b.hh) || 0))), mm = Math.max(0, Math.min(59, Math.round(Number(b.mm) || 0)));
+  const dow = Math.max(0, Math.min(6, Math.round(Number(b.dow) || 0))), dom = Math.max(1, Math.min(31, Math.round(Number(b.dom) || 1)));
+  try {
+    const on = await sbReq(env, 'GET', 'cf_remind?select=id&user_id=eq.' + encodeURIComponent(uid) + '&is_on=eq.true&limit=' + (REMIND_MAX + 1));
+    if (Array.isArray(on) && on.length >= REMIND_MAX) throw httpErr(400, '켜 둔 알림은 ' + REMIND_MAX + '개까지예요. 필요 없는 알림을 지워 주세요.');
+    const row = await sbReq(env, 'POST', 'cf_remind', { user_id: uid, text, kind, next_at: new Date(at).toISOString(), off_min: off, hh, mm, dow, dom, is_on: true }, 'return=representation');
+    let subs = 0;
+    try { const s = await sbReq(env, 'GET', 'hub_push?select=endpoint&user_id=eq.' + encodeURIComponent(uid) + '&limit=10'); subs = Array.isArray(s) ? s.length : 0; } catch {}
+    return { ok: true, item: Array.isArray(row) ? row[0] : null, subs, push: !!(env.VAPID_PUBLIC && env.VAPID_PRIVATE) };
+  } catch (e) { throw remindErr(e); }
+}
+async function remindDel(env, uid, b) {
+  if (!/^\d{1,18}$/.test(String(b.id))) throw httpErr(400, '지울 알림을 알려 주세요');
+  try { await sbReq(env, 'DELETE', 'cf_remind?user_id=eq.' + encodeURIComponent(uid) + '&id=eq.' + String(b.id), null, 'return=minimal'); }
+  catch (e) { throw remindErr(e); }
+  return { ok: true };
+}
+
+/* ───────────── v327 🏃 한 마디 루틴 (같은 sql · cf_mroutine) ───────────── */
+const MR_MAX = 20;
+function mrName(v) { return String(v || '').replace(/[\u0000-\u001f]/g, '').replace(/\s+/g, '').trim().slice(0, 12); }
+async function mrList(env, uid) {
+  try {
+    const r = await sbReq(env, 'GET', 'cf_mroutine?select=name,cmds,updated_at&user_id=eq.' + encodeURIComponent(uid) + '&order=name.asc&limit=' + MR_MAX);
+    return Array.isArray(r) ? r : [];
+  } catch (e) { throw remindErr(e); }
+}
+async function mrSave(env, uid, b) {
+  const name = mrName(b.name);
+  if (name.length < 1) throw httpErr(400, '루틴 이름을 적어 주세요 (예: 퇴근)');
+  const cmds = (Array.isArray(b.cmds) ? b.cmds : []).map((c) => String(c || '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80)).filter(Boolean).slice(0, 5);
+  if (!cmds.length) throw httpErr(400, '할 일(명령)을 하나 이상 적어 주세요');
+  if (cmds.some((c) => /(?:\d[\s.\-]?){9,}/.test(c))) throw httpErr(400, '전화·계좌번호는 루틴에 넣지 말고 📒 내 연락처의 이름으로 적어 주세요 (예: 엄마한테 지금 출발 문자)');
+  const old = mrName(b.old);
+  try {
+    const list = await mrList(env, uid);
+    const exists = list.some((x) => x.name === name);
+    if (!exists && list.filter((x) => x.name !== old).length >= MR_MAX) throw httpErr(400, '한 마디 루틴은 ' + MR_MAX + '개까지예요');
+    if (old && old !== name) await sbReq(env, 'DELETE', 'cf_mroutine?user_id=eq.' + encodeURIComponent(uid) + '&name=eq.' + encodeURIComponent(old), null, 'return=minimal');
+    await sbReq(env, 'POST', 'cf_mroutine', { user_id: uid, name, cmds, updated_at: new Date().toISOString() }, 'resolution=merge-duplicates,return=minimal');
+    return { ok: true, items: await mrList(env, uid) };
+  } catch (e) { throw remindErr(e); }
+}
+async function mrDel(env, uid, b) {
+  const name = mrName(b.name);
+  if (!name) throw httpErr(400, '지울 루틴을 알려 주세요');
+  try { await sbReq(env, 'DELETE', 'cf_mroutine?user_id=eq.' + encodeURIComponent(uid) + '&name=eq.' + encodeURIComponent(name), null, 'return=minimal'); }
+  catch (e) { throw remindErr(e); }
+  return { ok: true, items: await mrList(env, uid) };
 }
 
 /* 사람 없이 레시피 실행 */

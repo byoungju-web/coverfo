@@ -20,6 +20,7 @@
 // · 명령("부산 맛집 알려줘", "뉴욕 힐튼 길안내 해줘" …)은 run_command 도구로 화면에 넘겨 홈 입력칸과 같은 길로 실행한다.
 // · 대화 내용은 저장하지 않는다(크레딧 기록에는 'live' 와 분 수만).
 // · v325 말로 연결: open_screen(앱·이미지·영상·3D 만들기 화면, 통역톡) · recall(👣 내 발자취에서 찾아 다시 열기) — 화면(cf-live-js)이 처리.
+// · v327 my_note: 📒 내 연락처의 장소·기념일·늘 먹던 것 중 물어본 항목만 화면이 찾아 돌려준다(번호·계좌는 주지 않음). 알림·한 마디 루틴은 run_command.
 // · v325 하나의 비서: 포도야 비서 '🧠 내 기억'(cf_me)의 내 호칭·비서 이름·비서 말투·잔소리 정도·기억해 둔 사실을 안내문 끝에 붙인다(읽기만).
 // · 비용: 1분 COST 크레딧 (Secret/변수 LIVE_COST_PER_MIN 로 바꿀 수 있음). 모델은 REALTIME_MODEL 로 바꿀 수 있음.
 // · 알려진 한계: 1분 차감은 화면이 tick 을 보내야 이어진다. 화면 코드를 고쳐 tick 을 보내지 않는 경우까지 막으려면
@@ -54,6 +55,11 @@ const INSTRUCTIONS = [
   'INTERPRETER: when the user wants to start interpretation/translation chat with another person (e.g. "통역 시작해", "통역톡 열어 줘", "외국인이랑 대화하게 통역 켜 줘"), call open_screen with screen "interpreter". Say only "네, 통역톡을 열게요."',
   /* v325 👣 내 발자취 */
   'MEMORY OF PAST ACTIVITY: when the user refers to something they looked at or did before (e.g. "어제 찾던 쇼핑몰 다시 띄워 줘", "아까 본 맛집 뭐였지?", "지난번에 물어본 사진"), call recall with words that describe it (query) and open=true if they want it opened again. If it returns ok:false with off:true, tell them in one sentence they can turn on 👣 내 발자취 in 내 정보. If nothing is found, say so in one short sentence. Never invent past activity.',
+  /* v327 📒 내 정보 · ⏰ 알림 · 🏃 한 마디 루틴 */
+  'PERSONAL NOTES: when the user asks about something they saved about their own life — a birthday or anniversary ("엄마 생일 언제지?"), the address of home/work/a usual place ("우리 집 주소 뭐였지?"), or their usual food order — call my_note with the words that describe it. Answer only from what it returns, in one short sentence. If nothing is found, say they can save it in 📒 내 연락처. Never guess personal facts.',
+  'For "집으로 택시", "회사 길안내", "늘 먹던 거 시켜줘" use run_command with the user\'s words as they said them (coverfo fills in the saved place or order on the phone).',
+  'REMINDERS: when the user asks to be reminded ("3시에 회의 알려줘", "매달 25일 월세 내라고 알려줘", "10분 뒤에 알려줘"), call run_command with their sentence including the time. Say only "네, 알림 맞출게요." To add an event to their calendar ("다음 주 화요일 치과 일정 넣어줘"), also use run_command with their sentence.',
+  'ONE-WORD ROUTINES: when the user says a short routine word such as "퇴근", "출근", "잘게" or "○○ 루틴 시작", call run_command with exactly that word or phrase.',
   'For questions, chit-chat or explanations, just answer by voice without the tool — still briefly.',
   'Never ask for or repeat card numbers, ID numbers, passwords or bank account numbers. coverfo does not take payments; payment happens on each shop\'s site by the user.',
 ].join(' ');
@@ -194,6 +200,15 @@ const TOOLS = [{
       text: { type: 'string', description: 'What to make, in the user\'s own words, e.g. "카드 내역이 자동 분류되는 가계부 앱". Empty for interpreter.' },
     },
     required: ['screen'],
+  },
+}, {
+  type: 'function',
+  name: 'my_note',
+  description: 'Look up what the user saved on this phone in 📒 내 연락처: places (home/work addresses), anniversaries/birthdays, usual food orders. Never returns phone or account numbers.',
+  parameters: {
+    type: 'object',
+    properties: { query: { type: 'string', description: 'What they asked about, e.g. "엄마 생일" or "집 주소" or "늘 먹던 거"' } },
+    required: ['query'],
   },
 }, {
   type: 'function',
