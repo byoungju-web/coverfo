@@ -21,6 +21,10 @@
 // · 대화 내용은 저장하지 않는다(크레딧 기록에는 'live' 와 분 수만).
 // · v325 말로 연결: open_screen(앱·이미지·영상·3D 만들기 화면, 통역톡) · recall(👣 내 발자취에서 찾아 다시 열기) — 화면(cf-live-js)이 처리.
 // · v327 my_note: 📒 내 연락처의 장소·기념일·늘 먹던 것 중 물어본 항목만 화면이 찾아 돌려준다(번호·계좌는 주지 않음). 알림·한 마디 루틴은 run_command.
+// · v333 web_search: 소리가 모르는 것(가는 길 휴게소·영업시간·가격·소식)을 Brave 검색(BRAVE_API_KEY)으로 찾아 답한다.
+//   { op:"search", q, country? } → { items:[{title,url,desc,site}] }  (로그인 키 또는 소리 앱 기기 키 · 무료 · 저장 안 함)
+//   웹 소리는 화면(cf-live-js)이, 소리 앱은 앱(SoriService)이 직접 불러서 내비가 앞에 떠 있어도 답한다. 결과는 coverfo 화면에 번호 단추로도 띄운다.
+//   start/token 의 navi = 마지막으로 길안내한 목적지(이 기기에 둔 것) → "가는 길에 휴게소" 같은 말에 목적지를 붙여 검색하게 안내문에 넣는다.
 // · v325 하나의 비서: 포도야 비서 '🧠 내 기억'(cf_me)의 내 호칭·비서 이름·비서 말투·잔소리 정도·기억해 둔 사실을 안내문 끝에 붙인다(읽기만).
 // · 비용: 1분 COST 크레딧 (Secret/변수 LIVE_COST_PER_MIN 로 바꿀 수 있음). 모델은 REALTIME_MODEL 로 바꿀 수 있음.
 // · 알려진 한계: 1분 차감은 화면이 tick 을 보내야 이어진다. 화면 코드를 고쳐 tick 을 보내지 않는 경우까지 막으려면
@@ -63,6 +67,9 @@ const INSTRUCTIONS = [
   'For "집으로 택시", "회사 길안내", "늘 먹던 거 시켜줘" use run_command with the user\'s words as they said them (coverfo fills in the saved place or order on the phone).',
   'REMINDERS: when the user asks to be reminded ("3시에 회의 알려줘", "매달 25일 월세 내라고 알려줘", "10분 뒤에 알려줘"), call run_command with their sentence including the time. Say only "네, 알림 맞출게요." To add an event to their calendar ("다음 주 화요일 치과 일정 넣어줘"), also use run_command with their sentence.',
   'ONE-WORD ROUTINES: when the user says a short routine word such as "퇴근", "출근", "잘게" or "○○ 루틴 시작", call run_command with exactly that word or phrase.',
+  /* v333 웹 검색 */
+  'WEB SEARCH: when the user asks about facts you do not know or that change (rest areas or gas stations on the way, opening hours, prices, events, recent news, phone numbers of businesses, "가는 길에 휴게소 있어?"), call web_search with a good Korean search query. If they say "가는 길" / "on the way" and a destination is known (from your run_command in this conversation or LAST NAVIGATION in CURRENT CONTEXT), put the destination in the query (e.g. "부산역 가는 길 고속도로 휴게소"). Then answer in one or two sentences from the results, naming the site, and add that the list is on the coverfo screen as numbered buttons ("첫 번째 열어줘"). If the results do not answer it, say so — never make up facts.',
+  'When the user picks a search result ("첫 번째 열어줘", "2번 열어", "나무위키 거 열어줘"), call press_button with that label (e.g. "1번" or the site name).',
   'For questions, chit-chat or explanations, just answer by voice without the tool — still briefly.',
   'Never ask for or repeat card numbers, ID numbers, passwords or bank account numbers. coverfo does not take payments; payment happens on each shop\'s site by the user.',
 ].join(' ');
@@ -81,6 +88,8 @@ function contextLine(b, request) {
   const parts = ['CURRENT CONTEXT:'];
   if (where) parts.push(`The user is currently in ${where} (country code ${c}).`);
   parts.push(langName ? `Screen language: ${langName}.` : 'Screen language: automatic — follow the language the user speaks (default Korean).');
+  const navi = String((b && b.navi) || '').replace(/[\u0000-\u001f"]/g, ' ').trim().slice(0, 60);
+  if (navi) parts.push(`LAST NAVIGATION (destination the user asked directions to recently, on this phone): ${navi}.`);
   if (c && c !== 'KR') {
     parts.push(`coverfo opens apps and sites used locally in ${where} (official links only, e.g. Google Maps, Uber, Grab, local train sites), so prefer local services in your answers. When calling run_command, pass the user's request in their own words — do not translate it into Korean. Do not suggest Korea-only apps (Kakao, Naver, Baemin) unless the user asks for them.`);
   }
@@ -206,6 +215,15 @@ const TOOLS = [{
   },
 }, {
   type: 'function',
+  name: 'web_search',
+  description: 'Search the web (Brave) for current facts you do not know: rest areas or gas stations on the way, opening hours, prices, events, news. Returns up to 5 results (title, site, snippet). The results are also shown on the coverfo screen as numbered buttons.',
+  parameters: {
+    type: 'object',
+    properties: { query: { type: 'string', description: 'Search query in Korean (or the user\'s language), including place/destination names, e.g. "부산역 가는 길 고속도로 휴게소"' } },
+    required: ['query'],
+  },
+}, {
+  type: 'function',
   name: 'my_note',
   description: 'Look up what the user saved on this phone in 📒 내 연락처: places (home/work addresses), anniversaries/birthdays, usual food orders. Never returns phone or account numbers.',
   parameters: {
@@ -282,6 +300,7 @@ export async function onRequestPost(context) {
 
   /* 새 앱(v4)만 name 을 보낸다 → 그때만 앱 전용 도구. 업데이트 전 앱은 예전 도구 그대로 (처리 못 하는 도구를 받지 않게) */
   if (op === 'token') return appToken(env, uid, cost, b.name ? cleanName(b.name) : '', !!(b.name && b.relay), contextLine(b, context.request) + (await personaLine(env, uid, !!b.name)));
+  if (op === 'search') return json(await webSearch(env, b));
   if (op === 'device') {
     /* 기기 키는 진짜 로그인 키로만 받는다 (기기 키로 기기 키를 다시 받아 끝없이 늘리지 못하게) */
     if (isDevice(context.request)) return json({ error: '로그인 키가 필요합니다' }, 401);
@@ -406,6 +425,37 @@ async function appToken(env, uid, cost, name, relay, ctx) {
   } catch (e) {
     await refund(env, job);
     return json({ error: `음성 키 오류: ${e.message}`, refunded: true }, 500);
+  }
+}
+
+/* ── v333 웹 검색 (Brave · hub.js 아침 브리핑 briefNews 와 같은 주소·머리표) ── 무료 · 저장하지 않음 */
+async function webSearch(env, b) {
+  const q = String((b && b.q) || '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150);
+  if (!q) return { ok: false, error: '무엇을 찾을지 알려 주세요', items: [] };
+  if (!env.BRAVE_API_KEY) return { ok: false, error: '검색 설정이 아직 없어요 (BRAVE_API_KEY)', items: [] };
+  const c = String((b && b.country) || 'KR').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2) || 'KR';
+  const ko = /[가-힣]/.test(q);
+  const qs = new URLSearchParams({ q, count: '8', safesearch: 'moderate', text_decorations: 'false' });
+  if (ko) { qs.set('search_lang', 'ko'); qs.set('country', 'KR'); } else if (c !== 'KR') qs.set('country', c);
+  try {
+    const r = await fetch('https://api.search.brave.com/res/v1/web/search?' + qs, {
+      headers: { Accept: 'application/json', 'X-Subscription-Token': env.BRAVE_API_KEY }, signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) return { ok: false, error: '검색하지 못했어요 (' + r.status + ')', items: [] };
+    const d = await r.json();
+    const list = [].concat((d.web && d.web.results) || [], (d.news && d.news.results) || []);
+    const seen = new Set(), items = [];
+    for (const x of list) {
+      if (!x || !/^https?:\/\//.test(String(x.url || '')) || seen.has(x.url)) continue;
+      seen.add(x.url);
+      let site = '';
+      try { site = new URL(x.url).hostname.replace(/^www\./, ''); } catch {}
+      items.push({ title: String(x.title || '').replace(/<[^>]+>/g, '').slice(0, 120), url: String(x.url).slice(0, 500), desc: String(x.description || '').replace(/<[^>]+>/g, '').slice(0, 260), site });
+      if (items.length >= 5) break;
+    }
+    return { ok: true, q, items };
+  } catch (e) {
+    return { ok: false, error: '검색하지 못했어요', items: [] };
   }
 }
 
