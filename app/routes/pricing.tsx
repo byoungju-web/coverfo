@@ -589,9 +589,6 @@ function ChargeBox() {
               (pkg === p.id ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-bolt-elements-borderColor')
             }
           >
-            {p.id === 'plus' || (!(cfg?.packages || []).some((x) => x.id === 'plus') && i === 1) ? (
-              <span className="mb-1 inline-block rounded-full bg-indigo-600 px-2 py-0.5 text-[11px] font-semibold text-white">가장 많이 선택</span>
-            ) : null}
             <div className="text-2xl font-bold text-bolt-elements-textPrimary">
               {p.credits.toLocaleString()} <span className="text-xs font-medium text-bolt-elements-textSecondary">크레딧</span>
             </div>
@@ -719,9 +716,47 @@ function installDomGuard() {
 
 installDomGuard();
 
+/* v329: 오른쪽 위 ✕ 닫기 — 이 사이트 안에서 왔으면 이전 화면으로, 아니면(결제 후 돌아옴·주소 직접 입력) 홈으로. 결제 코드와 무관 */
+function closePricing() {
+  try {
+    const r = document.referrer;
+    if (r && new URL(r).origin === window.location.origin && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+  } catch {}
+  window.location.href = '/';
+}
+
 export default function Pricing() {
   return (
     <div className="flex min-h-full w-full flex-col bg-bolt-elements-background-depth-1">
+      <button
+        type="button"
+        aria-label="닫기"
+        title="닫기"
+        onClick={closePricing}
+        style={{
+          position: 'fixed',
+          top: 'calc(env(safe-area-inset-top, 0px) + 10px)',
+          right: 12,
+          zIndex: 60,
+          width: 40,
+          height: 40,
+          borderRadius: '50%',
+          border: '1px solid rgba(0,0,0,.08)',
+          background: 'rgba(255,255,255,.96)',
+          boxShadow: '0 4px 14px rgba(0,0,0,.12)',
+          color: '#333',
+          fontSize: 18,
+          lineHeight: '38px',
+          textAlign: 'center',
+          cursor: 'pointer',
+          padding: 0,
+        }}
+      >
+        ✕
+      </button>
       <ClientOnly>{() => <Header />}</ClientOnly>
       {/* 왼쪽 위 ☰ → 사이드 설정 메뉴 (로고는 그대로 홈으로) */}
       <ClientOnly>{() => <Menu overlay />}</ClientOnly>
