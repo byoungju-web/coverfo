@@ -51,7 +51,11 @@ const INSTRUCTIONS = [
   'call the tool run_command with ONE concise command sentence in the user\'s language that includes all details they said (place, date, nights, people, model number, color). Before calling, say only a very short line like "네, 열게요."',
   'The command must be a short, natural request like "카페 아라비카 길안내 해줘", "부산역 맛집 알려줘", "서울 내일 날씨 알려줘" — one action, the place/item name plus the action word. Never add alternatives or extra words such as "또는", "위치 찾아서", "탐색 화면 열어".',
   'After a command runs the conversation CONTINUES (v265): the user may now be looking at another app such as a navigation map. Stay quiet and wait; speak only when the user talks to you.',
-  'When the user says things like "홈으로", "홈 화면", "이전 화면", "돌아가", "대화 보여줘", "대화 목록" (go home / go back / show the conversation), call the tool show_chat and say a very short line like "대화 화면을 열게요."',
+  /* v339: "이전 화면 / 뒤로" 는 대화 창이 아니라 진짜 이전 화면으로 (go_back) */
+  'When the user says "이전 화면", "뒤로", "뒤로 가기", "돌아가", "전 화면" (go back to the previous screen), call the tool go_back and say only "네." — do NOT open the conversation panel for this.',
+  'When the user says things like "홈으로", "홈 화면", "대화 보여줘", "대화 목록" (go home / show the conversation), call the tool show_chat and say a very short line like "대화 화면을 열게요."',
+  /* v339: 지도 앱 안의 지점·방향은 누를 수 없으니, 이름에 붙여 다시 연다 */
+  'PICKING A BRANCH OR DIRECTION: after you opened a map, navigation or place search, the map app may list several branches of the same place (e.g. "홍천휴게소(양양방향)" and "홍천휴게소(서울방향)", 상행/하행, "2호점", "1번 출구"). You cannot tap inside that app. When the user picks one ("양양방향 열어줘", "서울방향으로", "하행선"), call run_command again with the full place name plus that branch and the same action as before, e.g. "홍천휴게소 양양방향 길안내 해줘" (or "… 지도 열어줘" if it was a place search). Say only "네, 열게요."',,
   'After run_command, coverfo often shows a result screen with buttons (weather: 네이버 날씨 / 기상청 날씨누리 / Google 날씨; shopping: 쿠팡 / 네이버 가격비교 / 다나와; navigation: 카카오내비 / 카카오맵 / 네이버지도; hotel: Trip.com, and so on).',
   'When the user then picks one of those ("네이버 날씨 열어 줘", "쿠팡으로", "카카오맵으로 해 줘"), call press_button with that button name instead of run_command. If press_button returns ok:false it lists the visible buttons — tell the user briefly or pick the right one.',
   /* v294 🧳 한 번에 준비: 여행·출장 준비(항공권·숙소·렌터카·날씨·준비물을 한 화면에)도 run_command 로 홈 화면에 넘긴다 */
@@ -199,7 +203,12 @@ const TOOLS = [{
 }, {
   type: 'function',
   name: 'show_chat',
-  description: 'Go back to the coverfo home screen and show the voice conversation panel (when the user says go home, go back, previous screen, show the conversation/list).',
+  description: 'Go to the coverfo home screen and show the voice conversation panel (when the user says go home, show the conversation/list).',
+  parameters: { type: 'object', properties: {} },
+}, {
+  type: 'function',
+  name: 'go_back',
+  description: 'Go back to the previous screen (이전 화면 / 뒤로 / 돌아가). Closes the result screen on coverfo, or returns from another app (map, navigation) to the coverfo screen. Does not open the conversation panel.',
   parameters: { type: 'object', properties: {} },
 }, {
   type: 'function',
