@@ -8,7 +8,7 @@
 //   { op:"tick",  call } → 1분마다 화면이 부른다. 다음 1분 크레딧 차감. 부족하면 통화를 끊고 402
 //   { op:"end",   call } → 통화 끊기
 //   { op:"token", name } → (v267 안드로이드 앱 'coverfo 소리') 첫 1분 차감 후 1회용 임시 키(ek_…) 발급. 응답 { key, url, model, cost }
-//                          v276: name = 앱에서 정한 부르는 이름(기본 "소리야"). 앱 전용 도구(open_app·run_routine·end_conversation)도 이때만 준다.
+//                          v276: name = 앱에서 정한 부르는 이름(기본 "소리야"). 앱 전용 도구(open_app·run_routine)도 이때만 준다. (v340: end_conversation 은 웹 소리에도 — "들어가")
 //                          v277: relay = 1 이면 커넥션 허브 2.0 릴레이 도구(run_relay · relay_answer)도 준다 (앱이 /api/hub 로 직접 실행).
 //   { op:"device" }      → v276 앱의 '이름 부르기 대기'용 기기 키(30일). 로그인 키(1시간)로만 받을 수 있다.
 //                          앱은 대기 중 이름이 들리면 이 키로 token·tick 을 부른다 (화면이 꺼져 있어도 대화 시작 가능).
@@ -54,6 +54,8 @@ const INSTRUCTIONS = [
   /* v339: "이전 화면 / 뒤로" 는 대화 창이 아니라 진짜 이전 화면으로 (go_back) */
   'When the user says "이전 화면", "뒤로", "뒤로 가기", "돌아가", "전 화면" (go back to the previous screen), call the tool go_back and say only "네." — do NOT open the conversation panel for this.',
   'When the user says things like "홈으로", "홈 화면", "대화 보여줘", "대화 목록" (go home / show the conversation), call the tool show_chat and say a very short line like "대화 화면을 열게요."',
+  /* v340: 대화 끝내기(떠 있는 아이콘이 들어가고 소리 버튼만 남음) — 웹 소리에서도 */
+  'Call end_conversation ONLY when the user clearly ends the conversation or tells you to go away: "그만", "대화 끝", "끝", "고마워 끝", "잘 자", "대기해", "이제 됐어", "들어가", "들어가 있어", "아이콘 들어가", "숨어", "쉬어", "수고했어". Never call it for short, unclear or partial phrases ("그 말에", "네", "응", "어", a fragment of navigation guidance). If unsure, ask "대화를 끝낼까요?". When ending, say only "네, 들어갈게요." or nothing.',
   /* v339: 지도 앱 안의 지점·방향은 누를 수 없으니, 이름에 붙여 다시 연다 */
   'PICKING A BRANCH OR DIRECTION: after you opened a map, navigation or place search, the map app may list several branches of the same place (e.g. "홍천휴게소(양양방향)" and "홍천휴게소(서울방향)", 상행/하행, "2호점", "1번 출구"). You cannot tap inside that app. When the user picks one ("양양방향 열어줘", "서울방향으로", "하행선"), call run_command again with the full place name plus that branch and the same action as before, e.g. "홍천휴게소 양양방향 길안내 해줘" (or "… 지도 열어줘" if it was a place search). Say only "네, 열게요."',,
   'After run_command, coverfo often shows a result screen with buttons (weather: 네이버 날씨 / 기상청 날씨누리 / Google 날씨; shopping: 쿠팡 / 네이버 가격비교 / 다나와; navigation: 카카오내비 / 카카오맵 / 네이버지도; hotel: Trip.com, and so on).',
@@ -149,7 +151,6 @@ function appInstructions(name) {
     `The user calls you by the name "${n}". Their speech may begin with that name (it may be mis-transcribed) — ignore the name itself and handle the rest. If they only said your name, reply with just "네?" and wait.`,
     'When the user wants to open an app on the phone ("카톡 켜 줘", "유튜브 열어 줘", "카메라 켜 줘", "배민 열어"), call open_app with the app name. Say at most "네." before calling. If it returns ok:false, tell the user in one short sentence.',
     'When the user wants to run a saved routine (저장루틴, 루틴) — e.g. "아침 루틴 실행해", "어제 저장한 루틴 실행해", "마지막 루틴 돌려 줘" — call run_routine with the routine name and/or when ("latest" for the last/most recent, "today", "yesterday"). If it returns ok:false with names, read at most three of the names briefly.',
-    'Call end_conversation ONLY when the user clearly ends the conversation ("그만", "대화 끝", "끝", "고마워 끝", "잘 자", "대기해", "이제 됐어"). Never call it for short, unclear or partial phrases ("그 말에", "네", "응", "어", a fragment of navigation guidance). If unsure, ask "대화를 끝낼까요?". When ending, say nothing, or only "네.".',
   ].join(' ');
 }
 
@@ -209,6 +210,11 @@ const TOOLS = [{
   type: 'function',
   name: 'go_back',
   description: 'Go back to the previous screen (이전 화면 / 뒤로 / 돌아가). Closes the result screen on coverfo, or returns from another app (map, navigation) to the coverfo screen. Does not open the conversation panel.',
+  parameters: { type: 'object', properties: {} },
+}, {
+  type: 'function',
+  name: 'end_conversation',
+  description: 'End the voice conversation: the floating 소리 icon goes away (the app goes back to waiting for its name). Use for "그만", "끝", "들어가", "들어가 있어", "숨어".',
   parameters: { type: 'object', properties: {} },
 }, {
   type: 'function',
@@ -276,11 +282,6 @@ const APP_TOOLS = TOOLS.concat([{
       when: { type: 'string', enum: ['', 'latest', 'today', 'yesterday'], description: '"latest" = most recently saved, "today"/"yesterday" = saved on that day' },
     },
   },
-}, {
-  type: 'function',
-  name: 'end_conversation',
-  description: 'End the voice conversation (the app goes back to waiting for its name, or closes).',
-  parameters: { type: 'object', properties: {} },
 }]);
 
 export async function onRequestPost(context) {
