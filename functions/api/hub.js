@@ -33,6 +33,11 @@
 //     울릴 때가 되면 cron_due 가 웹 알림(🔔 알림을 켠 브라우저)으로 보낸다. 정확도는 coverfo-cron 이 cron_due 를 부르는 간격만큼.
 //   v327 🏃 한 마디 루틴 (같은 sql · 무료 · 20개까지): { op:"mr_list" } · { op:"mr_save", name, cmds:[…최대 5], old? } · { op:"mr_del", name }
 //     "퇴근" 한 마디 → 명령 문장 여러 개를 홈 화면이 차례로 실행. 번호는 넣지 않는다(📒 내 연락처가 이 기기에서 채움).
+//   v336 💬 아침 브리핑을 카톡 '나에게 보내기'로 (sql/cf_kakao_memo.sql 1번 실행 · 카카오 REST 키 KAKAO_REST_KEY · 선택 KAKAO_CLIENT_SECRET):
+//   { op:"kakao_status" } → { ready, linked, on, error } · { op:"kakao_link" } → 카카오 동의 화면 주소 { url } (돌아오는 곳 /api/kakao-cb)
+//   { op:"kakao_set", on } 받기 켜기·끄기 · { op:"kakao_test" } 시험 메시지 · { op:"kakao_unlink" } 연결 끊기(메시지 동의 철회 + 저장한 키 지움)
+//     브리핑 알림 시각이 되면 cron_due 가 웹 알림과 함께 내 카톡 '나와의 채팅방'으로 제목·요약·듣기 링크를 보낸다 (크레딧 차감 없음).
+//     카톡 키(토큰)는 서버(Supabase cf_kakao_memo, 서버만 읽음)에만 두고 화면으로 내보내지 않는다. 남에게는 보내지 않는다(나에게 보내기 API).
 //   { op:"cron_run", id }                 → 그 레시피를 사람 없이 실행. 남에게 보내기·수정은 하지 않고 '확인 대기'로 멈춘다.
 //                                            결과(또는 확인 요청)는 지메일이 연결돼 있으면 내 메일 주소로만 보낸다.
 //
@@ -113,7 +118,7 @@ export async function onRequestPost(context) {
   let b = {};
   try { b = await context.request.json(); } catch { return json({ error: '잘못된 요청입니다' }, 400); }
   const op = String(b.op || '');
-  if (!env.COMPOSIO_API_KEY && !/^(brief_|push_|remind_|mr_)/.test(op)) return json({ error: '커넥션 허브가 아직 설정되지 않았어요 (COMPOSIO_API_KEY)', setup: true }, 500);
+  if (!env.COMPOSIO_API_KEY && !/^(brief_|push_|remind_|mr_|kakao_)/.test(op)) return json({ error: '커넥션 허브가 아직 설정되지 않았어요 (COMPOSIO_API_KEY)', setup: true }, 500);
   const cu = 'cf_' + uid;
   try {
     if (op === 'apps') return json(await listApps(env, cu));
@@ -133,6 +138,12 @@ export async function onRequestPost(context) {
     if (op === 'push_unsub') return json(await pushUnsub(env, uid, b.endpoint));
     if (op === 'push_test') return json(await pushUser(env, uid, { title: '🔔 알림 시험', body: '이 브라우저로 coverfo 알림이 와요.', url: '/brief' }));
     if (op === 'brief_latest') return json(await briefLatest(env, uid));
+    /* v336 💬 브리핑을 카톡 '나에게 보내기'로 */
+    if (op === 'kakao_status') return json(await kakaoStatus(env, uid));
+    if (op === 'kakao_link') return json(await kakaoLink(env, uid));
+    if (op === 'kakao_set') return json(await kakaoSet(env, uid, b.on === true));
+    if (op === 'kakao_test') return json(await kakaoTest(env, uid));
+    if (op === 'kakao_unlink') return json(await kakaoUnlink(env, uid));
     /* v327 ⏰ 알림 · 🏃 한 마디 루틴 */
     if (op === 'remind_list') return json(await remindList(env, uid));
     if (op === 'remind_add') return json(await remindAdd(env, uid, b));
@@ -635,6 +646,9 @@ async function sbReq(env, method, path, body, prefer) {
     if (/hub_push|push_at|pushed/.test(t) && (r.status === 404 || r.status === 400 || /42P01|42703|does not exist|schema cache|column/.test(t))) {
       throw httpErr(500, '웹 알림 표가 아직 없어요. Supabase 에서 sql/hub_push.sql 을 한 번 실행해 주세요.');
     }
+    if (/cf_kakao_memo/.test(t) && (r.status === 404 || r.status === 400 || /42P01|42703|does not exist|schema cache|column/.test(t))) {
+      throw httpErr(500, '카톡 받기 표가 아직 없어요. Supabase 에서 sql/cf_kakao_memo.sql 을 한 번 실행해 주세요.');
+    }
     if (/hub_brief/.test(t) && (r.status === 404 || r.status === 400 || /42P01|42703|does not exist|schema cache|column/.test(t))) {
       throw httpErr(500, '아침 브리핑 표가 아직 없어요. Supabase 에서 sql/hub_brief.sql 을 한 번 실행해 주세요.');
     }
@@ -819,15 +833,17 @@ async function cronDue(env) {
     if (Array.isArray(upd) && upd.length) ids.push('b:' + bf.user_id);
   }
   /* v284 🔔 알림 시각이 된 브리핑 → 구독한 브라우저로 알림 (보냄 표시를 먼저 해서 두 번 보내지 않게) */
-  let pushes = 0;
-  if (env.VAPID_PUBLIC && env.VAPID_PRIVATE) {
+  /* v336: 카톡 '나에게 보내기'(KAKAO_REST_KEY)도 같은 때 보낸다 — 웹 알림 설정이 없어도 카톡만으로 보낼 수 있게 */
+  let pushes = 0, kakaos = 0;
+  const canPush = !!(env.VAPID_PUBLIC && env.VAPID_PRIVATE), canKakao = !!String(env.KAKAO_REST_KEY || '').trim();
+  if (canPush || canKakao) {
     let due = [];
-    try { due = await sbReq(env, 'GET', 'hub_brief_items?select=id,user_id,title&status=eq.ready&pushed=eq.false&push_at=lte.' + encodeURIComponent(new Date(now).toISOString()) + '&limit=50'); } catch {}
+    try { due = await sbReq(env, 'GET', 'hub_brief_items?select=id,user_id,title,body&status=eq.ready&pushed=eq.false&push_at=lte.' + encodeURIComponent(new Date(now).toISOString()) + '&limit=50'); } catch {}
     for (const it of Array.isArray(due) ? due : []) {
       const upd = await sbReq(env, 'PATCH', 'hub_brief_items?id=eq.' + Number(it.id) + '&pushed=eq.false', { pushed: true }, 'return=representation').catch(() => []);
       if (!Array.isArray(upd) || !upd.length) continue;
-      await pushUser(env, it.user_id, { title: '☀️ ' + (it.title || '오늘 아침 브리핑'), body: '눌러서 2분 브리핑 듣기', url: '/brief?play=1' }).catch(() => {});
-      pushes++;
+      if (canPush) { await pushUser(env, it.user_id, { title: '☀️ ' + (it.title || '오늘 아침 브리핑'), body: '눌러서 2분 브리핑 듣기', url: '/brief?play=1' }).catch(() => {}); pushes++; }
+      if (canKakao) { const k = await kakaoBrief(env, it).catch(() => null); if (k && k.ok) kakaos++; }
     }
   }
   /* v327 ⏰ 알림: 울릴 때가 된 것 → 웹 알림. 다음 시각을 먼저 옮겨(같은 값일 때만) 두 번 보내지 않게 */
@@ -848,7 +864,7 @@ async function cronDue(env) {
     /* 울린 지 30일 지난 한 번짜리 알림은 지운다 */
     if (Math.random() < 0.05) await sbReq(env, 'DELETE', 'cf_remind?is_on=eq.false&kind=eq.once&next_at=lt.' + encodeURIComponent(new Date(now - 30 * 86400e3).toISOString()), null, 'return=minimal').catch(() => {});
   }
-  return { ok: true, ids, pushes, reminds };
+  return { ok: true, ids, pushes, kakaos, reminds };
 }
 
 /* ───────────── v327 ⏰ 알림 (sql/cf_remind.sql) ───────────── */
@@ -1346,6 +1362,111 @@ async function briefMake(env, uid, auto) {
     if (auto) return { ok: false, error: msg };
     throw httpErr(500, '브리핑을 만들지 못했어요: ' + msg + ' (크레딧은 돌려드렸어요)');
   }
+}
+
+/* ───────────── v336 💬 아침 브리핑을 카톡 '나에게 보내기'로 (카카오 REST API) ─────────────
+   · 연결: kakao_link → kauth.kakao.com 동의 화면(scope=talk_message) → /api/kakao-cb 가 키를 받아 cf_kakao_memo 에 저장 (functions/api/kakao-cb.js)
+   · 보내기: kapi.kakao.com/v2/api/talk/memo/default/send (텍스트 템플릿 · 본문 200자까지 · 링크는 카카오 앱에 등록한 웹 도메인이어야 함)
+   · 접근 키(액세스 토큰)가 끝나 가면 리프레시 토큰으로 새로 받는다. 리프레시도 끝났으면 '다시 연결' 안내만 남긴다 */
+const KAKAO_AUTH = 'https://kauth.kakao.com';
+const KAKAO_API = 'https://kapi.kakao.com';
+function kakaoRedirect(env) { return String(env.KAKAO_MEMO_REDIRECT || 'https://coverfo.com/api/kakao-cb'); }
+async function kakaoRow(env, uid) {
+  const rows = await sbReq(env, 'GET', 'cf_kakao_memo?select=*&user_id=eq.' + encodeURIComponent(uid) + '&limit=1');
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+async function kakaoStatus(env, uid) {
+  const ready = !!String(env.KAKAO_REST_KEY || '').trim();
+  if (!ready) return { ok: true, ready: false, linked: false, on: false };
+  const r = await kakaoRow(env, uid);
+  return { ok: true, ready: true, linked: !!r, on: !!(r && r.is_on), error: (r && r.last_error) || '' };
+}
+/* 동의 화면 주소. state = 서버 서명(계정 · 10분) — 돌아올 때 로그인 키 없이도 누구의 연결인지 알 수 있게 */
+async function kakaoLink(env, uid) {
+  const key = String(env.KAKAO_REST_KEY || '').trim();
+  if (!key) throw httpErr(500, '카톡 연결 설정이 아직 없어요 (KAKAO_REST_KEY)');
+  await kakaoRow(env, uid);   /* 표가 없으면 여기서 안내 */
+  const body = b64u(new TextEncoder().encode(JSON.stringify({ u: uid, e: Date.now() + 10 * 60e3, n: Math.random().toString(36).slice(2, 10) })));
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', await kakaoStateKey(env), new TextEncoder().encode('kk1.' + body)));
+  const state = 'kk1.' + body + '.' + b64u(sig);
+  const q = new URLSearchParams({ client_id: key, redirect_uri: kakaoRedirect(env), response_type: 'code', scope: 'talk_message', state });
+  return { ok: true, url: KAKAO_AUTH + '/oauth/authorize?' + q };
+}
+async function kakaoStateKey(env) {
+  return crypto.subtle.importKey('raw', new TextEncoder().encode('coverfo-kakao-memo:' + (env.SUPABASE_SERVICE_ROLE_KEY || '')), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
+}
+async function kakaoSet(env, uid, on) {
+  const r = await kakaoRow(env, uid);
+  if (!r) throw httpErr(400, '먼저 카카오톡을 연결해 주세요');
+  await sbReq(env, 'PATCH', 'cf_kakao_memo?user_id=eq.' + encodeURIComponent(uid), { is_on: on, updated_at: new Date().toISOString() }, 'return=minimal');
+  return { ok: true, on };
+}
+/* 쓸 수 있는 접근 키 (끝나기 1분 전이면 새로 받음). 실패하면 null + 이유를 기록 */
+async function kakaoToken(env, r, force) {
+  const exp = r.access_exp ? Date.parse(r.access_exp) : 0;
+  if (!force && r.access_token && exp - 60e3 > Date.now()) return r.access_token;
+  const f = new URLSearchParams({ grant_type: 'refresh_token', client_id: String(env.KAKAO_REST_KEY || '').trim(), refresh_token: r.refresh_token });
+  if (env.KAKAO_CLIENT_SECRET) f.set('client_secret', String(env.KAKAO_CLIENT_SECRET));
+  const res = await fetch(KAKAO_AUTH + '/oauth/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' }, body: f });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || !j.access_token) {
+    await sbReq(env, 'PATCH', 'cf_kakao_memo?user_id=eq.' + encodeURIComponent(r.user_id), { last_error: '카카오 연결이 끝났어요 · 다시 연결해 주세요', updated_at: new Date().toISOString() }, 'return=minimal').catch(() => {});
+    return null;
+  }
+  const upd = { access_token: j.access_token, access_exp: new Date(Date.now() + (Number(j.expires_in) || 21599) * 1000).toISOString(), last_error: null, updated_at: new Date().toISOString() };
+  if (j.refresh_token) { upd.refresh_token = j.refresh_token; if (j.refresh_token_expires_in) upd.refresh_exp = new Date(Date.now() + Number(j.refresh_token_expires_in) * 1000).toISOString(); }
+  await sbReq(env, 'PATCH', 'cf_kakao_memo?user_id=eq.' + encodeURIComponent(r.user_id), upd, 'return=minimal').catch(() => {});
+  return j.access_token;
+}
+/* 나에게 보내기 (텍스트 템플릿). text 는 200자로 자른다 */
+async function kakaoMemo(env, r, text, url, button) {
+  const tpl = { object_type: 'text', text: String(text).slice(0, 200), link: { web_url: url, mobile_web_url: url }, button_title: String(button || '열기').slice(0, 14) };
+  for (let i = 0; i < 2; i++) {
+    const tok = await kakaoToken(env, r, i > 0);
+    if (!tok) return { ok: false, error: '카카오 연결이 끝났어요 · 다시 연결해 주세요' };
+    const res = await fetch(KAKAO_API + '/v2/api/talk/memo/default/send', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' },
+      body: new URLSearchParams({ template_object: JSON.stringify(tpl) }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (res.ok && j.result_code === 0) {
+      if (r.last_error) await sbReq(env, 'PATCH', 'cf_kakao_memo?user_id=eq.' + encodeURIComponent(r.user_id), { last_error: null }, 'return=minimal').catch(() => {});
+      return { ok: true };
+    }
+    if (res.status === 401 && i === 0) continue;   /* 접근 키가 끝났으면 한 번 새로 받아 다시 */
+    const msg = j.code === -402 ? '카톡 메시지 보내기 동의가 없어요 · 다시 연결해 주세요' : '카톡으로 보내지 못했어요 (' + (j.code || res.status) + ')';
+    await sbReq(env, 'PATCH', 'cf_kakao_memo?user_id=eq.' + encodeURIComponent(r.user_id), { last_error: msg, updated_at: new Date().toISOString() }, 'return=minimal').catch(() => {});
+    return { ok: false, error: msg };
+  }
+  return { ok: false, error: '카톡으로 보내지 못했어요' };
+}
+async function kakaoTest(env, uid) {
+  const r = await kakaoRow(env, uid);
+  if (!r) throw httpErr(400, '먼저 카카오톡을 연결해 주세요');
+  const x = await kakaoMemo(env, r, '💬 coverfo 카톡 시험\n\n아침 브리핑이 만들어지면 정한 시각에 이 ‘나와의 채팅’으로 보내 드려요.', 'https://coverfo.com/brief', '브리핑 열기');
+  if (!x.ok) throw httpErr(400, x.error);
+  return { ok: true };
+}
+/* 연결 끊기: 메시지 보내기 동의만 철회(카카오 로그인 연결은 그대로) → 저장한 키 지움 */
+async function kakaoUnlink(env, uid) {
+  const r = await kakaoRow(env, uid);
+  if (r) {
+    const tok = await kakaoToken(env, r, false).catch(() => null);
+    if (tok) await fetch(KAKAO_API + '/v2/user/revoke/scopes', { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' }, body: new URLSearchParams({ scopes: '["talk_message"]' }) }).catch(() => {});
+    await sbReq(env, 'DELETE', 'cf_kakao_memo?user_id=eq.' + encodeURIComponent(uid), null, 'return=minimal');
+  }
+  return { ok: true };
+}
+/* 브리핑 알림 시각: 카톡을 연결하고 받기를 켠 사람에게 제목 · 요약(200자) · 듣기 링크 */
+async function kakaoBrief(env, it) {
+  let r = null;
+  try { r = await kakaoRow(env, it.user_id); } catch { return { ok: false }; }
+  if (!r || !r.is_on) return { ok: false };
+  const title = '☀️ ' + String(it.title || '오늘 아침 브리핑').replace(/\s+/g, ' ').trim();
+  const body = String(it.body || '').replace(/\s+/g, ' ').trim();
+  let text = title + (body ? '\n\n' + body : '');
+  if (text.length > 200) text = text.slice(0, 197) + '…';
+  return kakaoMemo(env, r, text, 'https://coverfo.com/brief?play=1', '▶ 브리핑 듣기');
 }
 
 /* ───────────── v284 🔔 웹 알림 (RFC 8291 aes128gcm + VAPID) — 포도톡 Worker 의 웹푸시와 같은 방식 ───────────── */
