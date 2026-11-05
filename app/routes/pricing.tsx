@@ -65,17 +65,25 @@ const PLANS: Plan[] = [
   },
 ];
 
-function PlanCard({ plan }: { plan: Plan }) {
+/* v337: '👑 구독 크레딧' 탭을 보고 있을 때는 스타터 카드의 사용 기간을 구독 기준(결제일부터 1개월 · 이월 불가)으로 보여 준다.
+   ⚡ 한 번 충전 탭에서는 지금처럼 1년(한 번 충전 크레딧). 탭 상태는 ChargeBox 가 'cf-pricing-tab' 이벤트로 알려 준다. */
+const SUB_DESC = '구독으로 받은 크레딧은 결제일부터 1개월 동안 사용할 수 있습니다. 남은 크레딧은 다음 결제일에 소멸합니다(이월 불가).';
+const SUB_TERM = '서비스 제공기간: 결제일부터 1개월 (구독 크레딧 사용 기간 · 매월 자동 갱신)';
+
+function PlanCard({ plan, sub }: { plan: Plan; sub?: boolean }) {
+  const description = sub && plan.highlight ? SUB_DESC : plan.description;
+  const features = sub && plan.highlight ? plan.features.map((f) => (f.indexOf('서비스 제공기간') === 0 ? SUB_TERM : f)) : plan.features;
+
   return (
     <div
       className={
         plan.highlight
-          ? 'flex flex-col rounded-xl border-2 border-accent-500 bg-bolt-elements-background-depth-2 p-6'
+          ? 'flex flex-col rounded-xl border-2 border-indigo-700 bg-bolt-elements-background-depth-2 p-6'
           : 'flex flex-col rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 p-6'
       }
     >
       {plan.highlight && (
-        <span className="mb-3 self-start rounded-full bg-accent-500 px-3 py-1 text-xs font-medium text-white">
+        <span className="mb-3 self-start rounded-full bg-indigo-700 px-3 py-1 text-xs font-medium text-white">
           가장 많이 쓰는 요금제
         </span>
       )}
@@ -87,12 +95,12 @@ function PlanCard({ plan }: { plan: Plan }) {
         <span className="text-sm text-bolt-elements-textSecondary">{plan.period}</span>
       </div>
 
-      <p className="mt-3 text-sm text-bolt-elements-textSecondary">{plan.description}</p>
+      <p className="mt-3 text-sm text-bolt-elements-textSecondary">{description}</p>
 
       <ul className="mt-5 flex flex-col gap-2">
-        {plan.features.map((feature) => (
+        {features.map((feature) => (
           <li key={feature} className="flex gap-2 text-sm text-bolt-elements-textPrimary">
-            <span className="text-accent-500">✓</span>
+            <span className={plan.highlight ? 'text-indigo-700' : 'text-accent-500'}>✓</span>
             <span>{feature}</span>
           </li>
         ))}
@@ -100,23 +108,17 @@ function PlanCard({ plan }: { plan: Plan }) {
 
       {plan.note && <p className="mt-4 text-xs text-bolt-elements-textSecondary">{plan.note}</p>}
 
-      <div className="mt-6">
-        {plan.highlight ? (
-          <a
-            href="#charge"
-            className="block rounded-lg bg-accent-500 px-4 py-2.5 text-center text-sm font-medium text-white"
-          >
-            충전하기 (카드 · 계좌이체 · 간편결제)
-          </a>
-        ) : (
+      {/* v337: 스타터 카드의 '충전하기 (카드 · 계좌이체 · 간편결제)' 단추 삭제 — 결제는 위 충전 칸에서 */}
+      {plan.highlight ? null : (
+        <div className="mt-6">
           <a
             href="/"
             className="block rounded-lg border border-bolt-elements-borderColor px-4 py-2.5 text-center text-sm font-medium text-bolt-elements-textPrimary"
           >
             바로 써보기
           </a>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -358,7 +360,7 @@ function SubBox({ token, scfg, sub, reload }: { token: string; scfg: SubCfg | nu
           <ul className="flex flex-col gap-1.5 rounded-xl bg-bolt-elements-background-depth-2 p-4 text-sm leading-snug text-bolt-elements-textPrimary">
             <li>📅 <b>매월 같은 날 자동 결제</b> · 1개월 단위 (연 단위 없음)</li>
             <li>⏳ <b>구독 크레딧은 다음 결제일 전까지</b> · 남으면 소멸 (이월 불가)</li>
-            <li>🔢 쓰는 순서 · 무료 → 구독 → 한 번 충전 (한 번 충전은 1년)</li>
+            <li>🔢 쓰는 순서 · 무료 → 구독 → 한 번 충전</li>
             <li>🎁 함께 제공 · 저장루틴·통역방 확대, 우선 지원(스탠다드·플러스), 채팅·통역톡, 브리핑·리포트 자동 발송</li>
             <li>✋ 해지 · 언제든 이 화면에서 · 결제한 기간까지 이용</li>
             <li>
@@ -400,6 +402,16 @@ function ChargeBox() {
   const [msg, setMsg] = useState<{ t: string; h: string } | null>(null);
   /* v287 탭: ⚡ 한 번 충전(기본) · 📅 매달 자동 충전 (?tab=sub 로 열면 구독 탭) */
   const [tab, setTab] = useState<'once' | 'sub'>(() => (new URLSearchParams(location.search).get('tab') === 'sub' ? 'sub' : 'once'));
+
+  /* v337: 아래 요금제 카드가 지금 탭에 맞는 사용 기간을 보이도록 알려 준다 */
+  useEffect(() => {
+    try {
+      (window as any).__cfPricingTab = tab;
+      window.dispatchEvent(new CustomEvent('cf-pricing-tab', { detail: tab }));
+    } catch (e) {
+      /* 무시 */
+    }
+  }, [tab]);
   const [scfg, setScfg] = useState<SubCfg | null>(null);
   const [sub, setSub] = useState<Sub | null>(null);
 
@@ -589,6 +601,9 @@ function ChargeBox() {
               (pkg === p.id ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-bolt-elements-borderColor')
             }
           >
+            {p.id === 'plus' || (!(cfg?.packages || []).some((x) => x.id === 'plus') && i === 1) ? (
+              <span className="mb-1 inline-block rounded-full bg-indigo-600 px-2 py-0.5 text-[11px] font-semibold text-white">가장 많이 선택</span>
+            ) : null}
             <div className="text-2xl font-bold text-bolt-elements-textPrimary">
               {p.credits.toLocaleString()} <span className="text-xs font-medium text-bolt-elements-textSecondary">크레딧</span>
             </div>
@@ -716,47 +731,20 @@ function installDomGuard() {
 
 installDomGuard();
 
-/* v329: 오른쪽 위 ✕ 닫기 — 이 사이트 안에서 왔으면 이전 화면으로, 아니면(결제 후 돌아옴·주소 직접 입력) 홈으로. 결제 코드와 무관 */
-function closePricing() {
-  try {
-    const r = document.referrer;
-    if (r && new URL(r).origin === window.location.origin && window.history.length > 1) {
-      window.history.back();
-      return;
-    }
-  } catch {}
-  window.location.href = '/';
-}
-
 export default function Pricing() {
+  const [subTab, setSubTab] = useState(false);
+
+  useEffect(() => {
+    const on = (e: Event) => setSubTab((e as CustomEvent).detail === 'sub');
+
+    setSubTab((window as any).__cfPricingTab === 'sub');
+    window.addEventListener('cf-pricing-tab', on);
+
+    return () => window.removeEventListener('cf-pricing-tab', on);
+  }, []);
+
   return (
     <div className="flex min-h-full w-full flex-col bg-bolt-elements-background-depth-1">
-      <button
-        type="button"
-        aria-label="닫기"
-        title="닫기"
-        onClick={closePricing}
-        style={{
-          position: 'fixed',
-          top: 'calc(env(safe-area-inset-top, 0px) + 10px)',
-          right: 12,
-          zIndex: 60,
-          width: 40,
-          height: 40,
-          borderRadius: '50%',
-          border: '1px solid rgba(0,0,0,.08)',
-          background: 'rgba(255,255,255,.96)',
-          boxShadow: '0 4px 14px rgba(0,0,0,.12)',
-          color: '#333',
-          fontSize: 18,
-          lineHeight: '38px',
-          textAlign: 'center',
-          cursor: 'pointer',
-          padding: 0,
-        }}
-      >
-        ✕
-      </button>
       <ClientOnly>{() => <Header />}</ClientOnly>
       {/* 왼쪽 위 ☰ → 사이드 설정 메뉴 (로고는 그대로 홈으로) */}
       <ClientOnly>{() => <Menu overlay />}</ClientOnly>
@@ -778,7 +766,7 @@ export default function Pricing() {
 
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {PLANS.map((plan) => (
-            <PlanCard key={plan.name} plan={plan} />
+            <PlanCard key={plan.name} plan={plan} sub={subTab} />
           ))}
         </div>
 
