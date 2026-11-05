@@ -10,6 +10,8 @@
  *     표는 sql/cf_quick_pack.sql 의 cf_quick_pack). 모델 호출이 실패하면 묶음 1회를 되돌림.
  *     SQL 을 실행하기 전에는 예전처럼 1회 1크레딧(실패 시 환불).
  *     크레딧이 모자라면 402 → 브라우저가 채팅으로 보낸다(막지 않음)
+ *   · v338 무료: 기본으로 AI 판단은 크레딧을 빼지 않는다 (홈에 '0.1 차감' 안내도 띄우지 않음).
+ *     Cloudflare 변수 QUICK_FREE=0 을 넣으면 위의 예전 방식(0.1크레딧 묶음)으로 돌아간다.
  *   · 로그인한 사용자만. 판단만 하고, 실제로 여는 주소는 브라우저(public/cf-quick.js)가 나라별 공식 링크 형식으로 만든다
  */
 import type { ActionFunctionArgs, LoaderFunctionArgs } from '@remix-run/cloudflare';
@@ -50,6 +52,11 @@ function packOf(env: Env) {
   const n = Math.floor(Number(env.QUICK_PACK));
 
   return Number.isFinite(n) && n >= 1 && n <= 1000 ? n : 10;
+}
+
+/** v338: AI 판단 무료 여부 (기본 무료 · QUICK_FREE=0 이면 유료) */
+function isFree(env: Env) {
+  return String(env.QUICK_FREE ?? '1').trim() !== '0';
 }
 
 /** 1회 단가 (표시용, 소수 둘째 자리까지) */
@@ -133,7 +140,7 @@ function prompt(text: string, country: string) {
 export async function loader({ context }: LoaderFunctionArgs) {
   const env = envOf(context);
 
-  return ok({ cost: unitOf(env), pack: packOf(env), packCost: costOf(env) });
+  return ok({ cost: isFree(env) ? 0 : unitOf(env), pack: packOf(env), packCost: costOf(env), free: isFree(env) });
 }
 
 export async function action({ request, context }: ActionFunctionArgs) {
@@ -168,6 +175,19 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
   if (!c) {
     return fail('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 가 없습니다', 500);
+  }
+
+  // v338 무료: 크레딧·묶음을 건드리지 않고 판단만
+  if (isFree(env)) {
+    try {
+      const r = await anthropicText(env, ENGINE_MODELS.stage1, prompt(text, country), 200);
+      const j = extractJson(r.text) || {};
+      const kind = KINDS.has(String(j.kind)) ? String(j.kind) : 'none';
+
+      return ok({ kind, query: String(j.query || '').slice(0, 200), body: String(j.body || '').slice(0, 300), cost: 0 });
+    } catch (e: any) {
+      return ok({ kind: 'none', query: '', body: '', cost: 0, error: String(e?.message || e).slice(0, 200) });
+    }
   }
 
   // v254 묶음: 남은 AI 판단 횟수가 있으면 크레딧 차감 없이 1회 사용
