@@ -21,6 +21,9 @@
 // · 대화 내용은 저장하지 않는다(크레딧 기록에는 'live' 와 분 수만).
 // · v325 말로 연결: open_screen(앱·이미지·영상·3D 만들기 화면, 통역톡) · recall(👣 내 발자취에서 찾아 다시 열기) — 화면(cf-live-js)이 처리.
 // · v327 my_note: 📒 내 연락처의 장소·기념일·늘 먹던 것 중 물어본 항목만 화면이 찾아 돌려준다(번호·계좌는 주지 않음). 알림·한 마디 루틴은 run_command.
+// · v341 🖐 화면 도우미 (따로 설치하는 앱 com.coverfo.soria · 접근성): 소리 앱(v10+)이 token 에 screen:1 을 보내면
+//   tap_screen(다른 앱 화면의 글자를 대신 누르기) · read_screen(보이는 글자 읽기) 도구를 준다. go_back 은 그 앱 안에서 뒤로.
+//   결제·구매·송금·보내기·삭제 같은 단추는 도우미가 누르지 않는다. 화면 글자는 물을 때만 읽고 저장하지 않는다.
 // · v333 web_search: 소리가 모르는 것(가는 길 휴게소·영업시간·가격·소식)을 Brave 검색(BRAVE_API_KEY)으로 찾아 답한다.
 //   { op:"search", q, country? } → { items:[{title,url,desc,site}] }  (로그인 키 또는 소리 앱 기기 키 · 무료 · 저장 안 함)
 //   웹 소리는 화면(cf-live-js)이, 소리 앱은 앱(SoriService)이 직접 불러서 내비가 앞에 떠 있어도 답한다. 결과는 coverfo 화면에 번호 단추로도 띄운다.
@@ -153,6 +156,25 @@ function appInstructions(name) {
     'When the user wants to run a saved routine (저장루틴, 루틴) — e.g. "아침 루틴 실행해", "어제 저장한 루틴 실행해", "마지막 루틴 돌려 줘" — call run_routine with the routine name and/or when ("latest" for the last/most recent, "today", "yesterday"). If it returns ok:false with names, read at most three of the names briefly.',
   ].join(' ');
 }
+
+/* v341 🖐 화면 도우미 (소리 앱이 screen:1 을 보낼 때만) */
+const SCREEN_INSTR = [
+  'SCREEN HELPER: the phone has the coverfo screen helper. While another app (map, navigation, shopping app…) is in front:',
+  'When the user asks you to press/choose/open something visible on that screen ("양양방향 눌러줘", "첫 번째 거 눌러", "길찾기 눌러", "서울방향으로"), call tap_screen with the visible text of that button or item (e.g. "양양방향", "길찾기"). Say only "네." first. If it returns ok:false with candidates, pick the right one and try once more, or tell the user briefly. If it returns missing or off, use the PICKING A BRANCH method with run_command instead and mention once that turning on 화면 도우미 lets you tap directly.',
+  'Never ask the helper to press payment, purchase, transfer, send or delete buttons; if blocked, tell the user to press it themselves.',
+  'When the user asks about what is shown on the current screen of another app ("이 화면에서 남은 거리 얼마야?", "지금 화면에 뭐라고 써 있어?", "휴게소 몇 개 나와?"), call read_screen and answer in one or two sentences from its text. Do not read out private information unless asked.',
+].join(' ');
+const SCREEN_TOOLS = [{
+  type: 'function',
+  name: 'tap_screen',
+  description: 'Press a button or item on the screen of the app currently in front (not coverfo), by its visible text. Uses the coverfo screen helper app.',
+  parameters: { type: 'object', properties: { text: { type: 'string', description: 'Visible text of the button/item, e.g. "양양방향", "길찾기", "1번 출구"' } }, required: ['text'] },
+}, {
+  type: 'function',
+  name: 'read_screen',
+  description: 'Read the visible text on the screen of the app currently in front (not coverfo), to answer a question about it. Nothing is stored.',
+  parameters: { type: 'object', properties: {} },
+}];
 
 /* v277 커넥션 허브 2.0: 연결한 앱(캘린더·지메일·드라이브·구글문서·노션)과 카톡으로 여러 단계를 한 번에 */
 const RELAY_INSTR = [
@@ -309,7 +331,7 @@ export async function onRequestPost(context) {
   }
 
   /* 새 앱(v4)만 name 을 보낸다 → 그때만 앱 전용 도구. 업데이트 전 앱은 예전 도구 그대로 (처리 못 하는 도구를 받지 않게) */
-  if (op === 'token') return appToken(env, uid, cost, b.name ? cleanName(b.name) : '', !!(b.name && b.relay), contextLine(b, context.request) + (await personaLine(env, uid, !!b.name)));
+  if (op === 'token') return appToken(env, uid, cost, b.name ? cleanName(b.name) : '', !!(b.name && b.relay), contextLine(b, context.request) + (await personaLine(env, uid, !!b.name)), !!(b.name && b.screen));
   if (op === 'search') return json(await webSearch(env, b));
   if (op === 'device') {
     /* 기기 키는 진짜 로그인 키로만 받는다 (기기 키로 기기 키를 다시 받아 끝없이 늘리지 못하게) */
@@ -384,7 +406,7 @@ export async function onRequestPost(context) {
 /* ── v267 안드로이드 앱용 임시 키 (OpenAI POST /v1/realtime/client_secrets → value) ──
    · 키는 120초 안에 연결을 시작할 때만 쓰인다(연결 후 대화는 계속). 앱 화면·기기에 진짜 OpenAI 키가 남지 않는다.
    · 오디오는 PCM 16bit 24kHz 모노 (앱의 AudioRecord · AudioTrack 과 같은 형식). */
-async function appToken(env, uid, cost, name, relay, ctx) {
+async function appToken(env, uid, cost, name, relay, ctx, screen) {
   let job;
   try { job = await spend(env, uid, cost, 'live:start'); }
   catch (e) { return json({ error: '크레딧 처리 실패: ' + String(e.message || e).slice(0, 200) }, 500); }
@@ -394,7 +416,7 @@ async function appToken(env, uid, cost, name, relay, ctx) {
   const session = {
     type: 'realtime',
     model,
-    instructions: (name ? appInstructions(name) + (relay ? ' ' + RELAY_INSTR : '') : INSTRUCTIONS) + (ctx ? ' ' + ctx : ''),
+    instructions: (name ? appInstructions(name) + (relay ? ' ' + RELAY_INSTR : '') + (screen ? ' ' + SCREEN_INSTR : '') : INSTRUCTIONS) + (ctx ? ' ' + ctx : ''),
     audio: {
       input: {
         format: fmt,
@@ -403,7 +425,7 @@ async function appToken(env, uid, cost, name, relay, ctx) {
       },
       output: { format: fmt, voice: VOICE },
     },
-    tools: name ? (relay ? APP_TOOLS.concat(RELAY_TOOLS) : APP_TOOLS) : TOOLS,
+    tools: name ? (relay ? APP_TOOLS.concat(RELAY_TOOLS) : APP_TOOLS).concat(screen ? SCREEN_TOOLS : []) : TOOLS,
     tool_choice: 'auto',
     max_output_tokens: MAX_OUT,
   };
