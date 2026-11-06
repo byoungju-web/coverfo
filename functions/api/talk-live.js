@@ -22,7 +22,7 @@
 // · v325 말로 연결: open_screen(앱·이미지·영상·3D 만들기 화면, 통역톡) · recall(👣 내 발자취에서 찾아 다시 열기) — 화면(cf-live-js)이 처리.
 // · v327 my_note: 📒 내 연락처의 장소·기념일·늘 먹던 것 중 물어본 항목만 화면이 찾아 돌려준다(번호·계좌는 주지 않음). 알림·한 마디 루틴은 run_command.
 // · v341 🖐 화면 도우미 (따로 설치하는 앱 com.coverfo.soria · 접근성): 소리 앱(v10+)이 token 에 screen:1 을 보내면
-//   tap_screen(다른 앱 화면의 글자를 대신 누르기) · read_screen(보이는 글자 읽기) 도구를 준다. go_back 은 그 앱 안에서 뒤로.
+//   tap_screen(다른 앱 화면의 글자를 대신 누르기) · read_screen(보이는 글자 읽기) · v343 scroll_screen(목록 넘기기) 도구를 준다. go_back 은 그 앱 안에서 뒤로.
 //   결제·구매·송금·보내기·삭제 같은 단추는 도우미가 누르지 않는다. 화면 글자는 물을 때만 읽고 저장하지 않는다.
 // · v333 web_search: 소리가 모르는 것(가는 길 휴게소·영업시간·가격·소식)을 Brave 검색(BRAVE_API_KEY)으로 찾아 답한다.
 //   { op:"search", q, country? } → { items:[{title,url,desc,site}] }  (로그인 키 또는 소리 앱 기기 키 · 무료 · 저장 안 함)
@@ -166,6 +166,8 @@ const SCREEN_INSTR = [
   'SCREEN HELPER: the phone has the coverfo screen helper. While another app (map, navigation, shopping app…) is in front:',
   'When the user asks you to press/choose/open something visible on that screen ("양양방향 눌러줘", "첫 번째 거 눌러", "길찾기 눌러", "서울방향으로"), call tap_screen with the visible text of that button or item (e.g. "양양방향", "길찾기"). Say only "네." first. If it returns ok:false with candidates, pick the right one and try once more, or tell the user briefly. If it returns missing or off, use the PICKING A BRANCH method with run_command instead and mention once that turning on 화면 도우미 lets you tap directly.',
   'Never ask the helper to press payment, purchase, transfer, send or delete buttons; if blocked, tell the user to press it themselves.',
+  'When the user names an item that is listed in the app in front (a restaurant, place or result name such as "영금물회 열어줘", "충청도횟집 눌러"), call tap_screen with that name — not run_command. The helper scrolls down by itself to find it.',
+  'When the user asks to see the list or more results ("리스트 보여줘", "목록 보여줘", "아래로", "더 보여줘", "위로"), call scroll_screen (direction down, or up for "위로"). It returns the visible text: read out the first three to five names briefly (e.g. "영금물회, 충청도횟집, 팔도대게찜이 있어요."), then the user can say a name to open it.',
   'When the user asks about what is shown on the current screen of another app ("이 화면에서 남은 거리 얼마야?", "지금 화면에 뭐라고 써 있어?", "휴게소 몇 개 나와?"), call read_screen and answer in one or two sentences from its text. Do not read out private information unless asked.',
 ].join(' ');
 const SCREEN_TOOLS = [{
@@ -173,6 +175,11 @@ const SCREEN_TOOLS = [{
   name: 'tap_screen',
   description: 'Press a button or item on the screen of the app currently in front (not coverfo), by its visible text. Uses the coverfo screen helper app.',
   parameters: { type: 'object', properties: { text: { type: 'string', description: 'Visible text of the button/item, e.g. "양양방향", "길찾기", "1번 출구"' } }, required: ['text'] },
+}, {
+  type: 'function',
+  name: 'scroll_screen',
+  description: 'Scroll the list on the screen of the app currently in front (not coverfo) down or up, and return the text that is now visible (to read out the names in the list).',
+  parameters: { type: 'object', properties: { direction: { type: 'string', enum: ['down', 'up'] } } },
 }, {
   type: 'function',
   name: 'read_screen',
