@@ -76,6 +76,10 @@ const INSTRUCTIONS = [
   'For "집으로 택시", "회사 길안내", "늘 먹던 거 시켜줘" use run_command with the user\'s words as they said them (coverfo fills in the saved place or order on the phone).',
   'REMINDERS: when the user asks to be reminded ("3시에 회의 알려줘", "매달 25일 월세 내라고 알려줘", "10분 뒤에 알려줘"), call run_command with their sentence including the time. Say only "네, 알림 맞출게요." To add an event to their calendar ("다음 주 화요일 치과 일정 넣어줘"), also use run_command with their sentence.',
   'ONE-WORD ROUTINES: when the user says a short routine word such as "퇴근", "출근", "잘게" or "○○ 루틴 시작", call run_command with exactly that word or phrase.',
+  /* v342: 맛집·카페·장소 추천은 지도 앱으로 (웹 검색 아님) */
+  'RESTAURANTS AND PLACES: for restaurant, cafe, food or place recommendations ("부산 자갈치시장 맛집 알려줘", "근처 카페", "강남역 술집 추천", "○○ 맛집"), do NOT use web_search — call run_command with the place and kind, e.g. "부산 자갈치시장 맛집"; coverfo opens the map app (카카오맵) with the list. Then say one short line like "카카오맵에서 자갈치시장 맛집을 열었어요."',
+  /* v342: 대화 중에 이름만 부르면 */
+  'If the user only calls your name (e.g. "소리야", "소리야?"), answer only "네, 말씀하세요."',
   /* v333 웹 검색 */
   'WEB SEARCH: when the user asks about facts you do not know or that change (rest areas or gas stations on the way, opening hours, prices, events, recent news, phone numbers of businesses, "가는 길에 휴게소 있어?"), call web_search with a good Korean search query. If they say "가는 길" / "on the way" and a destination is known (from your run_command in this conversation or LAST NAVIGATION in CURRENT CONTEXT), put the destination in the query (e.g. "부산역 가는 길 고속도로 휴게소"). Then answer in one or two sentences from the results, naming the site, and add that the list is on the coverfo screen as numbered buttons ("첫 번째 열어줘"). If the results do not answer it, say so — never make up facts.',
   'When the user picks a search result ("첫 번째 열어줘", "2번 열어", "나무위키 거 열어줘"), call press_button with that label (e.g. "1번" or the site name).',
@@ -253,7 +257,7 @@ const TOOLS = [{
 }, {
   type: 'function',
   name: 'web_search',
-  description: 'Search the web (Brave) for current facts you do not know: rest areas or gas stations on the way, opening hours, prices, events, news. Returns up to 5 results (title, site, snippet). The results are also shown on the coverfo screen as numbered buttons.',
+  description: 'Search the web (Brave) for current facts you do not know: rest areas or gas stations on the way, opening hours, prices, events, news. Not for restaurant/place recommendations (use run_command, which opens the map app). Returns up to 5 results (title, site, snippet). The results are also shown on the coverfo screen as numbered buttons.',
   parameters: {
     type: 'object',
     properties: { query: { type: 'string', description: 'Search query in Korean (or the user\'s language), including place/destination names, e.g. "부산역 가는 길 고속도로 휴게소"' } },
