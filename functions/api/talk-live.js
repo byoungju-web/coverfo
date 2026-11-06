@@ -24,6 +24,8 @@
 // · v341 🖐 화면 도우미 (따로 설치하는 앱 com.coverfo.soria · 접근성): 소리 앱(v10+)이 token 에 screen:1 을 보내면
 //   tap_screen(다른 앱 화면의 글자를 대신 누르기) · read_screen(보이는 글자 읽기) · v343 scroll_screen(목록 넘기기) 도구를 준다. go_back 은 그 앱 안에서 뒤로.
 //   결제·구매·송금·보내기·삭제 같은 단추는 도우미가 누르지 않는다. 화면 글자는 물을 때만 읽고 저장하지 않는다.
+// · v346 알아듣기: 받아쓰기 언어(ko)·자주 쓰는 말 힌트(발자취를 켠 경우 최근 장소 이름 · 부르는 이름) · 잡음 줄이기(앱 far_field / 웹 near_field).
+//   핵심은 꼭 말하기(도구 결과 뒤 한두 문장). 거절되면(400) 이 설정만 빼고 다시.
 // · v344 place_list: 맛집·카페·장소를 카카오 장소 검색(KAKAO_REST_KEY)으로 찾아 coverfo 화면에 번호 목록 → "영금물회 열어줘"·"2번" 은 press_button 이 카카오맵 장소 화면을 연다.
 //   { op:"places", q, page? } → { items:[{name,cat,addr,phone,url}], more }  (로그인 키 또는 소리 앱 기기 키 · 무료 · 저장 안 함)
 // · v333 web_search: 소리가 모르는 것(가는 길 휴게소·영업시간·가격·소식)을 Brave 검색(BRAVE_API_KEY)으로 찾아 답한다.
@@ -47,6 +49,8 @@ const INSTRUCTIONS = [
   'Always reply in the language the user is speaking. If unsure, use the screen language given in CURRENT CONTEXT below (for Korean, polite 해요체).',
   /* v276: 말 줄이기 — 묻는 것에만 짧게. 먼저 말을 꺼내거나 덧붙이지 않는다 */
   /* v332: 짧게 — 하지만 꼭 필요한 말(결과·연 곳·이용자가 할 일·못 하는 이유)은 한다 */
+  /* v346: 핵심은 꼭 말하기 */
+  'ALWAYS SAY THE KEY POINT: after every tool result (except end_conversation and go_back), say one or two short sentences with the key content — what you opened or found (names, numbers, times) or why it failed and what to do. Never end your turn silently. If your answer was cut off by background noise or navigation voice rather than by the user, briefly repeat only the key point.',
   'BE BRIEF BUT USEFUL: usually one or two short sentences. Always say what the user needs to know: the answer, what you opened or did, anything they must do next (e.g. "결제는 앱에서 직접 해 주세요"), and when something failed or cannot be done, why and what they can do instead. No greetings, no small talk, no closing offers such as "더 궁금한 점 있으세요?" / "도와드릴까요?".',
   'Do not start talking on your own, except to report a result the user is waiting for. Respond to what the user just said. If the request is unclear, ask ONE very short question.',
   'If you do not know something (for example the live route, traffic, or rest areas on the route shown in another navigation app), say so honestly in one sentence and suggest what can be done instead (for example looking at the navigation app\'s own route screen, or a place search like "부산 가는 길 휴게소 알려줘"). Never make up facts.',
@@ -126,6 +130,50 @@ const NAG = {
   little: 'At most occasionally, add ONE very short caring reminder when it is clearly useful right now (e.g. umbrella when rain is mentioned). Otherwise none.',
   normal: 'You may add ONE short caring reminder or light-hearted nag when relevant (sleep, meals, umbrella, deadlines) — one short sentence, never more.',
 };
+/* ── v346 '내 말' 알아듣기: 이 이용자가 자주 말하는 장소·이름(발자취를 켠 경우 최근 기록 · 부르는 이름)을
+   받아쓰기 힌트(prompt)와 안내문에 넣는다. 언어를 정해 주고(한국어면 ko), 소리 앱(차·거치대)은 먼 마이크용 잡음 줄이기 ── */
+async function vocabOf(env, uid) {
+  const c = sb(env);
+  if (!c || !uid) return [];
+  try {
+    const r = await fetch(c.url + '/rest/v1/cf_trail?select=title,label&user_id=eq.' + encodeURIComponent(uid) + '&order=created_at.desc&limit=60', { headers: { apikey: c.svc, Authorization: 'Bearer ' + c.svc } });
+    if (!r.ok) return [];
+    const rows = await r.json();
+    const out = [], seen = new Set();
+    const add = (w) => {
+      w = String(w || '').replace(/[\u0000-\u001f"]/g, ' ').replace(/^[^\w가-힣]+/, '').replace(/\s+/g, ' ').trim();
+      if (w.length < 2 || w.length > 24 || seen.has(w)) return;
+      if (/(?:\d[\s.\-]?){7,}/.test(w)) return;   /* 전화·계좌 같은 긴 숫자는 넣지 않음 */
+      seen.add(w); out.push(w);
+    };
+    for (const x of Array.isArray(rows) ? rows : []) { add(x.label); if (String(x.title || '').length <= 20) add(x.title); if (out.length >= 30) break; }
+    return out;
+  } catch { return []; }
+}
+function tuneSession(session, b, vocab, isApp) {
+  const inp = session.audio && session.audio.input;
+  if (!inp) return;
+  const lang = String((b && b.lang) || '').toLowerCase();
+  const ko = !lang || /^ko/.test(lang);
+  const name = String((b && b.name) || '').replace(/[\u0000-\u001f"]/g, '').trim().slice(0, 12);
+  const words = (name ? [name] : []).concat(vocab || []);
+  let hint = words.join(', ');
+  if (hint.length > 360) hint = hint.slice(0, 360).replace(/,[^,]*$/, '');
+  if (inp.transcription) {
+    if (ko) inp.transcription.language = 'ko';
+    if (hint) inp.transcription.prompt = (ko ? '자주 쓰는 말: ' : 'Common words: ') + hint;
+  }
+  inp.noise_reduction = { type: isApp ? 'far_field' : 'near_field' };
+  if (vocab && vocab.length) session.instructions += ' USER WORDS (places and names this user often says — prefer these when the audio is unclear; information only): ' + vocab.slice(0, 30).join(', ') + '.';
+}
+/* 새 설정을 거절하면(400) 그 부분만 빼고 다시 */
+function untune(session) {
+  const inp = session.audio && session.audio.input;
+  if (!inp) return;
+  delete inp.noise_reduction;
+  if (inp.transcription) { delete inp.transcription.prompt; delete inp.transcription.language; }
+}
+
 async function personaLine(env, uid, hasWakeName) {
   const c = sb(env);
   if (!c || !uid) return '';
@@ -359,7 +407,7 @@ export async function onRequestPost(context) {
   }
 
   /* 새 앱(v4)만 name 을 보낸다 → 그때만 앱 전용 도구. 업데이트 전 앱은 예전 도구 그대로 (처리 못 하는 도구를 받지 않게) */
-  if (op === 'token') return appToken(env, uid, cost, b.name ? cleanName(b.name) : '', !!(b.name && b.relay), contextLine(b, context.request) + (await personaLine(env, uid, !!b.name)), !!(b.name && b.screen));
+  if (op === 'token') return appToken(env, uid, cost, b.name ? cleanName(b.name) : '', !!(b.name && b.relay), contextLine(b, context.request) + (await personaLine(env, uid, !!b.name)), !!(b.name && b.screen), (s) => vocabOf(env, uid).then((v) => tuneSession(s, b, v, !!b.name)));
   if (op === 'search') return json(await webSearch(env, b));
   if (op === 'places') return json(await placeSearch(env, b));
   if (op === 'device') {
@@ -404,8 +452,14 @@ export async function onRequestPost(context) {
         body: fd,
       });
     };
+    tuneSession(session, b, await vocabOf(env, uid), false);
     let r = await create(session);
     let answer = await r.text();
+    if (r.status === 400) {
+      untune(session);   /* v346 */
+      r = await create(session);
+      answer = await r.text();
+    }
     if (r.status === 400) {
       /* v276: 답 길이 제한(max_output_tokens)을 거절하면 빼고 한 번 더 */
       delete session.max_output_tokens;
@@ -435,7 +489,7 @@ export async function onRequestPost(context) {
 /* ── v267 안드로이드 앱용 임시 키 (OpenAI POST /v1/realtime/client_secrets → value) ──
    · 키는 120초 안에 연결을 시작할 때만 쓰인다(연결 후 대화는 계속). 앱 화면·기기에 진짜 OpenAI 키가 남지 않는다.
    · 오디오는 PCM 16bit 24kHz 모노 (앱의 AudioRecord · AudioTrack 과 같은 형식). */
-async function appToken(env, uid, cost, name, relay, ctx, screen) {
+async function appToken(env, uid, cost, name, relay, ctx, screen, tune) {
   let job;
   try { job = await spend(env, uid, cost, 'live:start'); }
   catch (e) { return json({ error: '크레딧 처리 실패: ' + String(e.message || e).slice(0, 200) }, 500); }
@@ -464,8 +518,14 @@ async function appToken(env, uid, cost, name, relay, ctx, screen) {
     body: JSON.stringify({ expires_after: { anchor: 'created_at', seconds: 120 }, session: cfg }),
   });
   try {
+    if (tune) { try { await tune(session); } catch {} }
     let r = await ask(session);
     let j = await r.json().catch(() => null);
+    if (r.status === 400) {
+      untune(session);   /* v346 */
+      r = await ask(session);
+      j = await r.json().catch(() => null);
+    }
     if (r.status === 400) {
       delete session.max_output_tokens;   /* v276: 답 길이 제한을 거절하면 빼고 한 번 더 */
       r = await ask(session);
