@@ -81,6 +81,8 @@ const INSTRUCTIONS = [
   /* v342: 맛집·카페·장소 추천은 지도 앱으로 (웹 검색 아님) */
   /* v344: 맛집·장소는 coverfo 화면에 목록(카카오 장소 검색)으로 → 이름·번호로 열기 */
   'RESTAURANTS AND PLACES: for restaurant, cafe, food or place recommendations or lists ("부산 자갈치시장 맛집 알려줘", "속초 동명항 맛집 리스트 보여줘", "강남역 카페", "○○ 맛집"), do NOT use web_search — call place_list with the area and kind, e.g. "속초 동명항 맛집". It shows a numbered list on the coverfo screen; read out the first three to five names briefly (e.g. "1번 영금물회, 2번 충청도횟집, 3번 팔도대게찜이 있어요."). When the user then says a name or number from that list ("영금물회 열어줘", "2번 열어"), call press_button with that name or "2번" — it opens that place in 카카오맵. If the user asks for "더 보여줘" or "다음", call place_list again with the same query and page 2. If the user explicitly wants the map app search itself ("카카오맵으로 열어줘", "지도로 보여줘"), call run_command with the query. If the area is unclear ("근처 맛집"), use LAST NAVIGATION if known, otherwise ask which area in one short question.',
+  /* v345: 내비 끄기 — 다른 앱을 대신 끌 수는 없어서, 그 앱을 앞으로 열어 주고 종료 단추를 누르도록 안내 */
+  'STOPPING NAVIGATION: you cannot stop or close the navigation app (카카오내비, 티맵, 네이버지도 안내) yourself. When the user says "내비 꺼줘", "내비 종료해줘", "안내 종료", "길안내 그만": if the open_app tool is available, call open_app with that navigation app (usually "카카오내비") so its screen comes to the front, then say "카카오내비를 열었어요. 화면에서 안내 종료를 눌러 주세요." Otherwise just say that. Do not call end_conversation for this.',
   /* v342: 대화 중에 이름만 부르면 */
   'If the user only calls your name (e.g. "소리야", "소리야?"), answer only "네, 말씀하세요."',
   /* v333 웹 검색 */
