@@ -24,6 +24,8 @@
 // · v341 🖐 화면 도우미 (따로 설치하는 앱 com.coverfo.soria · 접근성): 소리 앱(v10+)이 token 에 screen:1 을 보내면
 //   tap_screen(다른 앱 화면의 글자를 대신 누르기) · read_screen(보이는 글자 읽기) · v343 scroll_screen(목록 넘기기) 도구를 준다. go_back 은 그 앱 안에서 뒤로.
 //   결제·구매·송금·보내기·삭제 같은 단추는 도우미가 누르지 않는다. 화면 글자는 물을 때만 읽고 저장하지 않는다.
+// · v344 place_list: 맛집·카페·장소를 카카오 장소 검색(KAKAO_REST_KEY)으로 찾아 coverfo 화면에 번호 목록 → "영금물회 열어줘"·"2번" 은 press_button 이 카카오맵 장소 화면을 연다.
+//   { op:"places", q, page? } → { items:[{name,cat,addr,phone,url}], more }  (로그인 키 또는 소리 앱 기기 키 · 무료 · 저장 안 함)
 // · v333 web_search: 소리가 모르는 것(가는 길 휴게소·영업시간·가격·소식)을 Brave 검색(BRAVE_API_KEY)으로 찾아 답한다.
 //   { op:"search", q, country? } → { items:[{title,url,desc,site}] }  (로그인 키 또는 소리 앱 기기 키 · 무료 · 저장 안 함)
 //   웹 소리는 화면(cf-live-js)이, 소리 앱은 앱(SoriService)이 직접 불러서 내비가 앞에 떠 있어도 답한다. 결과는 coverfo 화면에 번호 단추로도 띄운다.
@@ -77,7 +79,8 @@ const INSTRUCTIONS = [
   'REMINDERS: when the user asks to be reminded ("3시에 회의 알려줘", "매달 25일 월세 내라고 알려줘", "10분 뒤에 알려줘"), call run_command with their sentence including the time. Say only "네, 알림 맞출게요." To add an event to their calendar ("다음 주 화요일 치과 일정 넣어줘"), also use run_command with their sentence.',
   'ONE-WORD ROUTINES: when the user says a short routine word such as "퇴근", "출근", "잘게" or "○○ 루틴 시작", call run_command with exactly that word or phrase.',
   /* v342: 맛집·카페·장소 추천은 지도 앱으로 (웹 검색 아님) */
-  'RESTAURANTS AND PLACES: for restaurant, cafe, food or place recommendations ("부산 자갈치시장 맛집 알려줘", "근처 카페", "강남역 술집 추천", "○○ 맛집"), do NOT use web_search — call run_command with the place and kind, e.g. "부산 자갈치시장 맛집"; coverfo opens the map app (카카오맵) with the list. Then say one short line like "카카오맵에서 자갈치시장 맛집을 열었어요."',
+  /* v344: 맛집·장소는 coverfo 화면에 목록(카카오 장소 검색)으로 → 이름·번호로 열기 */
+  'RESTAURANTS AND PLACES: for restaurant, cafe, food or place recommendations or lists ("부산 자갈치시장 맛집 알려줘", "속초 동명항 맛집 리스트 보여줘", "강남역 카페", "○○ 맛집"), do NOT use web_search — call place_list with the area and kind, e.g. "속초 동명항 맛집". It shows a numbered list on the coverfo screen; read out the first three to five names briefly (e.g. "1번 영금물회, 2번 충청도횟집, 3번 팔도대게찜이 있어요."). When the user then says a name or number from that list ("영금물회 열어줘", "2번 열어"), call press_button with that name or "2번" — it opens that place in 카카오맵. If the user asks for "더 보여줘" or "다음", call place_list again with the same query and page 2. If the user explicitly wants the map app search itself ("카카오맵으로 열어줘", "지도로 보여줘"), call run_command with the query. If the area is unclear ("근처 맛집"), use LAST NAVIGATION if known, otherwise ask which area in one short question.',
   /* v342: 대화 중에 이름만 부르면 */
   'If the user only calls your name (e.g. "소리야", "소리야?"), answer only "네, 말씀하세요."',
   /* v333 웹 검색 */
@@ -272,6 +275,18 @@ const TOOLS = [{
   },
 }, {
   type: 'function',
+  name: 'place_list',
+  description: 'Search places (restaurants, cafes, shops, sights) with Kakao place search and show a numbered list on the coverfo screen. Returns names, categories and addresses. Opening one is done with press_button (name or number).',
+  parameters: {
+    type: 'object',
+    properties: {
+      query: { type: 'string', description: 'Area + kind in Korean, e.g. "속초 동명항 맛집", "강남역 카페"' },
+      page: { type: 'integer', description: '1 (default) or 2, 3 for more results' },
+    },
+    required: ['query'],
+  },
+}, {
+  type: 'function',
   name: 'my_note',
   description: 'Look up what the user saved on this phone in 📒 내 연락처: places (home/work addresses), anniversaries/birthdays, usual food orders. Never returns phone or account numbers.',
   parameters: {
@@ -344,6 +359,7 @@ export async function onRequestPost(context) {
   /* 새 앱(v4)만 name 을 보낸다 → 그때만 앱 전용 도구. 업데이트 전 앱은 예전 도구 그대로 (처리 못 하는 도구를 받지 않게) */
   if (op === 'token') return appToken(env, uid, cost, b.name ? cleanName(b.name) : '', !!(b.name && b.relay), contextLine(b, context.request) + (await personaLine(env, uid, !!b.name)), !!(b.name && b.screen));
   if (op === 'search') return json(await webSearch(env, b));
+  if (op === 'places') return json(await placeSearch(env, b));
   if (op === 'device') {
     /* 기기 키는 진짜 로그인 키로만 받는다 (기기 키로 기기 키를 다시 받아 끝없이 늘리지 못하게) */
     if (isDevice(context.request)) return json({ error: '로그인 키가 필요합니다' }, 401);
@@ -499,6 +515,34 @@ async function webSearch(env, b) {
     return { ok: true, q, items };
   } catch (e) {
     return { ok: false, error: '검색하지 못했어요', items: [] };
+  }
+}
+
+/* ── v344 장소 목록 (카카오 공식 '키워드로 장소 검색' API · KAKAO_REST_KEY — geo.js 와 같은 키) ── 무료 · 저장하지 않음
+   돌려주는 것: 이름 · 분류(맨 끝 단계) · 주소 · 전화 · 카카오맵 장소 주소(place.map.kakao.com). 위치(GPS)는 받지 않는다 */
+async function placeSearch(env, b) {
+  const q = String((b && b.q) || '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+  if (!q) return { ok: false, error: '어디의 무엇을 찾을지 알려 주세요', items: [] };
+  const key = String(env.KAKAO_REST_KEY || '').trim();
+  if (!key) return { ok: false, error: '장소 검색 설정이 아직 없어요 (KAKAO_REST_KEY)', items: [] };
+  const page = Math.max(1, Math.min(3, Number(b && b.page) || 1));
+  try {
+    const r = await fetch('https://dapi.kakao.com/v2/local/search/keyword.json?size=10&page=' + page + '&query=' + encodeURIComponent(q), {
+      headers: { Authorization: 'KakaoAK ' + key }, signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) return { ok: false, error: '장소를 찾지 못했어요 (' + r.status + ')', items: [] };
+    const j = await r.json().catch(() => null);
+    const docs = j && Array.isArray(j.documents) ? j.documents : [];
+    const items = docs.map((d) => ({
+      name: String(d.place_name || '').slice(0, 60),
+      cat: String(d.category_name || '').split('>').pop().trim().slice(0, 30),
+      addr: String(d.road_address_name || d.address_name || '').slice(0, 80),
+      phone: String(d.phone || '').slice(0, 20),
+      url: /^https?:\/\/place\.map\.kakao\.com\//.test(String(d.place_url || '')) ? String(d.place_url).replace(/^http:/, 'https:') : '',
+    })).filter((x) => x.name && x.url);
+    return { ok: true, q, page, items, more: !!(j && j.meta && j.meta.is_end === false) };
+  } catch (e) {
+    return { ok: false, error: '장소를 찾지 못했어요', items: [] };
   }
 }
 
