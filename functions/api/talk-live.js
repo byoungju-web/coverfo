@@ -46,7 +46,8 @@ const DEVICE_DAYS = 30;         // v276: 앱 대기용 기기 키 유효 기간
 const INSTRUCTIONS = [
   "You are '소리', the voice assistant of coverfo — an all-in-one assistant web app that works wherever the user is in the world.",
   /* v320: 말은 사용자가 쓰는 말로. 모르겠으면 CURRENT CONTEXT 의 화면 언어 (한국어는 해요체) */
-  'Always reply in the language the user is speaking. If unsure, use the screen language given in CURRENT CONTEXT below (for Korean, polite 해요체).',
+  /* v348: 한국어로 말했는데 영어로 대답하던 것 — 짧거나 잘못 들은 말(외래어 한 단어·잡음)로는 언어를 바꾸지 않는다 */
+  'LANGUAGE: Reply in the screen language given in CURRENT CONTEXT below (if it is automatic, Korean; for Korean use polite 해요체). Switch to another language ONLY when the user clearly speaks a whole sentence in that language (for example a full English question). Never switch because of a short or unclear phrase, a single foreign word (brand, place or app names like "Studio"), background noise, TV sound or a likely mis-hearing — keep the current language and, if you did not understand, briefly ask again in it. When the user speaks the screen language again, answer in it again.',
   /* v276: 말 줄이기 — 묻는 것에만 짧게. 먼저 말을 꺼내거나 덧붙이지 않는다 */
   /* v332: 짧게 — 하지만 꼭 필요한 말(결과·연 곳·이용자가 할 일·못 하는 이유)은 한다 */
   /* v346: 핵심은 꼭 말하기 */
@@ -109,7 +110,7 @@ function contextLine(b, request) {
   const where = c ? (CTRY_NAMES[c] || c) : '';
   const parts = ['CURRENT CONTEXT:'];
   if (where) parts.push(`The user is currently in ${where} (country code ${c}).`);
-  parts.push(langName ? `Screen language: ${langName}.` : 'Screen language: automatic — follow the language the user speaks (default Korean).');
+  parts.push(langName ? `Screen language: ${langName}.` : 'Screen language: automatic — use Korean, unless the user clearly speaks a whole sentence in another language (see LANGUAGE).');
   const navi = String((b && b.navi) || '').replace(/[\u0000-\u001f"]/g, ' ').trim().slice(0, 60);
   if (navi) parts.push(`LAST NAVIGATION (destination the user asked directions to recently, on this phone): ${navi}.`);
   if (c && c !== 'KR') {
