@@ -241,6 +241,52 @@ const SCREEN_TOOLS = [{
   parameters: { type: 'object', properties: {} },
 }];
 
+/* v351 📞 끝까지 해 주기 1단계 (소리 앱이 phone:1 을 보낼 때만): 연락처 찾기 · 확인 후 바로 전화 · 문자 채워서 열기.
+   문자를 앱이 직접 보내는 권한은 플레이 프로텍트가 막아서 쓰지 않는다 → 문자 앱을 채워서 열고 보내기는 이용자가 누른다 */
+const PHONE_INSTR = [
+  'PHONE: this phone can find contacts, call, and open a text message with the number and text filled in. For calling or texting a person or a business ("은혁이한테 전화해 줘", "엄마한테 늦는다고 문자 보내 줘", "2번 가게에 예약 문의 문자 보내 줘") use find_contact, call_phone and send_sms — not run_command.',
+  'For a person\'s name, pass the name as "to" (call find_contact first when you are not sure who it is). If the tool returns "choose", ask which one by reading the names with the last 4 digits, then call again with that name and last4. If nothing is found, say so and ask for the name as saved in the phone or a number.',
+  'For a business from place_list results, pass its phone number as "to" and its name as "label". Write a reservation inquiry politely in the user\'s voice (e.g. "안녕하세요, 오늘 저녁 7시에 4명 예약 가능할까요?"); if the date, time or number of people is missing, ask first.',
+  'ALWAYS call call_phone or send_sms first with confirmed false. It returns need_confirm and "ask": say that question in one short sentence and wait. Only after the user clearly agrees (응/네/그래/보내/걸어/좋아), call the same tool again with the same to and text and confirmed true. If they want changes, change the text and ask again. If they say no, do not call it.',
+  'send_sms opens the message app with everything filled in — then tell the user to press 보내기 there. Before call_phone with confirmed true say only "네, 걸게요." — the call starts right away and this conversation ends so the call can use the microphone.',
+  'If a tool returns need_permission, tell the user to press 허용 on the phone screen and say the request again. Never put account, card or password numbers in a text.',
+].join(' ');
+const PHONE_TOOLS = [{
+  type: 'function',
+  name: 'find_contact',
+  description: 'Find people in the phone contacts by name. Returns names with the last 4 digits of their numbers (full numbers stay on the phone).',
+  parameters: { type: 'object', properties: { name: { type: 'string', description: 'Name as the user said it, e.g. "은혁", "엄마"' } }, required: ['name'] },
+}, {
+  type: 'function',
+  name: 'call_phone',
+  description: 'Call a contact (by name) or a phone number right away, after the user confirmed. First call with confirmed false to get the confirmation question.',
+  parameters: {
+    type: 'object',
+    properties: {
+      to: { type: 'string', description: 'Contact name, or a phone number (e.g. a business from place_list)' },
+      last4: { type: 'string', description: 'Last 4 digits when several contacts share the name' },
+      label: { type: 'string', description: 'Business name when "to" is a number' },
+      confirmed: { type: 'boolean', description: 'true only after the user agreed to the question from need_confirm' },
+    },
+    required: ['to'],
+  },
+}, {
+  type: 'function',
+  name: 'send_sms',
+  description: 'Open the message app with the number and text filled in (the user presses send). First call with confirmed false to get the confirmation question.',
+  parameters: {
+    type: 'object',
+    properties: {
+      to: { type: 'string', description: 'Contact name, or a phone number (e.g. a business from place_list)' },
+      text: { type: 'string', description: 'The message, short and polite, in the user\'s voice' },
+      last4: { type: 'string', description: 'Last 4 digits when several contacts share the name' },
+      label: { type: 'string', description: 'Business name when "to" is a number' },
+      confirmed: { type: 'boolean', description: 'true only after the user agreed to the question from need_confirm' },
+    },
+    required: ['to', 'text'],
+  },
+}];
+
 /* v277 커넥션 허브 2.0: 연결한 앱(캘린더·지메일·드라이브·구글문서·노션)과 카톡으로 여러 단계를 한 번에 */
 const RELAY_INSTR = [
   'For tasks that use the user\'s connected apps — Google Calendar, Gmail, Google Drive, Google Docs, Notion, or sending KakaoTalk messages — such as "내일 10시 미팅 준비해", "오늘 일정 알려줘", "참석자에게 메일 보내", "드라이브에서 계약서 찾아 요약해", call run_relay with the whole request as one sentence. (Trip/business-trip preparation with a destination such as "제주 출장 준비해줘" is NOT a relay task — use run_command.) Say only "네, 할게요." before calling. It can take up to a minute; stay quiet while waiting.',
@@ -408,7 +454,7 @@ export async function onRequestPost(context) {
   }
 
   /* 새 앱(v4)만 name 을 보낸다 → 그때만 앱 전용 도구. 업데이트 전 앱은 예전 도구 그대로 (처리 못 하는 도구를 받지 않게) */
-  if (op === 'token') return appToken(env, uid, cost, b.name ? cleanName(b.name) : '', !!(b.name && b.relay), contextLine(b, context.request) + (await personaLine(env, uid, !!b.name)), !!(b.name && b.screen), (s) => vocabOf(env, uid).then((v) => tuneSession(s, b, v, !!b.name)));
+  if (op === 'token') return appToken(env, uid, cost, b.name ? cleanName(b.name) : '', !!(b.name && b.relay), contextLine(b, context.request) + (await personaLine(env, uid, !!b.name)), !!(b.name && b.screen), (s) => vocabOf(env, uid).then((v) => tuneSession(s, b, v, !!b.name)), !!(b.name && b.phone));
   if (op === 'search') return json(await webSearch(env, b));
   if (op === 'places') return json(await placeSearch(env, b));
   if (op === 'device') {
@@ -490,7 +536,7 @@ export async function onRequestPost(context) {
 /* ── v267 안드로이드 앱용 임시 키 (OpenAI POST /v1/realtime/client_secrets → value) ──
    · 키는 120초 안에 연결을 시작할 때만 쓰인다(연결 후 대화는 계속). 앱 화면·기기에 진짜 OpenAI 키가 남지 않는다.
    · 오디오는 PCM 16bit 24kHz 모노 (앱의 AudioRecord · AudioTrack 과 같은 형식). */
-async function appToken(env, uid, cost, name, relay, ctx, screen, tune) {
+async function appToken(env, uid, cost, name, relay, ctx, screen, tune, phone) {
   let job;
   try { job = await spend(env, uid, cost, 'live:start'); }
   catch (e) { return json({ error: '크레딧 처리 실패: ' + String(e.message || e).slice(0, 200) }, 500); }
@@ -500,7 +546,7 @@ async function appToken(env, uid, cost, name, relay, ctx, screen, tune) {
   const session = {
     type: 'realtime',
     model,
-    instructions: (name ? appInstructions(name) + (relay ? ' ' + RELAY_INSTR : '') + (screen ? ' ' + SCREEN_INSTR : '') : INSTRUCTIONS) + (ctx ? ' ' + ctx : ''),
+    instructions: (name ? appInstructions(name) + (relay ? ' ' + RELAY_INSTR : '') + (screen ? ' ' + SCREEN_INSTR : '') + (phone ? ' ' + PHONE_INSTR : '') : INSTRUCTIONS) + (ctx ? ' ' + ctx : ''),
     audio: {
       input: {
         format: fmt,
@@ -509,7 +555,7 @@ async function appToken(env, uid, cost, name, relay, ctx, screen, tune) {
       },
       output: { format: fmt, voice: VOICE },
     },
-    tools: name ? (relay ? APP_TOOLS.concat(RELAY_TOOLS) : APP_TOOLS).concat(screen ? SCREEN_TOOLS : []) : TOOLS,
+    tools: name ? (relay ? APP_TOOLS.concat(RELAY_TOOLS) : APP_TOOLS).concat(screen ? SCREEN_TOOLS : []).concat(phone ? PHONE_TOOLS : []) : TOOLS,
     tool_choice: 'auto',
     max_output_tokens: MAX_OUT,
   };
