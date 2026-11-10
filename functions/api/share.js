@@ -10,6 +10,7 @@
 //   { op:"vote", id, voter, nick, pick, on }      (누구나)  → places: pick "1"~"10" 켜기·끄기(여러 곳 가능) · trip: "go"|"no" 하나만 · routine: "take"
 //   { op:"mine" }                                 (로그인)  → 내가 만든 링크 최근 20개 + 누른 사람 수
 //   { op:"del", id }                              (로그인 · 만든 사람만) → 지우기
+//   { op:"final", id, text }                      (로그인 · 만든 사람만 · v361) → "🎉 영금물회 저녁 7시 4명 예약했어요" 를 링크 맨 위에 (빈 글이면 지움)
 //
 // · 저장소: Supabase cf_share · cf_share_vote (sql/cf_share.sql 1번 실행). 서버(service_role)만 읽고 쓴다.
 // · 친구는 가입하지 않는다. 브라우저가 만든 무작위 표시(voter)와 친구가 적은 별명만 저장한다 (이름·번호·이메일·IP·위치 저장 안 함).
@@ -35,6 +36,7 @@ export async function onRequestPost(context) {
     if (!uid) return json({ error: '로그인이 필요합니다', login: true }, 401);
     if (op === 'create') return json(await create(c, uid, b, context.request));
     if (op === 'mine') return json(await mine(c, uid));
+    if (op === 'final') return json(await setFinal(c, uid, b));
     if (op === 'del') {
       const id = cleanId(b.id);
       if (!id) return json({ error: '링크 번호가 없어요' }, 400);
@@ -184,6 +186,21 @@ async function vote(c, b) {
   }
   const votes = await req(c, 'GET', 'cf_share_vote?select=voter,pick,nick&share_id=eq.' + id + '&order=created_at.asc&limit=' + VOTE_MAX);
   return { ok: true, ...tally(votes, voter) };
+}
+
+/* ── v361 확정 알림: 만든 사람이 예약을 확정하면 친구 화면 맨 위에 한 줄 ── */
+async function setFinal(c, uid, b) {
+  const id = cleanId(b.id);
+  if (!id) throw httpErr(400, '링크 번호가 없어요');
+  const r = await req(c, 'GET', 'cf_share?select=id,user_id,data,expires_at&id=eq.' + id + '&user_id=eq.' + uid + '&limit=1');
+  const s = Array.isArray(r) && r[0];
+  if (!s || new Date(s.expires_at).getTime() < Date.now()) throw httpErr(404, '없는 링크이거나 30일이 지나 지워졌어요');
+  const text = clean(b.text, 80);
+  if (looksPrivate(text)) throw httpErr(400, '전화·카드·계좌번호처럼 보이는 숫자는 넣을 수 없어요');
+  const data = Object.assign({}, s.data || {});
+  if (text) data.final = { text, at: new Date().toISOString() }; else delete data.final;
+  await req(c, 'PATCH', 'cf_share?id=eq.' + id + '&user_id=eq.' + uid, { data }, 'return=minimal');
+  return { ok: true, final: data.final || null };
 }
 
 /* ── 내가 만든 링크 ── */

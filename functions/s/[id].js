@@ -99,6 +99,8 @@ a{color:inherit}
 .note{font-size:12px;color:var(--sub);line-height:1.6;margin-top:16px}
 .gone{text-align:center;padding:60px 10px;line-height:1.7}
 .msg{min-height:20px;font-size:13px;color:var(--no);margin:6px 2px}
+.fin{background:#ecfdf5;border:1.5px solid #6ee7b7;color:#065f46;border-radius:16px;padding:14px;margin:14px 0 0;font-size:16px;font-weight:800;line-height:1.45;word-break:keep-all}
+.fin small{display:block;font-size:12.5px;font-weight:600;color:#047857;margin-top:3px}
 @media (prefers-reduced-motion:no-preference){.b{transition:background .15s,color .15s}}
 </style>
 </head>
@@ -132,7 +134,9 @@ a{color:inherit}
   function msg(t){ var m=document.getElementById("msg"); if(m) m.textContent=t||""; }
   var D=S.data||{};
   function head(lines){
-    return '<div class="hd"><small>'+(S.sender?esc(S.sender)+' 님이 보냈어요':'친구가 보냈어요')+'</small><h1>'+esc(S.title)+'</h1><p>'+lines+'</p></div>';
+    var F=D.final, fin='';
+    if(F&&F.text){ var fd=new Date(F.at); fin='<div class="fin" role="status">🎉 '+esc(F.text)+'<small>'+(S.sender?esc(S.sender)+' 님이 ':'')+'확정했어요'+(isNaN(fd)?'':' · '+(fd.getMonth()+1)+'/'+fd.getDate())+'</small></div>'; }
+    return '<div class="hd"><small>'+(S.sender?esc(S.sender)+' 님이 보냈어요':'친구가 보냈어요')+'</small><h1>'+esc(S.title)+'</h1><p>'+lines+'</p></div>'+fin;
   }
   function meBox(){ return '<div class="me"><label for="nick">내 별명</label><input id="nick" maxlength="12" placeholder="예: ** (누가 눌렀는지 보여요)" value="'+esc(store("cf_s_nick"))+'" autocomplete="off"></div>'; }
   function render(){
@@ -171,7 +175,7 @@ a{color:inherit}
     var ni=document.getElementById("nick");
     if(ni){ if(nv) ni.value=nv; ni.addEventListener("change",function(){ store("cf_s_nick",nick()); }); if(keep){ ni.focus(); } }
   }
-  function load(){ return api({op:"get",id:S.id,voter:voter}).then(function(j){ if(j&&j.ok){ T={tally:j.tally||{},people:j.people||0,mine:j.mine||[]}; if(!busy) render(); } else if(j&&j.gone){ S=null; app.innerHTML='<div class="gone"><b style="font-size:18px">링크를 찾을 수 없어요</b><br>30일이 지나 지워졌거나 보낸 사람이 지웠어요.</div>'; } }).catch(function(){}); }
+  function load(){ return api({op:"get",id:S.id,voter:voter}).then(function(j){ if(j&&j.ok){ T={tally:j.tally||{},people:j.people||0,mine:j.mine||[]}; if(j.share&&j.share.data){ D.final=j.share.data.final||null; } if(!busy) render(); } else if(j&&j.gone){ S=null; app.innerHTML='<div class="gone"><b style="font-size:18px">링크를 찾을 수 없어요</b><br>30일이 지나 지워졌거나 보낸 사람이 지웠어요.</div>'; } }).catch(function(){}); }
   app.addEventListener("click",function(e){
     var b=e.target.closest&&e.target.closest("[data-v]");
     if(b){
