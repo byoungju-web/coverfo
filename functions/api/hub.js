@@ -33,6 +33,7 @@
 //     울릴 때가 되면 cron_due 가 웹 알림(🔔 알림을 켠 브라우저)으로 보낸다. 정확도는 coverfo-cron 이 cron_due 를 부르는 간격만큼.
 //   v327 🏃 한 마디 루틴 (같은 sql · 무료 · 20개까지): { op:"mr_list" } · { op:"mr_save", name, cmds:[…최대 5], old? } · { op:"mr_del", name }
 //     "퇴근" 한 마디 → 명령 문장 여러 개를 홈 화면이 차례로 실행. 번호는 넣지 않는다(📒 내 연락처가 이 기기에서 채움).
+//   v363 📦 배송완료 알림: cron_due 가 알림을 켠 송장(cf_parcel · /api/parcel 에서 켬)의 배송 단계를 스마트택배(SWEETTRACKER_KEY)로 확인 → 완료되면 웹 알림 + 카톡 나에게(켰으면)
 //   v336 💬 아침 브리핑을 카톡 '나에게 보내기'로 (sql/cf_kakao_memo.sql 1번 실행 · 카카오 REST 키 KAKAO_REST_KEY · 선택 KAKAO_CLIENT_SECRET):
 //   { op:"kakao_status" } → { ready, linked, on, error } · { op:"kakao_link" } → 카카오 동의 화면 주소 { url } (돌아오는 곳 /api/kakao-cb)
 //   { op:"kakao_set", on } 받기 켜기·끄기 · { op:"kakao_test" } 시험 메시지 · { op:"kakao_unlink" } 연결 끊기(메시지 동의 철회 + 저장한 키 지움)
@@ -864,7 +865,65 @@ async function cronDue(env) {
     /* 울린 지 30일 지난 한 번짜리 알림은 지운다 */
     if (Math.random() < 0.05) await sbReq(env, 'DELETE', 'cf_remind?is_on=eq.false&kind=eq.once&next_at=lt.' + encodeURIComponent(new Date(now - 30 * 86400e3).toISOString()), null, 'return=minimal').catch(() => {});
   }
-  return { ok: true, ids, pushes, kakaos, reminds };
+  /* v363 📦 배송완료 알림 (sql/cf_parcel.sql · SWEETTRACKER_KEY) — 표나 키가 없으면 조용히 넘어간다 */
+  let parcels = 0;
+  try { parcels = await parcelCron(env, now); } catch {}
+  return { ok: true, ids, pushes, kakaos, reminds, parcels };
+}
+
+/* ───────────── v363 📦 배송완료 알림: 알림을 켠 송장의 배송 단계를 확인 → 완료되면 웹 알림(+카톡 나에게) 한 번 ─────────────
+   · 한 번 깨울 때 최대 12건. 다음 확인: 배송출발이면 30분 뒤, 아니면 2시간 뒤
+   · 14일 안에 완료가 보이지 않으면 알림을 끄고 크레딧을 돌려준다 (cf_refund) · 완료 30일 뒤 지운다 */
+async function parcelCron(env, now) {
+  const key = String(env.SWEETTRACKER_KEY || '').trim();
+  if (!key) return 0;
+  const iso = (t) => encodeURIComponent(new Date(t).toISOString());
+  let rows = [];
+  try { rows = await sbReq(env, 'GET', 'cf_parcel?select=*&notify=eq.true&done=eq.false&next_check=lte.' + iso(now) + '&order=next_check.asc&limit=12'); } catch { return 0; }
+  let sent = 0;
+  for (const p of Array.isArray(rows) ? rows : []) {
+    /* 다음 확인 시각을 먼저 옮겨 두 번 처리하지 않게 */
+    const claim = await sbReq(env, 'PATCH', 'cf_parcel?id=eq.' + Number(p.id) + '&next_check=eq.' + encodeURIComponent(p.next_check), { next_check: new Date(now + 2 * 3600e3).toISOString() }, 'return=representation').catch(() => []);
+    if (!Array.isArray(claim) || !claim.length) continue;
+    if (Date.parse(p.notify_until) < now) {
+      await sbReq(env, 'PATCH', 'cf_parcel?id=eq.' + Number(p.id), { notify: false, updated_at: new Date(now).toISOString() }, 'return=minimal').catch(() => {});
+      if (p.job_id != null) await refund(env, p.job_id);
+      continue;
+    }
+    const t = await parcelTrack(key, p.code, p.invoice).catch(() => null);
+    if (!t || !t.ok) continue;
+    const upd = { level: t.level, status: t.step, last_where: t.where, last_time: t.time, updated_at: new Date(now).toISOString() };
+    if (!t.done) {
+      if (t.level >= 5) upd.next_check = new Date(now + 30 * 60e3).toISOString();
+      await sbReq(env, 'PATCH', 'cf_parcel?id=eq.' + Number(p.id), upd, 'return=minimal').catch(() => {});
+      continue;
+    }
+    upd.done = true; upd.notified = true;
+    const fin = await sbReq(env, 'PATCH', 'cf_parcel?id=eq.' + Number(p.id) + '&notified=eq.false', upd, 'return=representation').catch(() => []);
+    if (!Array.isArray(fin) || !fin.length) continue;
+    const name = p.label || ((p.carrier || '택배') + ' ' + String(p.invoice).slice(-4));
+    if (env.VAPID_PUBLIC && env.VAPID_PRIVATE) await pushUser(env, p.user_id, { title: '📦 배송완료', body: name + (t.where ? ' · ' + t.where : '') + ' 에 도착했어요', url: '/?parcel=1', tag: 'cf-parcel-' + p.id }).catch(() => {});
+    try { const r = await kakaoRow(env, p.user_id); if (r && r.is_on) await kakaoMemo(env, r, '📦 배송완료 · ' + name + (t.time ? '\n' + t.time : ''), 'https://coverfo.com/?parcel=1', '📦 내 택배 보기'); } catch {}
+    if (p.job_id != null) await doneJob(env, p.job_id);
+    sent++;
+  }
+  if (Math.random() < 0.05) await sbReq(env, 'DELETE', 'cf_parcel?done=eq.true&updated_at=lt.' + iso(now - 30 * 86400e3), null, 'return=minimal').catch(() => {});
+  return sent;
+}
+async function parcelTrack(key, code, inv) {
+  const q = 't_key=' + encodeURIComponent(key) + '&t_code=' + encodeURIComponent(code) + '&t_invoice=' + encodeURIComponent(inv);
+  let r = await fetch('https://info.sweettracker.co.kr/api/v1/trackingInfo?' + q, { headers: { Accept: 'application/json' } });
+  if (r.status === 405) r = await fetch('https://info.sweettracker.co.kr/api/v1/trackingInfo?' + q, { method: 'POST', headers: { Accept: 'application/json' } });
+  let j = null; try { j = await r.json(); } catch {}
+  if (!j || j.status === false || j.result === 'N') return { ok: false };
+  const det = Array.isArray(j.trackingDetails) ? j.trackingDetails : [];
+  const last = j.lastStateDetail || j.lastDetail || det[det.length - 1] || {};
+  let level = Number(j.level) || Number(last.level) || 0;
+  const done = j.complete === true || j.completeYN === 'Y' || level >= 6;
+  if (done) level = 6;
+  const STEP = ['', '배송 준비', '집화 완료', '이동 중', '지점 도착', '배송 출발', '배송 완료'];
+  const cut = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
+  return { ok: true, level, done, step: STEP[level] || '', where: cut(last.where, 40), time: cut(last.timeString, 30) };
 }
 
 /* ───────────── v327 ⏰ 알림 (sql/cf_remind.sql) ───────────── */
