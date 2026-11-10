@@ -107,7 +107,7 @@ a{color:inherit}
   <div class="top"><a class="logo" href="/">coverfo</a><span class="exp" id="exp"></span></div>
   <div id="app"></div>
   <div class="cta">
-    <p>coverfo 는 말 한마디로 맛집 찾기·길안내·여행 준비·예약 문의까지 해 주는 AI 비서예요.</p>
+    <p><b>coverfo</b> · 말 한마디로 길안내·예약 문의·여행 준비까지,<br>친구와 링크로 같이 정해요.</p>
     <a class="b pri" href="/" style="display:inline-flex;max-width:280px;width:100%">나도 coverfo 로 만들기 ›</a>
   </div>
   <div class="note">🔒 이 링크에는 보낸 사람이 고른 내용만 있어요. 여기서 누르면 적은 <b>별명</b>과 누른 것만 저장되고, 이름·전화번호·위치는 저장하지 않아요. 링크는 만든 날부터 30일 뒤 자동으로 지워져요.<br>📍 장소 정보: 카카오 · 예약·결제는 각 가게·사이트에서 직접 해요.</div>
