@@ -26,6 +26,7 @@
 //   결제·구매·송금·보내기·삭제 같은 단추는 도우미가 누르지 않는다. 화면 글자는 물을 때만 읽고 저장하지 않는다.
 // · v346 알아듣기: 받아쓰기 언어(ko)·자주 쓰는 말 힌트(발자취를 켠 경우 최근 장소 이름 · 부르는 이름) · 잡음 줄이기(앱 far_field / 웹 near_field).
 //   핵심은 꼭 말하기(도구 결과 뒤 한두 문장). 거절되면(400) 이 설정만 빼고 다시.
+// · v356 share_list: 화면의 📍 장소 목록 · 🧳 한 번에 준비를 👥 같이 정하기 링크(/api/share · 무료)로 → 친구는 가입 없이 👍. 링크 만들기는 화면(cf-share-js)이 한다.
 // · v344 place_list: 맛집·카페·장소를 카카오 장소 검색(KAKAO_REST_KEY)으로 찾아 coverfo 화면에 번호 목록 → "영금물회 열어줘"·"2번" 은 press_button 이 카카오맵 장소 화면을 연다.
 //   { op:"places", q, page? } → { items:[{name,cat,addr,phone,url}], more }  (로그인 키 또는 소리 앱 기기 키 · 무료 · 저장 안 함)
 // · v333 web_search: 소리가 모르는 것(가는 길 휴게소·영업시간·가격·소식)을 Brave 검색(BRAVE_API_KEY)으로 찾아 답한다.
@@ -86,6 +87,8 @@ const INSTRUCTIONS = [
   /* v342: 맛집·카페·장소 추천은 지도 앱으로 (웹 검색 아님) */
   /* v344: 맛집·장소는 coverfo 화면에 목록(카카오 장소 검색)으로 → 이름·번호로 열기 */
   'RESTAURANTS AND PLACES: for restaurant, cafe, food or place recommendations or lists ("부산 자갈치시장 맛집 알려줘", "속초 동명항 맛집 리스트 보여줘", "강남역 카페", "○○ 맛집"), do NOT use web_search — call place_list with the area and kind, e.g. "속초 동명항 맛집". It shows a numbered list on the coverfo screen; read out the first three to five names briefly (e.g. "1번 영금물회, 2번 충청도횟집, 3번 팔도대게찜이 있어요."). When the user then says a name or number from that list ("영금물회 열어줘", "2번 열어"), call press_button with that name or "2번" — it opens that place in 카카오맵. If the user asks for "더 보여줘" or "다음", call place_list again with the same query and page 2. If the user explicitly wants the map app search itself ("카카오맵으로 열어줘", "지도로 보여줘"), call run_command with the query. If the area is unclear ("근처 맛집"), use LAST NAVIGATION if known, otherwise ask which area in one short question.',
+  /* v356 👥 같이 정하기 링크: 화면의 장소 목록 · 한 번에 준비를 친구에게 */
+  'SHARING WITH FRIENDS: when the user wants to share the place list or the trip plan on the screen with friends or decide together ("이거 은혁이한테 보내 줘", "친구들이랑 같이 정하게 링크 만들어 줘", "어디 갈지 투표 받아 줘", "같이 갈 사람한테 보내 줘"), call share_list with what "places" or "trip". It makes a free link where friends open the same list without signing up and tap 👍 (places) or 🙋 갈게요 (trip), and the coverfo screen shows 문자로 보내기 / 링크 복사 buttons. If the user named a person and the send_sms tool is available, then call send_sms with that person as "to" and the returned "text" (it still asks to confirm). Otherwise say briefly that the link is ready and to press 문자로 보내기 or 링크 복사 on the screen. If there is no list yet, show one first.',
   /* v345: 내비 끄기 — 다른 앱을 대신 끌 수는 없어서, 그 앱을 앞으로 열어 주고 종료 단추를 누르도록 안내 */
   'STOPPING NAVIGATION: you cannot stop or close the navigation app (카카오내비, 티맵, 네이버지도 안내) yourself. When the user says "내비 꺼줘", "내비 종료해줘", "안내 종료", "길안내 그만": if the open_app tool is available, call open_app with that navigation app (usually "카카오내비") so its screen comes to the front, then say "카카오내비를 열었어요. 화면에서 안내 종료를 눌러 주세요." Otherwise just say that. Do not call end_conversation for this.',
   /* v342: 대화 중에 이름만 부르면 */
@@ -381,6 +384,14 @@ const TOOLS = [{
       page: { type: 'integer', description: '1 (default) or 2, 3 for more results' },
     },
     required: ['query'],
+  },
+}, {
+  type: 'function',
+  name: 'share_list',
+  description: 'Make a free 같이 정하기 link for the place list (places) or the trip plan (trip) on the coverfo screen, so friends can open it without signing up and tap 👍 / 🙋 갈게요. Returns url and a ready message text; the screen shows send buttons.',
+  parameters: {
+    type: 'object',
+    properties: { what: { type: 'string', enum: ['places', 'trip'], description: 'places = the 📍 place list, trip = the 🧳 trip plan' } },
   },
 }, {
   type: 'function',
