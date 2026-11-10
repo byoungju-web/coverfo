@@ -134,7 +134,7 @@ a{color:inherit}
   function head(lines){
     return '<div class="hd"><small>'+(S.sender?esc(S.sender)+' 님이 보냈어요':'친구가 보냈어요')+'</small><h1>'+esc(S.title)+'</h1><p>'+lines+'</p></div>';
   }
-  function meBox(){ return '<div class="me"><label for="nick">내 별명</label><input id="nick" maxlength="12" placeholder="예: 은혁 (누가 눌렀는지 보여요)" value="'+esc(store("cf_s_nick"))+'" autocomplete="off"></div>'; }
+  function meBox(){ return '<div class="me"><label for="nick">내 별명</label><input id="nick" maxlength="12" placeholder="예: ** (누가 눌렀는지 보여요)" value="'+esc(store("cf_s_nick"))+'" autocomplete="off"></div>'; }
   function render(){
     var h="";
     if(S.kind==="places"){
