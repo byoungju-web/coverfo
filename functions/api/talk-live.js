@@ -37,6 +37,9 @@
 //   웹 소리는 화면(cf-live-js)이, 소리 앱은 앱(SoriService)이 직접 불러서 내비가 앞에 떠 있어도 답한다. 결과는 coverfo 화면에 번호 단추로도 띄운다.
 //   start/token 의 navi = 마지막으로 길안내한 목적지(이 기기에 둔 것) → "가는 길에 휴게소" 같은 말에 목적지를 붙여 검색하게 안내문에 넣는다.
 // · v325 하나의 비서: 포도야 비서 '🧠 내 기억'(cf_me)의 내 호칭·비서 이름·비서 말투·잔소리 정도·기억해 둔 사실을 안내문 끝에 붙인다(읽기만).
+// · v369 🏪 place_action: 목록·카카오맵에서 연 가게(지금 가게)를 열기·전화·문자·길안내·예약·예약 결과 확인 — 화면(cf-resv-js)이 처리.
+//   전화·문자는 가게 번호를 찾아 돌려주고, 실제 걸기·문자 열기는 앱의 call_phone · send_sms (확인 후)
+//   받아쓰기 힌트: 지난 명령 문장 통째(예: "부산 자갈치시장 맛집")가 자막을 그 문장으로 끌어당겨, 한 낱말 이름만 넣는다
 // · v366 🧠 내 비서 기억(cf_memory): 이용자가 기억해 달라고 한 것(최근 30줄)을 안내문 끝에 붙인다 · 도구 remember · forget_memory · my_memory (화면이 /api/memory 로 처리)
 // · 비용: 1분 COST 크레딧 (Secret/변수 LIVE_COST_PER_MIN 로 바꿀 수 있음). 모델은 REALTIME_MODEL 로 바꿀 수 있음.
 // · 알려진 한계: 1분 차감은 화면이 tick 을 보내야 이어진다. 화면 코드를 고쳐 tick 을 보내지 않는 경우까지 막으려면
@@ -90,7 +93,7 @@ const INSTRUCTIONS = [
   'ONE-WORD ROUTINES: when the user says a short routine word such as "퇴근", "출근", "잘게" or "○○ 루틴 시작", call run_command with exactly that word or phrase.',
   /* v342: 맛집·카페·장소 추천은 지도 앱으로 (웹 검색 아님) */
   /* v344: 맛집·장소는 coverfo 화면에 목록(카카오 장소 검색)으로 → 이름·번호로 열기 */
-  'RESTAURANTS AND PLACES: for restaurant, cafe, food or place recommendations or lists ("부산 자갈치시장 맛집 알려줘", "속초 동명항 맛집 리스트 보여줘", "강남역 카페", "○○ 맛집"), do NOT use web_search — call place_list with the area and kind, e.g. "속초 동명항 맛집". It shows a numbered list on the coverfo screen; read out the first three to five names briefly (e.g. "1번 영금물회, 2번 충청도횟집, 3번 팔도대게찜이 있어요."). When the user then says a name or number from that list ("영금물회 열어줘", "2번 열어"), call press_button with that name or "2번" — it opens that place in 카카오맵. If the user asks for "더 보여줘" or "다음", call place_list again with the same query and page 2. If the user explicitly wants the map app search itself ("카카오맵으로 열어줘", "지도로 보여줘"), call run_command with the query. If the area is unclear ("근처 맛집"), use LAST NAVIGATION if known, otherwise ask which area in one short question.',
+  'RESTAURANTS AND PLACES: for restaurant, cafe, food or place recommendations or lists ("부산 자갈치시장 맛집 알려줘", "속초 동명항 맛집 리스트 보여줘", "강남역 카페", "○○ 맛집"), do NOT use web_search — call place_list with the area and kind, e.g. "속초 동명항 맛집". It shows a numbered list on the coverfo screen; read out the first three to five names briefly (e.g. "1번 영금물회, 2번 충청도횟집, 3번 팔도대게찜이 있어요."). When the user then says a name or number from that list ("영금물회 열어줘", "2번 열어"), call place_action with action open and that name or "2" — it opens that place in 카카오맵 (also works while 카카오맵 is in front). If the user asks for "더 보여줘" or "다음", call place_list again with the same query and page 2. If the user explicitly wants the map app search itself ("카카오맵으로 열어줘", "지도로 보여줘"), call run_command with the query. If the area is unclear ("근처 맛집"), use LAST NAVIGATION if known, otherwise ask which area in one short question.',
   /* v356 👥 같이 정하기 링크: 화면의 장소 목록 · 한 번에 준비를 친구에게 */
   'SHARING WITH FRIENDS: when the user wants to share the place list or the trip plan on the screen with friends or decide together ("이거 은혁이한테 보내 줘", "친구들이랑 같이 정하게 링크 만들어 줘", "어디 갈지 투표 받아 줘", "같이 갈 사람한테 보내 줘"), call share_list with what "places" or "trip". It makes a free link where friends open the same list without signing up and tap 👍 (places) or 🙋 갈게요 (trip), and the coverfo screen shows 문자로 보내기 / 링크 복사 buttons. If the user named a person and the send_sms tool is available, then call send_sms with that person as "to" and the returned "text" (it still asks to confirm). Otherwise say briefly that the link is ready and to press 문자로 보내기 or 링크 복사 on the screen. If there is no list yet, show one first.',
   /* v357 🤖 정리해 주기: 친구들의 👍 가 모이면 1위를 말하고 예약 문의로 이어 준다 */
@@ -101,6 +104,11 @@ const INSTRUCTIONS = [
   'PARCELS: for "쿠팡 주문 내역 보여 줘", "11번가 주문한 거", "G마켓 주문 내역", "네이버 주문 내역" call track_parcel with open "orders" and mall (쿠팡, 네이버쇼핑, 11번가, G마켓; default 쿠팡) — it opens that mall; the user logs in there (coverfo never reads shopping-mall accounts). Parcels from any mall can be tracked with the carrier and tracking number. For "택배 어디쯤 왔어?", "배송 조회해 줘", or when the user reads a delivery text or a tracking number, call track_parcel with text and/or carrier and invoice. It fills the carrier and tracking number on the screen; checking costs credits, so never claim a status yourself — tell the user in one short Korean sentence to press 🚚 배송 조회 on the screen (it shows the credit cost). You may mention the 🔔 배송완료 알림 button (it costs credits) — never turn anything paid on yourself. Coupang rocket delivery can only be checked in the Coupang order list.',
   /* v345: 내비 끄기 — 다른 앱을 대신 끌 수는 없어서, 그 앱을 앞으로 열어 주고 종료 단추를 누르도록 안내 */
   'STOPPING NAVIGATION: you cannot stop or close the navigation app (카카오내비, 티맵, 네이버지도 안내) yourself. When the user says "내비 꺼줘", "내비 종료해줘", "안내 종료", "길안내 그만": if the open_app tool is available, call open_app with that navigation app (usually "카카오내비") so its screen comes to the front, then say "카카오내비를 열었어요. 화면에서 안내 종료를 눌러 주세요." Otherwise just say that. Do not call end_conversation for this.',
+  /* v369 🏪 가게 하나에 열기·전화·문자·길안내·예약 */
+  'PLACE ACTIONS: for one place from the place list, or the place the user has open now in 카카오맵 ("여기", "이 집", "이 가게", or its name), use place_action. place = list number ("2"), the name as the user said it, or "here". action: open (open it in 카카오맵), call (get its phone number), text (get its number for a reservation inquiry text), navigate (directions), reserve (start a reservation), result (record how the reservation went). Works even when 카카오맵 or 카카오내비 is in front. If the place is not in the list, place_action looks it up by name with Kakao place search — add the area if you know it (e.g. "등대샤브칼국수 속초").',
+  'CALLING OR TEXTING A PLACE: place_action with action call or text returns the shop\'s phone number. Then use call_phone (or send_sms) with that number as "to" and the shop name as "label", confirmed false first, exactly as in PHONE. The number does not need to be saved in contacts. If the place has no number, say so and offer to open it in 카카오맵. On the web (no call_phone tool), the screen shows a 📞 전화 button — tell the user to press it.',
+  'RESERVING: when the user wants to book a place ("여기 예약해 줘", "등대샤브칼국수 토요일 6시 4명 예약"), first make sure you have the date, the time and the number of people — ask in one short question for what is missing. Then call place_action with action reserve, when (the user\'s words, e.g. "토요일 저녁 6시"), people and, if they said it, name (who the booking is under). It returns the parsed date and time: read it back once ("11월 15일 토요일 저녁 6시, 4명 맞죠?"). The screen then shows three ways: 카카오맵 예약 화면 (if the shop takes bookings there), 직접 전화 (call_phone after confirmation), or 문자로 예약 문의 (send_sms). AI phone calls on the user\'s behalf are not available yet — say so if asked.',
+  'RESERVATION RESULT: when the user tells you how it went ("예약됐대", "6시는 안 되고 7시 반 된대", "전화를 안 받아", "예약번호 A123"), call place_action with action result and status: confirmed (the shop clearly confirmed, or a booking number was given), available_only (only told it is possible / will check — NOT done yet), changed (different time or people offered), refused, no_answer. Add when/people if they changed, booking_no if given, alt for an offered alternative, deposit for any prepayment. The screen shows a check card (조건이 요청과 같은지 · 확정 메시지·예약번호 · 예약 내역 직접 확인 · 결제·취소 규정). Read its warnings briefly. Never treat available_only as a finished booking, and never accept a changed time yourself — ask the user.',
   /* v366 🧠 하나의 기억 */
   'ONE MEMORY: you are one assistant with one memory shared by every coverfo feature. MY MEMORY at the end of these instructions lists what the user asked you to remember — use it naturally when it matters (e.g. skip spicy places when recommending food, mention 엄마\'s birthday when planning) without reading the list aloud. When the user asks about themselves, people in their life or things in progress ("내가 뭐 좋아한다고 했지?", "엄마가 좋아하는 거 뭐였지?", "요즘 진행 중인 거 뭐 있어?", "친구들 투표 어떻게 됐어?"), call my_memory with their words — it searches saved memory, 🧠 profile, reminders, 같이 정하기 links, parcels and activity — and answer only from what it returns, in one or two short sentences. When the user explicitly asks you to remember something ("기억해 줘", "잊지 마", "기억해 둬"), call remember right away with the fact in short Korean (e.g. "매운 음식 못 먹음", "엄마는 회를 좋아함"). When they mention a lasting preference or fact about themselves or someone close without asking, you may ask once "기억해 둘까요?" and call remember only if they agree. Never remember health conditions, medicines, hospital visits, phone/card/account numbers, passwords or ID numbers; if asked, say in one sentence that coverfo does not keep those. When they ask to forget something ("그거 잊어 줘", "매운 거 얘기 지워 줘"), call forget_memory with their words. If remember returns off:true, say 🧠 기억하기 is turned off and can be turned on in 내 비서 기억. After remember, say only a very short confirmation like "네, 기억할게요."',
   /* v342: 대화 중에 이름만 부르면 */
@@ -162,7 +170,9 @@ async function vocabOf(env, uid) {
       if (/(?:\d[\s.\-]?){7,}/.test(w)) return;   /* 전화·계좌 같은 긴 숫자는 넣지 않음 */
       seen.add(w); out.push(w);
     };
-    for (const x of Array.isArray(rows) ? rows : []) { add(x.label); if (String(x.title || '').length <= 20) add(x.title); if (out.length >= 30) break; }
+    /* v369: 장소·이름처럼 짧은 것만 (띄어쓰기 2번 넘는 지난 명령 문장은 받아쓰기를 그 문장으로 끌어당겨 넣지 않음) */
+    const short = (w) => String(w || '').trim().split(/\s+/).length <= 2;
+    for (const x of Array.isArray(rows) ? rows : []) { if (short(x.label)) add(x.label); if (String(x.title || '').length <= 12 && !/\s/.test(String(x.title || '').trim())) add(x.title); if (out.length >= 30) break; }
     return out;
   } catch { return []; }
 }
@@ -286,7 +296,7 @@ const SCREEN_TOOLS = [{
 const PHONE_INSTR = [
   'PHONE: this phone can find contacts, call, and open a text message with the number and text filled in. For calling or texting a person or a business ("은혁이한테 전화해 줘", "엄마한테 늦는다고 문자 보내 줘", "2번 가게에 예약 문의 문자 보내 줘") use find_contact, call_phone and send_sms — not run_command.',
   'For a person\'s name, pass the name as "to" (call find_contact first when you are not sure who it is). If the tool returns "choose", ask which one by reading the names with the last 4 digits, then call again with that name and last4. If nothing is found, say so and ask for the name as saved in the phone or a number.',
-  'For a business from place_list results, pass its phone number as "to" and its name as "label". Write a reservation inquiry politely in the user\'s voice (e.g. "안녕하세요, 오늘 저녁 7시에 4명 예약 가능할까요?"); if the date, time or number of people is missing, ask first.',
+  'For a business (from place_list, or the place open in 카카오맵 that is not in contacts), get its number with place_action (action call or text) and pass that number as "to" and its name as "label". When the user says a phone number, pass the digits as "to" — it does not need to be in contacts. Write a reservation inquiry politely in the user\'s voice (e.g. "안녕하세요, 오늘 저녁 7시에 4명 예약 가능할까요?"); if the date, time or number of people is missing, ask first.',
   'ALWAYS call call_phone or send_sms first with confirmed false. It returns need_confirm and "ask": say that question in one short sentence and wait. Only after the user clearly agrees (응/네/그래/보내/걸어/좋아), call the same tool again with the same to and text and confirmed true. If they want changes, change the text and ask again. If they say no, do not call it.',
   'send_sms opens the message app with everything filled in — then tell the user to press 보내기 there. Before call_phone with confirmed true say only "네, 걸게요." — the call starts right away and this conversation ends so the call can use the microphone.',
   'If a tool returns need_permission, tell the user to press 허용 on the phone screen and say the request again. Never put account, card or password numbers in a text.',
@@ -413,7 +423,7 @@ const TOOLS = [{
 }, {
   type: 'function',
   name: 'place_list',
-  description: 'Search places (restaurants, cafes, shops, sights) with Kakao place search and show a numbered list on the coverfo screen. Returns names, categories and addresses. Opening one is done with press_button (name or number).',
+  description: 'Search places (restaurants, cafes, shops, sights) with Kakao place search and show a numbered list on the coverfo screen. Returns names, categories and addresses. Opening, calling, directions and reservation for one are done with place_action (name or number).',
   parameters: {
     type: 'object',
     properties: {
@@ -491,6 +501,26 @@ const TOOLS = [{
       open: { type: 'boolean', description: 'true if the user wants it opened again' },
     },
     required: ['query'],
+  },
+}, {
+  /* v369 🏪 가게 하나에 열기·전화·문자·길안내·예약 (화면 cf-resv-js 가 처리) */
+  type: 'function',
+  name: 'place_action',
+  description: 'Open, call, text, get directions to, reserve, or record the reservation result for one place: a number or name from the place list, or the place open now in 카카오맵 ("here"). Looks the place up with Kakao place search when it is not in the list. call/text return the phone number to use with call_phone / send_sms.',
+  parameters: {
+    type: 'object',
+    properties: {
+      place: { type: 'string', description: 'List number ("2"), the place name as said (optionally with area, e.g. "등대샤브칼국수 속초"), or "here" for the place open now' },
+      action: { type: 'string', enum: ['open', 'call', 'text', 'navigate', 'reserve', 'result'] },
+      when: { type: 'string', description: 'reserve/result: date and time in the user\'s words, e.g. "토요일 저녁 6시", "11월 15일 18:00"' },
+      people: { type: 'integer', description: 'reserve/result: number of people' },
+      name: { type: 'string', description: 'reserve: who the booking is under, only if the user said it' },
+      status: { type: 'string', enum: ['confirmed', 'available_only', 'changed', 'refused', 'no_answer'], description: 'result only' },
+      booking_no: { type: 'string', description: 'result: booking number if given' },
+      alt: { type: 'string', description: 'result: alternative the shop offered, e.g. "7시 반 가능"' },
+      deposit: { type: 'string', description: 'result: prepayment / deposit amount if any, e.g. "예약금 2만원"' },
+    },
+    required: ['action'],
   },
 }, {
   /* v366 🧠 내 비서 기억 (화면이 /api/memory 로 처리) */
