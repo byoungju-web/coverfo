@@ -29,7 +29,7 @@
 // · v356 share_list: 화면의 📍 장소 목록 · 🧳 한 번에 준비를 👥 같이 정하기 링크(/api/share · 무료)로 → 친구는 가입 없이 👍. 링크 만들기는 화면(cf-share-js)이 한다.
 // · v357 share_votes: 친구들이 같이 정하기 링크에서 고른 결과 → 소리가 1위를 말하고 예약 문의(send_sms 또는 화면 단추)로 이어 준다. 새 투표가 오면 화면이 FRIEND VOTES 알림을 소리에게 넣는다.
 // · v361 shop_reply: 가게 답장 문자(붙여넣기·말로)를 화면이 규칙으로 정리 → 소리가 "8시는 가능하대요. 확정 문자 보낼까요?" → send_sms(앱) 또는 화면 단추. SHOP REPLY 알림.
-// · v363 track_parcel: 쿠팡 주문목록 열기 · 배송 문자/송장 → 📦 배송 단계 (/api/parcel · 스마트택배). 🔔 배송완료 알림은 화면 단추로만(크레딧).
+// · v363 track_parcel: 쿠팡 주문목록 열기 · 배송 문자/송장 → 📦 화면에 채움. v364: 🚚 배송 조회(1크레딧)·🔔 배송완료 알림(3크레딧)은 이용자가 화면 단추로만.
 // · v344 place_list: 맛집·카페·장소를 카카오 장소 검색(KAKAO_REST_KEY)으로 찾아 coverfo 화면에 번호 목록 → "영금물회 열어줘"·"2번" 은 press_button 이 카카오맵 장소 화면을 연다.
 //   { op:"places", q, page? } → { items:[{name,cat,addr,phone,url}], more }  (로그인 키 또는 소리 앱 기기 키 · 무료 · 저장 안 함)
 // · v333 web_search: 소리가 모르는 것(가는 길 휴게소·영업시간·가격·소식)을 Brave 검색(BRAVE_API_KEY)으로 찾아 답한다.
@@ -97,7 +97,7 @@ const INSTRUCTIONS = [
   /* v361 📩 예약 문의 답장 정리 */
   'SHOP REPLY: a system note starting with "SHOP REPLY" comes from the coverfo screen after the user pasted a shop\'s answer to a reservation inquiry — speak first: say the result in one short Korean sentence and ask the next step (e.g. "8시는 가능하대요. 8시로 확정 문자 보낼까요?", "예약이 어렵대요. 2번 가게에 물어볼까요?"). When the user tells you what the shop answered ("가게에서 8시는 된대", "답장 왔는데 만석이래", "이렇게 왔어: …"), call shop_reply with that text (and when/people if known); it fills the screen with the summary and reply buttons. If the user agrees to confirm and send_sms is available, call send_sms with the shop phone as "to", the shop name as "label" and the suggested reply text (confirmed false first); otherwise tell them to press the ✅ button on the screen. Never handle deposits or account numbers — tell the user to check a deposit with the shop directly.',
   /* v363 📦 주문·배송 조회 */
-  'PARCELS: for "쿠팡 주문 내역 보여 줘", "주문한 거 보여 줘" call track_parcel with open "orders" (it opens the Coupang order list; the user logs in there — coverfo never reads Coupang accounts). For "택배 어디쯤 왔어?", "배송 조회해 줘", or when the user reads a delivery text or a tracking number, call track_parcel with text and/or carrier and invoice. Say the result in one short Korean sentence (e.g. "CJ대한통운 택배가 지금 배송 출발했어요."). If it is not delivered yet you may mention the 🔔 배송완료 알림 button on the screen (it costs credits) — never turn it on yourself. Coupang rocket delivery can only be checked in the Coupang order list.',
+  'PARCELS: for "쿠팡 주문 내역 보여 줘", "주문한 거 보여 줘" call track_parcel with open "orders" (it opens the Coupang order list; the user logs in there — coverfo never reads Coupang accounts). For "택배 어디쯤 왔어?", "배송 조회해 줘", or when the user reads a delivery text or a tracking number, call track_parcel with text and/or carrier and invoice. It fills the carrier and tracking number on the screen; checking costs credits, so never claim a status yourself — tell the user in one short Korean sentence to press 🚚 배송 조회 on the screen (it shows the credit cost). You may mention the 🔔 배송완료 알림 button (it costs credits) — never turn anything paid on yourself. Coupang rocket delivery can only be checked in the Coupang order list.',
   /* v345: 내비 끄기 — 다른 앱을 대신 끌 수는 없어서, 그 앱을 앞으로 열어 주고 종료 단추를 누르도록 안내 */
   'STOPPING NAVIGATION: you cannot stop or close the navigation app (카카오내비, 티맵, 네이버지도 안내) yourself. When the user says "내비 꺼줘", "내비 종료해줘", "안내 종료", "길안내 그만": if the open_app tool is available, call open_app with that navigation app (usually "카카오내비") so its screen comes to the front, then say "카카오내비를 열었어요. 화면에서 안내 종료를 눌러 주세요." Otherwise just say that. Do not call end_conversation for this.',
   /* v342: 대화 중에 이름만 부르면 */
@@ -430,7 +430,7 @@ const TOOLS = [{
 }, {
   type: 'function',
   name: 'track_parcel',
-  description: 'Open the 📦 order/parcel screen: open "orders" opens the Coupang order list; otherwise reads a pasted/read delivery text or a carrier + tracking number and returns the delivery step (free).',
+  description: 'Open the 📦 order/parcel screen: open "orders" opens the Coupang order list; otherwise reads a pasted/read delivery text or a carrier + tracking number and fills them on the screen so the user can press 🚚 배송 조회 (paid, credits).',
   parameters: {
     type: 'object',
     properties: {

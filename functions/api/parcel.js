@@ -3,8 +3,9 @@
 //
 // POST /api/parcel   (Authorization: Bearer coverfo 로그인키)
 //   { op:"carriers" }                         → { ok, items:[{code,name}], live }  택배사 목록 (스마트택배 목록 · 하루 캐시, 키가 없으면 주요 택배사만)
-//   { op:"track", code, invoice }             → { ok, carrier, level, step, done, item, estimate, last:{time,where,kind}, steps:[…최근 8개] }  무료
-//   { op:"watch", code, invoice, label }      → 🔔 배송완료 알림 켜기 · PARCEL_ALERT_COST 크레딧(기본 1) · 같은 송장은 한 번만 차감
+//   { op:"track", code, invoice }             → { ok, carrier, level, step, done, item, estimate, last:{time,where,kind}, steps:[…최근 8개] }
+//                                               v364: 누를 때마다 PARCEL_TRACK_COST 크레딧(기본 1) · 조회가 안 되면 돌려줌
+//   { op:"watch", code, invoice, label }      → 🔔 배송완료 알림 켜기 · PARCEL_ALERT_COST 크레딧(기본 3 · v364) · 같은 송장은 한 번만 차감
 //   { op:"unwatch", id }                      → 알림 끄기 (아직 배송완료 전이면 크레딧을 돌려줌)
 //   { op:"watches" }                          → 내가 알림을 켠 송장 목록 (최근 20개)
 //
@@ -14,7 +15,8 @@
 // · 배송완료 확인·알림은 hub.js 의 cron_due(coverfo-cron 이 5분마다 깨움)가 한다. 14일 안에 완료가 안 보이면 크레딧을 돌려준다.
 
 const ST = 'https://info.sweettracker.co.kr/api/v1/';
-const ALERT_COST = 1;
+const ALERT_COST = 3;      /* v364: 알림 1건 3크레딧 (서버가 송장당 보통 10~15번 확인) */
+const TRACK_COST = 1;      /* v364: [🚚 배송 조회] 1번 = 1크레딧 */
 const WATCH_MAX = 20;
 const STEP = ['', '배송 준비', '집화 완료', '이동 중', '지점 도착', '배송 출발', '배송 완료'];
 const BASIC = [['04', 'CJ대한통운'], ['08', '롯데택배'], ['05', '한진택배'], ['01', '우체국택배'], ['06', '로젠택배'], ['11', '일양로지스'], ['23', '경동택배'], ['22', '대신택배'], ['46', 'CU 편의점택배'], ['24', 'GS Postbox 편의점택배'], ['53', '농협택배']];
@@ -29,15 +31,15 @@ export async function onRequestPost(context) {
   try { b = await context.request.json(); } catch { return json({ error: '잘못된 요청입니다' }, 400); }
   const op = String(b.op || '');
   try {
-    if (op === 'carriers') return json(await carriers(env));
+    if (op === 'carriers') return json(Object.assign(await carriers(env), { cost: costOf(env), trackCost: trackCostOf(env) }));
     if (op === 'track') {
       const code = cleanCode(b.code), inv = cleanInv(b.invoice);
       if (!code || !inv) return json({ error: '택배사와 송장번호를 확인해 주세요' }, 400);
-      return json(await track(env, code, inv));
+      return json(await paidTrack(env, c, uid, code, inv));
     }
     if (op === 'watch') return json(await watch(env, c, uid, b));
     if (op === 'unwatch') return json(await unwatch(env, c, uid, b));
-    if (op === 'watches') return json({ ok: true, cost: costOf(env), items: await req(c, 'GET', 'cf_parcel?select=id,code,carrier,invoice,label,level,status,last_where,last_time,done,notify,notified,notify_until,created_at&user_id=eq.' + uid + '&order=created_at.desc&limit=' + WATCH_MAX) });
+    if (op === 'watches') return json({ ok: true, cost: costOf(env), trackCost: trackCostOf(env), items: await req(c, 'GET', 'cf_parcel?select=id,code,carrier,invoice,label,level,status,last_where,last_time,done,notify,notified,notify_until,created_at&user_id=eq.' + uid + '&order=created_at.desc&limit=' + WATCH_MAX) });
     return json({ error: '잘못된 요청입니다' }, 400);
   } catch (e) {
     if (e && e.status) return json({ error: e.message }, e.status);
@@ -97,6 +99,22 @@ async function track(env, code, inv) {
   return Object.assign({ carrier: nameOf(code) }, r);
 }
 
+/* v364: [🚚 배송 조회] 누를 때마다 크레딧 · 키가 없거나 조회가 안 되면 차감하지 않음(돌려줌) */
+async function paidTrack(env, c, uid, code, inv) {
+  if (!String(env.SWEETTRACKER_KEY || '').trim()) return track(env, code, inv);
+  const cost = trackCostOf(env);
+  const job = await spend(c, uid, cost, '[배송 조회] ' + nameOf(code) + ' ' + inv.slice(-4));
+  if (job === false) throw httpErr(402, '크레딧이 부족해요 (배송 조회 ' + cost + ' 필요)');
+  let r = null;
+  try { r = await track(env, code, inv); } catch (e) { await refund(c, job); throw e; }
+  if (!r || !r.ok) { await refund(c, job); return Object.assign({}, r, { charged: 0 }); }
+  if (job != null) await rpcDone(c, job);
+  return Object.assign(r, { charged: cost });
+}
+async function rpcDone(c, job) {
+  try { await req(c, 'PATCH', 'cf_jobs?id=eq.' + Number(job), { status: 'done', updated_at: new Date().toISOString() }, 'return=minimal'); } catch {}
+}
+
 /* ── 🔔 배송완료 알림 (크레딧) ── */
 async function watch(env, c, uid, b) {
   const code = cleanCode(b.code), inv = cleanInv(b.invoice);
@@ -120,7 +138,7 @@ async function watch(env, c, uid, b) {
     last_where: now && now.ok && now.last ? now.last.where : '', last_time: now && now.ok && now.last ? now.last.time : '',
     done: false, notify: true, notified: false, job_id: job,
     notify_until: new Date(Date.now() + 14 * 86400e3).toISOString(),
-    next_check: new Date(Date.now() + 30 * 60e3).toISOString(), updated_at: new Date().toISOString(),
+    next_check: new Date(Date.now() + (now && now.ok && now.level >= 5 ? 60 : 360) * 60e3).toISOString(), updated_at: new Date().toISOString(),
   };
   try {
     const ins = await req(c, 'POST', 'cf_parcel?on_conflict=user_id,code,invoice', row, 'resolution=merge-duplicates,return=representation');
@@ -143,7 +161,8 @@ async function unwatch(env, c, uid, b) {
 }
 
 /* ── 크레딧 (plan.js 와 같은 방식 · 결제·충전 코드는 건드리지 않음) ── */
-function costOf(env) { const n = Number(env.PARCEL_ALERT_COST); return Number.isFinite(n) && n >= 0 ? n : ALERT_COST; }
+function costOf(env) { const v = env.PARCEL_ALERT_COST; const n = Number(v); return v !== undefined && v !== '' && Number.isFinite(n) && n >= 0 ? n : ALERT_COST; }
+function trackCostOf(env) { const v = env.PARCEL_TRACK_COST; const n = Number(v); return v !== undefined && v !== '' && Number.isFinite(n) && n >= 0 ? n : TRACK_COST; }
 async function rpc(c, name, args) {
   const r = await fetch(c.url + '/rest/v1/rpc/' + name, { method: 'POST', headers: { apikey: c.svc, Authorization: 'Bearer ' + c.svc, 'Content-Type': 'application/json' }, body: JSON.stringify(args) });
   const t = await r.text();

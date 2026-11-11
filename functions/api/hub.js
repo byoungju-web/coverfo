@@ -872,7 +872,7 @@ async function cronDue(env) {
 }
 
 /* ───────────── v363 📦 배송완료 알림: 알림을 켠 송장의 배송 단계를 확인 → 완료되면 웹 알림(+카톡 나에게) 한 번 ─────────────
-   · 한 번 깨울 때 최대 12건. 다음 확인: 배송출발이면 30분 뒤, 아니면 2시간 뒤
+   · 한 번 깨울 때 최대 12건. 다음 확인: 배송출발이면 1시간 뒤, 아니면 6시간 뒤 (v364) · 송장당 하루(한국 날짜) 최대 8번
    · 14일 안에 완료가 보이지 않으면 알림을 끄고 크레딧을 돌려준다 (cf_refund) · 완료 30일 뒤 지운다 */
 async function parcelCron(env, now) {
   const key = String(env.SWEETTRACKER_KEY || '').trim();
@@ -883,7 +883,18 @@ async function parcelCron(env, now) {
   let sent = 0;
   for (const p of Array.isArray(rows) ? rows : []) {
     /* 다음 확인 시각을 먼저 옮겨 두 번 처리하지 않게 */
-    const claim = await sbReq(env, 'PATCH', 'cf_parcel?id=eq.' + Number(p.id) + '&next_check=eq.' + encodeURIComponent(p.next_check), { next_check: new Date(now + 2 * 3600e3).toISOString() }, 'return=representation').catch(() => []);
+    const kday = new Date(now + 9 * 3600e3).toISOString().slice(0, 10);
+    const used = p.check_day === kday ? (Number(p.checks_today) || 0) : 0;
+    if (used >= 8) {   /* 오늘 8번 다 씀 → 내일(한국 시각 0시 5분) 다시 */
+      const tomorrow = Date.parse(kday + 'T00:05:00+09:00') + 86400e3;
+      await sbReq(env, 'PATCH', 'cf_parcel?id=eq.' + Number(p.id), { next_check: new Date(tomorrow).toISOString() }, 'return=minimal').catch(() => {});
+      continue;
+    }
+    const claimQ = 'cf_parcel?id=eq.' + Number(p.id) + '&next_check=eq.' + encodeURIComponent(p.next_check);
+    const nextAt = new Date(now + 6 * 3600e3).toISOString();
+    /* 하루 횟수 칸(v364 SQL)이 아직 없으면 횟수 없이라도 진행 */
+    const claim = await sbReq(env, 'PATCH', claimQ, { next_check: nextAt, check_day: kday, checks_today: used + 1 }, 'return=representation')
+      .catch(() => sbReq(env, 'PATCH', claimQ, { next_check: nextAt }, 'return=representation').catch(() => []));
     if (!Array.isArray(claim) || !claim.length) continue;
     if (Date.parse(p.notify_until) < now) {
       await sbReq(env, 'PATCH', 'cf_parcel?id=eq.' + Number(p.id), { notify: false, updated_at: new Date(now).toISOString() }, 'return=minimal').catch(() => {});
@@ -894,7 +905,7 @@ async function parcelCron(env, now) {
     if (!t || !t.ok) continue;
     const upd = { level: t.level, status: t.step, last_where: t.where, last_time: t.time, updated_at: new Date(now).toISOString() };
     if (!t.done) {
-      if (t.level >= 5) upd.next_check = new Date(now + 30 * 60e3).toISOString();
+      if (t.level >= 5) upd.next_check = new Date(now + 60 * 60e3).toISOString();
       await sbReq(env, 'PATCH', 'cf_parcel?id=eq.' + Number(p.id), upd, 'return=minimal').catch(() => {});
       continue;
     }
