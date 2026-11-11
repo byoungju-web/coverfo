@@ -868,7 +868,86 @@ async function cronDue(env) {
   /* v363 📦 배송완료 알림 (sql/cf_parcel.sql · SWEETTRACKER_KEY) — 표나 키가 없으면 조용히 넘어간다 */
   let parcels = 0;
   try { parcels = await parcelCron(env, now); } catch {}
-  return { ok: true, ids, pushes, kakaos, reminds, parcels };
+  /* v366 🧠 먼저 챙기기 (sql/cf_memory.sql) — 표가 없거나 켠 사람이 없으면 조용히 넘어간다 */
+  let nudges = 0;
+  try { nudges = await memNudge(env, now); } catch {}
+  return { ok: true, ids, pushes, kakaos, reminds, parcels, nudges };
+}
+
+/* ───────────── v366 🧠 먼저 챙기기: 🔔 를 켠 사람에게 하루 1번까지 ─────────────
+   · 한국 시각 9시~20시 59분에만. 하루(한국 날짜) 1번 확인하고, 알릴 것이 있으면 1건만 보낸다.
+   · 알릴 것: 📒 에서 올린 생일·기념일 3일 전·당일 / 내가 보낸 같이 정하기 링크에 친구 2명 이상이 골랐는데 아직 확정 전(12시간 지난 것)
+   · 보낼 때만 MEMORY_NUDGE_COST 크레딧(기본 1) · 크레딧이 모자라면 보내지 않음 · 웹 알림·카톡 어느 쪽도 못 보내면 돌려준다
+   · 같은 것은 두 번 알리지 않는다 (sent · 최근 60개) */
+async function memNudge(env, now) {
+  const canPush = !!(env.VAPID_PUBLIC && env.VAPID_PRIVATE), canKakao = !!String(env.KAKAO_REST_KEY || '').trim();
+  if (!canPush && !canKakao) return 0;
+  const k = new Date(now + 9 * 3600e3), hh = k.getUTCHours();
+  if (hh < 9 || hh >= 21) return 0;
+  const kday = k.toISOString().slice(0, 10);
+  let rows = [];
+  try { rows = await sbReq(env, 'GET', 'cf_memory_set?select=user_id,nudge_day,sent&nudge=eq.true&nudge_day=neq.' + kday + '&limit=25'); } catch { return 0; }
+  const v = env.MEMORY_NUDGE_COST, n = Number(v);
+  const cost = v !== undefined && v !== '' && Number.isFinite(n) && n >= 0 ? n : 1;
+  let sent = 0;
+  for (const s of Array.isArray(rows) ? rows : []) {
+    /* 오늘 확인 표시를 먼저 해서 두 번 보내지 않게 */
+    const claim = await sbReq(env, 'PATCH', 'cf_memory_set?user_id=eq.' + encodeURIComponent(s.user_id) + '&nudge_day=eq.' + encodeURIComponent(s.nudge_day || ''), { nudge_day: kday }, 'return=representation').catch(() => []);
+    if (!Array.isArray(claim) || !claim.length) continue;
+    const done = Array.isArray(s.sent) ? s.sent : [];
+    const pick = await nudgePick(env, s.user_id, now, kday, done).catch(() => null);
+    if (!pick) continue;
+    let job = null;
+    try { job = await spend(env, s.user_id, cost, 'memory:nudge'); } catch { continue; }
+    if (job === false) continue;   /* 크레딧 부족 → 보내지 않음 (차감 없음) */
+    let ok = false;
+    if (canPush) { const r = await pushUser(env, s.user_id, { title: pick.title, body: pick.body, url: pick.url, tag: 'cf-mem-' + pick.key }).catch(() => null); if (r && r.sent) ok = true; }
+    if (canKakao) { try { const r = await kakaoRow(env, s.user_id); if (r && r.is_on) { const x = await kakaoMemo(env, r, pick.title + '\n' + pick.body, 'https://coverfo.com' + pick.url, '🧠 coverfo 열기'); if (x && x.ok) ok = true; } } catch {} }
+    if (!ok) { await refund(env, job); continue; }
+    await doneJob(env, job);
+    await sbReq(env, 'PATCH', 'cf_memory_set?user_id=eq.' + encodeURIComponent(s.user_id), { sent: done.concat([pick.key]).slice(-60) }, 'return=minimal').catch(() => {});
+    sent++;
+  }
+  return sent;
+}
+async function nudgePick(env, uid, now, kday, done) {
+  const u = encodeURIComponent(uid);
+  const yr = kday.slice(0, 4), today = Date.parse(kday + 'T00:00:00Z');
+  /* ① 생일·기념일 */
+  const days = await sbReq(env, 'GET', 'cf_memory?select=text,meta&user_id=eq.' + u + '&src=eq.book&cat=eq.person&limit=60').catch(() => []);
+  const likes = await sbReq(env, 'GET', 'cf_memory?select=text&user_id=eq.' + u + '&cat=eq.like&limit=60').catch(() => []);
+  for (const d of Array.isArray(days) ? days : []) {
+    const m = d.meta || {}, md = String(m.day || '');
+    if (!/^\d{2}-\d{2}$/.test(md) || !m.name) continue;
+    let t = Date.parse(yr + '-' + md + 'T00:00:00Z');
+    if (isNaN(t)) continue;
+    if (t < today) t = Date.parse((+yr + 1) + '-' + md + 'T00:00:00Z');
+    const left = Math.round((t - today) / 86400e3);
+    if (left !== 0 && left !== 3) continue;
+    const key = 'bd:' + String(m.name).slice(0, 20) + ':' + String(m.kind || '').slice(0, 12) + ':' + kday.slice(0, 4) + ':' + left;
+    if (done.includes(key)) continue;
+    const kind = String(m.kind || '기념일');
+    const like = (Array.isArray(likes) ? likes : []).map((x) => String(x.text || '')).find((x) => x.includes(String(m.name)));
+    const happy = !/(기일|제사)/.test(kind);
+    return {
+      key,
+      title: '🎂 ' + m.name + ' ' + kind + (left ? '이 3일 남았어요' : '이 오늘이에요'),
+      body: (like ? like.replace(/^늘 먹던 것 · /, '') + ' · ' : '') + (happy ? '눌러서 선물·식당 찾기' : '눌러서 알림 맞추기'),
+      url: '/?mem=bd&n=' + encodeURIComponent(String(m.name).slice(0, 20)),
+    };
+  }
+  /* ② 같이 정하기: 친구들이 골랐는데 아직 확정 전 */
+  const sh = await sbReq(env, 'GET', 'cf_share?select=id,title,data,created_at&user_id=eq.' + u + '&expires_at=gt.' + encodeURIComponent(new Date(now).toISOString()) + '&created_at=lt.' + encodeURIComponent(new Date(now - 12 * 3600e3).toISOString()) + '&order=created_at.desc&limit=5').catch(() => []);
+  for (const s of Array.isArray(sh) ? sh : []) {
+    if (s.data && s.data.final) continue;
+    const key = 'sh:' + s.id;
+    if (done.includes(key)) continue;
+    const vs = await sbReq(env, 'GET', 'cf_share_vote?select=voter&share_id=eq.' + encodeURIComponent(s.id) + '&limit=300').catch(() => []);
+    const friends = new Set((Array.isArray(vs) ? vs : []).map((x) => x.voter)).size;
+    if (friends < 2) continue;
+    return { key, title: '👥 친구 ' + friends + '명이 골랐어요', body: '"' + String(s.title || '같이 정하기').slice(0, 30) + '" 결과를 보고 정해 보세요', url: '/?mem=1' };
+  }
+  return null;
 }
 
 /* ───────────── v363 📦 배송완료 알림: 알림을 켠 송장의 배송 단계를 확인 → 완료되면 웹 알림(+카톡 나에게) 한 번 ─────────────
