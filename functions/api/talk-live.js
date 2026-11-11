@@ -97,7 +97,7 @@ const INSTRUCTIONS = [
   /* v361 📩 예약 문의 답장 정리 */
   'SHOP REPLY: a system note starting with "SHOP REPLY" comes from the coverfo screen after the user pasted a shop\'s answer to a reservation inquiry — speak first: say the result in one short Korean sentence and ask the next step (e.g. "8시는 가능하대요. 8시로 확정 문자 보낼까요?", "예약이 어렵대요. 2번 가게에 물어볼까요?"). When the user tells you what the shop answered ("가게에서 8시는 된대", "답장 왔는데 만석이래", "이렇게 왔어: …"), call shop_reply with that text (and when/people if known); it fills the screen with the summary and reply buttons. If the user agrees to confirm and send_sms is available, call send_sms with the shop phone as "to", the shop name as "label" and the suggested reply text (confirmed false first); otherwise tell them to press the ✅ button on the screen. Never handle deposits or account numbers — tell the user to check a deposit with the shop directly.',
   /* v363 📦 주문·배송 조회 */
-  'PARCELS: for "쿠팡 주문 내역 보여 줘", "주문한 거 보여 줘" call track_parcel with open "orders" (it opens the Coupang order list; the user logs in there — coverfo never reads Coupang accounts). For "택배 어디쯤 왔어?", "배송 조회해 줘", or when the user reads a delivery text or a tracking number, call track_parcel with text and/or carrier and invoice. It fills the carrier and tracking number on the screen; checking costs credits, so never claim a status yourself — tell the user in one short Korean sentence to press 🚚 배송 조회 on the screen (it shows the credit cost). You may mention the 🔔 배송완료 알림 button (it costs credits) — never turn anything paid on yourself. Coupang rocket delivery can only be checked in the Coupang order list.',
+  'PARCELS: for "쿠팡 주문 내역 보여 줘", "11번가 주문한 거", "G마켓 주문 내역", "네이버 주문 내역" call track_parcel with open "orders" and mall (쿠팡, 네이버쇼핑, 11번가, G마켓; default 쿠팡) — it opens that mall; the user logs in there (coverfo never reads shopping-mall accounts). Parcels from any mall can be tracked with the carrier and tracking number. For "택배 어디쯤 왔어?", "배송 조회해 줘", or when the user reads a delivery text or a tracking number, call track_parcel with text and/or carrier and invoice. It fills the carrier and tracking number on the screen; checking costs credits, so never claim a status yourself — tell the user in one short Korean sentence to press 🚚 배송 조회 on the screen (it shows the credit cost). You may mention the 🔔 배송완료 알림 button (it costs credits) — never turn anything paid on yourself. Coupang rocket delivery can only be checked in the Coupang order list.',
   /* v345: 내비 끄기 — 다른 앱을 대신 끌 수는 없어서, 그 앱을 앞으로 열어 주고 종료 단추를 누르도록 안내 */
   'STOPPING NAVIGATION: you cannot stop or close the navigation app (카카오내비, 티맵, 네이버지도 안내) yourself. When the user says "내비 꺼줘", "내비 종료해줘", "안내 종료", "길안내 그만": if the open_app tool is available, call open_app with that navigation app (usually "카카오내비") so its screen comes to the front, then say "카카오내비를 열었어요. 화면에서 안내 종료를 눌러 주세요." Otherwise just say that. Do not call end_conversation for this.',
   /* v342: 대화 중에 이름만 부르면 */
@@ -430,11 +430,12 @@ const TOOLS = [{
 }, {
   type: 'function',
   name: 'track_parcel',
-  description: 'Open the 📦 order/parcel screen: open "orders" opens the Coupang order list; otherwise reads a pasted/read delivery text or a carrier + tracking number and fills them on the screen so the user can press 🚚 배송 조회 (paid, credits).',
+  description: 'Open the 📦 order/parcel screen: open "orders" opens a shopping mall (Coupang order list, Naver Shopping, 11st, Gmarket); otherwise reads a pasted/read delivery text or a carrier + tracking number and fills them on the screen so the user can press 🚚 배송 조회 (paid, credits).',
   parameters: {
     type: 'object',
     properties: {
       open: { type: 'string', enum: ['orders', 'parcel'] },
+      mall: { type: 'string', description: 'For open "orders": 쿠팡, 네이버쇼핑, 11번가 or G마켓' },
       text: { type: 'string', description: 'Delivery message text the user read or pasted' },
       carrier: { type: 'string', description: 'Carrier name, e.g. "CJ대한통운", "롯데", "한진", "우체국", "로젠"' },
       invoice: { type: 'string', description: 'Tracking number, digits only' },
