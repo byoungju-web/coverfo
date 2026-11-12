@@ -1,4 +1,4 @@
-// functions/api/tour.js — coverfo 🎪 축제·행사 + 🏞 가볼 만한 곳 + ⛺ 캠핑장(v380) (v371 · v372: 축제 한 쪽 100건씩 · 지역코드로 0건이면 전국에서 주소로 거르기) · 한국관광공사 TourAPI 4.0 (국문 관광정보 서비스 KorService2) · 무료
+// functions/api/tour.js — coverfo 🎪 축제·행사 + 🏞 가볼 만한 곳 + ⛺ 캠핑장(v380) + 🌤 날씨·📷 캠핑장 사진(v381) (v371 · v372: 축제 한 쪽 100건씩 · 지역코드로 0건이면 전국에서 주소로 거르기) · 한국관광공사 TourAPI 4.0 (국문 관광정보 서비스 KorService2) · 무료
 // © 2026 coverfo All Rights Reserved
 //
 // POST /api/tour   (Authorization: Bearer coverfo 로그인키 — 하루 호출 한도(개발계정 1,000건)를 지키려고 로그인한 사람만)
@@ -10,7 +10,10 @@
 //   → { ok, kind, region, from, to, page, more, total, items:[{ id, title, addr, tel, img, x, y, start, end, dist, type }], source }
 //   { op:"camp", region, type?, page? }      → v380 ⛺ 캠핑장 (한국관광공사_고캠핑 정보 조회서비스 GoCamping · locationBasedList 반경 20km 가까운 순)
 //        type: all | auto 자동차야영장 | glamp 글램핑 | carav 카라반 | pet 반려견 가능 · 항목에 intro·pet·fac·season·days·resv·home 추가
-//   ※ 반려동물·무장애·고캠핑은 공공데이터포털에서 각각 [활용신청]이 따로 필요 (같은 인증키)
+//   { op:"campimg", id }                       → v381 📷 캠핑장 사진 더 보기 (고캠핑 imageList) → { ok, imgs:[url] }
+//   v381 🌤 첫 쪽 결과에 wx(그 지역 날씨: 기상청 단기예보 VilageFcstInfoService_2.0 getVilageFcst) — { days:[{ d, lo, hi, sky, pty, pop }] } 또는 { err }
+//        키: KMA_API_KEY (없으면 TOUR_API_KEY 같은 공공데이터포털 인증키) · '기상청_단기예보 조회서비스' [활용신청] 필요 · 1시간 캐시
+//   ※ 반려동물·무장애·고캠핑·기상청은 공공데이터포털에서 각각 [활용신청]이 따로 필요 (같은 인증키)
 //   v374 🌐 lang: ko(기본) | en 영문 EngService2 | ja 일문 JpnService2 | zh 중문 간체 ChsService2 | tw 중문 번체 ChtService2 — 축제·가볼 만한 곳만 (반려동물·무장애는 한국어만)
 //        외국어 서비스도 각각 [활용신청] 필요 · 외국어 서비스는 관광지 종류 번호가 76 (한국어 12)
 //   v374 지역: 법정동 시·도 코드(lDongRegnCd)로 먼저 찾고(외국어 서비스는 예전 지역코드를 '미사용·삭제 예정'으로 안내), 0건이면 예전 지역코드 → 전국에서 거리로 거르기
@@ -51,7 +54,20 @@ export async function onRequestPost(context) {
   const key = String(env.TOUR_API_KEY || '').trim();
   if (!key) return json({ error: '관광정보 설정이 아직 없어요 (TOUR_API_KEY)', setup: true }, 500);
   const op = String(b.op || '');
-  if (!['festival', 'spot', 'pet', 'free', 'camp', 'petinfo', 'freeinfo'].includes(op)) return json({ error: '잘못된 요청입니다' }, 400);
+  if (!['festival', 'spot', 'pet', 'free', 'camp', 'petinfo', 'freeinfo', 'campimg'].includes(op)) return json({ error: '잘못된 요청입니다' }, 400);
+  if (op === 'campimg') {
+    const id = String(b.id || '');
+    if (!/^\d{1,12}$/.test(id)) return json({ error: '잘못된 요청입니다' }, 400);
+    try {
+      const rows = await call(env, key, 'imageList', { contentId: id, numOfRows: '20', pageNo: '1' }, 'camp');
+      const imgs = [];
+      for (const r of rows) { for (const k of Object.keys(r || {})) { const v = String(r[k] || '').trim(); if (/(image|img)/i.test(k) && /^https?:\/\/[\w.-]+\//.test(v)) { const u = v.replace(/^http:\/\//, 'https://').slice(0, 300); if (!imgs.includes(u)) imgs.push(u); break; } } }
+      return json({ ok: true, id, imgs: imgs.slice(0, 20), source: '한국관광공사 고캠핑' });
+    } catch (e) {
+      if (e && e.status) return json({ error: e.message }, e.status);
+      return json({ error: String((e && e.message) || e).slice(0, 200) }, 502);
+    }
+  }
   if (op === 'petinfo' || op === 'freeinfo') {
     const id = String(b.id || '');
     if (!/^\d{1,12}$/.test(id)) return json({ error: '잘못된 요청입니다' }, 400);
@@ -77,6 +93,8 @@ export async function onRequestPost(context) {
     const geo = region ? await where(env, region) : null;
     if (region && !geo) return json({ ok: false, notFound: true, note: '"' + region + '" 지역을 찾지 못했어요' });
     let all, from = '', to = '';
+    /* v381 🌤 첫 쪽만: 그 지역(도시 좌표 · 시·도면 시청·도청) 날씨를 함께 (실패해도 목록은 그대로) */
+    const wxP = page === 1 && geo ? center(env, geo).then((c) => (c ? weather(env, c) : null)).catch(() => null) : Promise.resolve(null);
     if (op === 'festival') {
       const r = range(String(b.when || ''));
       from = r.from; to = r.to;
@@ -89,7 +107,8 @@ export async function onRequestPost(context) {
       all = await places(env, key, geo, op, String(b.type || 'all'));
     }
     const items = all.slice((page - 1) * PER, page * PER);
-    return json({ ok: true, kind: op, lang, region: geo ? geo.label : (lang === 'ko' ? '전국' : ''), from, to, page, total: all.length, more: all.length > page * PER, items, source: '한국관광공사 TourAPI' });
+    const wx = await wxP;
+    return json({ ok: true, kind: op, lang, wx: wx || undefined, region: geo ? geo.label : (lang === 'ko' ? '전국' : ''), from, to, page, total: all.length, more: all.length > page * PER, items, source: '한국관광공사 TourAPI' });
   } catch (e) {
     if (e && e.status) return json({ error: e.message }, e.status);
     return json({ error: String((e && e.message) || e).slice(0, 200) }, 502);
@@ -246,6 +265,59 @@ function campNorm(x) {
     resvUrl: url('resveUrl'),
     home: url('homepage'),
   };
+}
+/* ── v381 🌤 기상청 단기예보: 위경도 → 격자(nx, ny) · 가장 최근 발표(02·05·…·23시, 발표 15분 뒤부터) · 날짜별 최저·최고·하늘·비·강수확률 ── */
+const KMA = 'https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst';
+function grid(lat, lon) {
+  const RE = 6371.00877 / 5.0, DEG = Math.PI / 180, s1 = 30 * DEG, s2 = 60 * DEG, olon = 126 * DEG, olat = 38 * DEG;
+  let sn = Math.log(Math.cos(s1) / Math.cos(s2)) / Math.log(Math.tan(Math.PI * 0.25 + s2 * 0.5) / Math.tan(Math.PI * 0.25 + s1 * 0.5));
+  let sf = Math.pow(Math.tan(Math.PI * 0.25 + s1 * 0.5), sn) * Math.cos(s1) / sn;
+  const ro = RE * sf / Math.pow(Math.tan(Math.PI * 0.25 + olat * 0.5), sn);
+  const ra = RE * sf / Math.pow(Math.tan(Math.PI * 0.25 + lat * DEG * 0.5), sn);
+  let th = lon * DEG - olon; if (th > Math.PI) th -= 2 * Math.PI; if (th < -Math.PI) th += 2 * Math.PI; th *= sn;
+  return { nx: Math.floor(ra * Math.sin(th) + 43 + 0.5), ny: Math.floor(ro - ra * Math.cos(th) + 136 + 0.5) };
+}
+function kmaBase(now) {
+  const k = new Date(now + 9 * 3600e3 - 15 * 60e3);   /* 발표 뒤 10분쯤 올라와 15분 여유 */
+  const h = k.getUTCHours();
+  const hs = [23, 20, 17, 14, 11, 8, 5, 2].find((x) => x <= h);
+  if (hs === undefined) { const y = new Date(k.getTime() - 86400e3); return { date: y.toISOString().slice(0, 10).replace(/-/g, ''), time: '2300' }; }
+  return { date: k.toISOString().slice(0, 10).replace(/-/g, ''), time: String(hs).padStart(2, '0') + '00' };
+}
+async function weather(env, c) {
+  const key = String(env.KMA_API_KEY || env.TOUR_API_KEY || '').trim();
+  if (!key || !c || !c.x || !c.y) return null;
+  const g = grid(+c.y, +c.x), base = kmaBase(Date.now());
+  const q = new URLSearchParams({ pageNo: '1', numOfRows: '1500', dataType: 'JSON', base_date: base.date, base_time: base.time, nx: String(g.nx), ny: String(g.ny) });
+  const cache = typeof caches !== 'undefined' && caches.default ? caches.default : null;
+  const ck = new Request('https://cache.coverfo.com/kma/' + q.toString());
+  if (cache) { const h = await cache.match(ck).catch(() => null); if (h) { const j = await h.json().catch(() => null); if (j) return j; } }
+  let t;
+  try { const r = await fetch(KMA + '?serviceKey=' + encodeURIComponent(key) + '&' + q.toString(), { headers: { Accept: 'application/json' } }); t = await r.text(); } catch { return null; }
+  if (/SERVICE_KEY_IS_NOT_REGISTERED|SERVICE KEY IS NOT/i.test(t)) return { err: 'apply' };
+  if (/LIMITED_NUMBER_OF_SERVICE_REQUESTS/i.test(t)) return { err: 'limit' };
+  let d; try { d = JSON.parse(t); } catch { return null; }
+  const code = String((d && d.response && d.response.header && d.response.header.resultCode) || '');
+  if (code !== '00' && code !== '0000') return null;
+  let it = d.response.body && d.response.body.items ? d.response.body.items.item : [];
+  if (!Array.isArray(it)) it = it ? [it] : [];
+  const days = {};
+  for (const r of it) {
+    const day = String(r.fcstDate || ''), v = String(r.fcstValue || ''), hh = +String(r.fcstTime || '0000').slice(0, 2);
+    if (!/^\d{8}$/.test(day)) continue;
+    const o = days[day] || (days[day] = { d: day, lo: null, hi: null, tmn: null, tmx: null, sky: 0, pty: 0, pop: 0 });
+    const n = parseFloat(v);
+    if (r.category === 'TMP' && isFinite(n)) { o.lo = o.lo == null ? n : Math.min(o.lo, n); o.hi = o.hi == null ? n : Math.max(o.hi, n); }
+    else if (r.category === 'TMN' && isFinite(n)) o.tmn = n;
+    else if (r.category === 'TMX' && isFinite(n)) o.tmx = n;
+    else if (r.category === 'POP' && isFinite(n)) o.pop = Math.max(o.pop, n);
+    else if (r.category === 'PTY' && +v > 0 && !o.pty) o.pty = +v;   /* 1 비 · 2 비/눈 · 3 눈 · 4 소나기 */
+    else if (r.category === 'SKY' && hh >= 9 && hh <= 18) o.sky = Math.max(o.sky, +v || 0);   /* 낮 하늘 중 가장 흐린 것: 1 맑음 · 3 구름많음 · 4 흐림 */
+  }
+  const out = Object.keys(days).sort().slice(0, 4).map((k) => { const o = days[k]; return { d: o.d, lo: Math.round(o.tmn != null ? o.tmn : o.lo), hi: Math.round(o.tmx != null ? o.tmx : o.hi), sky: o.sky || 1, pty: o.pty, pop: o.pop }; }).filter((o) => isFinite(o.lo) && isFinite(o.hi));
+  const res = out.length ? { days: out, src: '기상청 단기예보', base: base.date + base.time } : null;
+  if (res && cache) { try { await cache.put(ck, new Response(JSON.stringify(res), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' } })); } catch {} }
+  return res;
 }
 /* 시·도 중심 좌표 (시청·도청) · 두 점 거리(km) */
 async function center(env, geo) {

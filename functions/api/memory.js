@@ -12,11 +12,12 @@
 //   { op:"suggest" }                     → 👣 발자취(켠 경우)에서 자주 하는 일을 찾아 "이거 기억할까요?" 최대 3개 (저장은 이용자가 누를 때만)
 //   { op:"dismiss", key }                → 그 제안은 다시 묻지 않기
 //
+//   v381 src "tour": 축제·관광지·캠핑장 카드의 [⭐ 저장] (장소 이름·종류·주소만 · 전화번호는 넣지 않음)
 // · 저장소: Supabase cf_memory · cf_memory_set (sql/cf_memory.sql 1번 실행). 서버(service_role)만 읽고 쓴다.
 // · 저장하지 않는 것: 건강·병명·약, 긴 숫자(전화·카드·계좌처럼 보이는 것), 비밀번호·주민번호. 다른 표(cf_me·cf_remind·cf_share·cf_parcel·cf_trail)는 읽기만 한다.
 
 const CATS = ['me', 'person', 'place', 'like', 'habit'];
-const SRCS = ['talk', 'home', 'center', 'book', 'habit'];
+const SRCS = ['talk', 'home', 'center', 'book', 'habit', 'tour'];   /* v381 tour: 🗺 관광 정보 카드의 ⭐ 저장 */
 const MAX_ITEMS = 200;
 const NUDGE_COST = 1;
 
