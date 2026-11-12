@@ -4,7 +4,11 @@
 // POST /api/tour   (Authorization: Bearer coverfo 로그인키 — 하루 호출 한도(개발계정 1,000건)를 지키려고 로그인한 사람만)
 //   { op:"festival", region?, when?, page? } → 그 지역(없으면 전국)에서 그 기간(기본: 오늘부터 30일)에 열리는 축제·공연·행사
 //   { op:"spot", region, page? }             → 그 지역 가볼 만한 곳 (관광지) · 도시면 반경 20km 가까운 순, 시·도면 그 시·도 전체
-//   → { ok, kind, region, from, to, page, more, total, items:[{ id, title, addr, tel, img, x, y, start, end, dist }], source }
+//   { op:"pet", region, type?, page? }       → v373 🐶 반려동물 동반 가능한 곳 (한국관광공사_반려동물_동반여행_서비스 KorPetTourService2) · type: all | spot | stay | food
+//   { op:"free", region, type?, page? }      → v373 ♿ 무장애 여행 (휠체어·유모차 · 한국관광공사_무장애 여행 정보 KorWithService2)
+//   { op:"petinfo", id } / { op:"freeinfo", id } → 그곳의 동반 조건 · 무장애 편의시설 (detailPetTour2 · detailWithTour2) — 카드에서 누를 때만
+//   → { ok, kind, region, from, to, page, more, total, items:[{ id, title, addr, tel, img, x, y, start, end, dist, type }], source }
+//   ※ 반려동물·무장애는 공공데이터포털에서 각각 [활용신청]이 따로 필요 (같은 인증키)
 //
 // · 키: Cloudflare 비밀값 TOUR_API_KEY (공공데이터포털 '일반 인증키(Decoding)') · 지역 좌표 찾기는 카카오 키워드 검색(KAKAO_REST_KEY, 장소 목록과 같은 키)
 // · 같은 검색은 6시간 동안 Cloudflare 캐시에 저장해 다시 부르지 않는다 (개발계정 하루 1,000건 아끼기)
@@ -12,6 +16,12 @@
 // · 출처: 한국관광공사 — 화면에 늘 표시. 내용·사진은 바꾸지 않고 그대로 보여 준다
 
 const BASE = 'https://apis.data.go.kr/B551011/KorService2/';
+const SVC = { kor: BASE, pet: 'https://apis.data.go.kr/B551011/KorPetTourService2/', free: 'https://apis.data.go.kr/B551011/KorWithService2/' };
+/* 종류 → 관광공사 contentTypeId (12 관광지 · 32 숙박 · 39 음식점(카페 포함)) */
+const TYPE = { spot: '12', stay: '32', food: '39' };
+/* 상세 칸 이름 (한국관광공사 응답 필드 → 한국어) · 모르는 칸은 보여 주지 않음 */
+const PET_LABEL = { acmpyTypeCd: '동반 구분', acmpyPsblCpam: '동반 가능 동물', acmpyNeedMtr: '동반 시 필요 사항', etcAcmpyInfo: '기타 동반 정보', relaPosesFclty: '관련 구비 시설', relaFrnshPrdlst: '비치 물품', relaRntlPrdlst: '대여 물품', relaPurcPrdlst: '구매 가능 물품', relaAcdntRiskMtr: '사고 대비 사항' };
+const FREE_LABEL = { wheelchair: '♿ 휠체어', exit: '출입 통로', elevator: '엘리베이터', restroom: '화장실', parking: '주차', route: '접근로', publictransport: '대중교통', ticketoffice: '매표소', promotion: '안내', auditorium: '관람석', room: '객실', handicapetc: '지체장애 기타', stroller: '👶 유모차', lactationroom: '수유실', babysparechair: '유아용 의자', infantsfamilyetc: '영유아 가족 기타', braileblock: '점자 블록', helpdog: '보조견 동반', guidehuman: '안내 요원', audioguide: '오디오 가이드', bigprint: '큰 활자', brailepromotion: '점자 홍보물', guidesystem: '유도 안내', blindhandicapetc: '시각장애 기타', signguide: '수어 안내', videoguide: '자막 영상', hearingroom: '청각 보조', hearinghandicapetc: '청각장애 기타' };
 const PER = 10;
 const TTL = 6 * 3600;
 /* 한국관광공사 지역코드 (areaCode) */
@@ -31,11 +41,25 @@ export async function onRequestPost(context) {
   const key = String(env.TOUR_API_KEY || '').trim();
   if (!key) return json({ error: '관광정보 설정이 아직 없어요 (TOUR_API_KEY)', setup: true }, 500);
   const op = String(b.op || '');
-  if (op !== 'festival' && op !== 'spot') return json({ error: '잘못된 요청입니다' }, 400);
+  if (!['festival', 'spot', 'pet', 'free', 'petinfo', 'freeinfo'].includes(op)) return json({ error: '잘못된 요청입니다' }, 400);
+  if (op === 'petinfo' || op === 'freeinfo') {
+    const id = String(b.id || '');
+    if (!/^\d{1,12}$/.test(id)) return json({ error: '잘못된 요청입니다' }, 400);
+    try {
+      const pet = op === 'petinfo';
+      const rows = await call(env, key, pet ? 'detailPetTour2' : 'detailWithTour2', { contentId: id }, pet ? 'pet' : 'free');
+      const it = rows[0] || {}, L = pet ? PET_LABEL : FREE_LABEL, info = [];
+      for (const k of Object.keys(L)) { const v = clean(String(it[k] || '').replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]*>/g, ' '), 200); if (v && v !== '0') info.push({ k: L[k], v }); }
+      return json({ ok: true, id, info, source: '한국관광공사 TourAPI' });
+    } catch (e) {
+      if (e && e.status) return json({ error: e.message }, e.status);
+      return json({ error: String((e && e.message) || e).slice(0, 200) }, 502);
+    }
+  }
   const region = clean(b.region, 30);
   const page = Math.max(1, Math.min(10, parseInt(b.page, 10) || 1));
   try {
-    if (op === 'spot' && !region) return json({ ok: false, need: 'region', note: '어느 지역인지 알려 주세요 (예: 속초, 경주, 제주)' });
+    if (op !== 'festival' && !region) return json({ ok: false, need: 'region', note: '어느 지역인지 알려 주세요 (예: 속초, 경주, 제주)' });
     const geo = region ? await where(env, region) : null;
     if (region && !geo) return json({ ok: false, notFound: true, note: '"' + region + '" 지역을 찾지 못했어요' });
     let all, from = '', to = '';
@@ -43,8 +67,10 @@ export async function onRequestPost(context) {
       const r = range(String(b.when || ''));
       from = r.from; to = r.to;
       all = await festivals(env, key, geo, from, to);
-    } else {
+    } else if (op === 'spot') {
       all = await spots(env, key, geo);
+    } else {
+      all = await places(env, key, geo, op, String(b.type || 'all'));
     }
     const items = all.slice((page - 1) * PER, page * PER);
     return json({ ok: true, kind: op, region: geo ? geo.label : '전국', from, to, page, total: all.length, more: all.length > page * PER, items, source: '한국관광공사 TourAPI' });
@@ -149,18 +175,32 @@ async function spots(env, key, geo) {
   return list.filter((x) => x.img).concat(list.filter((x) => !x.img));
 }
 
-async function call(env, key, op, params) {
+/* ── v373 🐶 반려동물 동반 · ♿ 무장애: 같은 방식(가까운 순 20km · 시·도면 지역 전체)으로 각 서비스에서 ── */
+async function places(env, key, geo, svc, type) {
+  const ct = TYPE[type] || '';
+  const p = { numOfRows: '100', pageNo: '1' };
+  if (ct) p.contentTypeId = ct;
+  let rows;
+  if (geo.x && geo.y) rows = await call(env, key, 'locationBasedList2', Object.assign({ mapX: String(geo.x), mapY: String(geo.y), radius: '20000', arrange: 'E' }, p), svc);
+  else rows = await call(env, key, 'areaBasedList2', Object.assign({ areaCode: String(geo.area), arrange: 'Q' }, p), svc);
+  const list = rows.map((x) => Object.assign(norm(x), { type: typeName(x.contenttypeid) }));
+  return list.filter((x) => x.img).concat(list.filter((x) => !x.img));
+}
+function typeName(id) { return { 12: '관광지', 14: '문화시설', 15: '행사', 25: '여행코스', 28: '레포츠', 32: '숙박', 38: '쇼핑', 39: '음식점·카페' }[+id] || ''; }
+
+async function call(env, key, op, params, svc) {
+  const base = SVC[svc] || BASE;
   const q = new URLSearchParams(Object.assign({ MobileOS: 'ETC', MobileApp: 'coverfo', _type: 'json' }, params));
-  const cacheKey = new Request('https://cache.coverfo.com/tour/' + op + '?' + q.toString());
+  const cacheKey = new Request('https://cache.coverfo.com/tour/' + (svc || 'kor') + '/' + op + '?' + q.toString());
   const cache = typeof caches !== 'undefined' && caches.default ? caches.default : null;
   if (cache) { const hit = await cache.match(cacheKey).catch(() => null); if (hit) { const j = await hit.json().catch(() => null); if (Array.isArray(j)) return j; } }
-  const url = BASE + op + '?serviceKey=' + encodeURIComponent(key) + '&' + q.toString();
+  const url = base + op + '?serviceKey=' + encodeURIComponent(key) + '&' + q.toString();
   const r = await fetch(url, { headers: { Accept: 'application/json' } });
   const t = await r.text();
   if (!r.ok) throw httpErr(502, '관광정보를 불러오지 못했어요 (' + r.status + ')');
   let d;
   try { d = JSON.parse(t); } catch {
-    if (/SERVICE_KEY_IS_NOT_REGISTERED|SERVICE KEY/i.test(t)) throw httpErr(502, '관광정보 인증키가 아직 등록 전이에요. 승인 직후면 잠시 뒤 다시 해 보세요');
+    if (/SERVICE_KEY_IS_NOT_REGISTERED|SERVICE KEY/i.test(t)) throw httpErr(502, svc === 'pet' ? '반려동물 동반여행 서비스 활용신청이 아직 안 됐어요 (공공데이터포털에서 [활용신청] · 승인 직후면 잠시 뒤 다시)' : svc === 'free' ? '무장애 여행 정보 활용신청이 아직 안 됐어요 (공공데이터포털에서 [활용신청] · 승인 직후면 잠시 뒤 다시)' : '관광정보 인증키가 아직 등록 전이에요. 승인 직후면 잠시 뒤 다시 해 보세요');
     if (/LIMITED_NUMBER_OF_SERVICE_REQUESTS/i.test(t)) throw httpErr(429, '오늘 관광정보 조회 한도를 다 썼어요. 내일 다시 해 주세요');
     throw httpErr(502, '관광정보 응답을 읽지 못했어요');
   }
