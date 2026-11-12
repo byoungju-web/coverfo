@@ -1,10 +1,12 @@
-// functions/api/food.js — coverfo 🍲 한국 음식 이야기 (v376) · 한국관광공사_관광음식 정보 서비스 (FoodService) · 무료
+// functions/api/food.js — coverfo 🍲 한국 음식 이야기 (v378) · 한국관광공사_관광음식 정보 서비스 (FoodService) · 무료
 // © 2026 coverfo All Rights Reserved
 //
 // POST /api/food   (Authorization: Bearer coverfo 로그인키)
 //   { op:"list", q?, lang?, page? }  → 음식 목록 (q: 음식 이름 낱말 · lang: ko|en|ja|zh|tw)
 //   { op:"detail", id, lang? }       → 음식 하나 자세히
-//   → { ok, items:[{ id, name, nameKo, img, desc, cat }], total, more, source, diag? }
+//   → { ok, items:[{ id, name, nameKo, en, roman, img, desc, cat }], total, more, source, diag? }
+//   ※ v378: 목록에 한국어(kor)가 없어 한국어 화면은 영어 자료(eng)를 받아, 이름 괄호 속 한글 "(전복돌솥밥 / Jeonbokdolsotbap)"을 한국어 이름으로 쓴다.
+//     한글이 아닌 값(예: 코드)은 한국어 이름으로 쓰지 않는다. 설명은 상세(/foodDetailInfo)에서 누를 때 받는다.
 //
 // · 키: Cloudflare 비밀값 TOUR_API_KEY (축제·관광지와 같은 공공데이터포털 인증키) · 공공데이터포털에서 '한국관광공사_관광음식 정보 서비스' [활용신청] 필요
 // · 공공데이터포털 안내: 주소 https://apis.data.go.kr/B551011/FoodService · 음식 정보 목록/상세/동기화/카테고리 4가지 · langDivCd(eng·jpn·chs·cht…)
@@ -13,7 +15,7 @@
 // · 같은 검색은 6시간 캐시 · 이용자 정보는 보내지 않음 · 출처: 한국관광공사 표시
 
 const BASE = 'https://apis.data.go.kr/B551011/FoodService/';
-const LANG = { ko: '', en: 'eng', ja: 'jpn', zh: 'chs', tw: 'cht' };
+const LANG = { ko: 'eng', en: 'eng', ja: 'jpn', zh: 'chs', tw: 'cht' };   /* v378: 목록에 kor 가 없어 한국어 화면도 eng (괄호 속 한글 이름 사용) */
 /* v377: 공공데이터포털 활용신청 상세기능정보로 확인한 경로 — 목록 /foodList · 상세 /foodDetailInfo (동기화 /foodSyncList · 카테고리 /foodCtgryCode) */
 const LIST_OPS = ['foodList'];
 const DETAIL_OPS = ['foodDetailInfo'];
@@ -36,8 +38,7 @@ export async function onRequestPost(context) {
       const r = await tryOps(key, 'list', LIST_OPS, p);
       if (!r.ok) return json({ ok: false, error: r.error, diag: r.diag });
       let items = r.items.map(norm).filter((x) => x.name);
-      if (lang === 'ko') items = preferKo(items, r.items);
-      return json({ ok: true, lang, q, page, total: r.total, more: r.total > page * PER, items, source: '한국관광공사', diag: items.length ? undefined : { op: r.op, keys: r.items[0] ? Object.keys(r.items[0]).slice(0, 40) : [] } });
+      return json({ ok: true, lang, q, page, total: r.total, more: r.total > page * PER, items, source: '한국관광공사', diag: { op: r.op, keys: r.items[0] ? Object.keys(r.items[0]).slice(0, 40) : [] } });
     }
     if (b.op === 'detail') {
       const id = String(b.id || '');
@@ -47,7 +48,7 @@ export async function onRequestPost(context) {
       const r = await tryOps(key, 'detail', DETAIL_OPS, p);
       if (!r.ok) return json({ ok: false, error: r.error, diag: r.diag });
       const it = r.items[0] ? norm(r.items[0]) : null;
-      return json({ ok: !!it, item: it, source: '한국관광공사', diag: it ? undefined : { op: r.op } });
+      return json({ ok: !!it, item: it, source: '한국관광공사', diag: (it && it.desc) ? undefined : { op: r.op, keys: r.items[0] ? Object.keys(r.items[0]).slice(0, 40) : [] } });
     }
     return json({ error: '잘못된 요청입니다' }, 400);
   } catch (e) {
@@ -108,25 +109,30 @@ function norm(x) {
   if (!x || typeof x !== 'object') return { name: '' };
   const ks = Object.keys(x), str = (k) => (typeof x[k] === 'string' || typeof x[k] === 'number') ? String(x[k]).trim() : '';
   const pick = (re, not) => { for (const k of ks) { if (re.test(k) && !(not && not.test(k)) && str(k)) return str(k); } return ''; };
-  const id = pick(/^(contentid|contentId|foodId|foodid|id|foodCd|foodcd|fdId|cntntsId)$/i);
+  const id = pick(/^(contentid|contentId|foodId|foodid|id|foodCd|foodcd|fdId|cntntsId)$/i) || pick(/(id|cd|sn)$/i, /(lang|ctgry|category|area|sigungu|img|image)/i);
   const name = pick(/(food(nm|name)|^nm$|name$|^title$|fdnm|foodnmeng|foodNm)/i, /(ctgry|category|kor|ko$|area|addr|lang)/i) || pick(/(nm|name|title)$/i, /(ctgry|category|area|addr|lang)/i);
-  const nameKo = pick(/(kor|korNm|nmKor|foodNmKor|krNm|nmKo)/i);
+  /* v378: 한글이 들어 있는 값만 한국어 이름 (코드 같은 값은 버림) */
+  const hasKo = (v) => /[가-힣]/.test(v);
+  let nameKo = ''; for (const k of ks) { if (/(kor|nmko|krnm)/i.test(k) && hasKo(str(k))) { nameKo = str(k); break; } }
+  /* 이름 "Abalone Hot Stone Pot Rice (전복돌솥밥 / Jeonbokdolsotbap)" → 영어 · 한글 · 로마자 */
+  let en = name, roman = '';
+  const m = String(name).match(/^(.*?)\s*[(（]([^()（）]*)[)）]\s*$/);
+  if (m) {
+    const parts = m[2].split(/\s*[\/／,]\s*/).filter(Boolean);
+    const ko = parts.find(hasKo);
+    if (ko) { if (!nameKo) nameKo = ko; en = m[1] || name; roman = parts.filter((x) => x !== ko && !hasKo(x)).join(' ') ; }
+  }
+  if (!nameKo && hasKo(name)) nameKo = name;
   let img = '';
   for (const k of ks) { const v = str(k); if (/(img|image|photo|thumb)/i.test(k) && /^https?:\/\//.test(v)) { img = v; break; } }
   if (!img) for (const k of ks) { const v = str(k); if (/^https?:\/\/\S+\.(jpe?g|png|gif|webp)(\?|$)/i.test(v)) { img = v; break; } }
   let desc = '';
-  for (const k of ks) { if (/(dc$|desc|expln|intro|overview|story|cn$|cont|explain|info$)/i.test(k)) { const v = str(k); if (v.length > desc.length) desc = v; } }
+  /* v378: 코드 칸(contentId 등)은 설명이 아님 — 칸 이름이 id·cd·sn·yn·url 로 끝나거나 띄어쓰기 없는 짧은 값은 버림 */
+  for (const k of ks) { if (/(dc$|desc|expln|intro|overview|story|cn$|cont|explain|info$)/i.test(k) && !/(id|cd|sn|yn|no|url|img|dt|date|time)$/i.test(k)) { const v = str(k); if ((/\s/.test(v) || v.length > 30) && v.length > desc.length) desc = v; } }
   const cat = pick(/(ctgry\d?nm|ctgrynm|categorynm|category|ctgry\d?Nm)/i);
   const strip = (v, n) => String(v || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, ' ').replace(/[ \t]+/g, ' ').trim().slice(0, n);
-  return { id: clean(id, 30), name: strip(name, 60), nameKo: strip(nameKo, 60), img: img.replace(/^http:\/\//, 'https://').slice(0, 300), desc: strip(desc, 1200), cat: strip(cat, 40) };
+  return { id: clean(id, 30), name: strip(name, 80), nameKo: strip(nameKo, 40), en: strip(en, 60), roman: strip(roman, 40), img: img.replace(/^http:\/\//, 'https://').slice(0, 300), desc: strip(desc, 1200), cat: strip(cat, 40) };
 }
-/* 한국어 화면: 언어 칸이 있으면 한국어 줄만 (없으면 그대로) */
-function preferKo(items, raw) {
-  const langOf = (r) => { for (const k of Object.keys(r || {})) if (/lang/i.test(k)) return String(r[k] || '').toLowerCase(); return ''; };
-  const ko = items.filter((_, i) => /^(kor|ko|kr)$/.test(langOf(raw[i])));
-  return ko.length ? ko : items;
-}
-
 function clean(v, n) { return String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n); }
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
