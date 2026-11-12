@@ -1,4 +1,4 @@
-// functions/api/tour.js — coverfo 🎪 축제·행사 + 🏞 가볼 만한 곳 (v371 · v372: 축제 한 쪽 100건씩 · 지역코드로 0건이면 전국에서 주소로 거르기) · 한국관광공사 TourAPI 4.0 (국문 관광정보 서비스 KorService2) · 무료
+// functions/api/tour.js — coverfo 🎪 축제·행사 + 🏞 가볼 만한 곳 + ⛺ 캠핑장(v380) (v371 · v372: 축제 한 쪽 100건씩 · 지역코드로 0건이면 전국에서 주소로 거르기) · 한국관광공사 TourAPI 4.0 (국문 관광정보 서비스 KorService2) · 무료
 // © 2026 coverfo All Rights Reserved
 //
 // POST /api/tour   (Authorization: Bearer coverfo 로그인키 — 하루 호출 한도(개발계정 1,000건)를 지키려고 로그인한 사람만)
@@ -8,7 +8,9 @@
 //   { op:"free", region, type?, page? }      → v373 ♿ 무장애 여행 (휠체어·유모차 · 한국관광공사_무장애 여행 정보 KorWithService2)
 //   { op:"petinfo", id } / { op:"freeinfo", id } → 그곳의 동반 조건 · 무장애 편의시설 (detailPetTour2 · detailWithTour2) — 카드에서 누를 때만
 //   → { ok, kind, region, from, to, page, more, total, items:[{ id, title, addr, tel, img, x, y, start, end, dist, type }], source }
-//   ※ 반려동물·무장애는 공공데이터포털에서 각각 [활용신청]이 따로 필요 (같은 인증키)
+//   { op:"camp", region, type?, page? }      → v380 ⛺ 캠핑장 (한국관광공사_고캠핑 정보 조회서비스 GoCamping · locationBasedList 반경 20km 가까운 순)
+//        type: all | auto 자동차야영장 | glamp 글램핑 | carav 카라반 | pet 반려견 가능 · 항목에 intro·pet·fac·season·days·resv·home 추가
+//   ※ 반려동물·무장애·고캠핑은 공공데이터포털에서 각각 [활용신청]이 따로 필요 (같은 인증키)
 //   v374 🌐 lang: ko(기본) | en 영문 EngService2 | ja 일문 JpnService2 | zh 중문 간체 ChsService2 | tw 중문 번체 ChtService2 — 축제·가볼 만한 곳만 (반려동물·무장애는 한국어만)
 //        외국어 서비스도 각각 [활용신청] 필요 · 외국어 서비스는 관광지 종류 번호가 76 (한국어 12)
 //   v374 지역: 법정동 시·도 코드(lDongRegnCd)로 먼저 찾고(외국어 서비스는 예전 지역코드를 '미사용·삭제 예정'으로 안내), 0건이면 예전 지역코드 → 전국에서 거리로 거르기
@@ -19,7 +21,7 @@
 // · 출처: 한국관광공사 — 화면에 늘 표시. 내용·사진은 바꾸지 않고 그대로 보여 준다
 
 const BASE = 'https://apis.data.go.kr/B551011/KorService2/';
-const SVC = { kor: BASE, en: 'https://apis.data.go.kr/B551011/EngService2/', ja: 'https://apis.data.go.kr/B551011/JpnService2/', zh: 'https://apis.data.go.kr/B551011/ChsService2/', tw: 'https://apis.data.go.kr/B551011/ChtService2/', pet: 'https://apis.data.go.kr/B551011/KorPetTourService2/', free: 'https://apis.data.go.kr/B551011/KorWithService2/' };
+const SVC = { kor: BASE, en: 'https://apis.data.go.kr/B551011/EngService2/', ja: 'https://apis.data.go.kr/B551011/JpnService2/', zh: 'https://apis.data.go.kr/B551011/ChsService2/', tw: 'https://apis.data.go.kr/B551011/ChtService2/', pet: 'https://apis.data.go.kr/B551011/KorPetTourService2/', free: 'https://apis.data.go.kr/B551011/KorWithService2/', camp: 'https://apis.data.go.kr/B551011/GoCamping/' };
 /* 종류 → 관광공사 contentTypeId (12 관광지 · 32 숙박 · 39 음식점(카페 포함)) */
 const TYPE = { spot: '12', stay: '32', food: '39' };
 const LANGS = ['ko', 'en', 'ja', 'zh', 'tw'];
@@ -49,7 +51,7 @@ export async function onRequestPost(context) {
   const key = String(env.TOUR_API_KEY || '').trim();
   if (!key) return json({ error: '관광정보 설정이 아직 없어요 (TOUR_API_KEY)', setup: true }, 500);
   const op = String(b.op || '');
-  if (!['festival', 'spot', 'pet', 'free', 'petinfo', 'freeinfo'].includes(op)) return json({ error: '잘못된 요청입니다' }, 400);
+  if (!['festival', 'spot', 'pet', 'free', 'camp', 'petinfo', 'freeinfo'].includes(op)) return json({ error: '잘못된 요청입니다' }, 400);
   if (op === 'petinfo' || op === 'freeinfo') {
     const id = String(b.id || '');
     if (!/^\d{1,12}$/.test(id)) return json({ error: '잘못된 요청입니다' }, 400);
@@ -66,7 +68,7 @@ export async function onRequestPost(context) {
   }
   const lang = LANGS.includes(String(b.lang || '')) ? String(b.lang) : 'ko';
   const svcL = lang === 'ko' ? 'kor' : lang;
-  if (lang !== 'ko' && (op === 'pet' || op === 'free')) return json({ ok: false, koOnly: true, note: 'Korean only' });
+  if (lang !== 'ko' && (op === 'pet' || op === 'free' || op === 'camp')) return json({ ok: false, koOnly: true, note: 'Korean only' });
   let region = clean(b.region, 30);
   { const a = ALIAS[region.toLowerCase()] || ALIAS[region]; if (a) region = a; }
   const page = Math.max(1, Math.min(10, parseInt(b.page, 10) || 1));
@@ -81,6 +83,8 @@ export async function onRequestPost(context) {
       all = await festivals(env, key, geo, from, to, svcL);
     } else if (op === 'spot') {
       all = await spots(env, key, geo, svcL);
+    } else if (op === 'camp') {
+      all = await camps(env, key, geo, String(b.type || 'all'));
     } else {
       all = await places(env, key, geo, op, String(b.type || 'all'));
     }
@@ -210,6 +214,39 @@ async function places(env, key, geo, svc, type) {
   const list = rows.map((x) => Object.assign(norm(x), { type: typeName(x.contenttypeid) }));
   return list.filter((x) => x.img).concat(list.filter((x) => !x.img));
 }
+/* ── v380 ⛺ 캠핑장 (고캠핑): 도시·동네 좌표(시·도면 시청·도청) 반경 20km · 가까운 순 · 종류/반려견 거르기 ── */
+async function camps(env, key, geo, type) {
+  const c = await center(env, geo);
+  if (!c) return [];
+  const rows = await call(env, key, 'locationBasedList', { mapX: String(c.x), mapY: String(c.y), radius: '20000', numOfRows: '100', pageNo: '1' }, 'camp');
+  const T = { auto: (x) => /자동차/.test(x.type), glamp: (x) => /글램핑/.test(x.type), carav: (x) => /카라반/.test(x.type), pet: (x) => /^가능/.test(x.pet) };
+  let list = rows.map(campNorm).filter((x) => x.title);
+  if (T[type]) list = list.filter(T[type]);
+  list.forEach((x) => { if (x.x && x.y) x.dist = Math.round(km(c, x) * 1000); });
+  list.sort((a, b) => (a.dist || 9e9) - (b.dist || 9e9));
+  return list;
+}
+function campNorm(x) {
+  const t = (k, n) => clean(String(x[k] || '').replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]*>/g, ' '), n);
+  const url = (k) => { const v = String(x[k] || '').trim(); return /^https?:\/\/[\w.-]+/.test(v) ? v.replace(/^http:\/\//, 'https://').slice(0, 300) : ''; };
+  const img = url('firstImageUrl');
+  return {
+    id: String(x.contentId || ''),
+    title: t('facltNm', 60),
+    addr: clean(String(x.addr1 || '') + (x.addr2 ? ' ' + x.addr2 : ''), 80),
+    tel: t('tel', 40),
+    img, x: +x.mapX || 0, y: +x.mapY || 0, start: '', end: '', dist: 0,
+    type: t('induty', 40),
+    intro: t('lineIntro', 120) || t('intro', 160),
+    pet: t('animalCmgCl', 30),
+    fac: t('sbrsCl', 120),
+    season: t('operPdCl', 40),
+    days: t('operDeCl', 40),
+    resv: t('resveCl', 40),
+    resvUrl: url('resveUrl'),
+    home: url('homepage'),
+  };
+}
 /* 시·도 중심 좌표 (시청·도청) · 두 점 거리(km) */
 async function center(env, geo) {
   if (geo.x && geo.y) return { x: geo.x, y: geo.y };
@@ -236,7 +273,7 @@ async function call(env, key, op, params, svc) {
   if (!r.ok) throw httpErr(502, '관광정보를 불러오지 못했어요 (' + r.status + ')');
   let d;
   try { d = JSON.parse(t); } catch {
-    if (/SERVICE_KEY_IS_NOT_REGISTERED|SERVICE KEY/i.test(t)) throw httpErr(502, ({ en: '영문', ja: '일문', zh: '중문 간체', tw: '중문 번체' })[svc] ? '한국관광공사 ' + ({ en: '영문', ja: '일문', zh: '중문 간체', tw: '중문 번체' })[svc] + ' 관광정보 서비스 활용신청이 아직 안 됐어요 (공공데이터포털 [활용신청] · 승인 직후면 잠시 뒤 다시) · Not available yet' : svc === 'pet' ? '반려동물 동반여행 서비스 활용신청이 아직 안 됐어요 (공공데이터포털에서 [활용신청] · 승인 직후면 잠시 뒤 다시)' : svc === 'free' ? '무장애 여행 정보 활용신청이 아직 안 됐어요 (공공데이터포털에서 [활용신청] · 승인 직후면 잠시 뒤 다시)' : '관광정보 인증키가 아직 등록 전이에요. 승인 직후면 잠시 뒤 다시 해 보세요');
+    if (/SERVICE_KEY_IS_NOT_REGISTERED|SERVICE KEY/i.test(t)) throw httpErr(502, ({ en: '영문', ja: '일문', zh: '중문 간체', tw: '중문 번체' })[svc] ? '한국관광공사 ' + ({ en: '영문', ja: '일문', zh: '중문 간체', tw: '중문 번체' })[svc] + ' 관광정보 서비스 활용신청이 아직 안 됐어요 (공공데이터포털 [활용신청] · 승인 직후면 잠시 뒤 다시) · Not available yet' : svc === 'pet' ? '반려동물 동반여행 서비스 활용신청이 아직 안 됐어요 (공공데이터포털에서 [활용신청] · 승인 직후면 잠시 뒤 다시)' : svc === 'free' ? '무장애 여행 정보 활용신청이 아직 안 됐어요 (공공데이터포털에서 [활용신청] · 승인 직후면 잠시 뒤 다시)' : svc === 'camp' ? '고캠핑 정보 조회서비스 활용신청이 아직 안 됐어요 (공공데이터포털에서 [활용신청] · 승인 직후면 잠시 뒤 다시)' : '관광정보 인증키가 아직 등록 전이에요. 승인 직후면 잠시 뒤 다시 해 보세요');
     if (/LIMITED_NUMBER_OF_SERVICE_REQUESTS/i.test(t)) throw httpErr(429, '오늘 관광정보 조회 한도를 다 썼어요. 내일 다시 해 주세요');
     throw httpErr(502, '관광정보 응답을 읽지 못했어요');
   }
