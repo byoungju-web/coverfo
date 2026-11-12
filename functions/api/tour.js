@@ -1,4 +1,4 @@
-// functions/api/tour.js — coverfo 🎪 축제·행사 + 🏞 가볼 만한 곳 (v371) · 한국관광공사 TourAPI 4.0 (국문 관광정보 서비스 KorService2) · 무료
+// functions/api/tour.js — coverfo 🎪 축제·행사 + 🏞 가볼 만한 곳 (v371 · v372: 축제 한 쪽 100건씩 · 지역코드로 0건이면 전국에서 주소로 거르기) · 한국관광공사 TourAPI 4.0 (국문 관광정보 서비스 KorService2) · 무료
 // © 2026 coverfo All Rights Reserved
 //
 // POST /api/tour   (Authorization: Bearer coverfo 로그인키 — 하루 호출 한도(개발계정 1,000건)를 지키려고 로그인한 사람만)
@@ -106,15 +106,23 @@ function range(w) {
 async function festivals(env, key, geo, from, to) {
   /* 시작일 기준 검색이라 이미 시작해 진행 중인 축제도 잡으려고 90일 앞부터 찾는다 */
   const s = new Date(Date.UTC(+from.slice(0, 4), +from.slice(4, 6) - 1, +from.slice(6, 8) - 90)).toISOString().slice(0, 10).replace(/-/g, '');
-  const p = { eventStartDate: s, arrange: 'A', numOfRows: '300', pageNo: '1' };
-  if (geo && geo.area) p.areaCode = String(geo.area);
-  /* 전국이면 300건이 넘을 수 있어 3쪽(900건)까지 */
-  let rows = [];
-  for (let pg = 1; pg <= 3; pg++) {
-    p.pageNo = String(pg);
-    const got = await call(env, key, 'searchFestival2', p);
-    rows = rows.concat(got);
-    if (got.length < 300) break;
+  /* v372: 한 쪽 100건씩 · 최대 8쪽 (한 번에 많이 달라고 하면 빈 결과가 올 수 있어서) */
+  const pages = async (p) => {
+    let rows = [];
+    for (let pg = 1; pg <= 8; pg++) {
+      p.pageNo = String(pg);
+      const got = await call(env, key, 'searchFestival2', p);
+      rows = rows.concat(got);
+      if (got.length < 100) break;
+    }
+    return rows;
+  };
+  const base = { eventStartDate: s, arrange: 'A', numOfRows: '100', pageNo: '1' };
+  let rows = await pages(Object.assign({}, base, geo && geo.area ? { areaCode: String(geo.area) } : {}));
+  /* v372: 지역코드로 0건이면 전국에서 찾아 주소의 시·도 이름으로 거른다 (지역코드가 바뀐 경우 대비) */
+  if (!rows.length && geo && geo.area) {
+    const names = AREA.filter((a) => a[1] === geo.area).map((a) => a[0]);
+    rows = (await pages(Object.assign({}, base))).filter((x) => names.some((n) => String(x.addr1 || '').startsWith(n)));
   }
   let list = rows.map(norm).filter((x) => x.start && x.start <= to && (x.end || x.start) >= from);
   if (geo && geo.city) {
@@ -130,6 +138,12 @@ async function spots(env, key, geo) {
   let rows;
   if (geo.x && geo.y) rows = await call(env, key, 'locationBasedList2', { mapX: String(geo.x), mapY: String(geo.y), radius: '20000', contentTypeId: '12', arrange: 'E', numOfRows: '100', pageNo: '1' });
   else rows = await call(env, key, 'areaBasedList2', { areaCode: String(geo.area), contentTypeId: '12', arrange: 'Q', numOfRows: '100', pageNo: '1' });
+  /* v372: 시·도 이름으로 0건이면 카카오로 그 시·도 좌표를 찾아 반경 20km 로 다시 */
+  if (!rows.length && !(geo.x && geo.y)) {
+    const nm = (AREA.find((x) => x[1] === geo.area) || [''])[0];
+    const g2 = nm ? await where(env, nm + (geo.area <= 8 ? '시청' : '도청')).catch(() => null) : null;
+    if (g2 && g2.x && g2.y) rows = await call(env, key, 'locationBasedList2', { mapX: String(g2.x), mapY: String(g2.y), radius: '20000', contentTypeId: '12', arrange: 'E', numOfRows: '100', pageNo: '1' });
+  }
   /* 사진 있는 곳을 조금 앞으로 (거리 순서는 유지) */
   const list = rows.map(norm);
   return list.filter((x) => x.img).concat(list.filter((x) => !x.img));
