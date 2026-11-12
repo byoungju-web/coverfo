@@ -8,14 +8,15 @@
 //
 // · 키: Cloudflare 비밀값 TOUR_API_KEY (축제·관광지와 같은 공공데이터포털 인증키) · 공공데이터포털에서 '한국관광공사_관광음식 정보 서비스' [활용신청] 필요
 // · 공공데이터포털 안내: 주소 https://apis.data.go.kr/B551011/FoodService · 음식 정보 목록/상세/동기화/카테고리 4가지 · langDivCd(eng·jpn·chs·cht…)
-//   ※ 안내 페이지에 기능별 경로 이름과 응답 칸 이름이 적혀 있지 않아, 후보 경로를 차례로 시험해 맞는 것을 7일 기억하고(캐시),
-//     응답 칸은 이름 모양(…Nm · …Img · …Dc 등)으로 골라 쓴다. 맞는 경로를 못 찾으면 diag 로 무엇을 시험했는지 돌려준다.
+//   ※ v377: 경로는 활용신청 상세기능정보로 확인(/foodList · /foodDetailInfo). 응답 칸 이름은 아직 안내에 없어
+//     이름 모양(…Nm · …Img · …Dc 등)으로 골라 쓰고, 못 고르면 diag 로 받은 칸 이름을 돌려준다.
 // · 같은 검색은 6시간 캐시 · 이용자 정보는 보내지 않음 · 출처: 한국관광공사 표시
 
 const BASE = 'https://apis.data.go.kr/B551011/FoodService/';
 const LANG = { ko: '', en: 'eng', ja: 'jpn', zh: 'chs', tw: 'cht' };
-const LIST_OPS = ['foodList', 'foodInfoList', 'getFoodList', 'searchFood', 'foodSearchList', 'foodList1', 'foodList2'];
-const DETAIL_OPS = ['foodDetail', 'foodInfoDetail', 'getFoodDetail', 'detailFood', 'foodDetail1', 'foodDetail2'];
+/* v377: 공공데이터포털 활용신청 상세기능정보로 확인한 경로 — 목록 /foodList · 상세 /foodDetailInfo (동기화 /foodSyncList · 카테고리 /foodCtgryCode) */
+const LIST_OPS = ['foodList'];
+const DETAIL_OPS = ['foodDetailInfo'];
 const PER = 10, TTL = 6 * 3600, OP_TTL = 7 * 86400;
 
 export async function onRequestPost(context) {
