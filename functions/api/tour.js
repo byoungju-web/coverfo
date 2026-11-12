@@ -9,6 +9,9 @@
 //   { op:"petinfo", id } / { op:"freeinfo", id } → 그곳의 동반 조건 · 무장애 편의시설 (detailPetTour2 · detailWithTour2) — 카드에서 누를 때만
 //   → { ok, kind, region, from, to, page, more, total, items:[{ id, title, addr, tel, img, x, y, start, end, dist, type }], source }
 //   ※ 반려동물·무장애는 공공데이터포털에서 각각 [활용신청]이 따로 필요 (같은 인증키)
+//   v374 🌐 lang: ko(기본) | en 영문 EngService2 | ja 일문 JpnService2 | zh 중문 간체 ChsService2 | tw 중문 번체 ChtService2 — 축제·가볼 만한 곳만 (반려동물·무장애는 한국어만)
+//        외국어 서비스도 각각 [활용신청] 필요 · 외국어 서비스는 관광지 종류 번호가 76 (한국어 12)
+//   v374 지역: 법정동 시·도 코드(lDongRegnCd)로 먼저 찾고(외국어 서비스는 예전 지역코드를 '미사용·삭제 예정'으로 안내), 0건이면 예전 지역코드 → 전국에서 거리로 거르기
 //
 // · 키: Cloudflare 비밀값 TOUR_API_KEY (공공데이터포털 '일반 인증키(Decoding)') · 지역 좌표 찾기는 카카오 키워드 검색(KAKAO_REST_KEY, 장소 목록과 같은 키)
 // · 같은 검색은 6시간 동안 Cloudflare 캐시에 저장해 다시 부르지 않는다 (개발계정 하루 1,000건 아끼기)
@@ -16,9 +19,14 @@
 // · 출처: 한국관광공사 — 화면에 늘 표시. 내용·사진은 바꾸지 않고 그대로 보여 준다
 
 const BASE = 'https://apis.data.go.kr/B551011/KorService2/';
-const SVC = { kor: BASE, pet: 'https://apis.data.go.kr/B551011/KorPetTourService2/', free: 'https://apis.data.go.kr/B551011/KorWithService2/' };
+const SVC = { kor: BASE, en: 'https://apis.data.go.kr/B551011/EngService2/', ja: 'https://apis.data.go.kr/B551011/JpnService2/', zh: 'https://apis.data.go.kr/B551011/ChsService2/', tw: 'https://apis.data.go.kr/B551011/ChtService2/', pet: 'https://apis.data.go.kr/B551011/KorPetTourService2/', free: 'https://apis.data.go.kr/B551011/KorWithService2/' };
 /* 종류 → 관광공사 contentTypeId (12 관광지 · 32 숙박 · 39 음식점(카페 포함)) */
 const TYPE = { spot: '12', stay: '32', food: '39' };
+const LANGS = ['ko', 'en', 'ja', 'zh', 'tw'];
+/* 법정동 시·도 코드 (지역코드 → lDongRegnCd) */
+const LDONG = { 1: '11', 2: '28', 3: '30', 4: '27', 5: '29', 6: '26', 7: '31', 8: '36', 31: '41', 32: '51', 33: '43', 34: '44', 35: '47', 36: '48', 37: '52', 38: '46', 39: '50' };
+/* 외국어로 친 지역 이름 → 한국어 (카카오 검색용) */
+const ALIAS = { seoul: '서울', busan: '부산', pusan: '부산', jeju: '제주', 'jeju island': '제주', gyeongju: '경주', gangneung: '강릉', sokcho: '속초', jeonju: '전주', incheon: '인천', daegu: '대구', daejeon: '대전', gwangju: '광주', ulsan: '울산', yeosu: '여수', suwon: '수원', pohang: '포항', tongyeong: '통영', andong: '안동', chuncheon: '춘천', pyeongchang: '평창', gapyeong: '가평', jeonju2: '전주', '首尔': '서울', '首爾': '서울', 'ソウル': '서울', '釜山': '부산', 'プサン': '부산', '济州': '제주', '濟州': '제주', '済州': '제주', 'チェジュ': '제주', '济州岛': '제주', '濟州島': '제주', '済州島': '제주', '庆州': '경주', '慶州': '경주', 'キョンジュ': '경주', '江陵': '강릉', 'カンヌン': '강릉', '束草': '속초', 'ソクチョ': '속초', '全州': '전주', 'チョンジュ': '전주', '仁川': '인천', 'インチョン': '인천', '大邱': '대구', 'テグ': '대구', '大田': '대전', '光州': '광주', '蔚山': '울산', '丽水': '여수', '麗水': '여수', 'ヨス': '여수', '水原': '수원', 'スウォン': '수원', '春川': '춘천', '平昌': '평창' };
 /* 상세 칸 이름 (한국관광공사 응답 필드 → 한국어) · 모르는 칸은 보여 주지 않음 */
 const PET_LABEL = { acmpyTypeCd: '동반 구분', acmpyPsblCpam: '동반 가능 동물', acmpyNeedMtr: '동반 시 필요 사항', etcAcmpyInfo: '기타 동반 정보', relaPosesFclty: '관련 구비 시설', relaFrnshPrdlst: '비치 물품', relaRntlPrdlst: '대여 물품', relaPurcPrdlst: '구매 가능 물품', relaAcdntRiskMtr: '사고 대비 사항' };
 const FREE_LABEL = { wheelchair: '♿ 휠체어', exit: '출입 통로', elevator: '엘리베이터', restroom: '화장실', parking: '주차', route: '접근로', publictransport: '대중교통', ticketoffice: '매표소', promotion: '안내', auditorium: '관람석', room: '객실', handicapetc: '지체장애 기타', stroller: '👶 유모차', lactationroom: '수유실', babysparechair: '유아용 의자', infantsfamilyetc: '영유아 가족 기타', braileblock: '점자 블록', helpdog: '보조견 동반', guidehuman: '안내 요원', audioguide: '오디오 가이드', bigprint: '큰 활자', brailepromotion: '점자 홍보물', guidesystem: '유도 안내', blindhandicapetc: '시각장애 기타', signguide: '수어 안내', videoguide: '자막 영상', hearingroom: '청각 보조', hearinghandicapetc: '청각장애 기타' };
@@ -56,7 +64,11 @@ export async function onRequestPost(context) {
       return json({ error: String((e && e.message) || e).slice(0, 200) }, 502);
     }
   }
-  const region = clean(b.region, 30);
+  const lang = LANGS.includes(String(b.lang || '')) ? String(b.lang) : 'ko';
+  const svcL = lang === 'ko' ? 'kor' : lang;
+  if (lang !== 'ko' && (op === 'pet' || op === 'free')) return json({ ok: false, koOnly: true, note: 'Korean only' });
+  let region = clean(b.region, 30);
+  { const a = ALIAS[region.toLowerCase()] || ALIAS[region]; if (a) region = a; }
   const page = Math.max(1, Math.min(10, parseInt(b.page, 10) || 1));
   try {
     if (op !== 'festival' && !region) return json({ ok: false, need: 'region', note: '어느 지역인지 알려 주세요 (예: 속초, 경주, 제주)' });
@@ -66,14 +78,14 @@ export async function onRequestPost(context) {
     if (op === 'festival') {
       const r = range(String(b.when || ''));
       from = r.from; to = r.to;
-      all = await festivals(env, key, geo, from, to);
+      all = await festivals(env, key, geo, from, to, svcL);
     } else if (op === 'spot') {
-      all = await spots(env, key, geo);
+      all = await spots(env, key, geo, svcL);
     } else {
       all = await places(env, key, geo, op, String(b.type || 'all'));
     }
     const items = all.slice((page - 1) * PER, page * PER);
-    return json({ ok: true, kind: op, region: geo ? geo.label : '전국', from, to, page, total: all.length, more: all.length > page * PER, items, source: '한국관광공사 TourAPI' });
+    return json({ ok: true, kind: op, lang, region: geo ? geo.label : (lang === 'ko' ? '전국' : ''), from, to, page, total: all.length, more: all.length > page * PER, items, source: '한국관광공사 TourAPI' });
   } catch (e) {
     if (e && e.status) return json({ error: e.message }, e.status);
     return json({ error: String((e && e.message) || e).slice(0, 200) }, 502);
@@ -129,7 +141,7 @@ function range(w) {
 }
 
 /* ── 축제·공연·행사: 시작일이 기간 끝 이전이고 끝난 날이 기간 시작 이후인 것 (진행 중인 축제 포함) ── */
-async function festivals(env, key, geo, from, to) {
+async function festivals(env, key, geo, from, to, svc) {
   /* 시작일 기준 검색이라 이미 시작해 진행 중인 축제도 잡으려고 90일 앞부터 찾는다 */
   const s = new Date(Date.UTC(+from.slice(0, 4), +from.slice(4, 6) - 1, +from.slice(6, 8) - 90)).toISOString().slice(0, 10).replace(/-/g, '');
   /* v372: 한 쪽 100건씩 · 최대 8쪽 (한 번에 많이 달라고 하면 빈 결과가 올 수 있어서) */
@@ -137,38 +149,47 @@ async function festivals(env, key, geo, from, to) {
     let rows = [];
     for (let pg = 1; pg <= 8; pg++) {
       p.pageNo = String(pg);
-      const got = await call(env, key, 'searchFestival2', p);
+      const got = await call(env, key, 'searchFestival2', p, svc);
       rows = rows.concat(got);
       if (got.length < 100) break;
     }
     return rows;
   };
   const base = { eventStartDate: s, arrange: 'A', numOfRows: '100', pageNo: '1' };
-  let rows = await pages(Object.assign({}, base, geo && geo.area ? { areaCode: String(geo.area) } : {}));
-  /* v372: 지역코드로 0건이면 전국에서 찾아 주소의 시·도 이름으로 거른다 (지역코드가 바뀐 경우 대비) */
-  if (!rows.length && geo && geo.area) {
-    const names = AREA.filter((a) => a[1] === geo.area).map((a) => a[0]);
-    rows = (await pages(Object.assign({}, base))).filter((x) => names.some((n) => String(x.addr1 || '').startsWith(n)));
-  }
+  const kor = svc === 'kor';
+  /* v374: ① 법정동 시·도 코드 → ② (한국어만) 예전 지역코드 → ③ 전국에서 거리·주소로 거르기 */
+  let rows = [];
+  if (geo && geo.area && LDONG[geo.area]) rows = await pages(Object.assign({}, base, { lDongRegnCd: LDONG[geo.area] })).catch(() => []);
+  if (!rows.length && geo && geo.area && kor) rows = await pages(Object.assign({}, base, { areaCode: String(geo.area) })).catch(() => []);
+  let wide = false;
+  if (!rows.length && geo && geo.area) { rows = await pages(Object.assign({}, base)); wide = true; }
+  else if (!geo) rows = await pages(Object.assign({}, base));
   let list = rows.map(norm).filter((x) => x.start && x.start <= to && (x.end || x.start) >= from);
+  if (geo && wide) {
+    /* 전국 결과에서 그 시·도만: 한국어는 주소 앞 이름, 외국어는 시·도 중심에서 거리 */
+    if (kor) { const names = AREA.filter((a) => a[1] === geo.area).map((a) => a[0]); list = list.filter((x) => names.some((n) => x.addr.startsWith(n))); }
+    else { const c = await center(env, geo); if (c) list = list.filter((x) => x.x && x.y && km(c, x) <= (geo.city ? 40 : 90)); }
+  }
   if (geo && geo.city) {
+    /* 그 도시만 (한국어는 주소의 도시 이름, 외국어는 30km 안) · 없으면 같은 시·도 전체 */
     const c = geo.city.replace(/[시군구]$/, '');
-    const near = list.filter((x) => x.addr.includes(c));
-    list = near.length ? near : list;   /* 그 도시에 없으면 같은 시·도 전체 */
+    const near = kor ? list.filter((x) => x.addr.includes(c)) : list.filter((x) => x.x && x.y && geo.x && km(geo, x) <= 30);
+    list = near.length ? near : list;
   }
   list.sort((a, b) => (a.start === b.start ? a.title.localeCompare(b.title) : a.start < b.start ? -1 : 1));
   return list;
 }
-/* ── 가볼 만한 곳 (관광지 contentTypeId 12) ── */
-async function spots(env, key, geo) {
-  let rows;
-  if (geo.x && geo.y) rows = await call(env, key, 'locationBasedList2', { mapX: String(geo.x), mapY: String(geo.y), radius: '20000', contentTypeId: '12', arrange: 'E', numOfRows: '100', pageNo: '1' });
-  else rows = await call(env, key, 'areaBasedList2', { areaCode: String(geo.area), contentTypeId: '12', arrange: 'Q', numOfRows: '100', pageNo: '1' });
+/* ── 가볼 만한 곳 (관광지: 한국어 contentTypeId 12 · 외국어 76) ── */
+async function spots(env, key, geo, svc) {
+  const ct = !svc || svc === 'kor' ? '12' : '76';
+  let rows = [];
+  if (geo.x && geo.y) rows = await call(env, key, 'locationBasedList2', { mapX: String(geo.x), mapY: String(geo.y), radius: '20000', contentTypeId: ct, arrange: 'E', numOfRows: '100', pageNo: '1' }, svc);
+  else if (LDONG[geo.area]) rows = await call(env, key, 'areaBasedList2', { lDongRegnCd: LDONG[geo.area], contentTypeId: ct, arrange: 'Q', numOfRows: '100', pageNo: '1' }, svc).catch(() => []);
+  if (!rows.length && !(geo.x && geo.y) && (!svc || svc === 'kor')) rows = await call(env, key, 'areaBasedList2', { areaCode: String(geo.area), contentTypeId: ct, arrange: 'Q', numOfRows: '100', pageNo: '1' }, svc).catch(() => []);
   /* v372: 시·도 이름으로 0건이면 카카오로 그 시·도 좌표를 찾아 반경 20km 로 다시 */
   if (!rows.length && !(geo.x && geo.y)) {
-    const nm = (AREA.find((x) => x[1] === geo.area) || [''])[0];
-    const g2 = nm ? await where(env, nm + (geo.area <= 8 ? '시청' : '도청')).catch(() => null) : null;
-    if (g2 && g2.x && g2.y) rows = await call(env, key, 'locationBasedList2', { mapX: String(g2.x), mapY: String(g2.y), radius: '20000', contentTypeId: '12', arrange: 'E', numOfRows: '100', pageNo: '1' });
+    const g2 = await center(env, geo);
+    if (g2) rows = await call(env, key, 'locationBasedList2', { mapX: String(g2.x), mapY: String(g2.y), radius: '20000', contentTypeId: ct, arrange: 'E', numOfRows: '100', pageNo: '1' }, svc);
   }
   /* 사진 있는 곳을 조금 앞으로 (거리 순서는 유지) */
   const list = rows.map(norm);
@@ -182,9 +203,24 @@ async function places(env, key, geo, svc, type) {
   if (ct) p.contentTypeId = ct;
   let rows;
   if (geo.x && geo.y) rows = await call(env, key, 'locationBasedList2', Object.assign({ mapX: String(geo.x), mapY: String(geo.y), radius: '20000', arrange: 'E' }, p), svc);
-  else rows = await call(env, key, 'areaBasedList2', Object.assign({ areaCode: String(geo.area), arrange: 'Q' }, p), svc);
+  else {
+    rows = LDONG[geo.area] ? await call(env, key, 'areaBasedList2', Object.assign({ lDongRegnCd: LDONG[geo.area], arrange: 'Q' }, p), svc).catch(() => []) : [];
+    if (!rows.length) rows = await call(env, key, 'areaBasedList2', Object.assign({ areaCode: String(geo.area), arrange: 'Q' }, p), svc);
+  }
   const list = rows.map((x) => Object.assign(norm(x), { type: typeName(x.contenttypeid) }));
   return list.filter((x) => x.img).concat(list.filter((x) => !x.img));
+}
+/* 시·도 중심 좌표 (시청·도청) · 두 점 거리(km) */
+async function center(env, geo) {
+  if (geo.x && geo.y) return { x: geo.x, y: geo.y };
+  const nm = (AREA.find((x) => x[1] === geo.area) || [''])[0];
+  const g2 = nm ? await where(env, nm + (geo.area <= 8 ? '시청' : '도청')).catch(() => null) : null;
+  return g2 && g2.x && g2.y ? { x: g2.x, y: g2.y } : null;
+}
+function km(a, b) {
+  const r = Math.PI / 180, dLat = (b.y - a.y) * r, dLon = (b.x - a.x) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.y * r) * Math.cos(b.y * r) * Math.sin(dLon / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
 }
 function typeName(id) { return { 12: '관광지', 14: '문화시설', 15: '행사', 25: '여행코스', 28: '레포츠', 32: '숙박', 38: '쇼핑', 39: '음식점·카페' }[+id] || ''; }
 
@@ -200,7 +236,7 @@ async function call(env, key, op, params, svc) {
   if (!r.ok) throw httpErr(502, '관광정보를 불러오지 못했어요 (' + r.status + ')');
   let d;
   try { d = JSON.parse(t); } catch {
-    if (/SERVICE_KEY_IS_NOT_REGISTERED|SERVICE KEY/i.test(t)) throw httpErr(502, svc === 'pet' ? '반려동물 동반여행 서비스 활용신청이 아직 안 됐어요 (공공데이터포털에서 [활용신청] · 승인 직후면 잠시 뒤 다시)' : svc === 'free' ? '무장애 여행 정보 활용신청이 아직 안 됐어요 (공공데이터포털에서 [활용신청] · 승인 직후면 잠시 뒤 다시)' : '관광정보 인증키가 아직 등록 전이에요. 승인 직후면 잠시 뒤 다시 해 보세요');
+    if (/SERVICE_KEY_IS_NOT_REGISTERED|SERVICE KEY/i.test(t)) throw httpErr(502, ({ en: '영문', ja: '일문', zh: '중문 간체', tw: '중문 번체' })[svc] ? '한국관광공사 ' + ({ en: '영문', ja: '일문', zh: '중문 간체', tw: '중문 번체' })[svc] + ' 관광정보 서비스 활용신청이 아직 안 됐어요 (공공데이터포털 [활용신청] · 승인 직후면 잠시 뒤 다시) · Not available yet' : svc === 'pet' ? '반려동물 동반여행 서비스 활용신청이 아직 안 됐어요 (공공데이터포털에서 [활용신청] · 승인 직후면 잠시 뒤 다시)' : svc === 'free' ? '무장애 여행 정보 활용신청이 아직 안 됐어요 (공공데이터포털에서 [활용신청] · 승인 직후면 잠시 뒤 다시)' : '관광정보 인증키가 아직 등록 전이에요. 승인 직후면 잠시 뒤 다시 해 보세요');
     if (/LIMITED_NUMBER_OF_SERVICE_REQUESTS/i.test(t)) throw httpErr(429, '오늘 관광정보 조회 한도를 다 썼어요. 내일 다시 해 주세요');
     throw httpErr(502, '관광정보 응답을 읽지 못했어요');
   }
