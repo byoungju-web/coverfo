@@ -40,6 +40,7 @@
 // · v369 🏪 place_action: 목록·카카오맵에서 연 가게(지금 가게)를 열기·전화·문자·길안내·예약·예약 결과 확인 — 화면(cf-resv-js)이 처리.
 //   전화·문자는 가게 번호를 찾아 돌려주고, 실제 걸기·문자 열기는 앱의 call_phone · send_sms (확인 후)
 //   받아쓰기 힌트: 지난 명령 문장 통째(예: "부산 자갈치시장 맛집")가 자막을 그 문장으로 끌어당겨, 한 낱말 이름만 넣는다
+// · v371 🎪 tour_search: 축제·행사 · 가볼 만한 곳을 한국관광공사 TourAPI(/api/tour)로 찾아 화면 목록 — 화면(cf-tour-js)이 처리
 // · v366 🧠 내 비서 기억(cf_memory): 이용자가 기억해 달라고 한 것(최근 30줄)을 안내문 끝에 붙인다 · 도구 remember · forget_memory · my_memory (화면이 /api/memory 로 처리)
 // · 비용: 1분 COST 크레딧 (Secret/변수 LIVE_COST_PER_MIN 로 바꿀 수 있음). 모델은 REALTIME_MODEL 로 바꿀 수 있음.
 // · 알려진 한계: 1분 차감은 화면이 tick 을 보내야 이어진다. 화면 코드를 고쳐 tick 을 보내지 않는 경우까지 막으려면
@@ -104,6 +105,8 @@ const INSTRUCTIONS = [
   'PARCELS: for "쿠팡 주문 내역 보여 줘", "11번가 주문한 거", "G마켓 주문 내역", "네이버 주문 내역" call track_parcel with open "orders" and mall (쿠팡, 네이버쇼핑, 11번가, G마켓; default 쿠팡) — it opens that mall; the user logs in there (coverfo never reads shopping-mall accounts). Parcels from any mall can be tracked with the carrier and tracking number. For "택배 어디쯤 왔어?", "배송 조회해 줘", or when the user reads a delivery text or a tracking number, call track_parcel with text and/or carrier and invoice. It fills the carrier and tracking number on the screen; checking costs credits, so never claim a status yourself — tell the user in one short Korean sentence to press 🚚 배송 조회 on the screen (it shows the credit cost). You may mention the 🔔 배송완료 알림 button (it costs credits) — never turn anything paid on yourself. Coupang rocket delivery can only be checked in the Coupang order list.',
   /* v345: 내비 끄기 — 다른 앱을 대신 끌 수는 없어서, 그 앱을 앞으로 열어 주고 종료 단추를 누르도록 안내 */
   'STOPPING NAVIGATION: you cannot stop or close the navigation app (카카오내비, 티맵, 네이버지도 안내) yourself. When the user says "내비 꺼줘", "내비 종료해줘", "안내 종료", "길안내 그만": if the open_app tool is available, call open_app with that navigation app (usually "카카오내비") so its screen comes to the front, then say "카카오내비를 열었어요. 화면에서 안내 종료를 눌러 주세요." Otherwise just say that. Do not call end_conversation for this.',
+  /* v371 🎪 축제·관광지 (한국관광공사) */
+  'FESTIVALS AND SIGHTS: for festivals, performances or events ("속초 축제 있어?", "이번 주말 강원도 축제", "12월에 서울 행사") call tour_search with kind festival, region (city or province, empty for nationwide) and when (the user\'s words like "이번 주말", "다음 달", "12월"; empty means the next 30 days). For tourist sights ("경주 가볼 만한 곳", "제주 관광지", "강릉 구경할 데") call tour_search with kind spot and region (ask the region if missing). Use place_list instead for restaurants, cafes and shops. The list appears on the screen with buttons. Answer only from what it returns: read the top 3 briefly (name, and dates for festivals), say the data is from 한국관광공사 once, and never invent dates. For directions to an item use run_command with "<title> 길안내 해줘" for sights or "<address> 길안내 해줘" for festivals. For more results call tour_search again with page 2.',
   /* v369 🏪 가게 하나에 열기·전화·문자·길안내·예약 */
   'PLACE ACTIONS: for one place from the place list, or the place the user has open now in 카카오맵 ("여기", "이 집", "이 가게", or its name), use place_action. place = list number ("2"), the name as the user said it, or "here". action: open (open it in 카카오맵), call (get its phone number), text (get its number for a reservation inquiry text), navigate (directions), reserve (start a reservation), result (record how the reservation went). Works even when 카카오맵 or 카카오내비 is in front. If the place is not in the list, place_action looks it up by name with Kakao place search — add the area if you know it (e.g. "등대샤브칼국수 속초").',
   'CALLING OR TEXTING A PLACE: place_action with action call or text returns the shop\'s phone number. Then use call_phone (or send_sms) with that number as "to" and the shop name as "label", confirmed false first, exactly as in PHONE. The number does not need to be saved in contacts. If the place has no number, say so and offer to open it in 카카오맵. On the web (no call_phone tool), the screen shows a 📞 전화 button — tell the user to press it.',
@@ -503,6 +506,21 @@ const TOOLS = [{
       open: { type: 'boolean', description: 'true if the user wants it opened again' },
     },
     required: ['query'],
+  },
+}, {
+  /* v371 🎪 축제·행사 · 가볼 만한 곳 (한국관광공사 TourAPI · 화면 cf-tour-js 가 처리) */
+  type: 'function',
+  name: 'tour_search',
+  description: 'Find festivals/performances/events (kind festival) or tourist sights (kind spot) in Korea from the Korea Tourism Organization (한국관광공사) TourAPI, and show a numbered list on the coverfo screen. Returns titles, dates (festivals), addresses and distance.',
+  parameters: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['festival', 'spot'] },
+      region: { type: 'string', description: 'City, area or province as said, e.g. "속초", "강원도", "제주". Empty = nationwide (festival only).' },
+      when: { type: 'string', description: 'festival only: period in the user\'s words, e.g. "이번 주말", "다음 달", "12월". Empty = next 30 days.' },
+      page: { type: 'integer', description: 'Next page of the same search (2, 3 …)' },
+    },
+    required: ['kind'],
   },
 }, {
   /* v369 🏪 가게 하나에 열기·전화·문자·길안내·예약 (화면 cf-resv-js 가 처리) */
