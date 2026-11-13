@@ -1,4 +1,4 @@
-// functions/api/near.js — coverfo ⛽ 근처 주유소(가격) · 🅿️ 근처 주차장 (v384)
+// functions/api/near.js — coverfo ⛽ 근처 주유소(가격) · 🅿️ 근처 주차장 (v384 · v386 위치 꼭 보여 주기)
 // © 2026 coverfo All Rights Reserved
 //
 // POST /api/near   (Authorization: Bearer coverfo 로그인키)
@@ -11,6 +11,7 @@
 //   Cloudflare 비밀값 OPINET_KEY (opinet.co.kr → 유가정보 API → 무료 API 이용신청으로 받은 인증키)
 //   키가 없거나 오피넷이 안 되면: 카카오 장소(주유소·충전소 OL7)로 위치만 보여 주고 priceless:true
 // · 🅿️ 주차장: 카카오 로컬 카테고리 검색 PK6 (KAKAO_REST_KEY, 장소 목록과 같은 키) · 반경 1km(지역 이름이면 2km)
+// · v386: 오피넷이 0곳·오류면 카카오 위치로 대신 보여 주고 diag(응답 앞부분, 키는 가림)를 돌려줌 · 빈 결과는 캐시하지 않음
 // · 같은 검색은 10분(주유소)·6시간(주차장) 캐시 · 이용자 정보는 보내지 않음 · 결제와 무관
 
 const FUEL = { B027: '휘발유', D047: '경유', B034: '고급휘발유', K015: 'LPG' };
@@ -41,13 +42,15 @@ export async function onRequestPost(context) {
     const fuel = FUEL[b.fuel] ? b.fuel : 'B027', sort = b.sort === 'dist' ? 'dist' : 'price';
     const key = String(env.OPINET_KEY || '').trim();
     let items = null, why = '';
+    let diag;
     if (key) {
       const r = await opinet(key, at, fuel, sort);
-      if (r.ok) items = r.items; else why = r.why;
+      if (r.ok && r.items.length) items = r.items; else { why = r.ok ? 'empty' : r.why; diag = r.diag; }
     } else why = 'nokey';
+    /* v386: 오피넷이 0곳이거나 안 되면 카카오 장소(주유소·충전소)로 위치는 꼭 보여 준다 */
     if (!items) {
       const k = await kakaoCat(env, 'OL7', at, 3000, 'gas');
-      return json({ ok: true, op, label: label || '내 위치', items: k, src: '카카오 장소', fuel, sort: 'dist', priceless: true, why });
+      return json({ ok: true, op, label: label || '내 위치', items: k, src: '카카오 장소', fuel, sort: 'dist', priceless: true, why, diag });
     }
     return json({ ok: true, op, label: label || '내 위치', items, src: '한국석유공사 오피넷', fuel, sort });
   } catch (e) {
@@ -64,15 +67,22 @@ async function opinet(key, at, fuel, sort) {
   const ck = new Request('https://cache.coverfo.com/opinet/' + q.toString().replace(/x=(\d+)\d\d\.\d/, 'x=$1').replace(/y=(\d+)\d\d\.\d/, 'y=$1'));
   if (cache) { const h = await cache.match(ck).catch(() => null); if (h) { const j = await h.json().catch(() => null); if (j) return { ok: true, items: j }; } }
   let t;
-  try { const r = await fetch('https://www.opinet.co.kr/api/aroundAll.do?certkey=' + encodeURIComponent(key) + '&' + q.toString()); t = await r.text(); if (!r.ok) return { ok: false, why: 'http' + r.status }; } catch { return { ok: false, why: 'net' }; }
-  let d; try { d = JSON.parse(t); } catch { return { ok: false, why: /인증|cert|key/i.test(t) ? 'key' : 'format' }; }
-  let list = d && d.RESULT ? d.RESULT.OIL : null;
-  if (!list) return { ok: false, why: 'format' };
+  /* 진단(가격이 안 나올 때 화면 아래 작은 글씨): 응답 앞부분만 · 인증키는 *** 로 가림 */
+  const peek = (s) => String(s || '').replace(/\s+/g, ' ').split(key).join('***').slice(0, 160);
+  try { const r = await fetch('https://www.opinet.co.kr/api/aroundAll.do?certkey=' + encodeURIComponent(key) + '&' + q.toString()); t = await r.text(); if (!r.ok) return { ok: false, why: 'http' + r.status, diag: peek(t) }; } catch (e) { return { ok: false, why: 'net', diag: String((e && e.message) || e).slice(0, 100) }; }
+  let d; try { d = JSON.parse(t.replace(/^\uFEFF/, '')); } catch { return { ok: false, why: /인증|cert|key/i.test(t) ? 'key' : 'format', diag: peek(t) }; }
+  /* 칸 이름 대·소문자가 달라도 찾기 (RESULT.OIL / result.oil) */
+  const get = (o, k) => { if (!o || typeof o !== 'object') return undefined; const f = Object.keys(o).find((x) => x.toLowerCase() === k.toLowerCase()); return f ? o[f] : undefined; };
+  let list = get(get(d, 'RESULT'), 'OIL');
+  if (list == null) return { ok: false, why: 'format', diag: peek(t) };
   if (!Array.isArray(list)) list = [list];
+  const num = (v) => parseFloat(String(v == null ? '' : v).replace(/,/g, ''));
   const items = list.slice(0, 20).map((o) => {
-    const g = fromKatec(+o.GIS_X_COOR, +o.GIS_Y_COOR), bc = String(o.POLL_DIV_CO || o.POLL_DIV_CD || '');
-    return { id: String(o.UNI_ID || ''), name: clean(o.OS_NM, 40), brand: BRAND[bc] || '', price: Math.round(+o.PRICE) || 0, dist: Math.round(+o.DISTANCE) || 0, x: +g.lon.toFixed(6), y: +g.lat.toFixed(6), addr: '', tel: '', kind: '', url: '' };
+    const gx = num(get(o, 'GIS_X_COOR')), gy = num(get(o, 'GIS_Y_COOR'));
+    const g = isFinite(gx) && isFinite(gy) && gx > 0 ? fromKatec(gx, gy) : null, bc = String(get(o, 'POLL_DIV_CO') || get(o, 'POLL_DIV_CD') || '');
+    return { id: String(get(o, 'UNI_ID') || ''), name: clean(get(o, 'OS_NM'), 40), brand: BRAND[bc] || '', price: Math.round(num(get(o, 'PRICE'))) || 0, dist: Math.round(num(get(o, 'DISTANCE'))) || 0, x: g ? +g.lon.toFixed(6) : 0, y: g ? +g.lat.toFixed(6) : 0, addr: '', tel: '', kind: '', url: '' };
   }).filter((x) => x.name && x.price > 0);
+  if (!items.length) return { ok: true, items, diag: 'n=' + list.length + ' · ' + peek(t) };
   if (cache) { try { await cache.put(ck, new Response(JSON.stringify(items), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=600' } })); } catch {} }
   return { ok: true, items };
 }
