@@ -4,6 +4,7 @@
 // POST /api/near   (Authorization: Bearer coverfo 로그인키)
 //   { op:"gas",  x?, y? | region?, fuel?: B027 휘발유 | D047 경유 | B034 고급휘발유 | K015 LPG, sort?: price | dist, label? }
 //   { op:"park", x?, y? | region?, label? }
+//   { op:"pharm", x?, y? | region?, all? }     → v388 💊 지금 문 연 약국 (국립중앙의료원 · 오늘 요일 영업시간으로 계산) items[].open · hours · closeAt
 //   x·y = 경도·위도 (휴대폰 위치 또는 축제·캠핑장 카드 좌표) · 없으면 region(지역·장소 이름)을 카카오로 찾음
 //   → { ok, op, label, items:[{ id, name, brand, price, dist, x, y, addr, tel, kind, url }], src, fuel, sort, priceless? }
 //
@@ -23,7 +24,7 @@ export async function onRequestPost(context) {
   try { b = await context.request.json(); } catch { return json({ error: '잘못된 요청입니다' }, 400); }
   if (!(await userId(context.request, env))) return json({ error: '로그인이 필요합니다', login: true }, 401);
   const op = String(b.op || '');
-  if (op !== 'gas' && op !== 'park') return json({ error: '잘못된 요청입니다' }, 400);
+  if (op !== 'gas' && op !== 'park' && op !== 'pharm') return json({ error: '잘못된 요청입니다' }, 400);
   try {
     let at = null, label = clean(b.label, 40);
     const x = +b.x, y = +b.y;
@@ -34,6 +35,10 @@ export async function onRequestPost(context) {
       at = await find(env, region);
       if (!at) return json({ ok: false, notFound: true, note: '"' + region + '"을(를) 찾지 못했어요' });
       if (!label) label = region;
+    }
+    if (op === 'pharm') {   /* v388 💊 문 연 약국 */
+      const r = await pharm(env, at, !!b.all);
+      return json(Object.assign({ op, label: label || '내 위치', src: '국립중앙의료원' }, r));
     }
     if (op === 'park') {
       const items = await kakaoCat(env, 'PK6', at, at.wide ? 2000 : 1000, 'park');
@@ -85,6 +90,89 @@ async function opinet(key, at, fuel, sort) {
   if (!items.length) return { ok: true, items, diag: 'n=' + list.length + ' · ' + peek(t) };
   if (cache) { try { await cache.put(ck, new Response(JSON.stringify(items), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=600' } })); } catch {} }
   return { ok: true, items };
+}
+
+/* ── v388 💊 문 연 약국: 국립중앙의료원_전국 약국 정보 조회 서비스 (getParmacyListInfoInqire)
+   위치 → 카카오로 시·도·시·군·구 → 그 지역 약국 목록(오늘 요일 영업시간·위경도) → 가까운 순 · 지금 열었는지 계산 (한국시간)
+   공휴일은 알 수 없어 요일 기준 · 키: TOUR_API_KEY(같은 공공데이터포털 인증키) · '국립중앙의료원_전국 약국 정보 조회 서비스' [활용신청] · 6시간 캐시 ── */
+const NMC = 'https://apis.data.go.kr/B552657/ErmctInsttInfoInqireService/getParmacyListInfoInqire';
+const OLD_SIDO = { 강원특별자치도: '강원도', 전북특별자치도: '전라북도' };
+async function pharm(env, at, all) {
+  const key = String(env.PHARM_API_KEY || env.TOUR_API_KEY || '').trim();
+  if (!key) return { ok: false, note: '약국 정보 설정이 아직 없어요 (TOUR_API_KEY)' };
+  const rg = await region2(env, at);
+  if (!rg.a1) return { ok: false, note: '지역을 알 수 없어요' };
+  const k = new Date(Date.now() + 9 * 3600e3), dow = k.getUTCDay(), qt = dow === 0 ? 7 : dow, nowM = k.getUTCHours() * 60 + k.getUTCMinutes();
+  const tries = [[rg.a1, rg.a2], [rg.a1, rg.a2.split(' ')[0]]];
+  if (OLD_SIDO[rg.a1]) tries.push([OLD_SIDO[rg.a1], rg.a2], [OLD_SIDO[rg.a1], rg.a2.split(' ')[0]]);
+  let rows = null, err = '';
+  const seen = new Set();
+  for (const [q0, q1] of tries) {
+    const kq = q0 + '|' + q1; if (!q1 || seen.has(kq)) continue; seen.add(kq);
+    const r = await nmcList(key, q0, q1, qt);
+    if (r.err) { err = r.err; if (r.err === 'apply' || r.err === 'limit') break; continue; }
+    if (r.rows.length) { rows = r.rows; break; }
+  }
+  if (!rows) {
+    if (err === 'apply') return { ok: false, apply: true, note: "약국 정보는 공공데이터포털에서 '국립중앙의료원_전국 약국 정보 조회 서비스' 활용신청 후 볼 수 있어요" };
+    if (err === 'limit') return { ok: false, note: '오늘 약국 조회 한도를 다 썼어요. 내일 다시 해 주세요' };
+    return { ok: true, items: [], area: rg.a2, today: qt };
+  }
+  const hm = (v) => { const t = String(v == null ? '' : v).replace(/\D/g, ''); if (t.length < 3) return null; const n = +t.padStart(4, '0'); return Math.floor(n / 100) * 60 + (n % 100); };
+  const fmt = (m) => { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+  const list = rows.map((o) => {
+    const y = +o.wgs84Lat, x = +o.wgs84Lon, s1 = hm(o['dutyTime' + qt + 's']), c1raw = hm(o['dutyTime' + qt + 'c']);
+    let c1 = c1raw; if (s1 != null && c1 != null && c1 <= s1) c1 += 1440;   /* 자정 넘어 닫는 곳 */
+    /* 어제 밤부터 이어지는 영업 (예: 어제 22:00~오늘 02:00) */
+    const py = qt === 1 ? 7 : qt - 1, ps = hm(o['dutyTime' + py + 's']), pcr = hm(o['dutyTime' + py + 'c']);
+    const lateYesterday = ps != null && pcr != null && (pcr <= ps || pcr > 1440) && nowM < (pcr > 1440 ? pcr - 1440 : pcr);
+    const open = (s1 != null && c1 != null && nowM >= s1 && nowM < c1) || lateYesterday;
+    const dist = isFinite(x) && isFinite(y) && x && y ? Math.round(km(at, { x, y }) * 1000) : 0;
+    return { id: String(o.hpid || ''), name: clean(o.dutyName, 40), addr: clean(o.dutyAddr, 80), tel: clean(o.dutyTel1, 20), x: isFinite(x) ? x : 0, y: isFinite(y) ? y : 0, dist, open, hours: s1 != null && c1 != null ? fmt(s1) + '~' + fmt(c1) : '', closeAt: open && c1 != null ? fmt(lateYesterday ? pcr : c1) : '', brand: '', price: 0, kind: '', url: '' };
+  }).filter((x) => x.name);
+  list.sort((a, b) => (a.dist || 9e9) - (b.dist || 9e9));
+  const near = list.filter((x) => !x.dist || x.dist <= 5000);
+  const items = (all ? near : near.filter((x) => x.open)).slice(0, 20);
+  return { ok: true, items, area: rg.a2, today: qt, openCount: near.filter((x) => x.open).length, total: near.length };
+}
+async function nmcList(key, q0, q1, qt) {
+  const q = new URLSearchParams({ Q0: q0, Q1: q1, QT: String(qt), ORD: 'NAME', pageNo: '1', numOfRows: '1000' });
+  const cache = typeof caches !== 'undefined' && caches.default ? caches.default : null;
+  const ck = new Request('https://cache.coverfo.com/pharm/' + q.toString());
+  if (cache) { const h = await cache.match(ck).catch(() => null); if (h) { const j = await h.json().catch(() => null); if (j) return { rows: j }; } }
+  let t;
+  try { const r = await fetch(NMC + '?serviceKey=' + encodeURIComponent(key) + '&_type=json&' + q.toString(), { headers: { Accept: 'application/json' } }); t = await r.text(); } catch { return { err: 'net' }; }
+  if (/SERVICE_KEY_IS_NOT_REGISTERED|SERVICE KEY IS NOT/i.test(t)) return { err: 'apply' };
+  if (/LIMITED_NUMBER_OF_SERVICE_REQUESTS/i.test(t)) return { err: 'limit' };
+  let rows = [];
+  try {
+    const d = JSON.parse(t);
+    let it = d && d.response && d.response.body && d.response.body.items;
+    if (it && it.item) it = it.item;
+    rows = Array.isArray(it) ? it : it && typeof it === 'object' ? [it] : [];
+  } catch {
+    /* XML 로 오면 <item> 하나씩 읽기 */
+    const items = t.match(/<item>[\s\S]*?<\/item>/g) || [];
+    rows = items.map((x) => { const o = {}; (x.match(/<(\w+)>([^<]*)<\/\1>/g) || []).forEach((m) => { const mm = m.match(/<(\w+)>([^<]*)<\/\1>/); if (mm) o[mm[1]] = mm[2]; }); return o; });
+    if (!rows.length && !/<items\s*\/?>|<totalCount>0</.test(t)) return { err: 'format' };
+  }
+  if (cache && rows.length) { try { await cache.put(ck, new Response(JSON.stringify(rows), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=21600' } })); } catch {} }
+  return { rows };
+}
+async function region2(env, at) {
+  const kk = String(env.KAKAO_REST_KEY || '').trim();
+  try {
+    const r = await fetch('https://dapi.kakao.com/v2/local/geo/coord2regioncode.json?x=' + at.x + '&y=' + at.y, { headers: { Authorization: 'KakaoAK ' + kk } });
+    const d = await r.json().catch(() => ({}));
+    const doc = (d.documents || []).find((o) => o.region_type === 'B') || (d.documents || [])[0];
+    if (doc) return { a1: String(doc.region_1depth_name || ''), a2: String(doc.region_2depth_name || '') };
+  } catch {}
+  return { a1: '', a2: '' };
+}
+function km(a, b) {
+  const r = Math.PI / 180, dLat = (b.y - a.y) * r, dLon = (b.x - a.x) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.y * r) * Math.cos(b.y * r) * Math.sin(dLon / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
 }
 
 /* ── 카카오 장소 카테고리 (PK6 주차장 · OL7 주유소·충전소) 가까운 순 ── */
