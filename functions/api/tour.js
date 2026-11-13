@@ -13,6 +13,7 @@
 //   { op:"campimg", id }                       → v381 📷 캠핑장 사진 더 보기 (고캠핑 imageList) → { ok, imgs:[url] }
 //   v381 🌤 첫 쪽 결과에 wx(그 지역 날씨: 기상청 단기예보 VilageFcstInfoService_2.0 getVilageFcst) — { days:[{ d, lo, hi, sky, pty, pop }] } 또는 { err }
 //        키: KMA_API_KEY (없으면 TOUR_API_KEY 같은 공공데이터포털 인증키) · '기상청_단기예보 조회서비스' [활용신청] 필요 · 1시간 캐시
+//   { op:"wx", region? | x, y }               → v387 🌤 날씨·🌫 미세먼지만 { ok, label, wx:{ days, hours, dust } } (홈 입력칸 날씨 질문)
 //   v384 🌫 wx.dust = 미세먼지 { st 측정소, p10, p25, g10, g25 (1 좋음~4 매우나쁨), t } · 에어코리아 '한국환경공단_에어코리아_대기오염정보' [활용신청]
 //   ※ 반려동물·무장애·고캠핑·기상청·에어코리아는 공공데이터포털에서 각각 [활용신청]이 따로 필요 (같은 인증키)
 //   v374 🌐 lang: ko(기본) | en 영문 EngService2 | ja 일문 JpnService2 | zh 중문 간체 ChsService2 | tw 중문 번체 ChtService2 — 축제·가볼 만한 곳만 (반려동물·무장애는 한국어만)
@@ -55,7 +56,30 @@ export async function onRequestPost(context) {
   const key = String(env.TOUR_API_KEY || '').trim();
   if (!key) return json({ error: '관광정보 설정이 아직 없어요 (TOUR_API_KEY)', setup: true }, 500);
   const op = String(b.op || '');
-  if (!['festival', 'spot', 'pet', 'free', 'camp', 'petinfo', 'freeinfo', 'campimg'].includes(op)) return json({ error: '잘못된 요청입니다' }, 400);
+  if (!['festival', 'spot', 'pet', 'free', 'camp', 'petinfo', 'freeinfo', 'campimg', 'wx'].includes(op)) return json({ error: '잘못된 요청입니다' }, 400);
+  /* v387 🌤 날씨·🌫 미세먼지만 (홈 입력칸 "부산 날씨 알려줘" · "미세먼지 어때") — 지역 이름 또는 휴대폰 위치(x·y) */
+  if (op === 'wx') {
+    try {
+      let geo = null;
+      const x = +b.x, y = +b.y;
+      if (isFinite(x) && isFinite(y) && x > 124 && x < 132 && y > 33 && y < 39.5) geo = await revGeo(env, x, y);
+      else {
+        let rg = clean(b.region, 30);
+        { const a = ALIAS[rg.toLowerCase()] || ALIAS[rg]; if (a) rg = a; }
+        if (!rg) return json({ ok: false, need: 'where', note: '어느 지역 날씨인지 알려 주세요 (예: 부산, 강릉) · 또는 📍 내 위치' });
+        geo = await where(env, rg);
+        if (!geo) return json({ ok: false, notFound: true, note: '"' + rg + '" 지역을 찾지 못했어요' });
+      }
+      const c = await center(env, geo);
+      if (!c) return json({ ok: false, notFound: true, note: '지역 좌표를 찾지 못했어요' });
+      if (!(c.x > 124 && c.x < 132 && c.y > 33 && c.y < 39.5)) return json({ ok: false, abroad: true, note: '기상청 예보는 우리나라만 있어요' });
+      const [w, d] = await Promise.all([weather(env, c).catch(() => null), dust(env, geo).catch(() => null)]);
+      return json({ ok: true, op, label: geo.label, wx: Object.assign({}, w || {}, d ? { dust: d } : {}), src: '기상청 단기예보 · 에어코리아' });
+    } catch (e) {
+      if (e && e.status) return json({ error: e.message }, e.status);
+      return json({ error: String((e && e.message) || e).slice(0, 200) }, 502);
+    }
+  }
   if (op === 'campimg') {
     const id = String(b.id || '');
     if (!/^\d{1,12}$/.test(id)) return json({ error: '잘못된 요청입니다' }, 400);
@@ -305,10 +329,12 @@ async function weather(env, c) {
   if (code !== '00' && code !== '0000') return null;
   let it = d.response.body && d.response.body.items ? d.response.body.items.item : [];
   if (!Array.isArray(it)) it = it ? [it] : [];
-  const days = {};
+  const days = {}, hrs = {};
   for (const r of it) {
     const day = String(r.fcstDate || ''), v = String(r.fcstValue || ''), hh = +String(r.fcstTime || '0000').slice(0, 2);
     if (!/^\d{8}$/.test(day)) continue;
+    /* v387 시간별 (기온 · 하늘 · 비 · 강수확률) */
+    if (/^(TMP|SKY|PTY|POP)$/.test(r.category)) { const hk = day + String(r.fcstTime || '').slice(0, 2); const ho = hrs[hk] || (hrs[hk] = { d: day, h: String(r.fcstTime || '').slice(0, 2) }); const nv = parseFloat(v); if (isFinite(nv)) ho[r.category.toLowerCase()] = nv; }
     const o = days[day] || (days[day] = { d: day, lo: null, hi: null, tmn: null, tmx: null, sky: 0, pty: 0, pop: 0 });
     const n = parseFloat(v);
     if (r.category === 'TMP' && isFinite(n)) { o.lo = o.lo == null ? n : Math.min(o.lo, n); o.hi = o.hi == null ? n : Math.max(o.hi, n); }
@@ -319,7 +345,8 @@ async function weather(env, c) {
     else if (r.category === 'SKY' && hh >= 9 && hh <= 18) o.sky = Math.max(o.sky, +v || 0);   /* 낮 하늘 중 가장 흐린 것: 1 맑음 · 3 구름많음 · 4 흐림 */
   }
   const out = Object.keys(days).sort().slice(0, 4).map((k) => { const o = days[k]; return { d: o.d, lo: Math.round(o.tmn != null ? o.tmn : o.lo), hi: Math.round(o.tmx != null ? o.tmx : o.hi), sky: o.sky || 1, pty: o.pty, pop: o.pop }; }).filter((o) => isFinite(o.lo) && isFinite(o.hi));
-  const res = out.length ? { days: out, src: '기상청 단기예보', base: base.date + base.time } : null;
+  const hours = Object.keys(hrs).sort().slice(0, 30).map((k) => hrs[k]).filter((o) => o.tmp != null);
+  const res = out.length ? { days: out, hours, src: '기상청 단기예보', base: base.date + base.time } : null;
   if (res && cache) { try { await cache.put(ck, new Response(JSON.stringify(res), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' } })); } catch {} }
   return res;
 }
@@ -362,6 +389,19 @@ async function dust(env, geo) {
   const med = (k) => { const v = ok.map((r) => r[k]).filter(isFinite).sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : NaN; };
   const p10 = pick && isFinite(pick.p10) ? pick.p10 : med('p10'), p25 = pick && isFinite(pick.p25) ? pick.p25 : med('p25');
   return { st: pick ? pick.n : sido, avg: !pick, t: (pick || ok[0]).t, p10: isFinite(p10) ? Math.round(p10) : null, p25: isFinite(p25) ? Math.round(p25) : null, g10: isFinite(p10) ? g10(p10) : 0, g25: isFinite(p25) ? g25(p25) : 0, src: '에어코리아' };
+}
+/* v387 휴대폰 위치 → 행정구역 (카카오 좌표→행정구역) · 미세먼지 측정소 고르기·제목용 */
+async function revGeo(env, x, y) {
+  const kk = String(env.KAKAO_REST_KEY || '').trim();
+  if (!kk) throw httpErr(500, '지역 찾기 설정이 아직 없어요 (KAKAO_REST_KEY)');
+  let a1 = '', a2 = '', a3 = '';
+  try {
+    const r = await fetch('https://dapi.kakao.com/v2/local/geo/coord2regioncode.json?x=' + x + '&y=' + y, { headers: { Authorization: 'KakaoAK ' + kk } });
+    const d = await r.json().catch(() => ({}));
+    const doc = (d.documents || []).find((o) => o.region_type === 'H') || (d.documents || [])[0];
+    if (doc) { a1 = doc.region_1depth_name || ''; a2 = doc.region_2depth_name || ''; a3 = doc.region_3depth_name || ''; }
+  } catch {}
+  return { label: [a2, a3].filter(Boolean).join(' ') || '내 위치', area: areaOf(a1), city: a2.split(' ')[0] || '', x, y };
 }
 /* 시·도 중심 좌표 (시청·도청) · 두 점 거리(km) */
 async function center(env, geo) {
