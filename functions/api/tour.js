@@ -13,7 +13,8 @@
 //   { op:"campimg", id }                       → v381 📷 캠핑장 사진 더 보기 (고캠핑 imageList) → { ok, imgs:[url] }
 //   v381 🌤 첫 쪽 결과에 wx(그 지역 날씨: 기상청 단기예보 VilageFcstInfoService_2.0 getVilageFcst) — { days:[{ d, lo, hi, sky, pty, pop }] } 또는 { err }
 //        키: KMA_API_KEY (없으면 TOUR_API_KEY 같은 공공데이터포털 인증키) · '기상청_단기예보 조회서비스' [활용신청] 필요 · 1시간 캐시
-//   ※ 반려동물·무장애·고캠핑·기상청은 공공데이터포털에서 각각 [활용신청]이 따로 필요 (같은 인증키)
+//   v384 🌫 wx.dust = 미세먼지 { st 측정소, p10, p25, g10, g25 (1 좋음~4 매우나쁨), t } · 에어코리아 '한국환경공단_에어코리아_대기오염정보' [활용신청]
+//   ※ 반려동물·무장애·고캠핑·기상청·에어코리아는 공공데이터포털에서 각각 [활용신청]이 따로 필요 (같은 인증키)
 //   v374 🌐 lang: ko(기본) | en 영문 EngService2 | ja 일문 JpnService2 | zh 중문 간체 ChsService2 | tw 중문 번체 ChtService2 — 축제·가볼 만한 곳만 (반려동물·무장애는 한국어만)
 //        외국어 서비스도 각각 [활용신청] 필요 · 외국어 서비스는 관광지 종류 번호가 76 (한국어 12)
 //   v374 지역: 법정동 시·도 코드(lDongRegnCd)로 먼저 찾고(외국어 서비스는 예전 지역코드를 '미사용·삭제 예정'으로 안내), 0건이면 예전 지역코드 → 전국에서 거리로 거르기
@@ -94,7 +95,10 @@ export async function onRequestPost(context) {
     if (region && !geo) return json({ ok: false, notFound: true, note: '"' + region + '" 지역을 찾지 못했어요' });
     let all, from = '', to = '';
     /* v381 🌤 첫 쪽만: 그 지역(도시 좌표 · 시·도면 시청·도청) 날씨를 함께 (실패해도 목록은 그대로) */
-    const wxP = page === 1 && geo ? center(env, geo).then((c) => (c ? weather(env, c) : null)).catch(() => null) : Promise.resolve(null);
+    const wxP = page === 1 && geo ? Promise.all([
+      center(env, geo).then((c) => (c ? weather(env, c) : null)).catch(() => null),
+      dust(env, geo).catch(() => null),   /* v384 🌫 미세먼지 (에어코리아) */
+    ]).then(([w, d]) => (d ? Object.assign({}, w || {}, { dust: d }) : w)) : Promise.resolve(null);
     if (op === 'festival') {
       const r = range(String(b.when || ''));
       from = r.from; to = r.to;
@@ -318,6 +322,46 @@ async function weather(env, c) {
   const res = out.length ? { days: out, src: '기상청 단기예보', base: base.date + base.time } : null;
   if (res && cache) { try { await cache.put(ck, new Response(JSON.stringify(res), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' } })); } catch {} }
   return res;
+}
+/* ── v384 🌫 미세먼지: 한국환경공단 에어코리아 대기오염정보 (시·도별 실시간 측정정보 getCtprvnRltmMesureDnsty)
+   그 지역 이름과 같은 측정소가 있으면 그 값 · 없으면 시·도 측정소 값의 가운데 값 · 등급은 환경부 기준으로 다시 계산
+   키: AIR_API_KEY (없으면 KMA_API_KEY → TOUR_API_KEY, 같은 공공데이터포털 인증키) · 30분 캐시 ── */
+const AIR = 'https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty';
+const SIDO_NM = { 1: '서울', 2: '인천', 3: '대전', 4: '대구', 5: '광주', 6: '부산', 7: '울산', 8: '세종', 31: '경기', 32: '강원', 33: '충북', 34: '충남', 35: '경북', 36: '경남', 37: '전북', 38: '전남', 39: '제주' };
+function g10(v) { return v <= 30 ? 1 : v <= 80 ? 2 : v <= 150 ? 3 : 4; }   /* 1 좋음 · 2 보통 · 3 나쁨 · 4 매우나쁨 */
+function g25(v) { return v <= 15 ? 1 : v <= 35 ? 2 : v <= 75 ? 3 : 4; }
+async function dust(env, geo) {
+  const key = String(env.AIR_API_KEY || env.KMA_API_KEY || env.TOUR_API_KEY || '').trim();
+  const sido = SIDO_NM[geo && geo.area];
+  if (!key || !sido) return null;
+  const q = new URLSearchParams({ returnType: 'json', numOfRows: '200', pageNo: '1', sidoName: sido, ver: '1.0' });
+  const cache = typeof caches !== 'undefined' && caches.default ? caches.default : null;
+  const ck = new Request('https://cache.coverfo.com/air/' + q.toString());
+  let rows = null;
+  if (cache) { const h = await cache.match(ck).catch(() => null); if (h) rows = await h.json().catch(() => null); }
+  if (!rows) {
+    let t;
+    try { const r = await fetch(AIR + '?serviceKey=' + encodeURIComponent(key) + '&' + q.toString(), { headers: { Accept: 'application/json' } }); t = await r.text(); } catch { return null; }
+    if (/SERVICE_KEY_IS_NOT_REGISTERED|SERVICE KEY IS NOT/i.test(t)) return { err: 'apply' };
+    if (/LIMITED_NUMBER_OF_SERVICE_REQUESTS/i.test(t)) return null;
+    let d; try { d = JSON.parse(t); } catch { return null; }
+    const code = String((d && d.response && d.response.header && d.response.header.resultCode) || '');
+    if (code !== '00' && code !== '0000') return null;
+    let it = d.response.body && d.response.body.items;
+    if (it && it.item) it = it.item;
+    if (!Array.isArray(it)) it = it ? [it] : [];
+    rows = it.map((r) => ({ n: String(r.stationName || ''), t: String(r.dataTime || ''), p10: parseFloat(r.pm10Value), p25: parseFloat(r.pm25Value) })).filter((r) => r.n);
+    if (cache && rows.length) { try { await cache.put(ck, new Response(JSON.stringify(rows), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1800' } })); } catch {} }
+  }
+  const ok = rows.filter((r) => isFinite(r.p10) || isFinite(r.p25));
+  if (!ok.length) return null;
+  const stem = (w) => String(w || '').replace(/(특별자치시|특별자치도|특별시|광역시|시|군|구|읍|면|동)$/, '');
+  const toks = [geo.city, geo.label].concat(String(geo.label || '').split(' ')).map(stem).filter((w) => w && w.length >= 2);
+  let pick = null;
+  for (const w of toks) { pick = ok.find((r) => stem(r.n) === w) || ok.find((r) => r.n.startsWith(w)); if (pick) break; }
+  const med = (k) => { const v = ok.map((r) => r[k]).filter(isFinite).sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : NaN; };
+  const p10 = pick && isFinite(pick.p10) ? pick.p10 : med('p10'), p25 = pick && isFinite(pick.p25) ? pick.p25 : med('p25');
+  return { st: pick ? pick.n : sido, avg: !pick, t: (pick || ok[0]).t, p10: isFinite(p10) ? Math.round(p10) : null, p25: isFinite(p25) ? Math.round(p25) : null, g10: isFinite(p10) ? g10(p10) : 0, g25: isFinite(p25) ? g25(p25) : 0, src: '에어코리아' };
 }
 /* 시·도 중심 좌표 (시청·도청) · 두 점 거리(km) */
 async function center(env, geo) {
