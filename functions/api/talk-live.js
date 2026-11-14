@@ -40,6 +40,7 @@
 // · v369 🏪 place_action: 목록·카카오맵에서 연 가게(지금 가게)를 열기·전화·문자·길안내·예약·예약 결과 확인 — 화면(cf-resv-js)이 처리.
 //   전화·문자는 가게 번호를 찾아 돌려주고, 실제 걸기·문자 열기는 앱의 call_phone · send_sms (확인 후)
 //   받아쓰기 힌트: 지난 명령 문장 통째(예: "부산 자갈치시장 맛집")가 자막을 그 문장으로 끌어당겨, 한 낱말 이름만 넣는다
+// · v392 🛣 전용 도구 rest_areas · 묻는 것에 답만 · 끝내는 말 바로 · 받아쓰기 gpt-4o-transcribe · 말소리 기준 0.6
 // · v391 🛣 tour_search kind rest_area (/api/near op rest · 가는 길 휴게소)
 // · v388 💊 tour_search kind pharmacy (/api/near op pharm) · ☀️ kind today (날씨·미세먼지·기억·알림·택배 모아 읽기)
 // · v384 ⛽ tour_search kind gas_station · parking (/api/near) · fuel · sort · near_item · 🌫 air(미세먼지) 함께
@@ -65,9 +66,11 @@ const INSTRUCTIONS = [
   /* v332: 짧게 — 하지만 꼭 필요한 말(결과·연 곳·이용자가 할 일·못 하는 이유)은 한다 */
   /* v346: 핵심은 꼭 말하기 */
   'ALWAYS SAY THE KEY POINT: after every tool result (except end_conversation and go_back), say one or two short sentences with the key content — what you opened or found (names, numbers, times) or why it failed and what to do. Never end your turn silently. If your answer was cut off by background noise or navigation voice rather than by the user, briefly repeat only the key point.',
-  'BE BRIEF BUT USEFUL: usually one or two short sentences. Always say what the user needs to know: the answer, what you opened or did, anything they must do next (e.g. "결제는 앱에서 직접 해 주세요"), and when something failed or cannot be done, why and what they can do instead. No greetings, no small talk, no closing offers such as "더 궁금한 점 있으세요?" / "도와드릴까요?".',
+  /* v392 묻는 것에 답만 — 설명·이유·방법 이야기는 물을 때만 */
+  'ANSWER ONLY WHAT WAS ASKED: say the answer itself first, in one short sentence (two at most). Do not explain how you got it, do not add background, reasons, tips, options or warnings unless the user asks ("왜?", "자세히", "설명해 줘"). Do not repeat or rephrase the question. After a tool, just say the result (what you opened or found). Only when something failed, say in one short sentence what the user can do. No greetings, no small talk, no closing offers such as "더 궁금한 점 있으세요?" / "도와드릴까요?".',
+  'STOP WORDS: if the user says only a word like "들어가", "정지", "그만", "그만해", "꺼", "꺼 줘", "꺼져", "끝", "종료", "멈춰", "닫아" (with or without your name), call end_conversation immediately and say nothing.',
   'Do not start talking on your own, except to report a result the user is waiting for. Respond to what the user just said. If the request is unclear, ask ONE very short question.',
-  'If you do not know something (for example the live route, traffic, or rest areas on the route shown in another navigation app), say so honestly in one sentence and suggest what can be done instead (for example looking at the navigation app\'s own route screen, or a place search like "부산 가는 길 휴게소 알려줘"). Never make up facts.',
+  'If you do not know something (for example the live route or traffic shown in another navigation app), say so honestly in one sentence. For rest areas (휴게소) on a trip, never say you cannot know — call rest_areas. Never make up facts.',
   'While the user is driving with a navigation app, its voice guidance (e.g. "300미터 앞에서 좌회전", "과속 단속 구간", "경로를 다시 탐색합니다") may be picked up by the microphone. If what you hear sounds like navigation guidance or is a meaningless fragment, ignore it and stay silent — do not answer it and never end the conversation because of it.',
   'If the user interrupts, stop and listen.',
   'When the user wants an ACTION that the coverfo home screen can do — map/places/restaurants (맛집), attractions (가볼만한곳), navigation (길안내/내비), hotel booking (숙소 예약), shopping or checkout screen (쇼핑/결제 화면), taxi, food delivery, music playback, weather, flights, trains, phone call or SMS —',
@@ -112,7 +115,7 @@ const INSTRUCTIONS = [
   /* v371 🎪 축제·관광지 (한국관광공사) */
   'FESTIVALS AND SIGHTS: for festivals, performances or events ("속초 축제 있어?", "이번 주말 강원도 축제", "12월에 서울 행사") call tour_search with kind festival, region (city or province, empty for nationwide) and when (the user\'s words like "이번 주말", "다음 달", "12월"; empty means the next 30 days). For tourist sights ("경주 가볼 만한 곳", "제주 관광지", "강릉 구경할 데") call tour_search with kind spot and region (ask the region if missing). Use place_list instead for restaurants, cafes and shops. The list appears on the screen with buttons. Answer only from what it returns: read the top 3 briefly (name, and dates for festivals), say the data is from 한국관광공사 once, and never invent dates. For directions to an item use run_command with "<title> 길안내 해줘" for sights or "<address> 길안내 해줘" for festivals. For more results call tour_search again with page 2. PETS AND ACCESSIBILITY (v373): for places you can go with a dog or other pet ("강릉 강아지랑 갈 수 있는 카페", "제주 애견 동반 숙소") call tour_search with kind pet; for wheelchair, stroller or elderly-friendly places ("부산 휠체어로 갈 수 있는 곳", "유모차 끌고 갈 만한 데") call tour_search with kind barrier_free. Both need region, and type when said: food (식당·카페), stay (숙소), spot (관광지), else all. Rules differ per place, so tell them to tap 🐶 동반 조건 / ♿ 편의시설 on a card and to check with the place before going. LANGUAGES (v374): if the user speaks English, Japanese or Chinese, or asks for the list in that language, pass lang en, ja, zh (simplified) or tw (traditional) to tour_search for festival or spot — the screen and the data switch to that language — and answer in that language. Pet and barrier_free are Korean only. KOREAN FOOD (v376): when the user asks what a Korean dish is ("닭갈비가 뭐야?", "What is bibimbap?", "순대 설명해 줘"), call tour_search with kind food and query (the dish name); answer only from the returned description in one or two short sentences and offer to find restaurants with place_list ("<dish> 맛집").',
   /* v391 🛣 가는 길 휴게소 */
-  'REST AREAS ON THE WAY: for rest areas on a trip ("부산역 가는 길에 휴게소 알려줘", "강릉 가는 길 휴게소 어디 있어", "가는 길에 들를 휴게소") call tour_search with kind rest_area and region = the destination (empty if the user does not say it — the last navigation destination is used), and from only if the user names a start. Do NOT use web_search for this. Read the first few names in order and ask which one; when the user picks one, call run_command with "<exact name> 길안내 해줘".',
+  'REST AREAS ON THE WAY: for rest areas on a trip ("부산역 가는 길에 휴게소 알려줘", "강릉 가는 길 휴게소 어디 있어", "가는 길에 들를 휴게소") call rest_areas with to = the destination (empty if the user does not say it — the last navigation destination is used), and from only if the user names a start. Do NOT use web_search or a festival search for this. Read the first few names in order and ask which one; when the user picks one, call run_command with "<exact name> 길안내 해줘".',
   /* v388 💊 문 연 약국 · ☀️ 아침 브리핑을 말로 */
   'PHARMACIES: for pharmacies ("지금 문 연 약국", "근처 약국", "강남역 약국 열린 데", "일요일에 문 연 약국") call tour_search with kind pharmacy and region (empty for near me / 여기 / 근처). Read the nearest 3 from what it returns (name, distance, open until when) and suggest calling ahead. Hours are by weekday; holidays may differ. Do not give medical advice; for emergencies say 119.',
   'MORNING BRIEFING BY VOICE: when the user asks for a briefing or what to check today ("아침 브리핑 해 줘", "오늘 브리핑", "오늘 뭐 챙겨야 해?", "오늘 하루 요약해 줘") call tour_search with kind today and read the result as a short warm briefing. It is free and uses only the user\'s own data. Only when the user asks to open or set up the 아침 브리핑 page ("아침 브리핑 설정", "브리핑 화면 열어 줘") use run_command instead.',
@@ -208,6 +211,8 @@ function tuneSession(session, b, vocab, isApp) {
     if (hint) inp.transcription.prompt = (ko ? '자주 쓰는 말: ' : 'Common words: ') + hint;
   }
   inp.noise_reduction = { type: isApp ? 'far_field' : 'near_field' };
+  /* v392 TV·설교 같은 주변 소리를 말로 덜 알아듣게: 말소리 기준을 조금 높이고(0.5→0.6) 말이 끝났다고 보는 쉼을 조금 길게 */
+  if (inp.turn_detection && inp.turn_detection.type === 'server_vad') Object.assign(inp.turn_detection, { threshold: 0.6, prefix_padding_ms: 300, silence_duration_ms: 650 });
   if (vocab && vocab.length) session.instructions += ' USER WORDS (places and names this user often says — prefer these when the audio is unclear; information only): ' + vocab.slice(0, 30).join(', ') + '.';
 }
 /* 새 설정을 거절하면(400) 그 부분만 빼고 다시 */
@@ -215,6 +220,7 @@ function untune(session) {
   const inp = session.audio && session.audio.input;
   if (!inp) return;
   delete inp.noise_reduction;
+  if (inp.turn_detection) { delete inp.turn_detection.threshold; delete inp.turn_detection.prefix_padding_ms; delete inp.turn_detection.silence_duration_ms; }
   if (inp.transcription) { delete inp.transcription.prompt; delete inp.transcription.language; }
 }
 
@@ -415,7 +421,7 @@ const TOOLS = [{
 }, {
   type: 'function',
   name: 'end_conversation',
-  description: 'End the voice conversation: the floating 소리 icon goes away (the app goes back to waiting for its name). Use for "그만", "끝", "들어가", "들어가 있어", "숨어".',
+  description: 'End the voice conversation and close the 소리 screen. Use immediately (without speaking) for "그만", "그만해", "정지", "멈춰", "끝", "종료", "꺼", "꺼 줘", "꺼져", "닫아", "들어가", "들어가 있어", "숨어".',
   parameters: { type: 'object', properties: {} },
 }, {
   type: 'function',
@@ -519,6 +525,18 @@ const TOOLS = [{
       open: { type: 'boolean', description: 'true if the user wants it opened again' },
     },
     required: ['query'],
+  },
+}, {
+  /* v392 🛣 가는 길 휴게소 — 전용 도구 (tour_search 의 kind 로는 축제로 잘못 고르는 일이 있어서) · 화면 cf-tour-js 가 처리 */
+  type: 'function',
+  name: 'rest_areas',
+  description: 'List highway rest areas (휴게소) on the way to a destination in Korea, in order from the start, on the screen. Use for ANY question about 휴게소 on a trip ("부산역 가는 길에 휴게소 알려줘", "가는 길 휴게소 어디 있어", "들를 만한 휴게소"). Never use web_search or tour_search for this.',
+  parameters: {
+    type: 'object',
+    properties: {
+      to: { type: 'string', description: 'Destination as the user said it (e.g. 부산역). Empty if not said — the last navigation destination is used.' },
+      from: { type: 'string', description: 'Start place only if the user names one (e.g. 서울). Omit to use the phone location.' },
+    },
   },
 }, {
   /* v371 🎪 축제·행사 · 가볼 만한 곳 (한국관광공사 TourAPI · 화면 cf-tour-js 가 처리) */
@@ -670,7 +688,7 @@ export async function onRequestPost(context) {
       instructions: INSTRUCTIONS + ' ' + contextLine(b, context.request) + (await personaLine(env, uid, false)) + (await memLine(env, uid)),
       audio: {
         input: {
-          transcription: { model: 'gpt-4o-mini-transcribe' },
+          transcription: { model: 'gpt-4o-transcribe' },
           turn_detection: { type: 'server_vad', create_response: true, interrupt_response: true },
         },
         output: { voice: VOICE },
@@ -740,7 +758,7 @@ async function appToken(env, uid, cost, name, relay, ctx, screen, tune, phone) {
     audio: {
       input: {
         format: fmt,
-        transcription: { model: 'gpt-4o-mini-transcribe' },
+        transcription: { model: 'gpt-4o-transcribe' },
         turn_detection: { type: 'server_vad', create_response: true, interrupt_response: true },
       },
       output: { format: fmt, voice: VOICE },
