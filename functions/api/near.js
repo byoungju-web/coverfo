@@ -4,6 +4,7 @@
 // POST /api/near   (Authorization: Bearer coverfo 로그인키)
 //   { op:"gas",  x?, y? | region?, fuel?: B027 휘발유 | D047 경유 | B034 고급휘발유 | K015 LPG, sort?: price | dist, label? }
 //   { op:"park", x?, y? | region?, label? }
+//   { op:"rest", to, x?, y? | from? }          → v391 🛣 가는 길 휴게소 (직선 경로 근처 · 출발에서 가까운 순 · 반대 방향 제외) items[].along km · off km
 //   { op:"pharm", x?, y? | region?, all? }     → v388 💊 지금 문 연 약국 (국립중앙의료원 · 오늘 요일 영업시간으로 계산) items[].open · hours · closeAt
 //   x·y = 경도·위도 (휴대폰 위치 또는 축제·캠핑장 카드 좌표) · 없으면 region(지역·장소 이름)을 카카오로 찾음
 //   → { ok, op, label, items:[{ id, name, brand, price, dist, x, y, addr, tel, kind, url }], src, fuel, sort, priceless? }
@@ -24,7 +25,11 @@ export async function onRequestPost(context) {
   try { b = await context.request.json(); } catch { return json({ error: '잘못된 요청입니다' }, 400); }
   if (!(await userId(context.request, env))) return json({ error: '로그인이 필요합니다', login: true }, 401);
   const op = String(b.op || '');
-  if (op !== 'gas' && op !== 'park' && op !== 'pharm') return json({ error: '잘못된 요청입니다' }, 400);
+  if (op !== 'gas' && op !== 'park' && op !== 'pharm' && op !== 'rest') return json({ error: '잘못된 요청입니다' }, 400);
+  if (op === 'rest') {   /* v391 🛣 가는 길 휴게소 — 목적지(to)는 이름으로, 출발은 휴대폰 위치(x·y) 또는 from 이름 */
+    try { return json(await restAreas(env, b)); }
+    catch (e) { if (e && e.status) return json({ error: e.message }, e.status); return json({ error: String((e && e.message) || e).slice(0, 200) }, 502); }
+  }
   try {
     let at = null, label = clean(b.label, 40);
     const x = +b.x, y = +b.y;
@@ -90,6 +95,80 @@ async function opinet(key, at, fuel, sort) {
   if (!items.length) return { ok: true, items, diag: 'n=' + list.length + ' · ' + peek(t) };
   if (cache) { try { await cache.put(ck, new Response(JSON.stringify(items), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=600' } })); } catch {} }
   return { ok: true, items };
+}
+
+/* ── v391 🛣 가는 길 휴게소 (카카오 장소 검색 · 공식 API)
+   실제 도로 경로(카카오모빌리티 길찾기)는 상업용이면 별도 제휴 계약이 먼저라 쓰지 않는다.
+   대신: 출발→목적지 직선과 그 양옆(±28km) 세 줄을 25km 간격으로 나눠 반경 20km 안의 '고속도로휴게소'를 찾고,
+   "출발→휴게소→목적지"가 직선보다 10% 넘게 돌아가지 않는 곳만 (고속도로는 보통 그 안쪽) 출발에서 가까운 순으로.
+   이름에 "(○○방향)"이 있으면 그 도시가 목적지 쪽인 것만 남긴다 (반대 방향 휴게소는 뺌). 고속도로 이름도 함께 (경부고속도로 등).
+   ※ 거리는 직선 기준이라 대략 · 같은 지점 검색은 하루 캐시 ── */
+async function restAreas(env, b) {
+  const to = clean(b.to || b.region, 40), from = clean(b.from, 40);
+  if (!to) return { ok: false, need: 'to', note: '어디 가는 길인지 알려 주세요 (예: 부산역 가는 길 휴게소)' };
+  const dest = await find(env, to);
+  if (!dest) return { ok: false, notFound: true, note: '"' + to + '"을(를) 찾지 못했어요' };
+  let org = null;
+  const x = +b.x, y = +b.y;
+  if (isFinite(x) && isFinite(y) && x > 124 && x < 132 && y > 33 && y < 39.5) org = { x, y };
+  else if (from) org = await find(env, from);
+  if (!org) return { ok: false, need: 'from', note: '출발 위치를 알 수 없어요. 📍 위치를 허용하거나 "서울에서 부산역 가는 길 휴게소"처럼 말해 주세요' };
+  const D = km(org, dest);
+  if (D < 15) return { ok: true, items: [], from: from || '내 위치', to, km: Math.round(D), note: '가까운 길이라 지나는 휴게소가 없어요' };
+  /* 평면 근사 (중간 위도 기준) */
+  const lat0 = ((org.y + dest.y) / 2) * Math.PI / 180, KX = 111.32 * Math.cos(lat0), KY = 110.57;
+  const P = (p) => ({ X: (p.x - org.x) * KX, Y: (p.y - org.y) * KY });
+  const V = P(dest), L = Math.hypot(V.X, V.Y), ux = V.X / L, uy = V.Y / L;
+  const n = Math.min(24, Math.max(2, Math.ceil(D / 25)));
+  const pts = [];
+  const offs = D > 60 ? [0, -28, 28] : [0];
+  for (const o of offs) for (let i = 0; i <= n; i++) {
+    const t = i / n, bx = V.X * t + (-uy) * o, by = V.Y * t + ux * o;   /* 직선에서 o km 옆 */
+    pts.push({ x: org.x + bx / KX, y: org.y + by / KY });
+  }
+  const seen = new Map();
+  for (let i = 0; i < pts.length; i += 6) {
+    const rs = await Promise.all(pts.slice(i, i + 6).map((p) => kakaoKw(env, '휴게소', p, 20000).catch(() => [])));
+    for (const list of rs) for (const d of list) if (!seen.has(d.id)) seen.set(d.id, d);
+  }
+  const dirCache = {};
+  const out = [];
+  for (const d of seen.values()) {
+    const nm = String(d.place_name || '');
+    if (!/휴게소(\s*\([^)]*\))?$/.test(nm) || !/고속도로\s*휴게소/.test(String(d.category_name || ''))) continue;
+    if (/졸음쉼터/.test(nm)) continue;
+    const pt = { x: +d.x, y: +d.y };
+    const q = P(pt), along = q.X * ux + q.Y * uy, off = Math.abs(q.X * uy - q.Y * ux);
+    const a = km(org, pt), c2 = km(pt, dest);
+    if (along < 2 || along > L - 2 || off > 48 || a + c2 > D * 1.10) continue;
+    const m = nm.match(/\(([^)]*?)\s*방향\)/);
+    if (m && m[1]) {
+      const city = m[1].replace(/[·,].*$/, '').trim();
+      if (!(city in dirCache)) dirCache[city] = await find(env, city).catch(() => null);
+      const c = dirCache[city];
+      if (c && km(c, dest) > km(c, org)) continue;   /* 반대 방향 */
+    }
+    const ad = String(d.road_address_name || '') + ' ' + String(d.address_name || '');
+    const hw = (ad.match(/([가-힣0-9]+고속도로)/) || [])[1] || '';
+    out.push({ id: String(d.id || ''), name: clean(nm, 40), addr: clean(d.road_address_name || d.address_name, 80), tel: clean(d.phone, 20), x: +d.x, y: +d.y,
+      along: Math.round(a), off: Math.round(off * 10) / 10, hw: clean(hw, 20), url: /^https?:\/\/place\.map\.kakao\.com\//.test(String(d.place_url || '')) ? String(d.place_url).replace(/^http:/, 'https:') : '', brand: '', price: 0, dist: 0, kind: '' });
+  }
+  out.sort((a, b2) => a.along - b2.along);
+  return { ok: true, items: out.slice(0, 30), from: from || '내 위치', to, km: Math.round(D), src: '카카오 장소' };
+}
+async function kakaoKw(env, query, at, radius) {
+  const kk = String(env.KAKAO_REST_KEY || '').trim();
+  if (!kk) throw httpErr(500, '장소 찾기 설정이 아직 없어요 (KAKAO_REST_KEY)');
+  const q = new URLSearchParams({ query, x: String(at.x), y: String(at.y), radius: String(radius), sort: 'distance', size: '15' });
+  const cache = typeof caches !== 'undefined' && caches.default ? caches.default : null;
+  const ck = new Request('https://cache.coverfo.com/kkw/' + encodeURIComponent(query) + '/' + (+at.x).toFixed(2) + ',' + (+at.y).toFixed(2) + '/' + radius);
+  if (cache) { const h = await cache.match(ck).catch(() => null); if (h) { const j = await h.json().catch(() => null); if (j) return j; } }
+  const r = await fetch('https://dapi.kakao.com/v2/local/search/keyword.json?' + q.toString(), { headers: { Authorization: 'KakaoAK ' + kk } });
+  if (!r.ok) throw httpErr(502, '장소를 찾지 못했어요 (카카오 ' + r.status + ')');
+  const d = await r.json().catch(() => ({}));
+  const docs = Array.isArray(d.documents) ? d.documents : [];
+  if (cache) { try { await cache.put(ck, new Response(JSON.stringify(docs), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=86400' } })); } catch {} }
+  return docs;
 }
 
 /* ── v388 💊 문 연 약국: 국립중앙의료원_전국 약국 정보 조회 서비스 (getParmacyListInfoInqire)
