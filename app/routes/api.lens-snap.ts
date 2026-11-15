@@ -45,7 +45,9 @@ type Env = Record<string, any>;
 
 const MODELS = { google: ENGINE_MODELS.stage3, backup: ENGINE_MODELS.stage1 } as const;
 const SANCTIONED = new Set(['RU', 'IR', 'KP', 'SY', 'CU', 'VE', 'BY']);
-const LANG_NAME: Record<string, string> = { ko: 'Korean', en: 'English', ja: 'Japanese', zh: 'Chinese', th: 'Thai' };
+const LANG_NAME: Record<string, string> = { ko: 'Korean', en: 'English', ja: 'Japanese', zh: 'Chinese', th: 'Thai',
+  // v399 글자 번역: 내 정보 '화면 언어'와 같은 말 전부
+  'zh-TW': 'Traditional Chinese', vi: 'Vietnamese', id: 'Indonesian', ms: 'Malay', tl: 'Filipino', km: 'Khmer', my: 'Burmese', ne: 'Nepali', uz: 'Uzbek', mn: 'Mongolian', hi: 'Hindi', ur: 'Urdu', bn: 'Bengali', es: 'Spanish', pt: 'Portuguese', fr: 'French', de: 'German', it: 'Italian', nl: 'Dutch', pl: 'Polish', ru: 'Russian', tr: 'Turkish', ar: 'Arabic' };
 
 function num(env: Env, k: string, d: number) {
   const v = parseInt(String(env[k] ?? ''), 10);
