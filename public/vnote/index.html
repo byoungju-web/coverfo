@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#ffffff">
+<title>음성 메모 · 회의록 — coverfo</title>
+<!-- coverfo 🎙 음성 메모 · 회의록 (v400)
+     녹음하거나 녹음 파일을 고르면 → 받아쓰기 → 요약 · ✅ 할 일 · 📌 결정 사항으로 정리 → 내 계정에 글로 저장 (/api/vnote)
+     · 녹음(소리)은 서버에 저장하지 않는다. 받아쓴 글과 정리만 저장.
+     · 값: 1건(최대 10분) 1크레딧 — 실패하면 돌려준다. 결제·충전 화면은 기존 /pricing 그대로.
+     · 로그인 토큰은 홈과 같은 방법(localStorage 의 sb-…-auth-token)으로 읽는다. -->
+<style>
+:root{--ink:#16152b;--sub:#5d5b74;--mute:#8b89a3;--line:#e7e8f5;--soft:#f3f4fd;--pri:#3d5bff;--pri2:#2a3fc8;--rec:#e5223a;--ok:#0f7b4b;--err:#b42318}
+*{box-sizing:border-box}
+html,body{margin:0;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;-webkit-text-size-adjust:100%}
+body{min-height:100vh;background:#eef0fd;background-image:radial-gradient(60% 40% at 100% 0%,rgba(150,170,255,.5),transparent 70%),radial-gradient(50% 35% at 0% 40%,rgba(200,215,255,.55),transparent 70%),linear-gradient(180deg,#f4f5ff,#ebeefe);background-attachment:fixed;padding-bottom:calc(30px + env(safe-area-inset-bottom))}
+button{font-family:inherit;cursor:pointer}
+button:focus-visible{outline:3px solid rgba(61,91,255,.45);outline-offset:2px}
+.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;height:54px;padding:0 12px;background:rgba(255,255,255,.85);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.top h1{flex:1;margin:0;font-size:16px;font-weight:800;letter-spacing:-.02em}
+.top .x{height:36px;padding:0 14px;border-radius:18px;border:1.5px solid #d9dcf3;background:#fff;font-size:13.5px;font-weight:700;color:var(--pri2)}
+.wrap{max-width:560px;margin:0 auto;padding:14px 14px 0}
+.mode{display:flex;gap:6px;padding:4px;border-radius:14px;background:rgba(255,255,255,.6)}
+.mode button{flex:1;height:42px;border:0;border-radius:11px;background:transparent;font-size:14.5px;font-weight:800;color:var(--sub)}
+.mode button.on{background:#fff;color:var(--pri2);box-shadow:0 2px 8px -3px rgba(40,50,140,.35)}
+.card{margin-top:12px;background:rgba(255,255,255,.88);border:1.5px solid #fff;border-radius:24px;padding:18px 16px;box-shadow:0 10px 30px -14px rgba(60,80,200,.3)}
+.rec{text-align:center;padding:24px 16px 20px}
+.mic{width:96px;height:96px;border-radius:50%;border:0;background:linear-gradient(180deg,#ff6b7d,#e5223a);color:#fff;display:inline-grid;place-items:center;box-shadow:0 14px 28px -12px rgba(229,34,58,.7),inset 0 1px 0 rgba(255,255,255,.35)}
+.mic svg{width:40px;height:40px}
+.mic:disabled{opacity:.5}
+.rec .hint{margin:12px 0 0;font-size:14px;color:var(--sub);line-height:1.6}
+.rec .tm{font-size:34px;font-weight:800;letter-spacing:.02em;font-variant-numeric:tabular-nums;margin:4px 0 2px}
+.rec .tm small{font-size:14px;color:var(--mute);font-weight:600}
+.lv{height:6px;border-radius:3px;background:#eceef8;overflow:hidden;margin:10px auto 0;max-width:240px}
+.lv i{display:block;height:100%;width:0;background:linear-gradient(90deg,#ff8a9a,#e5223a);transition:width .1s}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--rec);margin-right:6px;animation:bl 1s infinite}
+@keyframes bl{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.dot{animation:none}}
+.row{display:flex;gap:8px;margin-top:16px}
+.btn{flex:1;height:48px;border-radius:14px;border:1.5px solid #d9dcf3;background:#fff;font-size:14.5px;font-weight:800;color:var(--pri2)}
+.btn.main{background:var(--pri);border-color:var(--pri);color:#fff}
+.btn:disabled{opacity:.45}
+.file{display:inline-block;margin-top:14px;border:0;background:none;color:var(--pri2);font-size:13.5px;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.price{font-size:12px;color:var(--sub);text-align:center;margin:10px 0 0;line-height:1.6}
+.msg{margin-top:12px;padding:12px 14px;border-radius:14px;background:#fff4f2;border:1px solid #f3d0cc;color:var(--err);font-size:14px;line-height:1.6}
+.msg a{color:var(--pri);font-weight:700}
+.busy{text-align:center;padding:26px 10px;font-size:15px;font-weight:700;color:var(--pri2)}
+.busy small{display:block;margin-top:6px;font-weight:500;color:var(--sub);font-size:12.5px}
+.spin{width:30px;height:30px;border-radius:50%;border:3px solid #dfe3fb;border-top-color:var(--pri);margin:0 auto 12px;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.nt h2{margin:0;font-size:20px;line-height:1.35;font-weight:800;letter-spacing:-.03em;word-break:keep-all;overflow-wrap:anywhere}
+.meta{margin-top:6px;font-size:12.5px;color:var(--mute)}
+.blk{margin-top:16px}
+.blk h3{margin:0 0 8px;font-size:13.5px;font-weight:800;color:var(--sub)}
+.blk ul{margin:0;padding:0 0 0 18px;font-size:15px;line-height:1.7}
+.todo{list-style:none;padding:0 !important}
+.todo li{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--line)}
+.todo li:first-child{border-top:0}
+.todo input{width:20px;height:20px;margin:3px 0 0;flex:none;accent-color:var(--pri)}
+.todo label{flex:1;font-size:15px;line-height:1.55}
+.todo li.done label{color:var(--mute);text-decoration:line-through}
+.todo small{display:block;font-size:12px;color:var(--pri2);text-decoration:none}
+.none{font-size:13.5px;color:var(--mute)}
+details{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+summary{font-size:13.5px;font-weight:800;color:var(--pri2);cursor:pointer}
+.tx{white-space:pre-wrap;font-size:14px;line-height:1.7;background:var(--soft);border-radius:12px;padding:12px;margin-top:8px;overflow-wrap:anywhere;max-height:50vh;overflow:auto}
+.acts{display:flex;gap:8px;margin-top:16px}
+.acts .btn{height:42px;font-size:13.5px}
+.acts .del{color:var(--err);flex:0 0 auto;padding:0 14px}
+.list h2{margin:22px 4px 10px;font-size:15px;font-weight:800}
+.it{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;background:rgba(255,255,255,.88);border-radius:18px;padding:12px 14px;margin-bottom:8px;box-shadow:0 6px 16px -12px rgba(60,80,200,.4)}
+.it i{font-style:normal;font-size:22px;flex:none}
+.it span{flex:1;min-width:0}
+.it b{display:block;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it small{display:block;font-size:12px;color:var(--mute);margin-top:2px}
+.it em{font-style:normal;flex:none;font-size:12px;font-weight:800;color:var(--pri2);background:#eef0ff;border-radius:999px;padding:3px 9px}
+.note{font-size:11.5px;color:var(--mute);line-height:1.6;margin:14px 4px 0}
+.hide{display:none !important}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>🎙 음성 메모 · 회의록</h1>
+  <button type="button" class="x" id="close">✕ 닫기</button>
+</header>
+
+<main class="wrap">
+  <div class="mode" role="group" aria-label="무엇을 녹음할까요">
+    <button type="button" id="mMemo" class="on" aria-pressed="true">🗒 음성 메모</button>
+    <button type="button" id="mMeet" aria-pressed="false">👥 회의록</button>
+  </div>
+
+  <!-- 녹음 -->
+  <section class="card rec" id="recCard" aria-live="polite">
+    <div id="idle">
+      <button type="button" class="mic" id="start" aria-label="녹음 시작"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/></svg></button>
+      <p class="hint" id="hint">누르고 말하세요. 끝내면 받아쓰고<br>요약 · 할 일 · 결정 사항으로 정리해요.</p>
+      <button type="button" class="file" id="pick">📁 녹음 파일 고르기</button>
+      <input type="file" id="f" accept="audio/*,.m4a,.mp3,.wav,.webm,.ogg" hidden>
+    </div>
+    <div id="on" class="hide">
+      <div><span class="dot"></span><b>녹음 중</b></div>
+      <div class="tm"><span id="tm">0:00</span> <small id="mx">/ 10:00</small></div>
+      <div class="lv"><i id="lv"></i></div>
+      <div class="row">
+        <button type="button" class="btn" id="cancel">✕ 취소</button>
+        <button type="button" class="btn main" id="stop">⏹ 끝내고 정리</button>
+      </div>
+    </div>
+    <div id="wait" class="hide busy"><div class="spin"></div><span id="waitT">받아쓰는 중…</span><small>1~2분 걸릴 수 있어요. 이 화면을 닫지 마세요.</small></div>
+    <p class="price" id="price">1건 1크레딧 · 최대 10분 · 받아쓰기에 실패하면 크레딧을 돌려드려요</p>
+  </section>
+  <div id="msg"></div>
+
+  <!-- 결과 -->
+  <section class="card nt hide" id="note"></section>
+
+  <!-- 내 메모 -->
+  <section class="list">
+    <h2>내 메모 · 회의록</h2>
+    <div id="list"><p class="none" style="margin:0 4px">불러오는 중…</p></div>
+  </section>
+  <p class="note">🔒 녹음(소리)은 저장하지 않고, 받아쓴 글과 정리만 내 계정에 저장해요(다른 기기에서도 보여요). 다른 사람과의 대화를 녹음할 때는 미리 알려 주세요.</p>
+</main>
+
+<script>
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var MODE="memo", MAXMIN=10, COST=1, rec=null, chunks=[], stream=null, t0=0, tick=null, ac=null, an=null, wake=null, cancelled=false, busy=false, CUR=null;
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(m){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]; }); }
+  function auth(){ try{ for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf("sb-")===0&&k.indexOf("-auth-token")>0){ var v=JSON.parse(localStorage.getItem(k)||"null"); var t=v&&(v.access_token||(v.currentSession&&v.currentSession.access_token)); if(t) return t; } } }catch(e){} return ""; }
+  var WHY={
+    login:'로그인 후 사용할 수 있어요. <a href="/">홈에서 로그인 ›</a>',
+    insufficient:'크레딧이 부족해요. <a href="/pricing#charge">충전하기 ›</a>',
+    off:"지금은 사용할 수 없어요. 잠시 뒤 다시 해 주세요.",
+    too_big:"파일이 너무 커요 (24MB까지).",
+    too_long:"너무 길어요. 10분까지 녹음할 수 있어요.",
+    too_short:"너무 짧아요. 조금 더 길게 말해 주세요.",
+    no_audio:"녹음이 비어 있어요. 다시 해 주세요.",
+    empty:"말소리를 알아듣지 못했어요. 크레딧은 돌려드렸어요.",
+    ai:"정리하지 못했어요. 크레딧은 돌려드렸어요. 다시 해 주세요.",
+    net:"연결이 끊겼어요. 다시 해 주세요.",
+    mic:"마이크를 쓸 수 없어요. 브라우저(앱) 설정에서 마이크를 허용해 주세요."
+  };
+  function say(h){ $("msg").innerHTML=h?'<div class="msg">'+h+'</div>':""; }
+  function api(body){
+    var t=auth(); if(!t) return Promise.resolve({ok:false,reason:"login"});
+    var isForm=(typeof FormData!=="undefined"&&body instanceof FormData);
+    return fetch("/api/vnote",{method:"POST",headers:isForm?{Authorization:"Bearer "+t}:{"Content-Type":"application/json",Authorization:"Bearer "+t},body:isForm?body:JSON.stringify(body)})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false,reason:"ai"}; }); })["catch"](function(){ return {ok:false,reason:"net"}; });
+  }
+  function fmt(s){ s=Math.max(0,Math.floor(s)); return Math.floor(s/60)+":"+("0"+(s%60)).slice(-2); }
+  function when(at){ try{ return new Date(at).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}); }catch(e){ return ""; } }
+  function show(id){ ["idle","on","wait"].forEach(function(k){ $(k).classList.toggle("hide",k!==id); }); }
+  function priceText(){ $("price").textContent="1건 "+COST+"크레딧 · 최대 "+MAXMIN+"분 · 받아쓰기에 실패하면 크레딧을 돌려드려요"; $("mx").textContent="/ "+MAXMIN+":00"; }
+
+  /* 닫기: 홈으로 (새 창이면 닫기) */
+  $("close").onclick=function(){ if(rec&&rec.state!=="inactive"&&!confirmStop()) return; try{ if(window.opener) { window.close(); } }catch(e){} setTimeout(function(){ location.href="/"; },150); };
+  function confirmStop(){ cancelled=true; try{ rec.stop(); }catch(e){} return true; }
+
+  /* 모드 */
+  function setMode(m){ if(busy||(rec&&rec.state!=="inactive")) return; MODE=m==="meeting"?"meeting":"memo";
+    $("mMemo").classList.toggle("on",MODE==="memo"); $("mMemo").setAttribute("aria-pressed",MODE==="memo"?"true":"false");
+    $("mMeet").classList.toggle("on",MODE==="meeting"); $("mMeet").setAttribute("aria-pressed",MODE==="meeting"?"true":"false");
+    $("hint").innerHTML=MODE==="meeting"?"회의를 시작하면 누르세요. 끝내면 받아쓰고<br>요약 · 할 일(담당·기한) · 결정 사항으로 정리해요.":"누르고 말하세요. 끝내면 받아쓰고<br>요약 · 할 일 · 결정 사항으로 정리해요.";
+  }
+  $("mMemo").onclick=function(){ setMode("memo"); };
+  $("mMeet").onclick=function(){ setMode("meeting"); };
+  if(/[?&]mode=meeting\b/.test(location.search)) setMode("meeting");
+
+  fetch("/api/vnote",{cache:"no-store"}).then(function(r){ return r.ok?r.json():null; }).then(function(j){
+    if(!j) return; if(typeof j.cost==="number") COST=j.cost; if(typeof j.maxMin==="number") MAXMIN=j.maxMin; priceText();
+    if(!j.on) say(WHY.off);
+  })["catch"](function(){});
+
+  /* ── 녹음 ── */
+  function pickType(){
+    if(typeof MediaRecorder==="undefined"||!MediaRecorder.isTypeSupported) return "";
+    var L=["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg;codecs=opus"];
+    for(var i=0;i<L.length;i++){ if(MediaRecorder.isTypeSupported(L[i])) return L[i]; }
+    return "";
+  }
+  function level(){
+    if(!an) return; var a=new Uint8Array(an.fftSize); an.getByteTimeDomainData(a); var m=0; for(var i=0;i<a.length;i++){ var v=Math.abs(a[i]-128); if(v>m) m=v; }
+    $("lv").style.width=Math.min(100,Math.round(m/64*100))+"%";
+  }
+  function cleanup(){
+    clearInterval(tick); tick=null;
+    try{ if(stream) stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} stream=null;
+    try{ if(ac) ac.close(); }catch(e){} ac=null; an=null;
+    try{ if(wake) wake.release(); }catch(e){} wake=null;
+  }
+  $("start").onclick=function(){
+    if(busy) return; say("");
+    if(!auth()){ say(WHY.login); return; }
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||typeof MediaRecorder==="undefined"){ say(WHY.mic); return; }
+    navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}}).then(function(s){
+      stream=s; chunks=[]; cancelled=false;
+      var type=pickType(), opt={audioBitsPerSecond:32000}; if(type) opt.mimeType=type;
+      try{ rec=new MediaRecorder(s,opt); }catch(e){ rec=new MediaRecorder(s); }
+      rec.ondataavailable=function(e){ if(e.data&&e.data.size) chunks.push(e.data); };
+      rec.onstop=function(){
+        var sec=(Date.now()-t0)/1000; cleanup();
+        if(cancelled){ show("idle"); return; }
+        var blob=new Blob(chunks,{type:(rec&&rec.mimeType)||type||"audio/webm"});
+        send(blob,sec,"녹음");
+      };
+      rec.start(1000); t0=Date.now(); show("on"); $("tm").textContent="0:00";
+      try{ ac=new (window.AudioContext||window.webkitAudioContext)(); var src=ac.createMediaStreamSource(s); an=ac.createAnalyser(); an.fftSize=512; src.connect(an); }catch(e){ an=null; }
+      try{ if(navigator.wakeLock) navigator.wakeLock.request("screen").then(function(w){ wake=w; })["catch"](function(){}); }catch(e){}
+      tick=setInterval(function(){ var s2=(Date.now()-t0)/1000; $("tm").textContent=fmt(s2); level(); if(s2>=MAXMIN*60){ try{ rec.stop(); }catch(e){} } },200);
+    })["catch"](function(){ say(WHY.mic); });
+  };
+  $("stop").onclick=function(){ if(rec&&rec.state!=="inactive"){ cancelled=false; rec.stop(); } };
+  $("cancel").onclick=function(){ if(rec&&rec.state!=="inactive"){ cancelled=true; rec.stop(); } };
+
+  /* 녹음 파일 고르기: 길이를 먼저 확인 (10분까지) */
+  $("pick").onclick=function(){ if(!busy) $("f").click(); };
+  $("f").onchange=function(e){
+    var file=e.target.files&&e.target.files[0]; e.target.value=""; if(!file) return; say("");
+    if(!auth()){ say(WHY.login); return; }
+    if(file.size>24*1024*1024){ say(WHY.too_big); return; }
+    var u=URL.createObjectURL(file), a=document.createElement("audio"), done=false;
+    var go=function(sec){ if(done) return; done=true; URL.revokeObjectURL(u); if(sec&&sec>MAXMIN*60+15){ say(WHY.too_long); return; } send(file,sec||0,"파일"); };
+    a.preload="metadata"; a.onloadedmetadata=function(){ go(isFinite(a.duration)?a.duration:0); }; a.onerror=function(){ go(0); };
+    setTimeout(function(){ go(0); },4000); a.src=u;
+  };
+
+  function send(blob,sec,label){
+    if(!blob||blob.size<1500){ say(WHY.too_short); show("idle"); return; }
+    busy=true; show("wait"); $("waitT").textContent="받아쓰는 중…";
+    var t2=setTimeout(function(){ $("waitT").textContent="할 일 · 결정 사항 정리하는 중…"; },9000);
+    var fd=new FormData(); fd.append("file",blob,blob.name||("voice."+(/mp4/.test(blob.type)?"m4a":/ogg/.test(blob.type)?"ogg":"webm"))); fd.append("mode",MODE); fd.append("sec",String(Math.round(sec||0)));
+    api(fd).then(function(j){
+      clearTimeout(t2); busy=false; show("idle");
+      if(!j||!j.ok){ say(WHY[(j&&j.reason)||"ai"]||WHY.ai); return; }
+      draw(j.note); load();
+    });
+  }
+
+  /* ── 결과 보기 ── */
+  function draw(n){
+    CUR=n; var box=$("note"); if(!n){ box.classList.add("hide"); return; }
+    var h='<h2>'+esc(n.title||"메모")+'</h2><div class="meta">'+(n.mode==="meeting"?"👥 회의록":"🗒 음성 메모")+' · '+esc(when(n.at))+(n.sec?' · '+fmt(n.sec):'')+'</div>';
+    h+='<div class="blk"><h3>요약</h3>'+((n.summary&&n.summary.length)?'<ul>'+n.summary.map(function(x){ return "<li>"+esc(x)+"</li>"; }).join("")+'</ul>':'<p class="none">요약할 내용이 없어요</p>')+'</div>';
+    h+='<div class="blk"><h3>✅ 할 일</h3>'+((n.todos&&n.todos.length)?'<ul class="todo">'+n.todos.map(function(x,i){ var id="td"+i; return '<li'+(x.done?' class="done"':'')+'><input type="checkbox" id="'+id+'" data-i="'+i+'"'+(x.done?" checked":"")+'><label for="'+id+'">'+esc(x.t)+((x.who||x.due)?'<small>'+esc([x.who,x.due].filter(Boolean).join(" · "))+'</small>':'')+'</label></li>'; }).join("")+'</ul>':'<p class="none">할 일이 없어요</p>')+'</div>';
+    h+='<div class="blk"><h3>📌 결정 사항</h3>'+((n.decisions&&n.decisions.length)?'<ul>'+n.decisions.map(function(x){ return "<li>"+esc(x)+"</li>"; }).join("")+'</ul>':'<p class="none">결정 사항이 없어요</p>')+'</div>';
+    h+='<details><summary>받아쓴 글 보기</summary><div class="tx">'+esc(n.text||"")+'</div></details>';
+    h+='<div class="acts"><button type="button" class="btn" id="cp">📋 정리 복사</button><button type="button" class="btn" id="cpt">📄 받아쓴 글 복사</button><button type="button" class="btn del" id="del" aria-label="지우기">🗑</button></div>';
+    box.innerHTML=h; box.classList.remove("hide");
+    [].forEach.call(box.querySelectorAll(".todo input"),function(c){ c.onchange=function(){
+      var i=+c.getAttribute("data-i"), li=c.closest("li"); li.classList.toggle("done",c.checked);
+      api({op:"todo",id:n.id,i:i,done:c.checked}).then(function(j){ if(j&&j.ok){ CUR=j.note; load(); } else { c.checked=!c.checked; li.classList.toggle("done",c.checked); } });
+    }; });
+    $("cp").onclick=function(){ copy(asText(n),$("cp"),"📋 정리 복사"); };
+    $("cpt").onclick=function(){ copy(n.text||"",$("cpt"),"📄 받아쓴 글 복사"); };
+    $("del").onclick=function(){ if(!window.confirm("이 메모를 지울까요? 되돌릴 수 없어요.")) return; api({op:"del",id:n.id}).then(function(){ draw(null); load(); }); };
+    try{ box.scrollIntoView({behavior:"smooth",block:"start"}); }catch(e){}
+  }
+  function asText(n){
+    var L=[n.title||"메모",""];
+    if(n.summary&&n.summary.length){ L.push("[요약]"); n.summary.forEach(function(x){ L.push("· "+x); }); L.push(""); }
+    if(n.todos&&n.todos.length){ L.push("[할 일]"); n.todos.forEach(function(x){ L.push((x.done?"☑ ":"☐ ")+x.t+((x.who||x.due)?" ("+[x.who,x.due].filter(Boolean).join(", ")+")":"")); }); L.push(""); }
+    if(n.decisions&&n.decisions.length){ L.push("[결정 사항]"); n.decisions.forEach(function(x){ L.push("· "+x); }); }
+    return L.join("\n").trim();
+  }
+  function copy(t,b,label){ var ok=function(){ b.textContent="✓ 복사했어요"; setTimeout(function(){ b.textContent=label; },1600); };
+    try{ navigator.clipboard.writeText(t).then(ok,function(){ b.textContent="복사하지 못했어요"; }); }catch(e){ b.textContent="복사하지 못했어요"; } }
+
+  /* ── 내 메모 목록 ── */
+  function load(){
+    if(!auth()){ $("list").innerHTML='<p class="none" style="margin:0 4px">로그인하면 저장한 메모가 보여요.</p>'; return; }
+    api({op:"list"}).then(function(j){
+      if(!j||!j.ok){ $("list").innerHTML='<p class="none" style="margin:0 4px">'+(j&&j.reason==="off"?"지금은 불러올 수 없어요.":"불러오지 못했어요.")+'</p>'; return; }
+      var it=j.items||[];
+      if(!it.length){ $("list").innerHTML='<p class="none" style="margin:0 4px">아직 저장한 메모가 없어요.</p>'; return; }
+      $("list").innerHTML=it.map(function(x){ return '<button type="button" class="it" data-id="'+esc(x.id)+'"><i>'+(x.mode==="meeting"?"👥":"🗒")+'</i><span><b>'+esc(x.title||"메모")+'</b><small>'+esc(when(x.at))+(x.sec?" · "+fmt(x.sec):"")+'</small></span>'+(x.open?'<em>할 일 '+x.open+'</em>':'')+'</button>'; }).join("");
+      [].forEach.call($("list").querySelectorAll(".it"),function(b){ b.onclick=function(){ api({op:"get",id:b.getAttribute("data-id")}).then(function(k){ if(k&&k.ok) draw(k.note); else say(WHY[(k&&k.reason)||"ai"]||"불러오지 못했어요."); }); }; });
+    });
+  }
+  load();
+  window.addEventListener("beforeunload",function(e){ if(rec&&rec.state!=="inactive"||busy){ e.preventDefault(); e.returnValue=""; } });
+})();
+</script>
+</body>
+</html>
