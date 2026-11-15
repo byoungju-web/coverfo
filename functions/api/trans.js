@@ -11,6 +11,9 @@
 //   { op:'leave', room } · { op:'delete', room } → 나가기 · (만든 사람) 방 지우기
 //   { op:'translate', text, from, to }           → 🔄 마주보기 한 마디 번역: 0.1 크레딧
 //   { op:'call_ticket' }                         → 📞 전화통역(포도랑)용 표 (12시간) — 포도랑 서버가 이 표로 coverfo 지갑을 쓴다
+//   v406 🚫🚨 { op:'block', msg } · { op:'unblock_all' } · { op:'report', msg, reason }
+//     → 💬 채팅·👥 일반채팅과 같은 표를 쓴다: 차단 cf_chat_blocks (모든 방 · 채팅과 통역톡 공통) · 신고 cf_chat_reports (이유 앞에 [통역톡])
+//     → msgs 는 내가 차단한 사람의 말을 { id, hidden:true } 로만 돌려주고, 차단한 사람 수(blocked)를 함께 준다. 새 SQL 필요 없음
 // 서버끼리 (헤더 X-Link-Key = PODO_LINK_KEY · 포도랑 전화통역 서버 podolang-realtime 이 부른다):
 //   { op:'link_balance', t }  → { ok, balance }      { op:'link_spend', t, amount, kind } → { ok, took }
 //
@@ -84,6 +87,9 @@ export async function onRequestPost(context) {
     if (op === 'delete') return json(await leave(c, uid, b, true));
     if (op === 'translate') return json(await faceTranslate(env, uid, b));
     if (op === 'call_ticket') return json({ ok: true, ticket: await makeTicket(env, uid) });
+    if (op === 'block') return json(await block(c, uid, b));
+    if (op === 'unblock_all') { await del(c, `cf_chat_blocks?user_id=eq.${uid}`); return json({ ok: true }); }
+    if (op === 'report') return json(await report(c, uid, b));
   } catch (e) {
     return json({ error: String((e && e.message) || e).slice(0, 300) }, e && e.status ? e.status : 500);
   }
@@ -158,16 +164,42 @@ async function msgs(c, uid, b) {
   const ms = await get(c, `cf_tr_members?select=user_id,nick,lang&room_id=eq.${b.room}`);
   const since = new Date(Date.now() - KEEP_DAYS * 864e5).toISOString();
   const rows = await get(c, `cf_tr_msgs?select=id,user_id,nick,lang,body,tr,created_at&room_id=eq.${b.room}&id=gt.${after}&created_at=gt.${since}&order=id.asc&limit=100`);
+  /* v406 내가 차단한 사람의 말은 내용 없이 (표가 없으면 차단 없이 그대로) */
+  const bl = new Set((await get(c, `cf_chat_blocks?select=blocked&user_id=eq.${uid}`).catch(() => [])).map((x) => x.blocked));
   return {
     ok: true,
     room: room ? { id: room.id, code: room.code, kind: room.kind, name: room.name, mine: room.owner === uid } : null,
     me: { lang: me.lang, nick: me.nick },
     members: ms.map((m) => ({ nick: m.nick, lang: m.lang, me: m.user_id === uid })),
-    msgs: rows.map((m) => ({
+    blocked: bl.size,
+    msgs: rows.map((m) => (bl.has(m.user_id) && m.user_id !== uid ? { id: m.id, hidden: true } : {
       id: m.id, mine: m.user_id === uid, nick: m.nick, lang: m.lang, at: m.created_at,
       orig: m.body, text: m.lang === me.lang ? m.body : ((m.tr && m.tr[me.lang]) || m.body), translated: m.lang !== me.lang && !!(m.tr && m.tr[me.lang]),
     })),
   };
+}
+/* ───────────── v406 🚫 차단 · 🚨 신고 (채팅과 같은 표) ───────────── */
+async function msgOf(c, uid, id) {
+  const n = parseInt(id, 10);
+  if (!n) throw httpErr(400, '메시지를 골라 주세요');
+  const m = (await get(c, `cf_tr_msgs?select=id,room_id,user_id,nick,body&id=eq.${n}`))[0];
+  if (!m) throw httpErr(404, '없어진 메시지예요');
+  await member(c, uid, m.room_id);
+  return m;
+}
+async function block(c, uid, b) {
+  const m = await msgOf(c, uid, b.msg);
+  if (m.user_id === uid) throw httpErr(400, '나는 차단할 수 없어요');
+  const r = await fetch(c.url + '/rest/v1/cf_chat_blocks', { method: 'POST', headers: hdr(c, { Prefer: 'resolution=ignore-duplicates,return=minimal' }), body: JSON.stringify({ user_id: uid, blocked: m.user_id, nick: m.nick }) });
+  if (!r.ok) throw httpErr(500, '차단하지 못했어요');
+  return { ok: true };
+}
+async function report(c, uid, b) {
+  const m = await msgOf(c, uid, b.msg);
+  const why = String(b.reason || '').replace(/[\u0000-\u001f<>]/g, ' ').trim().slice(0, 180);
+  const r = await post(c, 'cf_chat_reports', { room_id: m.room_id, msg_id: m.id, reporter: uid, target: m.user_id, body: String(m.body || '').slice(0, 1000), reason: '[통역톡] ' + why });
+  if (!r.ok) throw httpErr(500, '신고를 저장하지 못했어요');
+  return { ok: true };
 }
 async function send(env, c, uid, b) {
   const me = await member(c, uid, b.room);

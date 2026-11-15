@@ -7,7 +7,7 @@
    · 초대 링크: coverfo.com/#t=코드6자리 */
 (function () {
   if (window.cfTransOpen) return;
-  var VER = 'v295';
+  var VER = 'v406';
   var LANGS = [
     ['KO','한국어','🇰🇷','ko-KR'], ['EN','영어','🇺🇸','en-US'], ['VI','베트남어','🇻🇳','vi-VN'], ['ZH','중국어','🇨🇳','zh-CN'],
     ['TH','태국어','🇹🇭','th-TH'], ['JA','일본어','🇯🇵','ja-JP'], ['ID','인도네시아어','🇮🇩','id-ID'], ['UZ','우즈베크어','🇺🇿','uz-UZ'],
@@ -46,6 +46,9 @@
     '#cft .m{max-width:82%;padding:9px 12px;border-radius:14px;font-size:15px;line-height:1.5;word-break:break-word}#cft .m small{display:block;font-size:11.5px;opacity:.75;margin-top:3px}' +
     '#cft .m.me{align-self:flex-end;background:#6d28d9;color:#fff;border-bottom-right-radius:4px}#cft .m.you{align-self:flex-start;background:#fff;border:1px solid #ebe6f5;border-bottom-left-radius:4px}' +
     '#cft .m .who{font-size:11.5px;font-weight:800;color:#6d28d9;margin-bottom:2px}' +
+    /* v406 🚫 차단 · 🚨 신고: 상대 말을 누르면 단추가 나온다 */
+    '#cft .m.you{cursor:pointer}#cft .m .act{display:none;gap:6px;margin-top:6px}#cft .m.sel .act{display:flex}#cft .m .act button{border:1px solid #e3def0;background:#f6f4fb;color:#4a4460;border-radius:10px;padding:6px 10px;min-height:36px;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit}' +
+    '#cft .cft-err.cft-ok{background:#ecfdf3;color:#067647}#cft .m.hid{background:#f1eff6;color:#8a83a0;font-size:13px;font-style:italic;cursor:default}' +
     '#cft .cft-send{flex:none;display:flex;gap:8px;align-items:flex-end;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:#fff;border-top:1px solid #ece8f5}' +
     '#cft .cft-send textarea{flex:1;min-height:44px;max-height:120px;resize:none}#cft .mic{width:48px;height:44px;border-radius:12px;border:0;background:#efeaf9;font-size:20px;cursor:pointer}#cft .mic.on{background:#ef4444;color:#fff}' +
     '#cft .cft-err{background:#fff1f1;color:#b42318;border-radius:12px;padding:10px 12px;font-size:13px;margin:8px 0}' +
@@ -104,7 +107,7 @@
   function speak(text, lang) {
     try { if (!window.speechSynthesis || !text) return; var u = new SpeechSynthesisUtterance(text); u.lang = L(lang)[3]; speechSynthesis.speak(u); } catch (e) {}
   }
-  function alertBox(m) { var b = $('cft-body'); var d = document.createElement('div'); d.className = 'cft-err'; d.textContent = m; b.insertBefore(d, b.firstChild); setTimeout(function () { d.remove(); }, 4000); }
+  function alertBox(m, ok) { var b = $('cft-body'); var d = document.createElement('div'); d.className = ok ? 'cft-err cft-ok' : 'cft-err'; d.textContent = m; b.insertBefore(d, b.firstChild); setTimeout(function () { d.remove(); }, 4000); }
 
   /* ── 화면 ── */
   function seg() {
@@ -158,7 +161,9 @@
       langSel('cft-rlang', S.lang || myLang()) +
       '<button type="button" class="cft-btn g" data-a="read" style="padding:7px 10px;font-size:12.5px">' + (S.read ? '🔊 읽어주기 켬' : '🔇 읽어주기 끔') + '</button>' +
       '<button type="button" class="cft-btn g" data-a="leave" style="padding:7px 10px;font-size:12.5px">나가기</button>' + (r.mine ? '<button type="button" class="cft-btn g" data-a="del" style="padding:7px 10px;font-size:12.5px;color:#b42318">방 지우기</button>' : '') +
-      '</div><div id="cft-mem" style="font-size:12px;color:#7a7390;margin-top:6px"></div></div><div class="cft-chat" id="cft-chat"></div>';
+      '<button type="button" class="cft-btn g" data-a="unblock" id="cft-unb" hidden style="padding:7px 10px;font-size:12.5px">차단 풀기</button>' +
+      '</div><div id="cft-mem" style="font-size:12px;color:#7a7390;margin-top:6px"></div>' +
+      '<div style="font-size:12px;color:#7a7390;margin-top:4px">전화번호·주소 같은 개인정보는 올리지 마세요. 불쾌한 말은 눌러서 🚫 차단 · 🚨 신고할 수 있어요.</div></div><div class="cft-chat" id="cft-chat"></div>';
     $('cft-foot').innerHTML = '<div class="cft-send"><button type="button" class="mic" data-a="mic" title="말로 입력">🎤</button><textarea class="cft-in" id="cft-text" maxlength="500" placeholder="내 말로 쓰세요 · 상대 말로 번역돼요"></textarea><button type="button" class="cft-btn" data-a="send">보내기</button></div>';
     S.after = 0; S.msgs = []; S.first = true;
     pull(); S.poll = setInterval(pull, 2500);
@@ -170,11 +175,14 @@
       if (j.room) { S.room.mine = j.room.mine; }
       if (j.me && !S.lang) { S.lang = j.me.lang; var sel = $('cft-rlang'); if (sel) sel.value = j.me.lang; }
       var mem = $('cft-mem'); if (mem && j.members) mem.textContent = '👥 ' + j.members.map(function (m) { return L(m.lang)[2] + ' ' + m.nick + (m.me ? '(나)' : ''); }).join(' · ');
+      var ub = $('cft-unb'); if (ub) { ub.hidden = !j.blocked; ub.textContent = '차단 풀기 (' + (j.blocked || 0) + ')'; }
       var box = $('cft-chat'); if (!box) return;
       (j.msgs || []).forEach(function (m) {
         S.after = Math.max(S.after, m.id);
         var d = document.createElement('div'); d.className = 'm ' + (m.mine ? 'me' : 'you');
-        d.innerHTML = (m.mine ? '' : '<div class="who">' + L(m.lang)[2] + ' ' + esc(m.nick) + '</div>') + esc(m.text) + (m.text !== m.orig ? '<small>' + esc(m.orig) + '</small>' : '');
+        if (m.hidden) { d.className = 'm you hid'; d.textContent = '🚫 차단한 사람의 말이에요'; box.appendChild(d); return; }
+        d.innerHTML = (m.mine ? '' : '<div class="who">' + L(m.lang)[2] + ' ' + esc(m.nick) + '</div>') + esc(m.text) + (m.text !== m.orig ? '<small>' + esc(m.orig) + '</small>' : '') +
+          (m.mine ? '' : '<div class="act"><button type="button" data-a="block" data-m="' + m.id + '">🚫 차단</button><button type="button" data-a="report" data-m="' + m.id + '">🚨 신고</button></div>');
         box.appendChild(d);
         if (!m.mine && !S.first && S.read) speak(m.text, S.lang || myLang());
       });
@@ -222,7 +230,8 @@
 
   /* ── 누르기 ── */
   ov.addEventListener('click', function (e) {
-    var el = e.target.closest ? e.target.closest('[data-a]') : null; if (!el) return;
+    var el = e.target.closest ? e.target.closest('[data-a]') : null;
+    if (!el) { var bub = e.target.closest ? e.target.closest('#cft-chat .m.you:not(.hid)') : null; if (bub) bub.classList.toggle('sel'); return; }
     var a = el.getAttribute('data-a');
     if (a === 'close') return close();
     if (a === 'login') return openLogin();
@@ -243,6 +252,22 @@
     if (a === 'leave' || a === 'del') {
       if (!confirm(a === 'del' ? '방과 대화를 모두 지울까요? 되돌릴 수 없어요.' : '이 방에서 나갈까요?')) return;
       api({ op: a === 'del' ? 'delete' : 'leave', room: S.room.id }).then(function () { S.room = null; render(); }, function (er) { alertBox((er && er.message) || '실패'); });
+      return;
+    }
+    /* v406 🚫 차단 · 🚨 신고 (💬 채팅과 같은 방식 · 같은 차단 목록) */
+    if (a === 'block') {
+      if (!confirm('이 사람을 차단할까요? 이 사람의 말이 나에게 보이지 않아요 (모든 방).')) return;
+      api({ op: 'block', msg: el.getAttribute('data-m') }).then(function () { var bx = $('cft-chat'); if (bx) bx.innerHTML = ''; S.after = 0; S.first = true; alertBox('차단했어요.', true); pull(); }, function (er) { alertBox((er && er.message) || '차단하지 못했어요'); });
+      return;
+    }
+    if (a === 'unblock') {
+      if (!confirm('차단한 사람을 모두 풀까요?')) return;
+      api({ op: 'unblock_all' }).then(function () { var bx = $('cft-chat'); if (bx) bx.innerHTML = ''; S.after = 0; S.first = true; pull(); }, function (er) { alertBox((er && er.message) || '실패'); });
+      return;
+    }
+    if (a === 'report') {
+      var why = prompt('신고 이유를 적어 주세요 (예: 욕설, 광고, 사기)', ''); if (why == null) return;
+      api({ op: 'report', msg: el.getAttribute('data-m'), reason: why }).then(function () { alertBox('신고했어요. 운영자가 확인할게요.', true); }, function (er) { alertBox((er && er.message) || '신고하지 못했어요'); });
       return;
     }
     if (a === 'fmic') { var s = el.getAttribute('data-s'); return listen(s === 'a' ? $('cft-fa').value : $('cft-fb').value, function (t) { faceSay(s, t); }, el); }
