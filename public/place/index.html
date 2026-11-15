@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#ffffff">
+<title>장소 · 후기 — coverfo</title>
+<!-- coverfo 📝 장소 · 후기 (v402)
+     가게·장소 이름을 넣으면 → 📍 네이버 지역 검색(최대 5곳, 무료) → 고른 곳의 📝 네이버 블로그 후기 목록(무료) → ✨ 후기 3줄 요약(로그인 · 크레딧)  — /api/naver
+     · 네이버 공식 검색 API(NAVER API HUB)만 쓴다. 블로그 본문은 가져오지 않고, 누르면 블로그 원문으로 간다.
+     · 협찬·원고료 표시가 있는 글은 [광고]로 표시하고 요약에서 뺀다.
+     · 주소: /place/?q=검색어 (축제·가볼 곳 카드의 [📝 후기] 단추가 이 주소로 연다) -->
+<style>
+:root{--ink:#16152b;--sub:#5d5b74;--mute:#8b89a3;--line:#e7e8f5;--soft:#f3f4fd;--pri:#12a06b;--pri2:#0b7a50;--blu:#3d5bff;--err:#b42318}
+*{box-sizing:border-box}
+html,body{margin:0;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;-webkit-text-size-adjust:100%}
+body{min-height:100vh;background:#eef0fd;background-image:radial-gradient(60% 40% at 100% 0%,rgba(150,230,200,.45),transparent 70%),radial-gradient(50% 35% at 0% 40%,rgba(200,215,255,.55),transparent 70%),linear-gradient(180deg,#f2fbf7,#ebeefe);background-attachment:fixed;padding-bottom:calc(30px + env(safe-area-inset-bottom))}
+button{font-family:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid rgba(18,160,107,.45);outline-offset:2px}
+.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;height:54px;padding:0 12px;background:rgba(255,255,255,.85);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.top h1{flex:1;margin:0;font-size:16px;font-weight:800;letter-spacing:-.02em}
+.top .x{height:36px;padding:0 14px;border-radius:18px;border:1.5px solid #d4e9df;background:#fff;font-size:13.5px;font-weight:700;color:var(--pri2)}
+.wrap{max-width:640px;margin:0 auto;padding:14px 14px 0}
+.srch{display:flex;gap:8px}
+.srch input{flex:1;min-width:0;height:46px;border:1.5px solid #d4e9df;border-radius:14px;padding:0 14px;font-size:15px;background:#fff}
+.srch button{flex:none;height:46px;padding:0 16px;border-radius:14px;border:0;background:var(--pri);color:#fff;font-size:14.5px;font-weight:800}
+.hint{font-size:12.5px;color:var(--sub);margin:8px 4px 0;line-height:1.6}
+h2{margin:18px 4px 8px;font-size:14px;font-weight:800;color:var(--sub)}
+.pl{display:flex;gap:10px;align-items:flex-start;background:rgba(255,255,255,.92);border:2px solid transparent;border-radius:18px;padding:12px 14px;margin-bottom:8px;box-shadow:0 6px 16px -12px rgba(30,90,60,.45);cursor:pointer}
+.pl.on{border-color:var(--pri)}
+.pl .c{flex:1;min-width:0}
+.pl b{display:block;font-size:15.5px;font-weight:800;line-height:1.4}
+.pl b small{font-size:11.5px;font-weight:700;color:var(--pri2);background:#e3f6ee;border-radius:999px;padding:2px 8px;margin-left:6px;vertical-align:2px}
+.pl p{margin:4px 0 0;font-size:13px;color:var(--sub);line-height:1.5}
+.bt{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.bt a,.bt button{display:inline-flex;align-items:center;height:32px;padding:0 11px;border-radius:10px;border:1.5px solid #d4e9df;background:#fff;color:var(--pri2);font-size:12.5px;font-weight:800;text-decoration:none}
+.card{margin-top:10px;background:rgba(255,255,255,.92);border:1.5px solid #fff;border-radius:22px;padding:16px;box-shadow:0 10px 30px -14px rgba(30,90,60,.35)}
+.sumbtn{width:100%;height:50px;border:0;border-radius:16px;background:linear-gradient(90deg,#12a06b,#1fb8a0 55%,#3d7bff);color:#fff;font-size:15.5px;font-weight:800;box-shadow:0 12px 24px -12px rgba(18,160,107,.7)}
+.sumbtn:disabled{opacity:.5}
+.sumbtn small{font-weight:600;opacity:.9;margin-left:4px}
+.sum{margin-top:16px}
+.sum h3{margin:0 0 8px;font-size:15px;font-weight:800;color:var(--pri2)}
+.sum ol{margin:0;padding:0 0 0 20px}
+.sum li{font-size:15.5px;line-height:1.65;margin-bottom:6px;word-break:keep-all;overflow-wrap:anywhere}
+.sum sup a{font-size:11px;font-weight:800;color:var(--blu);text-decoration:none;margin-left:2px}
+.gb{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.gb div{border-radius:14px;padding:10px 12px;font-size:13.5px;line-height:1.55}
+.gb .g{background:#e9f8f0;color:#0b5c3b}
+.gb .b{background:#fff3ef;color:#8a2c0d}
+.gb b{display:block;font-size:12.5px;margin-bottom:4px}
+.disc{margin:10px 0 0;font-size:12px;color:var(--mute);line-height:1.6}
+.it{display:block;text-decoration:none;color:inherit;background:rgba(255,255,255,.92);border-radius:16px;padding:12px 14px;margin-bottom:8px;box-shadow:0 6px 16px -12px rgba(30,90,60,.4)}
+.it b{display:block;font-size:14.5px;line-height:1.5;font-weight:700;word-break:keep-all;overflow-wrap:anywhere}
+.it b i{font-style:normal;font-size:11px;font-weight:800;color:var(--blu);margin-right:6px}
+.it b em{font-style:normal;font-size:11px;font-weight:800;color:#9a3412;background:#ffedd5;border-radius:999px;padding:1px 7px;margin-left:6px}
+.it p{margin:4px 0 0;font-size:13px;line-height:1.55;color:var(--sub);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.it small{display:block;margin-top:6px;font-size:11.5px;color:var(--mute)}
+.it.hl{outline:2px solid rgba(61,91,255,.5)}
+.msg{margin-top:12px;padding:12px 14px;border-radius:14px;background:#fff4f2;border:1px solid #f3d0cc;color:var(--err);font-size:14px;line-height:1.6}
+.msg a{color:var(--blu);font-weight:700}
+.empty{text-align:center;color:var(--mute);font-size:14px;padding:18px 0}
+.note{font-size:11.5px;color:var(--mute);line-height:1.6;margin:14px 4px 0}
+.hide{display:none !important}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>📝 장소 · 후기</h1>
+  <button type="button" class="x" id="close">✕ 닫기</button>
+</header>
+<main class="wrap">
+  <form class="srch" id="f" role="search">
+    <input id="q" maxlength="40" placeholder="가게·장소 이름 (예: 위례 소담촌, 성수 카페)" autocomplete="off" enterkeyhint="search" aria-label="가게·장소 이름">
+    <button type="submit">찾기</button>
+  </form>
+  <p class="hint">동네 이름을 같이 넣으면 더 정확해요. 장소는 무료, 후기 3줄 요약만 크레딧이 들어요.</p>
+  <div id="msg"></div>
+  <section id="plSec" class="hide"><h2>📍 장소 <small style="font-weight:600;color:var(--mute)">(네이버 지역 검색 · 최대 5곳)</small></h2><div id="pl"></div></section>
+  <section id="rvSec" class="hide">
+    <h2 id="rvH">📝 블로그 후기</h2>
+    <div class="card" id="sumCard"><button type="button" class="sumbtn" id="sumBtn">✨ 후기 3줄 요약<small id="sumCost"></small></button><div class="sum hide" id="sum"></div></div>
+    <div id="rv" style="margin-top:10px"></div>
+  </section>
+  <p class="note">장소·후기는 네이버 검색에서 가져오고, 누르면 원문으로 이동해요. 협찬·원고료 표시가 있는 글은 [광고]로 표시하고 요약에서 빼요. 요약은 블로그 제목·소개만으로 AI가 만든 것이라 틀릴 수 있어요(실패하면 크레딧을 돌려드려요).</p>
+</main>
+<script>
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var COST=0.5, PL=[], SEL=-1, RQ="", RV=[], busy=false;
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(m){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]; }); }
+  function auth(){ try{ for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf("sb-")===0&&k.indexOf("-auth-token")>0){ var v=JSON.parse(localStorage.getItem(k)||"null"); var t=v&&(v.access_token||(v.currentSession&&v.currentSession.access_token)); if(t) return t; } } }catch(e){} return ""; }
+  var WHY={login:'로그인 후 요약할 수 있어요. <a href="/">홈에서 로그인 ›</a>',insufficient:'크레딧이 부족해요. <a href="/pricing#charge">충전하기 ›</a>',off:"지금은 네이버 검색을 쓸 수 없어요. 잠시 뒤 다시 해 주세요.",hub:"불러오지 못했어요. 잠시 뒤 다시 해 주세요.",few:"광고가 아닌 후기가 너무 적어 요약하지 않았어요(크레딧 안 씀).",ai:"요약하지 못했어요. 크레딧은 돌려드렸어요. 다시 해 주세요.",net:"연결이 끊겼어요. 다시 해 주세요."};
+  function say(h){ $("msg").innerHTML=h?'<div class="msg">'+h+'</div>':""; }
+  function get(op,q){ return fetch("/api/naver?op="+op+"&q="+encodeURIComponent(q),{cache:"no-store"}).then(function(r){ return r.json().catch(function(){ return {ok:false,reason:"hub"}; }); })["catch"](function(){ return {ok:false,reason:"net"}; }); }
+  $("sumCost").textContent=" · "+COST+"크레딧";
+  fetch("/api/naver",{cache:"no-store"}).then(function(r){ return r.ok?r.json():null; }).then(function(j){ if(!j) return; if(typeof j.cost==="number"){ COST=j.cost; $("sumCost").textContent=" · "+COST+"크레딧"; } if(!j.on) say(WHY.off); })["catch"](function(){});
+  $("close").onclick=function(){ try{ if(window.opener){ window.close(); } }catch(e){} setTimeout(function(){ if(history.length>1) history.back(); else location.href="/"; },150); };
+
+  /* 동네 이름: 도로명 주소 앞 두 낱말(시·구) — 후기 검색을 정확하게 */
+  function area(p){ var a=String(p.road||p.addr||"").split(" "); return (a[1]||a[0]||"").replace(/(특별시|광역시|특별자치시|특별자치도)$/,""); }
+
+  function search(q){
+    if(busy) return; q=String(q||"").replace(/\s+/g," ").trim().slice(0,40); if(!q) return;
+    say(""); $("q").value=q; try{ history.replaceState(null,"","?q="+encodeURIComponent(q)); }catch(e){}
+    $("plSec").classList.remove("hide"); $("pl").innerHTML='<div class="empty">찾는 중…</div>'; $("rvSec").classList.add("hide");
+    get("local",q).then(function(j){
+      if(!j||!j.ok){ $("pl").innerHTML=""; say(WHY[(j&&j.reason)||"hub"]||WHY.hub); return; }
+      PL=j.items||[];
+      if(!PL.length){ $("pl").innerHTML='<div class="empty">장소를 찾지 못했어요 · 후기만 보여 드릴게요</div>'; reviews(q,q); return; }
+      drawPl(); pick(0);
+    });
+  }
+  function drawPl(){
+    $("pl").innerHTML=PL.map(function(p,i){
+      var to=p.lat&&p.lng?"https://map.kakao.com/link/to/"+encodeURIComponent(p.name)+","+p.lat+","+p.lng:"https://map.kakao.com/link/search/"+encodeURIComponent(p.name);
+      return '<div class="pl'+(i===SEL?" on":"")+'" data-i="'+i+'" role="button" tabindex="0" aria-pressed="'+(i===SEL)+'"><div class="c"><b>'+esc(p.name)+(p.cat?'<small>'+esc(p.cat.split(">").pop())+'</small>':'')+'</b><p>'+esc(p.road||p.addr||"")+'</p>'
+        +'<div class="bt"><a href="'+esc(to)+'" target="_blank" rel="noopener">🧭 길찾기</a>'+(p.link?'<a href="'+esc(p.link)+'" target="_blank" rel="noopener noreferrer">🏠 홈페이지</a>':'')+'<button type="button" data-rv="'+i+'">📝 이곳 후기</button></div></div></div>';
+    }).join("");
+  }
+  $("pl").addEventListener("click",function(e){ if(e.target.closest("a")) return; var b=e.target.closest("[data-i]"); if(b) pick(+b.getAttribute("data-i")); });
+  $("pl").addEventListener("keydown",function(e){ if(e.key==="Enter"){ var b=e.target.closest("[data-i]"); if(b) pick(+b.getAttribute("data-i")); } });
+  function pick(i){ SEL=i; drawPl(); var p=PL[i]; if(!p) return; var ar=area(p); reviews(((ar&&p.name.indexOf(ar)<0)?ar+" ":"")+p.name,p.name); }
+
+  function reviews(q,label){
+    RQ=q; $("rvSec").classList.remove("hide"); $("rvH").textContent="📝 ‘"+label+"’ 블로그 후기"; $("sum").classList.add("hide"); $("sum").innerHTML="";
+    $("rv").innerHTML='<div class="empty">후기 찾는 중…</div>'; $("sumBtn").disabled=true;
+    get("blog",q).then(function(j){
+      if(RQ!==q) return;
+      if(!j||!j.ok){ $("rv").innerHTML=""; say(WHY[(j&&j.reason)||"hub"]||WHY.hub); return; }
+      RV=j.items||[]; drawRv(); $("sumBtn").disabled=!RV.filter(function(x){ return !x.ad; }).length;
+    });
+  }
+  function drawRv(){
+    if(!RV.length){ $("rv").innerHTML='<div class="empty">후기를 찾지 못했어요</div>'; return; }
+    $("rv").innerHTML=RV.map(function(x){ return '<a class="it" id="r'+x.n+'" href="'+esc(x.link)+'" target="_blank" rel="noopener noreferrer"><b><i>'+x.n+'</i>'+esc(x.title)+(x.ad?'<em>광고</em>':'')+'</b>'+(x.desc?'<p>'+esc(x.desc)+'</p>':'')+'<small>'+esc([x.blogger,x.date].filter(Boolean).join(" · "))+'</small></a>'; }).join("");
+  }
+  $("sumBtn").onclick=function(){
+    if(busy||!RQ) return; var t=auth(); if(!t){ say(WHY.login); return; }
+    busy=true; say(""); var b=$("sumBtn"), q=RQ; b.disabled=true; b.firstChild.nodeValue="요약하는 중… ";
+    fetch("/api/naver",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+t},body:JSON.stringify({op:"blogsum",q:q})})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false,reason:"ai"}; }); })["catch"](function(){ return {ok:false,reason:"net"}; })
+      .then(function(j){
+        busy=false; b.disabled=false; b.firstChild.nodeValue="✨ 후기 3줄 요약";
+        if(RQ!==q) return;
+        if(!j||!j.ok){ say(WHY[(j&&j.reason)||"ai"]||WHY.ai); return; }
+        if(j.items&&j.items.length){ RV=j.items; drawRv(); }
+        var h='<h3>✨ 후기 3줄 요약</h3><ol>'+j.lines.map(function(l){ return '<li>'+esc(l.t)+(l.refs&&l.refs.length?'<sup>'+l.refs.map(function(n){ return '<a href="#r'+n+'" data-n="'+n+'">['+n+']</a>'; }).join("")+'</sup>':'')+'</li>'; }).join("")+'</ol>';
+        if((j.good&&j.good.length)||(j.bad&&j.bad.length)) h+='<div class="gb"><div class="g"><b>👍 좋다는 말</b>'+((j.good||[]).map(esc).join("<br>")||"—")+'</div><div class="b"><b>👎 아쉽다는 말</b>'+((j.bad||[]).map(esc).join("<br>")||"—")+'</div></div>';
+        h+='<p class="disc">[번호]를 누르면 그 후기로 이동해요 · 광고 표시 글은 뺐어요 · AI 요약이라 틀릴 수 있어요 · '+esc(String(j.cost))+'크레딧 사용</p>';
+        var s=$("sum"); s.innerHTML=h; s.classList.remove("hide");
+      });
+  };
+  $("sum").addEventListener("click",function(e){ var a=e.target.closest("[data-n]"); if(!a) return; e.preventDefault(); var it=$("r"+a.getAttribute("data-n")); if(!it) return;
+    [].forEach.call(document.querySelectorAll(".it.hl"),function(x){ x.classList.remove("hl"); }); it.classList.add("hl"); try{ it.scrollIntoView({behavior:"smooth",block:"center"}); }catch(x){} });
+  $("f").addEventListener("submit",function(e){ e.preventDefault(); $("q").blur(); search($("q").value); });
+
+  var q0=(location.search.match(/[?&]q=([^&]+)/)||[])[1];
+  try{ q0=q0?decodeURIComponent(q0.replace(/\+/g," ")):""; }catch(e){ q0=""; }
+  if(q0) search(q0); else $("q").focus();
+})();
+</script>
+</body>
+</html>
