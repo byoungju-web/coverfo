@@ -849,7 +849,7 @@
   /* 🚫 차단한 사람 (coverfo 채팅) */
   function blocksView(b) {
     b.innerHTML = '<div class="p-lead">🚫 채팅에서 차단한 사람이에요. 차단한 사람의 말은 모든 방에서 나에게 보이지 않아요. 상대는 차단된 걸 알 수 없어요.</div><div id="cfp-blist"><div class="p-wait">불러오는 중…</div></div>';
-    api({ op: 'blocks' }, '/api/chat').then(function (j) {
+    api({ op: 'blocks' }, '/api/chatroom').then(function (j) {
       var l = j.blocks || [], box = $('cfp-blist'); if (!box) return;
       box.innerHTML = l.length ? '<div class="p-list">' + l.map(function (x) { return '<div class="p-row" style="cursor:default"><span class="ic">🚫</span><span class="mid"><span class="nm">' + esc(x.nick || '(이름 없음)') + '</span><span class="sub">' + esc(String(x.at || '').slice(0, 10)) + ' 차단</span></span><button type="button" class="p-btn g" data-a="unblock" data-id="' + esc(x.id) + '" style="width:auto;margin:0;padding:8px 12px;font-size:12.5px">차단 풀기</button></div>'; }).join('') + '</div>'
         : '<div class="p-mut" style="margin:0 4px">차단한 사람이 없어요. 채팅방에서 상대 말풍선을 누르면 🚫 차단할 수 있어요.</div>';
@@ -999,7 +999,7 @@
     if (a === 'non') return notifyOn(el);
     if (a === 'noff') return notifyOff();
     if (a === 'ntest') return api({ op: 'push_test' }, HUB).then(function (j) { drawNotify(true, '<div class="p-ok">' + (j.sent ? '시험 알림을 보냈어요' : '보낼 곳이 없어요. 알림을 다시 켜 주세요') + '</div>'); }, function (er) { drawNotify(true, errBox(er)); });
-    if (a === 'unblock') return api({ op: 'unblock', id: el.getAttribute('data-id') }, '/api/chat').then(function () { blocksView($('cfp-body')); }, function (er) { $('cfp-blist').insertAdjacentHTML('afterbegin', errBox(er)); });
+    if (a === 'unblock') return api({ op: 'unblock', id: el.getAttribute('data-id') }, '/api/chatroom').then(function () { blocksView($('cfp-body')); }, function (er) { $('cfp-blist').insertAdjacentHTML('afterbegin', errBox(er)); });
     if (a === 'go-blocks') { S.home = 'blocks'; S.view = 'blocks'; return render(); }
     if (a === 'ctab') { S.callTab = el.getAttribute('data-v'); return callsView($('cfp-body')); }
     if (a === 'copy' || a === 'share') {
