@@ -29,7 +29,7 @@
 //        (sql/cf_deliver.sql · 설정은 /api/podoya deliver_save). 표가 없거나 보내기에 실패해도 실행 결과에는 영향 없음.
 //   v327 ⏰ 알림 (sql/cf_remind.sql 1번 실행 · 무료 · 켜 둔 알림 30개까지):
 //   { op:"remind_list" } → { items, subs(알림 받을 브라우저 수) } · { op:"remind_add", text, kind, at, off, hh, mm, dow, dom } · { op:"remind_del", id }
-//     kind: once·daily·weekly·monthly. at = 처음 울릴 때(ISO, 화면이 그 기기 시각으로 계산), off = 그 기기의 UTC 차이(분, 한국 540).
+//     kind: once·daily·weekly·monthly·yearly(v398 매년 기념일, dom=날짜·달은 처음 울릴 때의 달). at = 처음 울릴 때(ISO, 화면이 그 기기 시각으로 계산), off = 그 기기의 UTC 차이(분, 한국 540).
 //     울릴 때가 되면 cron_due 가 웹 알림(🔔 알림을 켠 브라우저)으로 보낸다. 정확도는 coverfo-cron 이 cron_due 를 부르는 간격만큼.
 //   v327 🏃 한 마디 루틴 (같은 sql · 무료 · 20개까지): { op:"mr_list" } · { op:"mr_save", name, cmds:[…최대 5], old? } · { op:"mr_del", name }
 //     "퇴근" 한 마디 → 명령 문장 여러 개를 홈 화면이 차례로 실행. 번호는 넣지 않는다(📒 내 연락처가 이 기기에서 채움).
@@ -1023,7 +1023,7 @@ function remindErr(e) {
   if (/cf_remind|cf_mroutine/.test(m) && /404|42P01|does not exist|schema cache/.test(m)) return httpErr(500, '알림·루틴 표가 아직 없어요. Supabase 에서 sql/cf_remind.sql 을 한 번 실행해 주세요.');
   return e;
 }
-/* 다음 울릴 때: 그 기기 시각(off 분) 기준으로 하루·일주일·한 달 뒤. 지금보다 뒤가 될 때까지 넘긴다 */
+/* 다음 울릴 때: 그 기기 시각(off 분) 기준으로 하루·일주일·한 달·일 년(v398) 뒤. 지금보다 뒤가 될 때까지 넘긴다 */
 function remindNext(r, from, now) {
   const k = r.kind;
   if (k === 'once') return null;
@@ -1038,6 +1038,13 @@ function remindNext(r, from, now) {
       const dim = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
       const d = Math.min(Number(r.dom) || L.getUTCDate(), dim);
       t = Date.UTC(y, m, d, L.getUTCHours(), L.getUTCMinutes()) - off * 60e3;
+    } else if (k === 'yearly') {
+      // v398 매년: 그 기기 시각 기준 같은 달·같은 날 (2월 29일은 평년에 28일, 윤년에 다시 29일)
+      const L = new Date(t + off * 60e3);
+      const y = L.getUTCFullYear() + 1, mo = L.getUTCMonth();
+      const dim = new Date(Date.UTC(y, mo + 1, 0)).getUTCDate();
+      const d = Math.min(Number(r.dom) || L.getUTCDate(), dim);
+      t = Date.UTC(y, mo, d, L.getUTCHours(), L.getUTCMinutes()) - off * 60e3;
     } else return null;
   }
   return t > now ? t : null;
@@ -1054,7 +1061,7 @@ async function remindAdd(env, uid, b) {
   const text = String(b.text || '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
   if (!text) throw httpErr(400, '알림 내용을 알려 주세요');
   if (/(?:\d[\s.\-]?){9,}/.test(text)) throw httpErr(400, '전화·카드·계좌번호처럼 보이는 숫자는 알림에 넣지 않아요');
-  const kind = ['once', 'daily', 'weekly', 'monthly'].includes(b.kind) ? b.kind : '';
+  const kind = ['once', 'daily', 'weekly', 'monthly', 'yearly'].includes(b.kind) ? b.kind : '';
   if (!kind) throw httpErr(400, '반복 방법이 올바르지 않아요');
   const at = Date.parse(String(b.at || ''));
   const now = Date.now();

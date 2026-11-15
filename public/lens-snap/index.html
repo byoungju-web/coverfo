@@ -12,7 +12,9 @@
      · 사진은 1280px JPEG 로 줄여 보낸다. 서버는 사진 원본을 저장하지 않는다.
      · 쇼핑몰은 공개 검색 주소(딥링크)만 연다 — 크롤링 없음, 결제는 해당 쇼핑몰에서.
        제휴 ID 는 기존 /api/shop-ids, 쿠팡 파트너스 변환은 기존 /api/shop-link 를 그대로 쓴다(키가 없으면 딥링크).
-     · 로그인 토큰은 홈과 같은 방법(localStorage 의 sb-…-auth-token)으로 읽는다. -->
+     · 로그인 토큰은 홈과 같은 방법(localStorage 의 sb-…-auth-token)으로 읽는다.
+     · v398 🌐 글자 번역: 위의 [🔎 무엇인지 알기 | 🌐 글자 번역] 중 번역을 고르면 메뉴판·안내판·서류 글자를 줄마다 원문 + 번역으로 보여 준다.
+       값은 사진 분석과 같음(1장 1크레딧, 같은 사진·같은 언어 다시 = 0). 주소 ?mode=tr 로 열면 번역이 먼저 골라져 있다. -->
 <style>
 :root{--ink:#111;--sub:#6b6480;--line:#ece7f7;--soft:#f6f4fb;--pri:#5b3fd6;--pri2:#3d2a8c;--ok:#0f7b4b;--warn:#b54708;--err:#b42318}
 *{box-sizing:border-box}
@@ -107,6 +109,19 @@ summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--pri2)}
 .msg{margin-top:14px;padding:14px;border-radius:14px;background:#fff4f2;border:1px solid #f3d0cc;color:var(--err);font-size:14px;line-height:1.6}
 .msg a{color:var(--pri);font-weight:700}
 .hide{display:none !important}
+/* v398 🌐 글자 번역 */
+.mode{display:flex;gap:6px;margin-bottom:10px;padding:4px;border-radius:14px;background:var(--soft)}
+.mode button{flex:1;height:40px;border:0;border-radius:11px;background:transparent;font-size:14px;font-weight:800;color:var(--sub);cursor:pointer}
+.mode button.on{background:#fff;color:var(--pri2);box-shadow:0 2px 8px -3px rgba(61,42,140,.35)}
+.trto{display:flex;align-items:center;justify-content:center;gap:8px;margin:0 0 10px;font-size:13.5px;font-weight:700;color:var(--sub)}
+.trto select{height:36px;border:1.5px solid #ddd6ee;border-radius:10px;padding:0 10px;font:inherit;font-size:14px;font-weight:700;color:var(--ink);background:#fff}
+.trl{list-style:none;margin:12px 0 0;padding:0}
+.trl li{padding:10px 0;border-top:1px solid var(--line)}
+.trl li:first-child{border-top:0}
+.trl b{display:block;font-size:15.5px;line-height:1.55;font-weight:700;word-break:keep-all;overflow-wrap:anywhere}
+.trl small{display:block;margin-top:2px;font-size:12.5px;line-height:1.5;color:var(--sub);overflow-wrap:anywhere}
+.trl i{display:block;margin-top:3px;font-style:normal;font-size:12.5px;color:var(--pri2)}
+.copy{margin-top:12px;height:40px;padding:0 16px;border-radius:12px;border:1.5px solid #ddd6ee;background:#fff;font-size:13.5px;font-weight:800;color:var(--pri2);cursor:pointer}
 </style>
 </head>
 <body>
@@ -116,6 +131,8 @@ summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--pri2)}
 </header>
 
 <main class="wrap">
+  <div class="mode" role="group" aria-label="무엇을 할까요"><button type="button" id="mAsk" class="on" aria-pressed="true">🔎 무엇인지 알기</button><button type="button" id="mTr" aria-pressed="false">🌐 글자 번역</button></div>
+  <div class="trto hide" id="trto"><label for="tl">번역할 말</label><select id="tl"><option value="ko">한국어</option><option value="en">English</option><option value="ja">日本語</option><option value="zh">中文</option><option value="th">ไทย</option></select></div>
   <div class="photo" id="photo"><div class="ph" id="ph"><b>📷</b>찍고 싶은 물건을 사각형 안에 맞추면<br>질문하지 않아도 바로 알려 드려요</div></div>
   <div class="btns">
     <button type="button" class="btn main" id="cam">📸 사진 찍기</button>
@@ -129,7 +146,7 @@ summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--pri2)}
   <div id="out" class="hide">
     <!-- ① 결과 -->
     <section class="sec">
-      <h2>① 이게 뭐예요</h2>
+      <h2 id="h1t">① 이게 뭐예요</h2>
       <div class="card" id="res"></div>
     </section>
     <!-- ② 쇼핑몰 -->
@@ -185,6 +202,17 @@ summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--pri2)}
   var hist=[];         /* 이어서 질문 기록 (최근 몇 개만 서버로) */
   var busy=false;
   var IDS=null;
+  /* v398 🌐 글자 번역 모드 */
+  var MODE="", TL="ko";
+  var PH_ASK=$("ph").innerHTML, PH_TR='<b>🌐</b>메뉴판·안내판·서류를 찍으면<br>글자를 줄마다 번역해 드려요';
+  function setMode(m){
+    if(busy) return; MODE=m==="tr"?"tr":"";
+    $("mAsk").classList.toggle("on",!MODE); $("mAsk").setAttribute("aria-pressed",MODE?"false":"true");
+    $("mTr").classList.toggle("on",!!MODE); $("mTr").setAttribute("aria-pressed",MODE?"true":"false");
+    $("trto").classList.toggle("hide",!MODE);
+    var ph=$("ph"); if(ph) ph.innerHTML=MODE?PH_TR:PH_ASK;
+    try{ var u=new URL(location.href); if(MODE) u.searchParams.set("mode","tr"); else u.searchParams.delete("mode"); history.replaceState(null,"",u.pathname+u.search); }catch(e){}
+  }
 
   function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(m){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m];}); }
 
@@ -230,6 +258,11 @@ summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--pri2)}
     }catch(e){ cb(""); }
   }
 
+  $("mAsk").onclick=function(){ setMode(""); };
+  $("mTr").onclick=function(){ setMode("tr"); };
+  try{ var nl=(navigator.language||"ko").slice(0,2).toLowerCase(); if(/^(ko|en|ja|zh|th)$/.test(nl)) TL=nl; }catch(e){}
+  $("tl").value=TL; $("tl").onchange=function(){ TL=$("tl").value; };
+  if(/[?&]mode=tr\b/.test(location.search)) setMode("tr");
   function setBusy(b){ busy=b; $("cam").disabled=b; $("alb").disabled=b; $("go").disabled=b; Array.prototype.forEach.call(document.querySelectorAll(".chip"),function(c){ c.disabled=b; }); }
 
   function pick(f){
@@ -363,10 +396,13 @@ summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--pri2)}
 
   function analyze(dataUrl){
     setBusy(true); $("photo").classList.add("busy"); waitStart();
-    post({op:"analyze",imageBase64:dataUrl,mimeType:"image/jpeg",lang:LANG}).then(function(j){
+    var tr=MODE==="tr", lg=tr?TL:LANG;
+    post(tr?{op:"analyze",mode:"tr",imageBase64:dataUrl,mimeType:"image/jpeg",lang:lg}:{op:"analyze",imageBase64:dataUrl,mimeType:"image/jpeg",lang:lg}).then(function(j){
       waitStop(); $("photo").classList.remove("busy"); setBusy(false);
       if(!j||!j.ok){ say(WHY[(j&&j.reason)||"ai"]||WHY.ai); return; }
-      R=j; hist=[]; show(j);
+      j.lg=lg; R=j; hist=[];
+      if(j.mode==="tr"){ showTr(j); return; }
+      show(j);
       if(!j.web&&j.name&&!j.personal){   /* 이름 확인(웹 검색)은 결과를 먼저 보여 준 뒤 따로 받음 */
         var mine=j;
         post({op:"web",hash:j.hash,lang:LANG}).then(function(w){ if(R!==mine) return; mine.web=(w&&w.ok&&w.web)||{checked:false,verified:false,links:[]}; webShow(mine); });
@@ -374,8 +410,32 @@ summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--pri2)}
     });
   }
 
+  /* v398 🌐 번역 결과: 줄마다 번역(굵게) + 원문(작게) */
+  function showTr(j){
+    $("h1t").textContent="① 번역";
+    var h='<div class="nm">'+esc(j.title||"사진 속 글자")+'</div><div class="meta">';
+    if(j.from) h+='<span class="tag">'+esc(j.from)+' → '+esc($("tl").options[$("tl").selectedIndex].text)+'</span>';
+    if(j.cached) h+='<span class="tag">저장된 결과 · 0크레딧</span>';
+    h+='</div>';
+    if(j.summary) h+='<p class="sum">'+esc(j.summary)+'</p>';
+    h+='<ul class="trl">'+(j.lines||[]).map(function(l){ return '<li><b>'+esc(l.t||l.o)+'</b>'+(l.o&&l.o!==l.t?'<small>'+esc(l.o)+'</small>':'')+(l.n?'<i>💡 '+esc(l.n)+'</i>':'')+'</li>'; }).join("")+'</ul>';
+    h+='<button type="button" class="copy" id="trCopy">📋 번역 복사</button>';
+    $("res").innerHTML=h;
+    $("trCopy").onclick=function(){
+      var txt=(j.lines||[]).map(function(l){ return l.t||l.o; }).join("\n"), b=$("trCopy");
+      var done=function(){ b.textContent="✓ 복사했어요"; setTimeout(function(){ b.textContent="📋 번역 복사"; },1800); };
+      try{ navigator.clipboard.writeText(txt).then(done,function(){ b.textContent="복사하지 못했어요"; }); }catch(e){ b.textContent="복사하지 못했어요"; }
+    };
+    $("shopSec").classList.add("hide"); $("webSec").classList.add("hide");
+    $("chips").innerHTML=(j.questions||[]).map(function(q){ return '<button type="button" class="chip">'+esc(q)+'</button>'; }).join("");
+    Array.prototype.forEach.call(document.querySelectorAll(".chip"),function(c){ c.onclick=function(){ ask(c.textContent); }; });
+    $("chat").innerHTML=""; leftText(j);
+    $("out").classList.remove("hide"); $("ask").classList.add("on");
+    try{ $("res").scrollIntoView({behavior:"smooth",block:"start"}); }catch(e){}
+  }
   /* ① 결과 */
   function show(j){
+    $("h1t").textContent="① 이게 뭐예요";
     var h='<div class="nm">'+esc(j.name||j.category||"알 수 없음")+'</div><div class="meta">';
     if(j.brand) h+='<span class="tag">'+esc(j.brand)+'</span>';
     if(j.category) h+='<span class="tag">'+esc(j.category)+'</span>';
@@ -482,7 +542,9 @@ summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--pri2)}
     bubble("u",esc(t)); $("q").value="";
     var wait=bubble("a","생각하는 중…");
     setBusy(true);
-    post({op:"ask",hash:R.hash,lang:LANG,question:t,context:JSON.stringify({name:R.name,brand:R.brand,category:R.category,summary:R.summary,facts:R.facts,cautions:R.cautions,ocr:R.ocr}),history:hist.slice(-4)}).then(function(j){
+    var ctx=R.mode==="tr"?JSON.stringify({title:R.title,from:R.from,summary:R.summary,lines:(R.lines||[]).slice(0,40)}):JSON.stringify({name:R.name,brand:R.brand,category:R.category,summary:R.summary,facts:R.facts,cautions:R.cautions,ocr:R.ocr});
+    var qb={op:"ask",hash:R.hash,lang:R.lg||LANG,question:t,context:ctx,history:hist.slice(-4)}; if(R.mode==="tr") qb.mode="tr";
+    post(qb).then(function(j){
       setBusy(false);
       if(j&&j.ok){ wait.innerHTML=esc(j.answer)+srcHtml(j.sources); hist.push({q:t,a:String(j.answer||"").slice(0,600)}); leftText(j); }
       else { wait.className="a err"; wait.innerHTML=(j&&j.reason==="ai")?"답을 받지 못했어요. "+(j.refunded?"크레딧은 돌려드렸어요. ":"")+"다시 해 주세요.":(WHY[(j&&j.reason)||"ai"]||WHY.ai); if(j&&j.q) leftText(j); }
