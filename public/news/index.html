@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#ffffff">
+<title>뉴스 요약 — coverfo</title>
+<!-- coverfo 📰 뉴스 요약 (v401)
+     관심 분야를 고르면 → 최신 뉴스 제목 목록(무료) → ✨ 3줄 요약(로그인 · 크레딧 차감) — /api/news
+     · 기사는 네이버 뉴스 검색 공식 API(NAVER API HUB)로만 받는다. 본문을 가져오지 않고, 누르면 기사 원문(네이버 뉴스)으로 간다.
+     · 내 관심어는 이 기기(localStorage cf_news_kw)에만 저장. 로그인 토큰은 홈과 같은 방법으로 읽는다. -->
+<style>
+:root{--ink:#16152b;--sub:#5d5b74;--mute:#8b89a3;--line:#e7e8f5;--soft:#f3f4fd;--pri:#3d5bff;--pri2:#2a3fc8;--err:#b42318}
+*{box-sizing:border-box}
+html,body{margin:0;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;-webkit-text-size-adjust:100%}
+body{min-height:100vh;background:#eef0fd;background-image:radial-gradient(60% 40% at 100% 0%,rgba(150,170,255,.5),transparent 70%),radial-gradient(50% 35% at 0% 40%,rgba(200,215,255,.55),transparent 70%),linear-gradient(180deg,#f4f5ff,#ebeefe);background-attachment:fixed;padding-bottom:calc(30px + env(safe-area-inset-bottom))}
+button{font-family:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid rgba(61,91,255,.45);outline-offset:2px}
+.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;height:54px;padding:0 12px;background:rgba(255,255,255,.85);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.top h1{flex:1;margin:0;font-size:16px;font-weight:800;letter-spacing:-.02em}
+.top .x{height:36px;padding:0 14px;border-radius:18px;border:1.5px solid #d9dcf3;background:#fff;font-size:13.5px;font-weight:700;color:var(--pri2)}
+.wrap{max-width:640px;margin:0 auto;padding:14px 14px 0}
+.srch{display:flex;gap:8px}
+.srch input{flex:1;min-width:0;height:46px;border:1.5px solid #d9dcf3;border-radius:14px;padding:0 14px;font-size:15px;background:#fff}
+.srch button{flex:none;height:46px;padding:0 16px;border-radius:14px;border:0;background:var(--pri);color:#fff;font-size:14.5px;font-weight:800}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{border:1.5px solid #d9dcf3;background:rgba(255,255,255,.85);color:var(--sub);border-radius:999px;padding:7px 13px;font-size:13.5px;font-weight:700}
+.chip.on{background:var(--pri);border-color:var(--pri);color:#fff}
+.chip.my{border-style:dashed}
+.chip .rm{margin-left:4px;opacity:.6}
+.card{margin-top:12px;background:rgba(255,255,255,.9);border:1.5px solid #fff;border-radius:22px;padding:16px;box-shadow:0 10px 30px -14px rgba(60,80,200,.3)}
+.sumbtn{width:100%;height:50px;border:0;border-radius:16px;background:linear-gradient(90deg,#3d6bff,#5b5cff 55%,#8a4dff);color:#fff;font-size:15.5px;font-weight:800;box-shadow:0 12px 24px -12px rgba(80,80,255,.7)}
+.sumbtn:disabled{opacity:.5}
+.sumbtn small{font-weight:600;opacity:.85;margin-left:4px}
+.sum{margin-top:16px}
+.sum h2{margin:0 0 10px;font-size:15px;font-weight:800;color:var(--pri2)}
+.sum ol{margin:0;padding:0 0 0 20px}
+.sum li{font-size:15.5px;line-height:1.65;margin-bottom:6px;word-break:keep-all;overflow-wrap:anywhere}
+.sum sup a{font-size:11px;font-weight:800;color:var(--pri);text-decoration:none;margin-left:2px}
+.sum .disc{margin:8px 0 0;font-size:12px;color:var(--mute);line-height:1.6}
+.list h2{margin:18px 4px 8px;font-size:14px;font-weight:800;color:var(--sub)}
+.it{display:block;text-decoration:none;color:inherit;background:rgba(255,255,255,.9);border-radius:16px;padding:12px 14px;margin-bottom:8px;box-shadow:0 6px 16px -12px rgba(60,80,200,.4)}
+.it b{display:block;font-size:15px;line-height:1.5;font-weight:700;word-break:keep-all;overflow-wrap:anywhere}
+.it b i{font-style:normal;font-size:11px;font-weight:800;color:var(--pri);margin-right:6px}
+.it p{margin:4px 0 0;font-size:13px;line-height:1.55;color:var(--sub);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.it small{display:block;margin-top:6px;font-size:11.5px;color:var(--mute)}
+.it.hl{outline:2px solid rgba(61,91,255,.5)}
+.msg{margin-top:12px;padding:12px 14px;border-radius:14px;background:#fff4f2;border:1px solid #f3d0cc;color:var(--err);font-size:14px;line-height:1.6}
+.msg a{color:var(--pri);font-weight:700}
+.empty{text-align:center;color:var(--mute);font-size:14px;padding:22px 0}
+.note{font-size:11.5px;color:var(--mute);line-height:1.6;margin:14px 4px 0}
+.hide{display:none !important}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>📰 뉴스 요약</h1>
+  <button type="button" class="x" id="close">✕ 닫기</button>
+</header>
+<main class="wrap">
+  <form class="srch" id="f" role="search">
+    <input id="q" maxlength="40" placeholder="관심 분야나 검색어 (예: 반도체, 금리)" autocomplete="off" enterkeyhint="search" aria-label="뉴스 검색어">
+    <button type="submit">찾기</button>
+  </form>
+  <div class="chips" id="chips"></div>
+  <div id="msg"></div>
+  <section class="card hide" id="sumCard">
+    <button type="button" class="sumbtn" id="sumBtn">✨ 3줄 요약<small id="sumCost"></small></button>
+    <div class="sum hide" id="sum"></div>
+  </section>
+  <section class="list" id="listSec">
+    <h2 id="listH">최신 뉴스</h2>
+    <div id="list"><div class="empty">위에서 분야를 고르세요</div></div>
+  </section>
+  <p class="note">기사 제목·소개는 네이버 뉴스 검색에서 가져오고, 누르면 기사 원문으로 이동해요. 요약은 제목·소개만으로 AI가 만든 것이라 틀릴 수 있으니 중요한 내용은 원문을 확인하세요. 뉴스 목록은 무료, 요약은 1번에 크레딧이 들어요(실패하면 돌려드려요).</p>
+</main>
+<script>
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var TOPICS=["주요 뉴스","경제","부동산","IT 과학","날씨","건강","여행","스포츠","연예"];
+  var COST=0.5, Q="", ITEMS=[], busy=false;
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(m){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]; }); }
+  function auth(){ try{ for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf("sb-")===0&&k.indexOf("-auth-token")>0){ var v=JSON.parse(localStorage.getItem(k)||"null"); var t=v&&(v.access_token||(v.currentSession&&v.currentSession.access_token)); if(t) return t; } } }catch(e){} return ""; }
+  function myGet(){ try{ var a=JSON.parse(localStorage.getItem("cf_news_kw")||"[]"); return Array.isArray(a)?a.filter(function(x){ return typeof x==="string"&&x; }).slice(0,6):[]; }catch(e){ return []; } }
+  function mySet(a){ try{ localStorage.setItem("cf_news_kw",JSON.stringify(a.slice(0,6))); }catch(e){} }
+  var WHY={login:'로그인 후 요약할 수 있어요. <a href="/">홈에서 로그인 ›</a>',insufficient:'크레딧이 부족해요. <a href="/pricing#charge">충전하기 ›</a>',off:"지금은 뉴스를 불러올 수 없어요. 잠시 뒤 다시 해 주세요.",hub:"뉴스를 불러오지 못했어요. 잠시 뒤 다시 해 주세요.",none:"찾은 뉴스가 없어요. 다른 말로 찾아보세요.",ai:"요약하지 못했어요. 크레딧은 돌려드렸어요. 다시 해 주세요.",net:"연결이 끊겼어요. 다시 해 주세요."};
+  function say(h){ $("msg").innerHTML=h?'<div class="msg">'+h+'</div>':""; }
+  function ago(t){ if(!t) return ""; var m=Math.round((Date.now()-t)/60000); if(m<1) return "방금"; if(m<60) return m+"분 전"; var h=Math.round(m/60); if(h<24) return h+"시간 전"; try{ return new Date(t).toLocaleDateString("ko-KR",{month:"numeric",day:"numeric"}); }catch(e){ return ""; } }
+  function costText(){ $("sumCost").textContent=" · "+COST+"크레딧"; }
+  costText();
+  fetch("/api/news",{cache:"no-store"}).then(function(r){ return r.ok?r.json():null; }).then(function(j){ if(!j) return; if(typeof j.cost==="number"){ COST=j.cost; costText(); } if(!j.on) say(WHY.off); })["catch"](function(){});
+
+  $("close").onclick=function(){ try{ if(window.opener){ window.close(); } }catch(e){} setTimeout(function(){ location.href="/"; },150); };
+
+  /* 분야 칩 + 내 관심어(이 기기) */
+  function chips(){
+    var my=myGet(), h="";
+    my.forEach(function(k){ h+='<button type="button" class="chip my'+(k===Q?" on":"")+'" data-k="'+esc(k)+'">⭐ '+esc(k)+'<span class="rm" data-rm="'+esc(k)+'" role="button" aria-label="'+esc(k)+' 지우기">✕</span></button>'; });
+    TOPICS.forEach(function(k){ h+='<button type="button" class="chip'+(k===Q?" on":"")+'" data-k="'+esc(k)+'">'+esc(k)+'</button>'; });
+    $("chips").innerHTML=h;
+  }
+  $("chips").addEventListener("click",function(e){
+    var rm=e.target.closest("[data-rm]"); if(rm){ e.stopPropagation(); var k0=rm.getAttribute("data-rm"); mySet(myGet().filter(function(x){ return x!==k0; })); chips(); return; }
+    var b=e.target.closest("[data-k]"); if(b) load(b.getAttribute("data-k"));
+  });
+  $("f").addEventListener("submit",function(e){ e.preventDefault(); var v=$("q").value.replace(/\s+/g," ").trim().slice(0,40); if(!v) return;
+    if(TOPICS.indexOf(v)<0){ var my=myGet().filter(function(x){ return x!==v; }); my.unshift(v); mySet(my); }
+    $("q").blur(); load(v); });
+
+  /* 뉴스 목록 (무료) */
+  function load(q){
+    if(busy) return; Q=q; chips(); say(""); $("sum").classList.add("hide"); $("sum").innerHTML="";
+    $("listH").textContent="‘"+q+"’ 최신 뉴스"; $("list").innerHTML='<div class="empty">불러오는 중…</div>'; $("sumCard").classList.add("hide");
+    try{ history.replaceState(null,"","?q="+encodeURIComponent(q)); }catch(e){}
+    fetch("/api/news?q="+encodeURIComponent(q==="주요 뉴스"?"속보":q),{cache:"no-store"}).then(function(r){ return r.json().catch(function(){ return {ok:false,reason:"hub"}; }); })["catch"](function(){ return {ok:false,reason:"net"}; }).then(function(j){
+      if(Q!==q) return;
+      if(!j||!j.ok){ $("list").innerHTML=""; say(WHY[(j&&j.reason)||"hub"]||WHY.hub); return; }
+      ITEMS=j.items||[];
+      if(!ITEMS.length){ $("list").innerHTML='<div class="empty">'+WHY.none+'</div>'; return; }
+      draw(); $("sumCard").classList.remove("hide"); $("sumBtn").disabled=false;
+    });
+  }
+  function draw(){
+    $("list").innerHTML=ITEMS.map(function(x){ return '<a class="it" id="n'+x.n+'" href="'+esc(x.link)+'" target="_blank" rel="noopener noreferrer"><b><i>'+x.n+'</i>'+esc(x.title)+'</b>'+(x.desc?'<p>'+esc(x.desc)+'</p>':'')+'<small>'+esc([x.press,ago(x.at)].filter(Boolean).join(" · "))+'</small></a>'; }).join("");
+  }
+
+  /* ✨ 3줄 요약 (크레딧) */
+  $("sumBtn").onclick=function(){
+    if(busy||!Q) return; var t=auth(); if(!t){ say(WHY.login); return; }
+    busy=true; say(""); var b=$("sumBtn"); b.disabled=true; b.firstChild.nodeValue="요약하는 중… ";
+    var q=Q;
+    fetch("/api/news",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+t},body:JSON.stringify({op:"sum",q:q==="주요 뉴스"?"속보":q})})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false,reason:"ai"}; }); })["catch"](function(){ return {ok:false,reason:"net"}; })
+      .then(function(j){
+        busy=false; b.disabled=false; b.firstChild.nodeValue="✨ 3줄 요약";
+        if(Q!==q) return;
+        if(!j||!j.ok){ say(WHY[(j&&j.reason)||"ai"]||WHY.ai); return; }
+        if(j.items&&j.items.length){ ITEMS=j.items; draw(); }
+        var h='<h2>✨ ‘'+esc(q)+'’ 3줄 요약</h2><ol>'+j.lines.map(function(l){ return '<li>'+esc(l.t)+(l.refs&&l.refs.length?'<sup>'+l.refs.map(function(n){ return '<a href="#n'+n+'" data-n="'+n+'">['+n+']</a>'; }).join("")+'</sup>':'')+'</li>'; }).join("")+'</ol>'+
+          '<p class="disc">[번호]를 누르면 근거 기사로 이동해요 · AI 요약이라 틀릴 수 있어요 · '+esc(String(j.cost))+'크레딧 사용</p>';
+        var s=$("sum"); s.innerHTML=h; s.classList.remove("hide");
+        try{ s.scrollIntoView({behavior:"smooth",block:"start"}); }catch(e){}
+      });
+  };
+  $("sum").addEventListener("click",function(e){ var a=e.target.closest("[data-n]"); if(!a) return; e.preventDefault(); var it=$("n"+a.getAttribute("data-n")); if(!it) return;
+    [].forEach.call(document.querySelectorAll(".it.hl"),function(x){ x.classList.remove("hl"); }); it.classList.add("hl"); try{ it.scrollIntoView({behavior:"smooth",block:"center"}); }catch(x){} });
+
+  chips();
+  var q0=(location.search.match(/[?&]q=([^&]+)/)||[])[1];
+  try{ q0=q0?decodeURIComponent(q0.replace(/\+/g," ")):""; }catch(e){ q0=""; }
+  load(q0||"주요 뉴스");
+})();
+</script>
+</body>
+</html>
