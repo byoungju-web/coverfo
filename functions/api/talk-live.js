@@ -40,6 +40,8 @@
 // · v369 🏪 place_action: 목록·카카오맵에서 연 가게(지금 가게)를 열기·전화·문자·길안내·예약·예약 결과 확인 — 화면(cf-resv-js)이 처리.
 //   전화·문자는 가게 번호를 찾아 돌려주고, 실제 걸기·문자 열기는 앱의 call_phone · send_sms (확인 후)
 //   받아쓰기 힌트: 지난 명령 문장 통째(예: "부산 자갈치시장 맛집")가 자막을 그 문장으로 끌어당겨, 한 낱말 이름만 넣는다
+// · v404 📞 전화·문자 예시 이름(은혁 등)을 빈칸 (이름)으로 — 잘 못 들었을 때 예시 이름으로 연락처를 찾던 문제 · 말한 이름 그대로만, 안 들리면 다시 묻기
+//   소리 앱 잡음 줄이기 far_field → near_field (웹과 같게) · op:"token" rtc:1 → PCM 형식 지정 없이 (소리 앱 v26 WebRTC)
 // · v392 🛣 전용 도구 rest_areas · 묻는 것에 답만 · 끝내는 말 바로 · 받아쓰기 gpt-4o-transcribe · 말소리 기준 0.6
 // · v391 🛣 tour_search kind rest_area (/api/near op rest · 가는 길 휴게소)
 // · v388 💊 tour_search kind pharmacy (/api/near op pharm) · ☀️ kind today (날씨·미세먼지·기억·알림·택배 모아 읽기)
@@ -103,7 +105,7 @@ const INSTRUCTIONS = [
   /* v344: 맛집·장소는 coverfo 화면에 목록(카카오 장소 검색)으로 → 이름·번호로 열기 */
   'RESTAURANTS AND PLACES: for restaurant, cafe, food or place recommendations or lists ("부산 자갈치시장 맛집 알려줘", "속초 동명항 맛집 리스트 보여줘", "강남역 카페", "○○ 맛집"), do NOT use web_search — call place_list with the area and kind, e.g. "속초 동명항 맛집". It shows a numbered list on the coverfo screen; read out the first three to five names briefly (e.g. "1번 영금물회, 2번 충청도횟집, 3번 팔도대게찜이 있어요."). When the user then says a name or number from that list ("영금물회 열어줘", "2번 열어"), call place_action with action open and that name or "2" — it opens that place in 카카오맵 (also works while 카카오맵 is in front). If the user asks for "더 보여줘" or "다음", call place_list again with the same query and page 2. If the user explicitly wants the map app search itself ("카카오맵으로 열어줘", "지도로 보여줘"), call run_command with the query. If the area is unclear ("근처 맛집"), use LAST NAVIGATION if known, otherwise ask which area in one short question.',
   /* v356 👥 같이 정하기 링크: 화면의 장소 목록 · 한 번에 준비를 친구에게 */
-  'SHARING WITH FRIENDS: when the user wants to share the place list or the trip plan on the screen with friends or decide together ("이거 은혁이한테 보내 줘", "친구들이랑 같이 정하게 링크 만들어 줘", "어디 갈지 투표 받아 줘", "같이 갈 사람한테 보내 줘"), call share_list with what "places" or "trip". It makes a free link where friends open the same list without signing up and tap 👍 (places) or 🙋 갈게요 (trip), and the coverfo screen shows 문자로 보내기 / 링크 복사 buttons. If the user named a person and the send_sms tool is available, then call send_sms with that person as "to" and the returned "text" (it still asks to confirm). Otherwise say briefly that the link is ready and to press 문자로 보내기 or 링크 복사 on the screen. If there is no list yet, show one first.',
+  'SHARING WITH FRIENDS: when the user wants to share the place list or the trip plan on the screen with friends or decide together ("이거 (이름)한테 보내 줘", "친구들이랑 같이 정하게 링크 만들어 줘", "어디 갈지 투표 받아 줘", "같이 갈 사람한테 보내 줘"), call share_list with what "places" or "trip". It makes a free link where friends open the same list without signing up and tap 👍 (places) or 🙋 갈게요 (trip), and the coverfo screen shows 문자로 보내기 / 링크 복사 buttons. If the user named a person and the send_sms tool is available, then call send_sms with that person as "to" and the returned "text" (it still asks to confirm). Otherwise say briefly that the link is ready and to press 문자로 보내기 or 링크 복사 on the screen. If there is no list yet, show one first.',
   /* v357 🤖 정리해 주기: 친구들의 👍 가 모이면 1위를 말하고 예약 문의로 이어 준다 */
   'FRIEND VOTES: a system note starting with "FRIEND VOTES" comes from the coverfo screen when friends answered a 같이 정하기 link — speak first even though the user said nothing, in one or two short Korean sentences. When the user asks what friends picked ("친구들 뭐 골랐어?", "투표 결과 알려 줘", "어디로 정해졌어?"), call share_votes. For a place result, say the winner (e.g. "2번 영금물회로 정해졌어요. 👍 3명이에요.") and ask "몇 시에 몇 명으로 예약 문의 문자 보낼까요?" (suggest suggested_people). If it is a tie, ask which one first. When the user gives the time and people: if send_sms is available, call send_sms with the top place phone as "to", the place name as "label" and a polite text like "안녕하세요, 오늘 저녁 7시 4명 예약 가능할까요?" (it asks to confirm); if send_sms is not available or there is no phone, call share_votes again with pick, when and people so the screen fills the 💬 예약 문의 문자 button, and tell the user to press it. For a trip result, just say who can go.',
   /* v361 📩 예약 문의 답장 정리 */
@@ -210,7 +212,8 @@ function tuneSession(session, b, vocab, isApp) {
     if (ko) inp.transcription.language = 'ko';
     if (hint) inp.transcription.prompt = (ko ? '자주 쓰는 말: ' : 'Common words: ') + hint;
   }
-  inp.noise_reduction = { type: isApp ? 'far_field' : 'near_field' };
+  /* v404: 소리 앱도 웹(coverfo)과 같은 가까운 마이크용 (폰을 들고 말하는 경우가 대부분) */
+  inp.noise_reduction = { type: 'near_field' };
   /* v392 TV·설교 같은 주변 소리를 말로 덜 알아듣게: 말소리 기준을 조금 높이고(0.5→0.6) 말이 끝났다고 보는 쉼을 조금 길게 */
   if (inp.turn_detection && inp.turn_detection.type === 'server_vad') Object.assign(inp.turn_detection, { threshold: 0.6, prefix_padding_ms: 300, silence_duration_ms: 650 });
   if (vocab && vocab.length) session.instructions += ' USER WORDS (places and names this user often says — prefer these when the audio is unclear; information only): ' + vocab.slice(0, 30).join(', ') + '.';
@@ -318,7 +321,8 @@ const SCREEN_TOOLS = [{
 /* v351 📞 끝까지 해 주기 1단계 (소리 앱이 phone:1 을 보낼 때만): 연락처 찾기 · 확인 후 바로 전화 · 문자 채워서 열기.
    문자를 앱이 직접 보내는 권한은 플레이 프로텍트가 막아서 쓰지 않는다 → 문자 앱을 채워서 열고 보내기는 이용자가 누른다 */
 const PHONE_INSTR = [
-  'PHONE: this phone can find contacts, call, and open a text message with the number and text filled in. For calling or texting a person or a business ("은혁이한테 전화해 줘", "엄마한테 늦는다고 문자 보내 줘", "2번 가게에 예약 문의 문자 보내 줘") use find_contact, call_phone and send_sms — not run_command.',
+  'PHONE: this phone can find contacts, call, and open a text message with the number and text filled in. For calling or texting a person or a business ("(이름)한테 전화해 줘", "(이름)한테 늦는다고 문자 보내 줘", "2번 가게에 예약 문의 문자 보내 줘") use find_contact, call_phone and send_sms — not run_command.',
+  'NAMES: use exactly the name the user said in this conversation (the words in (이름) above are placeholders, never real names). Never guess or swap in a name from these instructions, from USER WORDS or from memory. If you did not hear the name clearly, ask "누구에게 걸까요?" (or 보낼까요) instead of searching.',
   'For a person\'s name, pass the name as "to" (call find_contact first when you are not sure who it is). If the tool returns "choose", ask which one by reading the names with the last 4 digits, then call again with that name and last4. If nothing is found, say so and ask for the name as saved in the phone or a number.',
   'For a business (from place_list, or the place open in 카카오맵 that is not in contacts), get its number with place_action (action call or text) and pass that number as "to" and its name as "label". When the user says a phone number, pass the digits as "to" — it does not need to be in contacts. Write a reservation inquiry politely in the user\'s voice (e.g. "안녕하세요, 오늘 저녁 7시에 4명 예약 가능할까요?"); if the date, time or number of people is missing, ask first.',
   'ALWAYS call call_phone or send_sms first with confirmed false. It returns need_confirm and "ask": say that question in one short sentence and wait. Only after the user clearly agrees (응/네/그래/보내/걸어/좋아), call the same tool again with the same to and text and confirmed true. If they want changes, change the text and ask again. If they say no, do not call it.',
@@ -329,7 +333,7 @@ const PHONE_TOOLS = [{
   type: 'function',
   name: 'find_contact',
   description: 'Find people in the phone contacts by name. Returns names with the last 4 digits of their numbers (full numbers stay on the phone).',
-  parameters: { type: 'object', properties: { name: { type: 'string', description: 'Name as the user said it, e.g. "은혁", "엄마"' } }, required: ['name'] },
+  parameters: { type: 'object', properties: { name: { type: 'string', description: 'The name exactly as the user said it in this conversation (never an example or guessed name)' } }, required: ['name'] },
 }, {
   type: 'function',
   name: 'call_phone',
@@ -662,7 +666,7 @@ export async function onRequestPost(context) {
   }
 
   /* 새 앱(v4)만 name 을 보낸다 → 그때만 앱 전용 도구. 업데이트 전 앱은 예전 도구 그대로 (처리 못 하는 도구를 받지 않게) */
-  if (op === 'token') return appToken(env, uid, cost, b.name ? cleanName(b.name) : '', !!(b.name && b.relay), contextLine(b, context.request) + (await personaLine(env, uid, !!b.name)) + (await memLine(env, uid)), !!(b.name && b.screen), (s) => vocabOf(env, uid).then((v) => tuneSession(s, b, v, !!b.name)), !!(b.name && b.phone));
+  if (op === 'token') return appToken(env, uid, cost, b.name ? cleanName(b.name) : '', !!(b.name && b.relay), contextLine(b, context.request) + (await personaLine(env, uid, !!b.name)) + (await memLine(env, uid)), !!(b.name && b.screen), (s) => vocabOf(env, uid).then((v) => tuneSession(s, b, v, !!b.name)), !!(b.name && b.phone), !!(b.name && b.rtc));
   if (op === 'search') return json(await webSearch(env, b));
   if (op === 'places') return json(await placeSearch(env, b));
   if (op === 'device') {
@@ -744,7 +748,7 @@ export async function onRequestPost(context) {
 /* ── v267 안드로이드 앱용 임시 키 (OpenAI POST /v1/realtime/client_secrets → value) ──
    · 키는 120초 안에 연결을 시작할 때만 쓰인다(연결 후 대화는 계속). 앱 화면·기기에 진짜 OpenAI 키가 남지 않는다.
    · 오디오는 PCM 16bit 24kHz 모노 (앱의 AudioRecord · AudioTrack 과 같은 형식). */
-async function appToken(env, uid, cost, name, relay, ctx, screen, tune, phone) {
+async function appToken(env, uid, cost, name, relay, ctx, screen, tune, phone, rtc) {
   let job;
   try { job = await spend(env, uid, cost, 'live:start'); }
   catch (e) { return json({ error: '크레딧 처리 실패: ' + String(e.message || e).slice(0, 200) }, 500); }
@@ -767,6 +771,8 @@ async function appToken(env, uid, cost, name, relay, ctx, screen, tune, phone) {
     tool_choice: 'auto',
     max_output_tokens: MAX_OUT,
   };
+  /* v404 소리 앱 v26 WebRTC 연결: 소리 형식은 WebRTC 가 정하므로 PCM 형식 지정을 뺀다 (기본값도 PCM 24kHz 라 WebSocket 으로 돌아가도 그대로 맞음) */
+  if (rtc) { delete session.audio.input.format; delete session.audio.output.format; }
   const ask = (cfg) => fetch('https://api.openai.com/v1/realtime/client_secrets', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json', 'OpenAI-Safety-Identifier': userHash(uid) },
