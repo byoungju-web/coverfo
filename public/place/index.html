@@ -71,7 +71,7 @@ h2{margin:18px 4px 8px;font-size:14px;font-weight:800;color:var(--sub)}
 </header>
 <main class="wrap">
   <form class="srch" id="f" role="search">
-    <input id="q" maxlength="40" placeholder="가게·장소 이름 (예: 위례 소담촌, 성수 카페)" autocomplete="off" enterkeyhint="search" aria-label="가게·장소 이름">
+    <input id="q" maxlength="40" placeholder="가게·장소 이름 (예: 성수 카페)" autocomplete="off" enterkeyhint="search" aria-label="가게·장소 이름">
     <button type="submit">찾기</button>
   </form>
   <p class="hint">동네 이름을 같이 넣으면 더 정확해요. 장소는 무료, 후기 3줄 요약만 크레딧이 들어요.</p>
@@ -95,7 +95,10 @@ h2{margin:18px 4px 8px;font-size:14px;font-weight:800;color:var(--sub)}
   function get(op,q){ return fetch("/api/naver?op="+op+"&q="+encodeURIComponent(q),{cache:"no-store"}).then(function(r){ return r.json().catch(function(){ return {ok:false,reason:"hub"}; }); })["catch"](function(){ return {ok:false,reason:"net"}; }); }
   $("sumCost").textContent=" · "+COST+"크레딧";
   fetch("/api/naver",{cache:"no-store"}).then(function(r){ return r.ok?r.json():null; }).then(function(j){ if(!j) return; if(typeof j.cost==="number"){ COST=j.cost; $("sumCost").textContent=" · "+COST+"크레딧"; } if(!j.on) say(WHY.off); })["catch"](function(){});
-  $("close").onclick=function(){ try{ if(window.opener){ window.close(); } }catch(e){} setTimeout(function(){ if(history.length>1) history.back(); else location.href="/"; },150); };
+  $("close").onclick=function(){
+    /* v410 홈 위 덮개(cf-page.js)로 열렸으면 덮개만 닫는다 — 홈을 다시 그리지 않아 소리 아이콘이 깜빡이지 않음 */
+    try{ if(window.parent!==window && window.parent.cfPageClose){ window.parent.cfPageClose(); return; } }catch(e){}
+    try{ if(window.opener){ window.close(); } }catch(e){} setTimeout(function(){ if(history.length>1) history.back(); else location.href="/"; },150); };
 
   /* 동네 이름: 도로명 주소 앞 두 낱말(시·구) — 후기 검색을 정확하게 */
   function area(p){ var a=String(p.road||p.addr||"").split(" "); return (a[1]||a[0]||"").replace(/(특별시|광역시|특별자치시|특별자치도)$/,""); }
