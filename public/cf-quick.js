@@ -292,7 +292,7 @@
     if (fr === "SEL" && to && !KR_AIR[to]) fr = "ICN"; if (to === "SEL" && fr && !KR_AIR[fr]) to = "ICN";
     if (fr === "SEL" && KR_AIR[to]) fr = "GMP"; if (to === "SEL" && KR_AIR[fr]) to = "GMP";
     var info = { from: rt.from, to: rt.to, fc: fr, tc: to, dep: dt.dep, ret: dt.round ? dt.ret : "", guessed: dt.guessed, adults: dt.adults, c: c, dom: !!(KR_AIR[fr] && KR_AIR[to]) };
-    return { u: tripFlight(info), w: "✈️ Trip.com 항공권", flight: info };   /* v36: 항공권은 Trip.com 한 곳만 */
+    return { u: tripFlight(info), w: "✈️ HopeGoo 항공권", flight: info };   /* v36: 항공권은 Trip.com 한 곳만 */
   }
   /* ── 날씨(v19): 한국은 날씨 화면(cf-weather: 네이버 날씨·기상청 날씨누리·Google), 그 밖의 나라는 Google 날씨 검색을 바로 연다 ──
      · 공개 검색 주소만 연다(크롤링 없음). 지역 이름만 검색어로 쓰고 저장하지 않는다. 위치(GPS)는 받지 않는다 — 지역을 안 말하면 각 서비스가 직접 판단.
@@ -349,7 +349,7 @@
       .replace(/\b(car|rental|rent|hire|a|in|at|for|from|to|the|cheap|please|find|me|days?|\d+)\b/gi, " ").replace(/(\S{2,})(에서|에)(?=\s|$)/g, "$1").replace(/\s+/g, " ").trim();
     var code = iata(place);
     var info = { place: place, code: code, dep: dep, ret: ret, guessed: dt.guessed, guessRet: guessRet, c: c };
-    return { u: tripCar(info), w: "🚗 Trip.com 렌터카", rental: info };   /* v36: 렌터카는 Trip.com 한 곳만 */
+    return { u: tripCar(info), w: "🚗 Daytrip 차량", rental: info };   /* v36: 렌터카는 Trip.com 한 곳만 */
   }
   /* ── 배달(v13) ──
      · 한국: 배민·쿠팡이츠·요기요·네이버지도 '근처 ○○ 배달' 화면(cf-dlv). 한국 배달 앱은 검색어를 받는 공개 주소가 없어 앱을 열고 메뉴 이름을 복사해 둔다.
@@ -456,7 +456,9 @@
   var TRIP_SUB = { US: "us", GB: "uk", CA: "ca", AU: "au", NZ: "nz", SG: "sg", PH: "ph", IN: "in", AE: "ae", SA: "sa", ID: "id" };
   var TRIP_RE = /(트립\s*닷컴|트립닷컴|trip\s*\.\s*com|tripcom|trip\.com)\s*(에서|으로|로|에)?/gi;
   function tripHost(c) { return c === "KR" ? "https://kr.trip.com" : "https://www.trip.com"; }
+  var HOPEGOO = "https://www.hopegoo.com/", DAYTRIP = "https://daytrip.com/";   /* v412 숙소·항공권 → HopeGoo 첫 화면, 렌터카 → Daytrip 첫 화면 */
   function tripHotel(o) {
+    return HOPEGOO;   /* v412 (아래 Trip.com 주소 만들기는 쓰지 않음) */
     var kw = String(o.stay || "").replace(TRIP_RE, " ").replace(/\b(accommodations?|lodgings?)\b/gi, " ").replace(/\s+/g, " ").trim(), l = kw.toLowerCase(), id = 0, hit = "";
     for (var k in TRIP_CITY) if (TRIP_CITY.hasOwnProperty(k) && l.indexOf(k) >= 0 && k.length > hit.length) { id = TRIP_CITY[k]; hit = k; }
     var rest = hit ? l.replace(hit, " ").replace(/(도|시)(?=\s|$)/g, " ").replace(/(호텔|숙소|hotels?)/g, " ").trim() : kw;
@@ -485,6 +487,7 @@
   }
   /* 저장된 Trip.com 숙소 링크 + 날짜·인원 */
   function tripSaved(url, o) {
+    if (!/^https:\/\/[a-z0-9.-]*trip\.com\//i.test(String(url || ""))) return String(url || "");   /* v412 HopeGoo 등 Trip.com 이 아닌 링크는 저장한 그대로 */
     var u = String(url || ""), id = (u.match(/hotelId=(\d+)/i) || u.match(/hotel-detail-(\d+)/i) || u.match(/\/hotels\/detail\/(\d+)/i) || [])[1], city = (u.match(/cityId=(\d+)/i) || [])[1];
     if (!id) return u;
     var host = (u.match(/^https:\/\/[a-z0-9.-]*trip\.com/i) || [tripHost(o.c)])[0];
@@ -492,11 +495,12 @@
   }
   var TRIP_CITYCODE = { ICN: "SEL", GMP: "SEL", NRT: "TYO", HND: "TYO", KIX: "OSA", PUS: "PUS" };
   function tripFlight(o) {
+    return HOPEGOO;   /* v412 */
     if (!(o.fc && o.tc && o.dep)) return tripHost(o.c) + "/flights/";
     var dc = (TRIP_CITYCODE[o.fc] || o.fc).toLowerCase(), ac = (TRIP_CITYCODE[o.tc] || o.tc).toLowerCase();
     return tripHost(o.c) + "/flights/showfarefirst?dcity=" + dc + "&acity=" + ac + "&ddate=" + o.dep + (o.ret ? "&rdate=" + o.ret + "&triptype=rt" : "&triptype=ow") + "&class=y&quantity=" + (o.adults || 1) + "&searchboxarg=t&nonstoponly=off";
   }
-  function tripCar(o) { return tripHost(o.c) + "/carhire/"; }
+  function tripCar(o) { return DAYTRIP; }   /* v412 (전: Trip.com /carhire/) */
 
   /* 숙소 예약: 날짜·인원이 채워진 검색 결과까지 (결제는 사이트에서 본인이) — 포도톡 bookingInfo 규칙 */
   function fmt(d) { function p(x) { return (x < 10 ? "0" : "") + x; } return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()); }
@@ -521,7 +525,7 @@
     if (pk) return { u: "", w: "숙소", none: pk + " 같은 개인정보가 들어 있어 검색하지 않았어요. 지역·숙소 이름과 날짜·인원만 적어 주세요. (coverfo는 개인정보를 저장하지 않습니다)", info: i };
     var sv = savedStay(q);
     if (sv) { i.saved = { name: sv.name, u: tripSaved(sv.stay, i) }; return { u: i.saved.u, w: "🏨 " + sv.name, info: i, stay: i }; }   /* v37: 내 숙소로 저장한 곳이면 그 숙소로 바로 */
-    return { u: tripHotel(i), w: "🏨 Trip.com", info: i, stay: i };   /* v36: 숙소는 Trip.com 한 곳만 (전에는 Booking.com + 여기어때/Airbnb) */
+    return { u: tripHotel(i), w: "🏨 HopeGoo", info: i, stay: i };   /* v36: 숙소는 Trip.com 한 곳만 (전에는 Booking.com + 여기어때/Airbnb) */
   }
 
   /* ── 규칙으로 판별 → {kind, q} ── */
