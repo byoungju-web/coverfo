@@ -1,9 +1,11 @@
-/* coverfo 🌐 포도랑 번역 기능 — public/cf-podolang.js (v407)
+/* coverfo 🌐 포도랑 번역 기능 — public/cf-podolang.js (v407 · v409 소리 앱 오디오)
    · 홈 'AI에게 물어보기' 칸의 🎥 영상통화 번역 · 🎙️ 음성통화 번역 · 🎧 오디오·스트림 번역 · ⌨️ 텍스트 번역 · 👂 라이브 청취 를 누르면
      포도랑(podolang.kr) 화면을 coverfo 안 전체 화면 창으로 띄운다 (전화통역과 같은 방식).
    · 요금은 coverfo 지갑: /api/trans 의 'call_ticket'(12시간 표)을 포도랑에 넘기면, 포도랑 서버가 그 표로 coverfo 지갑에서 뺀다.
      (텍스트 번역 1번 0.1 · 라이브 청취 · 오디오 · 영상 · 음성 통화 번역 말한 시간 1분 0.5 — 포도랑과 같은 값)
-   · 결제 · 충전 코드는 건드리지 않는다. 로그인이 안 돼 있으면 coverfo 로그인 창을 연다. */
+   · 결제 · 충전 코드는 건드리지 않는다. 로그인이 안 돼 있으면 coverfo 로그인 창을 연다.
+   · v409 🎧 coverfo 소리 앱(APK판) 안에서는 오디오·스트림 번역을 포도랑 앱 대신 소리 앱 화면(coverfosori://audio)으로 연다.
+     포도랑 화면이 [소리 앱에서 시작]을 누르면 postMessage({podolang:'audio', from, to}) 를 보내고, 여기서 지금 표(tk)를 붙여 연다. */
 (function () {
   if (window.cfPodolangOpen) return;
   var MODES = {
@@ -65,6 +67,16 @@
   });
   window.addEventListener('popstate', function () { if (ov.classList.contains('on')) close(true); });   // 폰 뒤로가기 = 닫기
 
+  var curTk = '';
+  window.addEventListener('message', function (ev) {
+    try {
+      if (!ev.data || ev.data.podolang !== 'audio' || !/^https:\/\/podolang\.kr$/.test(String(ev.origin || ''))) return;
+      if (!/ CoverfoSori\//.test(navigator.userAgent) || !curTk) return;
+      var c = function (v) { return String(v || '').replace(/[^A-Za-z-]/g, '').toUpperCase().slice(0, 8); };
+      location.href = 'coverfosori://audio?from=' + encodeURIComponent(c(ev.data.from) || 'AUTO') + '&to=' + encodeURIComponent(c(ev.data.to) || 'KO') + '&tk=' + encodeURIComponent(curTk);
+    } catch (e) {}
+  });
+
   window.cfPodolangOpen = function (mode) {
     var m = MODES[mode]; if (!m) return false;
     mount();
@@ -74,6 +86,7 @@
     try { if (!(history.state && history.state.cfpl)) history.pushState({ cfpl: 1 }, ''); } catch (e) {}   // 폰 뒤로가기 = 닫기
     ticket().then(function (tk) {
       if (!ov.classList.contains('on')) return;
+      curTk = tk;
       $('cfpl-body').innerHTML = '<iframe title="' + esc(m.t) + '" allow="' + m.allow + '" src="https://podolang.kr/?embed=' + mode + '&uid=' + encodeURIComponent(tk) + '"></iframe>';
     }).catch(function (e) {
       $('cfpl-body').innerHTML = e && e.login
