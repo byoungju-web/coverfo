@@ -513,8 +513,11 @@
   }
   var TRIP_CITYCODE = { ICN: "SEL", GMP: "SEL", NRT: "TYO", HND: "TYO", KIX: "OSA", PUS: "PUS" };
   function tripFlight(o) {
-    return EXP_FLIGHT;   /* v417 /go/flight/search 주소는 expedia.co.kr 에서 404 (이용자 폰 확인) → 항공권 첫 화면 제휴 링크로 */
-    if (!(o.fc && o.tc && o.dep)) return EXP_FLIGHT;   /* v415 출발·도착·날짜를 모르면 항공권 첫 화면 */
+    if (!(o.fc && o.tc && o.dep)) return EXP_FLIGHT;   /* 출발·도착·날짜를 모르면 항공권 첫 화면 */
+    /* v418 expedia.co.kr 실제 항공 검색 주소 (Flights-Search · 공항 코드만으로 앱·웹 모두 채워짐 — 이용자 폰·PC 확인). (/go/flight/search 는 404) */
+    var dd = function (d) { return String(d).replace(/-/g, "."); }, d1 = function (d) { var a = String(d).split("-"); return a[0] + "-" + (+a[1]) + "-" + (+a[2]); };
+    var leg = function (a, b, d) { return "from:" + a + ",to:" + b + ",departure:" + dd(d) + "TANYT,fromType:AIRPORT,toType:AIRPORT"; };
+    return EW(EXP_KR + "/Flights-Search?flight-type=on&mode=search&trip=" + (o.ret ? "roundtrip" : "oneway") + "&leg1=" + leg(o.fc, o.tc, o.dep) + (o.ret ? "&leg2=" + leg(o.tc, o.fc, o.ret) : "") + "&options=cabinclass:economy&fromDate=" + dd(o.dep) + (o.ret ? "&toDate=" + dd(o.ret) : "") + "&d1=" + d1(o.dep) + (o.ret ? "&d2=" + d1(o.ret) : "") + "&passengers=adults:" + (o.adults || 1) + ",infantinlap:N");
     return EW(EXP_KR + "/go/flight/search/" + (o.ret ? "Roundtrip/" + o.dep + "/" + o.ret : "Oneway/" + o.dep) + "?load=1&FromAirport=" + o.fc + "&ToAirport=" + o.tc + "&NumAdult=" + (o.adults || 1));
     if (!(o.fc && o.tc && o.dep)) return tripHost(o.c) + "/flights/";
     var dc = (TRIP_CITYCODE[o.fc] || o.fc).toLowerCase(), ac = (TRIP_CITYCODE[o.tc] || o.tc).toLowerCase();
@@ -523,7 +526,9 @@
   function tripCar(o) {   /* v415 장소(공항 코드)·날짜가 있으면 채운 렌터카 검색, 없으면 익스피디아 첫 화면 (v414 짧은 링크는 빈 검색이라 오류가 났음) */
     var code = o.code === "SEL" ? "GMP" : o.code;
     if (!(code && o.dep && o.ret)) return EW(EXP_KR + "/");
-    return EW(EXP_KR + "/go/car/search/Airport/" + o.dep + "/" + o.ret + "?PickUpLoc=" + code + "&DiffDropLoc=0&PickUpTime=11AM&DropTime=11AM&Class=NoPreference");
+    /* v418 expedia.co.kr 실제 렌터카 검색 주소 (carsearch · 공항 코드만으로 앱·웹 모두 채워짐 — 이용자 폰·PC 확인). (/go/car/search 는 칸이 비었음) */
+    var dd = function (d) { return String(d).replace(/-/g, "."); }, d1 = function (d) { var a = String(d).split("-"); return a[0] + "-" + (+a[1]) + "-" + (+a[2]); };
+    return EW(EXP_KR + "/carsearch?locn=" + code + "&pickupIATACode=" + code + "&d1=" + d1(o.dep) + "&d2=" + d1(o.ret) + "&date1=" + dd(o.dep) + "&date2=" + dd(o.ret) + "&time1=1030AM&time2=1030AM");
   }
 
   /* 숙소 예약: 날짜·인원이 채워진 검색 결과까지 (결제는 사이트에서 본인이) — 포도톡 bookingInfo 규칙 */
