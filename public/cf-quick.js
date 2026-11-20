@@ -456,9 +456,22 @@
   var TRIP_SUB = { US: "us", GB: "uk", CA: "ca", AU: "au", NZ: "nz", SG: "sg", PH: "ph", IN: "in", AE: "ae", SA: "sa", ID: "id" };
   var TRIP_RE = /(트립\s*닷컴|트립닷컴|trip\s*\.\s*com|tripcom|trip\.com)\s*(에서|으로|로|에)?/gi;
   function tripHost(c) { return c === "KR" ? "https://kr.trip.com" : "https://www.trip.com"; }
-  var HOTELS_AFF = "https://www.hotels.com/affiliate/O5MJY9Z", EXP_FLIGHT = "https://expedia.com/affiliate/dH1Xh9T", EXP_CAR = "https://expedia.com/affiliate/8zSjtLw";   /* v414 숙소 → Hotels.com · 항공권·렌터카 → 익스피디아 (Expedia Group 제휴 링크) */   /* v412 숙소·항공권 → HopeGoo 첫 화면, 렌터카 → Daytrip 첫 화면 */
+  var HOTELS_AFF = "https://www.hotels.com/affiliate/O5MJY9Z", EXP_FLIGHT = "https://expedia.com/affiliate/dH1Xh9T", EXP_CAR = "https://expedia.com/affiliate/8zSjtLw";
+  /* v415 칸이 채워진 화면 + 제휴: 링크 빌더의 긴 제휴 링크(landingPage = 열 화면 주소)에 검색 주소를 넣는다.
+     · 숙소: kr.hotels.com/Hotel-Search?destination&startDate&endDate&adults&rooms
+     · 항공권: expedia.co.kr/go/flight/search/{Oneway|Roundtrip}/출발일[/돌아오는날]?load=1&FromAirport&ToAirport&NumAdult (Expedia Group deeplink 문서)
+     · 렌터카: expedia.co.kr/go/car/search/Airport/시작일/종료일?PickUpLoc=공항코드&PickUpTime=11AM&DropTime=11AM (Expedia Group deeplink 문서)
+     · 장소·날짜를 모르면 v414 짧은 제휴 링크(첫 화면) 그대로. */
+  function HW(u) { return "https://www.hotels.com/affiliate?landingPage=" + encodeURIComponent(u) + "&camref=1100l6zyiV&creativeref=1011l87790&adref=PZuPfKKK0I"; }
+  function EW(u) { return "https://expedia.com/affiliate?siteid=1&landingPage=" + encodeURIComponent(u) + "&camref=1101l6yR8z&creativeref=1100l86806&adref=PZ57Rpcpu5"; }
+  var EXP_KR = "https://www.expedia.co.kr";
+  function hotelsSearch(dest, o) {
+    var d = String(dest || "").replace(TRIP_RE, " ").replace(GENERIC_STAY, " ").replace(/\s+/g, " ").trim();
+    if (!d) return HOTELS_AFF;
+    return HW("https://kr.hotels.com/Hotel-Search?destination=" + E(d) + (o.ci && o.co ? "&startDate=" + o.ci + "&endDate=" + o.co : "") + "&adults=" + (o.ppl || 2) + "&rooms=1");
+  }   /* v414 숙소 → Hotels.com · 항공권·렌터카 → 익스피디아 (Expedia Group 제휴 링크) */   /* v412 숙소·항공권 → HopeGoo 첫 화면, 렌터카 → Daytrip 첫 화면 */
   function tripHotel(o) {
-    return HOTELS_AFF;   /* v414 (아래 Trip.com 주소 만들기는 쓰지 않음) */
+    return hotelsSearch(o.stay, o);   /* v415 Hotels.com 검색 (지역·날짜·인원 채움) · 아래 Trip.com 주소 만들기는 쓰지 않음 */
     var kw = String(o.stay || "").replace(TRIP_RE, " ").replace(/\b(accommodations?|lodgings?)\b/gi, " ").replace(/\s+/g, " ").trim(), l = kw.toLowerCase(), id = 0, hit = "";
     for (var k in TRIP_CITY) if (TRIP_CITY.hasOwnProperty(k) && l.indexOf(k) >= 0 && k.length > hit.length) { id = TRIP_CITY[k]; hit = k; }
     var rest = hit ? l.replace(hit, " ").replace(/(도|시)(?=\s|$)/g, " ").replace(/(호텔|숙소|hotels?)/g, " ").trim() : kw;
@@ -486,8 +499,13 @@
     return best;
   }
   /* 저장된 Trip.com 숙소 링크 + 날짜·인원 */
-  function tripSaved(url, o) {
-    if (!/^https:\/\/[a-z0-9.-]*trip\.com\//i.test(String(url || ""))) return String(url || "");   /* v412 HopeGoo 등 Trip.com 이 아닌 링크는 저장한 그대로 */
+  function tripSaved(url, o, name) {
+    var su = String(url || "");
+    /* v415 예전에 저장한 Trip.com · HopeGoo 숙소 → Hotels.com 에서 그 숙소 이름으로 검색 (날짜·인원 채움) */
+    if (/^https:\/\/([a-z0-9-]+\.)*(trip|hopegoo)\.com\//i.test(su)) return hotelsSearch(name || o.stay, o);
+    if (/^https:\/\/([a-z0-9-]+\.)*hotels\.com\//i.test(su) && !/\/affiliate/i.test(su)) return HW(su);   /* v415 Hotels.com 숙소 링크에 제휴 표시 */
+    if (/^https:\/\/([a-z0-9-]+\.)*expedia\.[a-z.]+\//i.test(su) && !/\/affiliate/i.test(su)) return EW(su);
+    return su;
     var u = String(url || ""), id = (u.match(/hotelId=(\d+)/i) || u.match(/hotel-detail-(\d+)/i) || u.match(/\/hotels\/detail\/(\d+)/i) || [])[1], city = (u.match(/cityId=(\d+)/i) || [])[1];
     if (!id) return u;
     var host = (u.match(/^https:\/\/[a-z0-9.-]*trip\.com/i) || [tripHost(o.c)])[0];
@@ -495,12 +513,17 @@
   }
   var TRIP_CITYCODE = { ICN: "SEL", GMP: "SEL", NRT: "TYO", HND: "TYO", KIX: "OSA", PUS: "PUS" };
   function tripFlight(o) {
-    return EXP_FLIGHT;   /* v414 */
+    if (!(o.fc && o.tc && o.dep)) return EXP_FLIGHT;   /* v415 출발·도착·날짜를 모르면 항공권 첫 화면 */
+    return EW(EXP_KR + "/go/flight/search/" + (o.ret ? "Roundtrip/" + o.dep + "/" + o.ret : "Oneway/" + o.dep) + "?load=1&FromAirport=" + o.fc + "&ToAirport=" + o.tc + "&NumAdult=" + (o.adults || 1));
     if (!(o.fc && o.tc && o.dep)) return tripHost(o.c) + "/flights/";
     var dc = (TRIP_CITYCODE[o.fc] || o.fc).toLowerCase(), ac = (TRIP_CITYCODE[o.tc] || o.tc).toLowerCase();
     return tripHost(o.c) + "/flights/showfarefirst?dcity=" + dc + "&acity=" + ac + "&ddate=" + o.dep + (o.ret ? "&rdate=" + o.ret + "&triptype=rt" : "&triptype=ow") + "&class=y&quantity=" + (o.adults || 1) + "&searchboxarg=t&nonstoponly=off";
   }
-  function tripCar(o) { return EXP_CAR; }   /* v414 (전: Daytrip · Trip.com /carhire/) */
+  function tripCar(o) {   /* v415 장소(공항 코드)·날짜가 있으면 채운 렌터카 검색, 없으면 익스피디아 첫 화면 (v414 짧은 링크는 빈 검색이라 오류가 났음) */
+    var code = o.code === "SEL" ? "GMP" : o.code;
+    if (!(code && o.dep && o.ret)) return EW(EXP_KR + "/");
+    return EW(EXP_KR + "/go/car/search/Airport/" + o.dep + "/" + o.ret + "?PickUpLoc=" + code + "&DiffDropLoc=0&PickUpTime=11AM&DropTime=11AM&Class=NoPreference");
+  }
 
   /* 숙소 예약: 날짜·인원이 채워진 검색 결과까지 (결제는 사이트에서 본인이) — 포도톡 bookingInfo 규칙 */
   function fmt(d) { function p(x) { return (x < 10 ? "0" : "") + x; } return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()); }
@@ -524,7 +547,7 @@
     var pk = piiKind(q, true);
     if (pk) return { u: "", w: "숙소", none: pk + " 같은 개인정보가 들어 있어 검색하지 않았어요. 지역·숙소 이름과 날짜·인원만 적어 주세요. (coverfo는 개인정보를 저장하지 않습니다)", info: i };
     var sv = savedStay(q);
-    if (sv) { i.saved = { name: sv.name, u: tripSaved(sv.stay, i) }; return { u: i.saved.u, w: "🏨 " + sv.name, info: i, stay: i }; }   /* v37: 내 숙소로 저장한 곳이면 그 숙소로 바로 */
+    if (sv) { i.saved = { name: sv.name, u: tripSaved(sv.stay, i, sv.name) }; return { u: i.saved.u, w: "🏨 " + sv.name, info: i, stay: i }; }   /* v37: 내 숙소로 저장한 곳이면 그 숙소로 바로 */
     return { u: tripHotel(i), w: "🏨 Hotels.com", info: i, stay: i };   /* v36: 숙소는 Trip.com 한 곳만 (전에는 Booking.com + 여기어때/Airbnb) */
   }
 
