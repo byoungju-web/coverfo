@@ -468,7 +468,13 @@
   function hotelsSearch(dest, o) {
     var d = String(dest || "").replace(TRIP_RE, " ").replace(GENERIC_STAY, " ").replace(/\s+/g, " ").trim();
     if (!d) return HOTELS_AFF;
-    return HW("https://kr.hotels.com/Hotel-Search?destination=" + E(d) + (o.ci && o.co ? "&startDate=" + o.ci + "&endDate=" + o.co : "") + "&adults=" + (o.ppl || 2) + "&rooms=1");
+    return webOpen(HW("https://kr.hotels.com/Hotel-Search?destination=" + E(d) + (o.ci && o.co ? "&startDate=" + o.ci + "&endDate=" + o.co : "") + "&adults=" + (o.ppl || 2) + "&rooms=1"));
+  }
+  /* v416 Hotels.com '검색 결과'를 제휴 링크로 Hotels.com 앱에서 열면 목록에서 호텔을 눌러도 상세가 안 열림 (이용자 폰 확인 · 웹에서는 정상 · 상세 주소는 앱에서도 정상)
+     → 안드로이드에서는 검색 결과만 크롬(웹)으로 연다. 크롬이 없으면 원래 주소로 (browser_fallback_url). 안드로이드가 아니면 그대로. */
+  function webOpen(u) {
+    try { if (!/Android/i.test(navigator.userAgent)) return u; } catch (e) { return u; }
+    return "intent://" + String(u).replace(/^https:\/\//, "") + "#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=" + encodeURIComponent(u) + ";end";
   }   /* v414 숙소 → Hotels.com · 항공권·렌터카 → 익스피디아 (Expedia Group 제휴 링크) */   /* v412 숙소·항공권 → HopeGoo 첫 화면, 렌터카 → Daytrip 첫 화면 */
   function tripHotel(o) {
     return hotelsSearch(o.stay, o);   /* v415 Hotels.com 검색 (지역·날짜·인원 채움) · 아래 Trip.com 주소 만들기는 쓰지 않음 */
@@ -503,6 +509,9 @@
     var su = String(url || "");
     /* v415 예전에 저장한 Trip.com · HopeGoo 숙소 → Hotels.com 에서 그 숙소 이름으로 검색 (날짜·인원 채움) */
     if (/^https:\/\/([a-z0-9-]+\.)*(trip|hopegoo)\.com\//i.test(su)) return hotelsSearch(name || o.stay, o);
+    /* v416 Hotels.com 숙소 상세(/ho번호/…): 주소 뒤 값(검색 기록 등)은 버리고 날짜(chkin·chkout)·인원(rm1=a인원) 을 붙여 그 숙소 화면으로 바로 (Hotels.com 실제 상세 주소 형식) */
+    var hm = su.match(/^(https:\/\/([a-z0-9-]+\.)*hotels\.com\/ho\d+\/[^?#\s]*)/i);
+    if (hm) return HW(hm[1] + "?" + (o.ci && o.co ? "chkin=" + o.ci + "&chkout=" + o.co + "&" : "") + "rm1=a" + (o.ppl || 2));
     if (/^https:\/\/([a-z0-9-]+\.)*hotels\.com\//i.test(su) && !/\/affiliate/i.test(su)) return HW(su);   /* v415 Hotels.com 숙소 링크에 제휴 표시 */
     if (/^https:\/\/([a-z0-9-]+\.)*expedia\.[a-z.]+\//i.test(su) && !/\/affiliate/i.test(su)) return EW(su);
     return su;
@@ -916,7 +925,7 @@
     aiClassify(text, c, function (j) { if (!j) { cb(null); return; } go({ kind: j.kind, q: text, query: j.query || "", body: j.body || "" }); });
   }
   if (AI_FALLBACK) try { fetch("/api/quick-intent").then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j && j.cost != null) AI_COST = Number(j.cost) || 0; })["catch"](function () {}); } catch (e) {}
-  window.cfQuick = { country: country, setCountry: setCountry, isOverride: isOverride, classify: classify, build: build, decide: decide, stayInfo: stayInfo, amountOf: amountOf, trip: { hotel: tripHotel, flight: tripFlight, car: tripCar, saved: tripSaved, core: stayCore }, aiCost: function () { return AI_COST; }, onAI: null,
+  window.cfQuick = { country: country, setCountry: setCountry, isOverride: isOverride, classify: classify, build: build, decide: decide, stayInfo: stayInfo, amountOf: amountOf, trip: { hotel: tripHotel, flight: tripFlight, car: tripCar, saved: tripSaved, core: stayCore, web: webOpen }, aiCost: function () { return AI_COST; }, onAI: null,
     /* 세계 주요 경제국 30 (관리자 시험 칩·확인표에 쓰임) */
     COUNTRIES: [["AUTO", "🌐 자동(시간대)"], ["KR", "🇰🇷 대한민국"], ["US", "🇺🇸 미국"], ["JP", "🇯🇵 일본"], ["CN", "🇨🇳 중국"], ["IN", "🇮🇳 인도"], ["GB", "🇬🇧 영국"], ["DE", "🇩🇪 독일"], ["FR", "🇫🇷 프랑스"], ["ES", "🇪🇸 스페인"], ["IT", "🇮🇹 이탈리아"],
       ["CA", "🇨🇦 캐나다"], ["AU", "🇦🇺 호주"], ["BR", "🇧🇷 브라질"], ["MX", "🇲🇽 멕시코"], ["NL", "🇳🇱 네덜란드"], ["CH", "🇨🇭 스위스"], ["SE", "🇸🇪 스웨덴"], ["BE", "🇧🇪 벨기에"], ["AT", "🇦🇹 오스트리아"], ["PL", "🇵🇱 폴란드"], ["TR", "🇹🇷 튀르키예"],
