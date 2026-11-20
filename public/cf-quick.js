@@ -456,7 +456,7 @@
   var TRIP_SUB = { US: "us", GB: "uk", CA: "ca", AU: "au", NZ: "nz", SG: "sg", PH: "ph", IN: "in", AE: "ae", SA: "sa", ID: "id" };
   var TRIP_RE = /(트립\s*닷컴|트립닷컴|trip\s*\.\s*com|tripcom|trip\.com)\s*(에서|으로|로|에)?/gi;
   function tripHost(c) { return c === "KR" ? "https://kr.trip.com" : "https://www.trip.com"; }
-  var HOPEGOO = "https://www.hopegoo.com/", DAYTRIP = "https://daytrip.com/";   /* v412 숙소·항공권 → HopeGoo 첫 화면, 렌터카 → Daytrip 첫 화면 */
+  var HOPEGOO = "https://www.hopegoo.com/", HOPEGOO_FLIGHT = "https://www.hopegoo.com/ko-kr/main-flights/", DAYTRIP = "https://daytrip.com/";   /* v412 숙소·항공권 → HopeGoo 첫 화면, 렌터카 → Daytrip 첫 화면 */
   function tripHotel(o) {
     return HOPEGOO;   /* v412 (아래 Trip.com 주소 만들기는 쓰지 않음) */
     var kw = String(o.stay || "").replace(TRIP_RE, " ").replace(/\b(accommodations?|lodgings?)\b/gi, " ").replace(/\s+/g, " ").trim(), l = kw.toLowerCase(), id = 0, hit = "";
@@ -495,7 +495,7 @@
   }
   var TRIP_CITYCODE = { ICN: "SEL", GMP: "SEL", NRT: "TYO", HND: "TYO", KIX: "OSA", PUS: "PUS" };
   function tripFlight(o) {
-    return HOPEGOO;   /* v412 */
+    return HOPEGOO_FLIGHT;   /* v413 항공권 탭으로 바로 */
     if (!(o.fc && o.tc && o.dep)) return tripHost(o.c) + "/flights/";
     var dc = (TRIP_CITYCODE[o.fc] || o.fc).toLowerCase(), ac = (TRIP_CITYCODE[o.tc] || o.tc).toLowerCase();
     return tripHost(o.c) + "/flights/showfarefirst?dcity=" + dc + "&acity=" + ac + "&ddate=" + o.dep + (o.ret ? "&rdate=" + o.ret + "&triptype=rt" : "&triptype=ow") + "&class=y&quantity=" + (o.adults || 1) + "&searchboxarg=t&nonstoponly=off";
