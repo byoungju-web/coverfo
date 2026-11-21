@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1020">
+<title>누리트립 — coverfo</title>
+<!-- coverfo 📸 누리트립 (여행 사진·쇼츠 커뮤니티) 1단계 · v427
+     · 보기: 🎬 쇼츠(세로로 넘기기) · 🖼 사진(카드) · 📌 저장 · 🙋 내 글 — 정렬: 최신 · 저장 많은 · 가까운
+     · 올리기: 사진 10장(무료) 또는 쇼츠 1개(30초 · 50MB · v428: 1크레딧) + 장소(필수 · 네이버 지역 검색) + 다녀온 날짜 + 한 줄 후기 + 태그
+     · 사진은 폰에서 줄이며 위치정보(EXIF)를 지우고, 쇼츠는 영상 속 위치 기록을 지운 뒤 올린다.
+     · 글 아래 장소 버튼: 길안내(카카오맵) · 숙소(Hotels.com) · 항공 · 렌터카(익스피디아) — 기존 제휴 링크
+     · 신고(3번이면 숨김) · 차단 · 내 글 지우기 · 관리자 확인(🛡) · 만 14세 미만은 글쓰기·댓글·반응 못 함
+     · 서버: /api/trip · 파일: /media/trip/… (R2) · 주소 /trip/?p=글번호 로 글 바로 열기 -->
+<style>
+:root{--ink:#14132a;--sub:#5b5a73;--mute:#8d8ba5;--line:#e6e7f4;--bg:#f4f5fc;--pri:#4f46e5;--pri2:#3730a3;--sky:#0ea5e9;--pink:#ec4899;--err:#b42318;--ok:#0f8a5f}
+*{box-sizing:border-box}
+html,body{margin:0;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;-webkit-text-size-adjust:100%;background:var(--bg)}
+body{min-height:100vh;padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+button{font-family:inherit;cursor:pointer;color:inherit}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid rgba(79,70,229,.45);outline-offset:2px}
+.top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;gap:8px;height:54px;padding:0 12px}
+.bar h1{flex:1;margin:0;font-size:18px;font-weight:900;letter-spacing:-.03em;background:linear-gradient(90deg,var(--sky),var(--pri) 55%,var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent}
+.bar .x{height:36px;padding:0 14px;border-radius:18px;border:1.5px solid var(--line);background:#fff;font-size:13.5px;font-weight:700}
+.tabs{display:flex;gap:4px;padding:0 10px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:none;height:40px;padding:0 12px;border:0;background:none;font-size:14.5px;font-weight:700;color:var(--sub);border-bottom:3px solid transparent}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--pri)}
+.sorts{display:flex;gap:6px;padding:10px 12px;overflow-x:auto;scrollbar-width:none}
+.sorts::-webkit-scrollbar{display:none}
+.sorts button{flex:none;height:32px;padding:0 12px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font-size:13px;font-weight:700;color:var(--sub)}
+.sorts button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.wrap{max-width:720px;margin:0 auto;padding:0 10px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media (min-width:600px){.grid{grid-template-columns:1fr 1fr 1fr}}
+.cd{position:relative;display:block;width:100%;padding:0;border:0;border-radius:16px;overflow:hidden;background:#fff;text-align:left;box-shadow:0 6px 18px -14px rgba(20,19,42,.5)}
+.cd .ph{position:relative;aspect-ratio:3/4;background:#dfe2f3 center/cover no-repeat}
+.cd .ph .k{position:absolute;top:8px;left:8px;padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;font-size:11.5px;font-weight:700}
+.cd .ph .n{position:absolute;top:8px;right:8px;padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;font-size:11.5px;font-weight:700}
+.cd .tx{padding:8px 10px 10px}
+.cd .tx b{display:block;font-size:13.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cd .tx p{margin:3px 0 0;font-size:12px;color:var(--sub);display:flex;justify-content:space-between;gap:6px}
+.cd .tx p span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.empty{margin:40px 10px;text-align:center;color:var(--sub);font-size:14.5px;line-height:1.7}
+.more{display:block;margin:14px auto;height:40px;padding:0 18px;border-radius:20px;border:1.5px solid var(--line);background:#fff;font-weight:700}
+.msg{margin:12px 0;padding:12px 14px;border-radius:14px;background:#fff4f2;border:1px solid #f3d0cc;color:var(--err);font-size:14px;line-height:1.6}
+.msg.ok{background:#ecfbf3;border-color:#bfe8d3;color:var(--ok)}
+.fab{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:30;display:flex;align-items:center;gap:6px;height:54px;padding:0 20px;border:0;border-radius:27px;background:linear-gradient(100deg,var(--sky),var(--pri) 55%,var(--pink));color:#fff;font-size:16px;font-weight:800;box-shadow:0 14px 28px -12px rgba(79,70,229,.8)}
+/* 쇼츠 */
+.reel{position:fixed;inset:0;z-index:40;background:#000;display:none}
+.reel.on{display:block}
+.reel .list{height:100%;overflow-y:auto;scroll-snap-type:y mandatory;scrollbar-width:none}
+.reel .list::-webkit-scrollbar{display:none}
+.reel .it{position:relative;height:100vh;height:100dvh;scroll-snap-align:start;display:flex;align-items:center;justify-content:center}
+.reel video{width:100%;height:100%;object-fit:contain;background:#000}
+.reel .ov{position:absolute;left:0;right:70px;bottom:0;padding:16px 14px calc(18px + env(safe-area-inset-bottom));color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.65));pointer-events:none}
+.reel .ov *{pointer-events:auto}
+.reel .ov b{font-size:16px;font-weight:800}
+.reel .ov p{margin:6px 0 0;font-size:14px;line-height:1.5;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.reel .ov small{display:block;margin-top:4px;font-size:12.5px;opacity:.85}
+.reel .side{position:absolute;right:8px;bottom:calc(90px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px;align-items:center}
+.reel .side button{display:flex;flex-direction:column;align-items:center;gap:2px;width:54px;border:0;background:none;color:#fff;font-size:12px;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.7)}
+.reel .side button i{font-style:normal;display:grid;place-items:center;width:46px;height:46px;border-radius:23px;background:rgba(255,255,255,.18);font-size:22px}
+.reel .side button.on i{background:rgba(236,72,153,.55)}
+.reel .rx{position:absolute;top:calc(10px + env(safe-area-inset-top));left:10px;z-index:3;height:36px;padding:0 14px;border-radius:18px;border:0;background:rgba(0,0,0,.5);color:#fff;font-weight:700}
+.reel .snd{position:absolute;top:calc(10px + env(safe-area-inset-top));right:10px;z-index:3;height:36px;padding:0 12px;border-radius:18px;border:0;background:rgba(0,0,0,.5);color:#fff;font-weight:700}
+/* 시트 (글 보기 · 올리기 · 닉네임) */
+.sheet{position:fixed;inset:0;z-index:50;display:none;background:rgba(10,10,25,.5)}
+.sheet.on{display:block}
+.sheet .bd{position:absolute;left:0;right:0;bottom:0;max-height:94vh;max-height:94dvh;overflow-y:auto;background:#fff;border-radius:22px 22px 0 0;padding:0 0 calc(18px + env(safe-area-inset-bottom))}
+@media (min-width:720px){.sheet .bd{left:50%;width:680px;margin-left:-340px}}
+.sheet .hd{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;height:54px;padding:0 14px;background:#fff;border-bottom:1px solid var(--line)}
+.sheet .hd b{flex:1;font-size:16px;font-weight:800}
+.sheet .hd button{height:34px;padding:0 13px;border-radius:17px;border:1.5px solid var(--line);background:#fff;font-weight:700;font-size:13px}
+.sheet .in{padding:14px}
+.car{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:0;background:#000;scrollbar-width:none}
+.car::-webkit-scrollbar{display:none}
+.car img,.car video{flex:none;width:100%;max-height:70vh;object-fit:contain;scroll-snap-align:center;background:#000}
+.who{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub);margin-top:10px}
+.who b{color:var(--ink);font-size:14px}
+.pl{margin-top:8px;font-size:17px;font-weight:800;line-height:1.35}
+.pl small{display:block;font-size:12.5px;font-weight:600;color:var(--mute);margin-top:2px}
+.bodytx{margin:10px 0 0;font-size:15.5px;line-height:1.65;white-space:pre-wrap;word-break:keep-all;overflow-wrap:anywhere}
+.tg{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.tg span{padding:4px 10px;border-radius:999px;background:#eef0ff;color:var(--pri2);font-size:12.5px;font-weight:700}
+.acts{display:flex;gap:6px;margin-top:14px}
+.acts button{flex:1;height:42px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font-size:14px;font-weight:700}
+.acts button.on{border-color:var(--pink);background:#fdf0f7;color:#be185d}
+.go{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}
+.go button{height:56px;border-radius:14px;border:0;background:#f1f3ff;font-size:12.5px;font-weight:800;color:var(--pri2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.go button i{font-style:normal;font-size:19px}
+.aff{margin:6px 2px 0;font-size:11.5px;color:var(--mute)}
+.cm{margin-top:18px;border-top:1px solid var(--line);padding-top:12px}
+.cm h3{margin:0 0 8px;font-size:14px;font-weight:800}
+.c1{padding:8px 0;border-bottom:1px solid #f1f2f8;font-size:14.5px;line-height:1.55}
+.c1.rp{padding-left:22px}
+.c1 b{font-size:13px;margin-right:6px}
+.c1 small{color:var(--mute);font-size:11.5px;margin-left:4px}
+.c1 .cb{display:inline-flex;gap:8px;margin-left:6px}
+.c1 .cb button{border:0;background:none;padding:0;font-size:12px;color:var(--mute);font-weight:700}
+.cin{display:flex;gap:6px;margin-top:10px}
+.cin input{flex:1;min-width:0;height:44px;border:1.5px solid var(--line);border-radius:12px;padding:0 12px;font-size:15px}
+.cin button{flex:none;height:44px;padding:0 14px;border-radius:12px;border:0;background:var(--pri);color:#fff;font-weight:800}
+.menu{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.menu button{height:34px;padding:0 12px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font-size:12.5px;font-weight:700;color:var(--sub)}
+.menu button.d{color:var(--err);border-color:#f3d0cc}
+/* 올리기 */
+.lab{display:block;margin:14px 0 6px;font-size:13.5px;font-weight:800}
+.lab small{font-weight:600;color:var(--mute);margin-left:4px}
+.pick{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pick label{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:76px;border-radius:16px;border:2px dashed #c9cdf0;background:#f7f8ff;font-weight:800;font-size:14px;color:var(--pri2);cursor:pointer}
+.pick label small{font-size:11.5px;font-weight:600;color:var(--mute)}
+.pick input{position:absolute;width:1px;height:1px;opacity:0}
+.thumbs{display:flex;gap:6px;overflow-x:auto;margin-top:8px}
+.thumbs div{position:relative;flex:none;width:76px;height:96px;border-radius:12px;background:#ddd center/cover no-repeat}
+.thumbs div button{position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:12px;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:13px;line-height:1}
+.thumbs div span{position:absolute;left:4px;bottom:4px;padding:1px 6px;border-radius:8px;background:rgba(0,0,0,.6);color:#fff;font-size:11px}
+.f input[type=text],.f input[type=date],.f textarea{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;font-size:15px;font-family:inherit;background:#fff}
+.f textarea{min-height:84px;resize:vertical}
+.prow{display:flex;gap:6px}
+.prow input{flex:1;min-width:0}
+.prow button{flex:none;height:44px;padding:0 14px;border-radius:12px;border:0;background:var(--ink);color:#fff;font-weight:800}
+.plist button{display:block;width:100%;text-align:left;margin-top:6px;padding:10px 12px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font-size:14px}
+.plist button b{display:block;font-weight:800}
+.plist button small{color:var(--mute);font-size:12px}
+.plist button.on{border-color:var(--pri);background:#f3f2ff}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{height:34px;padding:0 12px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font-size:13px;font-weight:700;color:var(--sub)}
+.chips button.on{background:var(--pri);border-color:var(--pri);color:#fff}
+.chk{display:flex;gap:8px;align-items:flex-start;margin-top:14px;font-size:13.5px;line-height:1.55;color:var(--sub)}
+.chk input{flex:none;width:20px;height:20px;margin-top:1px}
+.big{width:100%;height:52px;margin-top:16px;border:0;border-radius:16px;background:linear-gradient(100deg,var(--sky),var(--pri) 55%,var(--pink));color:#fff;font-size:16px;font-weight:800}
+.big:disabled{opacity:.5}
+.prog{height:8px;border-radius:4px;background:#e8e9f5;overflow:hidden;margin-top:10px;display:none}
+.prog i{display:block;height:100%;width:0;background:var(--pri);transition:width .2s}
+.note{font-size:12.5px;color:var(--mute);line-height:1.6;margin-top:8px}
+.st{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;background:#fff4e5;color:#9a3412}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="bar"><h1>누리트립</h1><button type="button" class="x" id="close">닫기</button></div>
+  <nav class="tabs" id="tabs" aria-label="보기">
+    <button type="button" data-t="shorts" class="on">🎬 쇼츠</button>
+    <button type="button" data-t="photo">🖼 사진</button>
+    <button type="button" data-t="saved">📌 저장</button>
+    <button type="button" data-t="mine">🙋 내 글</button>
+    <button type="button" data-t="admin" id="tabAdmin" hidden>🛡 신고</button>
+  </nav>
+</header>
+<div class="sorts" id="sorts">
+  <button type="button" data-s="new" class="on">최신</button>
+  <button type="button" data-s="top">저장 많은</button>
+  <button type="button" data-s="near">📍 가까운</button>
+</div>
+<main class="wrap">
+  <div id="msg"></div>
+  <div class="grid" id="grid"></div>
+  <button type="button" class="more" id="more" hidden>더 보기</button>
+</main>
+<button type="button" class="fab" id="fab">＋ 올리기</button>
+
+<!-- 쇼츠 전체 화면 -->
+<div class="reel" id="reel" role="dialog" aria-label="쇼츠">
+  <button type="button" class="rx" id="reelX">‹ 목록</button>
+  <button type="button" class="snd" id="snd">🔇 소리 켜기</button>
+  <div class="list" id="reelList"></div>
+</div>
+
+<!-- 글 보기 -->
+<div class="sheet" id="vs" role="dialog" aria-label="글 보기"><div class="bd"><div class="hd"><b id="vsT">글</b><button type="button" data-x="vs">닫기</button></div><div id="vsB"></div></div></div>
+<!-- 올리기 -->
+<div class="sheet" id="ws" role="dialog" aria-label="올리기"><div class="bd"><div class="hd"><b>여행 올리기</b><button type="button" data-x="ws">닫기</button></div><div class="in f" id="wsB"></div></div></div>
+<!-- 닉네임 · 나이 확인 -->
+<div class="sheet" id="ps" role="dialog" aria-label="닉네임"><div class="bd"><div class="hd"><b>누리트립 시작하기</b><button type="button" data-x="ps">닫기</button></div><div class="in f" id="psB"></div></div></div>
+
+<script>
+(function(){
+  "use strict";
+  var $=function(id){ return document.getElementById(id); };
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(m){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]; }); }
+  function token(){ try{ for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf("sb-")===0&&k.indexOf("-auth-token")>0){ var v=JSON.parse(localStorage.getItem(k)||"null"); var t=v&&(v.access_token||(v.currentSession&&v.currentSession.access_token)); if(t) return t; } } }catch(e){} return ""; }
+  function api(method,q,body){
+    var h={}; var t=token(); if(t) h.Authorization="Bearer "+t;
+    var o={method:method,headers:h,cache:"no-store"};
+    if(body!==undefined){ h["Content-Type"]="application/json"; o.body=JSON.stringify(body); }
+    return fetch("/api/trip"+(q||""),o).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ j._s=r.status; return j; }); })["catch"](function(){ return {error:"연결이 끊겼어요. 다시 해 주세요.",_s:0}; });
+  }
+  function say(t,ok){ $("msg").innerHTML=t?'<div class="msg'+(ok?" ok":"")+'">'+t+'</div>':""; }
+  function ago(iso){ var d=(Date.now()-Date.parse(iso))/1000; if(!(d>=0)) return ""; if(d<60) return "방금"; if(d<3600) return Math.floor(d/60)+"분 전"; if(d<86400) return Math.floor(d/3600)+"시간 전"; if(d<86400*30) return Math.floor(d/86400)+"일 전"; var t=new Date(iso); return t.getFullYear()+"."+(t.getMonth()+1)+"."+t.getDate(); }
+  function vdate(v){ if(!v) return ""; var a=String(v).split("-"); return a[0]+"."+(+a[1])+"."+(+a[2])+" 다녀옴"; }
+  function safeU(u){ return /^\/media\/trip\/[\w\-./]+$/.test(String(u||""))?u:""; }
+
+  var ME={login:false}, TAB="shorts", SORT="new", NEXT="", POS=null, ITEMS=[];
+
+  /* 닫기 — 홈 위 덮개로 열렸으면 덮개만 */
+  $("close").onclick=function(){ try{ if(window.parent!==window&&window.parent.cfPageClose){ window.parent.cfPageClose(); return; } }catch(e){} location.href="/"; };
+  document.addEventListener("click",function(e){ var x=e.target.closest&&e.target.closest("[data-x]"); if(x) closeSheet(x.getAttribute("data-x")); });
+  function openSheet(id){ $(id).classList.add("on"); document.body.style.overflow="hidden"; }
+  function closeSheet(id){ $(id).classList.remove("on"); if(id==="vs") stopVideos($("vsB")); if(!document.querySelector(".sheet.on")&&!$("reel").classList.contains("on")) document.body.style.overflow=""; }
+  function stopVideos(root){ Array.prototype.forEach.call(root.querySelectorAll("video"),function(v){ try{ v.pause(); }catch(e){} }); }
+
+  function loginGo(){
+    try{ if(window.parent!==window&&window.parent.cfPageClose){ var P=window.parent; P.cfPageClose(); setTimeout(function(){ var els=P.document.querySelectorAll("button,a"); for(var i=0;i<els.length;i++){ var t=(els[i].textContent||"").trim(); if(t==="로그인하기"||t==="로그인"){ els[i].click(); return; } } },300); return; } }catch(e){}
+    location.href="/";
+  }
+  function needLogin(){ say('로그인이 필요해요. <button type="button" class="more" id="lg" style="display:inline-block;margin:6px 0 0">로그인하기</button>'); var b=$("lg"); if(b) b.onclick=loginGo; window.scrollTo(0,0); }
+
+  /* ── 탭 · 정렬 ── */
+  $("tabs").addEventListener("click",function(e){ var b=e.target.closest("button[data-t]"); if(!b) return; TAB=b.getAttribute("data-t"); Array.prototype.forEach.call(this.children,function(x){ x.classList.toggle("on",x===b); }); $("sorts").style.display=(TAB==="shorts"||TAB==="photo")?"":"none"; load(true); });
+  $("sorts").addEventListener("click",function(e){ var b=e.target.closest("button[data-s]"); if(!b) return; var s=b.getAttribute("data-s");
+    var go=function(){ SORT=s; Array.prototype.forEach.call($("sorts").children,function(x){ x.classList.toggle("on",x===b); }); load(true); };
+    if(s==="near"&&!POS){ if(!navigator.geolocation){ say("이 기기에서는 위치를 쓸 수 없어요."); return; } say("내 위치를 확인하는 중…",true);
+      navigator.geolocation.getCurrentPosition(function(p){ POS={lat:p.coords.latitude,lng:p.coords.longitude}; say(""); go(); },function(){ say("위치 권한을 허용하면 가까운 순으로 볼 수 있어요."); },{enableHighAccuracy:false,timeout:10000,maximumAge:600000}); return; }
+    go(); });
+  $("more").onclick=function(){ load(false); };
+
+  function load(reset){
+    if(reset){ NEXT=""; ITEMS=[]; $("grid").innerHTML=""; say(""); }
+    if(TAB==="admin"){ return loadAdmin(); }
+    var q="?op=feed";
+    if(TAB==="shorts"||TAB==="photo"){ q+="&kind="+TAB+"&sort="+SORT; if(SORT==="near"&&POS) q+="&lat="+POS.lat+"&lng="+POS.lng; }
+    if(TAB==="saved") q+="&saved=1"; if(TAB==="mine") q+="&mine=1";
+    if(NEXT) q+="&before="+encodeURIComponent(NEXT);
+    $("more").hidden=true;
+    if(reset) $("grid").innerHTML='<div class="empty" style="grid-column:1/-1">불러오는 중…</div>';
+    api("GET",q).then(function(j){
+      if(reset) $("grid").innerHTML="";
+      if(j._s===401){ needLogin(); return; }
+      if(j.error){ say(esc(j.error)); return; }
+      var list=j.items||[]; ITEMS=ITEMS.concat(list);
+      if(!ITEMS.length){ $("grid").innerHTML='<div class="empty" style="grid-column:1/-1">'+(TAB==="saved"?"📌 저장한 글이 아직 없어요.<br>마음에 드는 글에서 📌 를 눌러 보세요.":TAB==="mine"?"아직 올린 글이 없어요.<br>아래 <b>＋ 올리기</b> 로 첫 여행을 올려 보세요.":"아직 글이 없어요.<br>첫 여행 사진·쇼츠를 올려 보세요!")+'</div>'; return; }
+      list.forEach(function(it){ $("grid").insertAdjacentHTML("beforeend",card(it)); });
+      NEXT=j.next||""; $("more").hidden=!NEXT;
+    });
+  }
+  function card(it){
+    var m=it.media&&it.media[0]||{}, bg=it.kind==="shorts"?safeU(m.thumb):safeU(m.u);
+    var badge=it.kind==="shorts"?"▶ "+(m.dur?Math.round(m.dur)+"초":"쇼츠"):(it.media.length>1?"🖼 "+it.media.length:"");
+    var st=it.status&&it.status!=="live"?'<span class="st">'+(it.status==="hidden"?"숨김(신고)":it.status)+'</span>':"";
+    var d=typeof it.dist==="number"?(it.dist<1?Math.round(it.dist*1000)+"m":it.dist+"km"):ago(it.at);
+    return '<button type="button" class="cd" data-id="'+it.id+'"><div class="ph" style="background-image:'+(bg?'url(&quot;'+esc(bg)+'&quot;)':'linear-gradient(135deg,#c7d2fe,#fbcfe8)')+'">'+(badge?'<span class="k">'+esc(badge)+'</span>':"")+'<span class="n">📌 '+(it.saves||0)+'</span></div><div class="tx"><b>📍 '+esc(it.place.name)+st+'</b><p><span>'+esc(it.nick)+'</span><span>'+esc(d)+'</span></p></div></button>';
+  }
+  $("grid").addEventListener("click",function(e){ var c=e.target.closest(".cd"); if(!c) return; var id=+c.getAttribute("data-id"); var it=ITEMS.filter(function(x){ return x.id===id; })[0]; if(!it) return;
+    if(TAB==="admin"){ openPost(id); return; }
+    if(it.kind==="shorts"&&(TAB==="shorts")) openReel(id); else openPost(id); });
+
+  /* ── 쇼츠 넘기기 ── */
+  var muted=true, io=null;
+  function openReel(startId){
+    var list=ITEMS.filter(function(x){ return x.kind==="shorts"; });
+    $("reelList").innerHTML=list.map(function(it){ var m=it.media[0]||{};
+      return '<section class="it" data-id="'+it.id+'"><video playsinline loop muted preload="metadata" '+(safeU(m.thumb)?'poster="'+esc(m.thumb)+'"':"")+' src="'+esc(safeU(m.u))+'"></video>'+
+        '<div class="side"><button type="button" data-a="like" class="'+(it.liked?"on":"")+'"><i>❤️</i><span>'+(it.likes||0)+'</span></button><button type="button" data-a="save" class="'+(it.saved?"on":"")+'"><i>📌</i><span>'+(it.saves||0)+'</span></button><button type="button" data-a="open"><i>💬</i><span>'+(it.comments||0)+'</span></button><button type="button" data-a="share"><i>↗</i><span>공유</span></button></div>'+
+        '<div class="ov"><b>📍 '+esc(it.place.name)+'</b><small>'+esc(it.nick)+' · '+esc(vdate(it.visited)||ago(it.at))+'</small>'+(it.body?'<p>'+esc(it.body.length>90?it.body.slice(0,90)+"…":it.body)+'</p>':"")+'</div></section>'; }).join("");
+    $("reel").classList.add("on"); document.body.style.overflow="hidden";
+    var tgt=$("reelList").querySelector('[data-id="'+startId+'"]'); if(tgt) tgt.scrollIntoView();
+    if(io) io.disconnect();
+    io=new IntersectionObserver(function(es){ es.forEach(function(en){ var v=en.target.querySelector("video"); if(!v) return; if(en.isIntersecting&&en.intersectionRatio>.6){ v.muted=muted; var p=v.play(); if(p&&p["catch"]) p["catch"](function(){}); } else { try{ v.pause(); }catch(e){} } }); },{threshold:[0,.6,1]});
+    Array.prototype.forEach.call($("reelList").querySelectorAll(".it"),function(s){ io.observe(s); });
+  }
+  function closeReel(){ $("reel").classList.remove("on"); if(io) io.disconnect(); stopVideos($("reelList")); $("reelList").innerHTML=""; if(!document.querySelector(".sheet.on")) document.body.style.overflow=""; }
+  $("reelX").onclick=closeReel;
+  $("snd").onclick=function(){ muted=!muted; this.textContent=muted?"🔇 소리 켜기":"🔊 소리 끄기"; Array.prototype.forEach.call($("reelList").querySelectorAll("video"),function(v){ v.muted=muted; }); };
+  $("reelList").addEventListener("click",function(e){
+    var b=e.target.closest("button[data-a]"), sec=e.target.closest(".it"); if(!sec) return; var id=+sec.getAttribute("data-id");
+    if(!b){ var v=sec.querySelector("video"); if(v){ if(v.paused){ var p=v.play(); if(p&&p["catch"]) p["catch"](function(){}); } else v.pause(); } return; }
+    var a=b.getAttribute("data-a");
+    if(a==="open"){ openPost(id); return; }
+    if(a==="share"){ share(id); return; }
+    toggle(a,id,function(on,n){ b.classList.toggle("on",on); b.querySelector("span").textContent=n; });
+  });
+
+  /* ── 반응 ── */
+  function toggle(op,id,cb){
+    if(!token()){ closeReel(); needLogin(); return; }
+    if(!ME.has_profile){ closeReel(); askProfile(); return; }
+    api("POST","",{op:op,id:id}).then(function(j){ if(j.error){ alert(j.error); if(j.profile) askProfile(); return; }
+      ITEMS.forEach(function(x){ if(x.id===id){ if(op==="like"){ x.liked=j.on; x.likes=j.n; } else { x.saved=j.on; x.saves=j.n; } } }); cb(j.on,j.n); });
+  }
+  function share(id){
+    var u=location.origin+"/trip/?p="+id;
+    try{ if(navigator.share){ navigator.share({title:"누리트립",url:u})["catch"](function(){}); return; } }catch(e){}
+    try{ navigator.clipboard.writeText(u).then(function(){ alert("링크를 복사했어요"); }); }catch(e){ prompt("링크",u); }
+  }
+
+  /* ── 장소 버튼 (기존 coverfo 제휴 링크) ── */
+  function HW(u){ return "https://www.hotels.com/affiliate?landingPage="+encodeURIComponent(u)+"&camref=1100l6zyiV&creativeref=1011l87790&adref=PZuPfKKK0I"; }
+  function area(pl){ var a=String(pl.addr||"").split(" "); var s=(a[0]||"").replace(/(특별시|광역시|특별자치시|특별자치도|도)$/,"")+" "+(a[1]||""); return s.trim()||pl.name; }
+  function goLink(k,pl){
+    if(k==="nav") return pl.lat&&pl.lng?"https://map.kakao.com/link/to/"+encodeURIComponent(pl.name)+","+pl.lat+","+pl.lng:"https://map.kakao.com/link/search/"+encodeURIComponent(pl.name);
+    if(k==="stay") return HW("https://kr.hotels.com/Hotel-Search?destination="+encodeURIComponent(area(pl))+"&adults=2&rooms=1");
+    if(k==="air") return "https://expedia.com/affiliate/dH1Xh9T";
+    if(k==="car") return "https://expedia.com/affiliate/8zSjtLw";
+    return "";
+  }
+  function openOut(u){ if(!u) return; try{ window.top.location.href=u; return; }catch(e){} location.href=u; }
+
+  /* ── 글 보기 ── */
+  var CUR=null;
+  function openPost(id){
+    $("vsT").textContent="글"; $("vsB").innerHTML='<div class="in">불러오는 중…</div>'; openSheet("vs");
+    api("GET","?op=post&id="+id).then(function(j){
+      if(j.error){ $("vsB").innerHTML='<div class="in"><div class="msg">'+esc(j.error)+'</div></div>'; return; }
+      CUR=j.post; renderPost(j.post,j.comments||[],j.admin);
+    });
+  }
+  function renderPost(p,cms,admin){
+    var med=p.kind==="shorts"?p.media.map(function(m){ return '<video controls playsinline preload="metadata" '+(safeU(m.thumb)?'poster="'+esc(m.thumb)+'"':"")+' src="'+esc(safeU(m.u))+'"></video>'; }).join(""):p.media.map(function(m,i){ return '<img loading="lazy" alt="'+esc(p.place.name)+' 사진 '+(i+1)+'" src="'+esc(safeU(m.u))+'">'; }).join("");
+    var st=p.status!=="live"?'<span class="st">'+(p.status==="hidden"?"숨김(신고 확인 중)":p.status)+'</span>':"";
+    var cmh=cms.filter(function(c){ return !c.parent_id; }).map(function(c){ return cmRow(c,false)+cms.filter(function(r){ return r.parent_id===c.id; }).map(function(r){ return cmRow(r,true); }).join(""); }).join("");
+    $("vsT").textContent="📍 "+p.place.name;
+    $("vsB").innerHTML='<div class="car">'+med+'</div><div class="in">'+
+      '<div class="who"><b>'+esc(p.nick)+'</b><span>'+esc(ago(p.at))+'</span>'+st+'</div>'+
+      '<div class="pl">📍 '+esc(p.place.name)+'<small>'+esc(p.place.addr||"")+(p.visited?" · "+esc(vdate(p.visited)):"")+'</small></div>'+
+      (p.body?'<p class="bodytx">'+esc(p.body)+'</p>':"")+
+      (p.tags&&p.tags.length?'<div class="tg">'+p.tags.map(function(t){ return "<span>#"+esc(t)+"</span>"; }).join("")+'</div>':"")+
+      '<div class="acts"><button type="button" data-a="like" class="'+(p.liked?"on":"")+'">❤️ <span>'+p.likes+'</span></button><button type="button" data-a="save" class="'+(p.saved?"on":"")+'">📌 저장 <span>'+p.saves+'</span></button><button type="button" data-a="share">↗ 공유</button></div>'+
+      '<div class="go"><button type="button" data-g="nav"><i>🧭</i>길안내</button><button type="button" data-g="stay"><i>🏨</i>숙소</button><button type="button" data-g="air"><i>✈️</i>항공</button><button type="button" data-g="car"><i>🚗</i>렌터카</button></div>'+
+      '<p class="aff">숙소·항공·렌터카는 제휴 링크예요. 예약·결제는 그 사이트에서 직접 합니다.</p>'+
+      '<div class="menu">'+(p.mine||admin?'<button type="button" class="d" data-m="del">🗑 글 지우기</button>':"")+(!p.mine?'<button type="button" data-m="report">🚩 신고</button><button type="button" data-m="block">🚫 이 사람 차단</button>':"")+(admin?'<button type="button" data-m="live">✅ 보이기</button><button type="button" data-m="hide">🙈 숨기기</button>':"")+'</div>'+
+      '<div class="cm"><h3>💬 댓글 '+cms.length+'</h3><div id="cmL">'+(cmh||'<div class="note">첫 댓글을 남겨 보세요. 궁금한 걸 물어봐도 좋아요.</div>')+'</div>'+
+      '<div class="cin"><input id="cmI" maxlength="300" placeholder="댓글 달기 (예: 주차 되나요?)" enterkeyhint="send"><button type="button" id="cmS">올리기</button></div><div class="note" id="cmR" hidden></div></div></div>';
+  }
+  function cmRow(c,rp){ return '<div class="c1'+(rp?" rp":"")+'" data-c="'+c.id+'"><b>'+esc(c.nick)+'</b>'+esc(c.body)+'<small>'+esc(ago(c.at))+'</small><span class="cb">'+(rp?"":'<button type="button" data-c-a="re">답글</button>')+(c.mine?'<button type="button" data-c-a="del">지우기</button>':'<button type="button" data-c-a="rep">신고</button><button type="button" data-c-a="blk">차단</button>')+'</span></div>'; }
+  var REPLY=null;
+  $("vsB").addEventListener("click",function(e){
+    if(!CUR) return; var p=CUR, t=e.target;
+    var a=t.closest("button[data-a]"); if(a){ var op=a.getAttribute("data-a"); if(op==="share"){ share(p.id); return; } toggle(op,p.id,function(on,n){ a.classList.toggle("on",on); a.querySelector("span").textContent=n; }); return; }
+    var g=t.closest("button[data-g]"); if(g){ openOut(goLink(g.getAttribute("data-g"),p.place)); return; }
+    var m=t.closest("button[data-m]"); if(m){ postMenu(m.getAttribute("data-m"),p); return; }
+    var ca=t.closest("button[data-c-a]"); if(ca){ var row=ca.closest(".c1"), cid=+row.getAttribute("data-c"), k=ca.getAttribute("data-c-a");
+      if(k==="re"){ REPLY=cid; $("cmR").hidden=false; $("cmR").textContent="↳ "+row.querySelector("b").textContent+" 님에게 답글 (취소: 다시 누르기)"; $("cmI").focus(); return; }
+      if(k==="del"){ if(!confirm("댓글을 지울까요?")) return; api("POST","",{op:"comment_del",cid:cid}).then(function(j){ if(j.error) alert(j.error); else row.remove(); }); return; }
+      if(k==="rep"){ var why=reason(); if(!why) return; api("POST","",{op:"report",type:"comment",id:cid,reason:why}).then(function(j){ alert(j.error||"신고했어요. 확인 후 처리할게요."); }); return; }
+      if(k==="blk"){ if(!confirm("이 사람을 차단할까요? 서로의 글·댓글이 보이지 않아요.")) return; api("POST","",{op:"block",comment_id:cid}).then(function(j){ alert(j.error||"차단했어요."); if(!j.error) openPost(p.id); }); return; }
+    }
+    if(t.id==="cmR"){ REPLY=null; $("cmR").hidden=true; return; }
+    if(t.id==="cmS") sendComment();
+  });
+  $("vsB").addEventListener("keydown",function(e){ if(e.target.id==="cmI"&&e.key==="Enter"&&!e.isComposing){ e.preventDefault(); sendComment(); } });
+  function sendComment(){
+    var v=($("cmI").value||"").trim(); if(!v) return;
+    if(!token()){ closeSheet("vs"); needLogin(); return; }
+    if(!ME.has_profile){ askProfile(); return; }
+    $("cmS").disabled=true;
+    api("POST","",{op:"comment",id:CUR.id,body:v,parent:REPLY}).then(function(j){ $("cmS").disabled=false; if(j.error){ alert(j.error); if(j.profile) askProfile(); return; } REPLY=null; openPost(CUR.id); });
+  }
+  function reason(){ var r=prompt("신고 이유를 골라 번호를 적어 주세요\n1 광고·스팸\n2 욕설·혐오\n3 음란·불법 촬영물\n4 개인정보 노출\n5 거짓 정보\n6 기타","1"); if(r==null) return ""; return ({"1":"광고·스팸","2":"욕설·혐오","3":"음란·불법촬영물","4":"개인정보 노출","5":"거짓 정보","6":"기타"})[String(r).trim()]||"기타"; }
+  function postMenu(k,p){
+    if(k==="del"){ if(!confirm("이 글을 지울까요? 사진·영상도 함께 지워져요.")) return; api("POST","",{op:"delete",id:p.id}).then(function(j){ if(j.error){ alert(j.error); return; } closeSheet("vs"); load(true); }); return; }
+    if(!token()){ closeSheet("vs"); needLogin(); return; }
+    if(k==="report"){ if(!ME.has_profile){ askProfile(); return; } var why=reason(); if(!why) return; api("POST","",{op:"report",type:"post",id:p.id,reason:why}).then(function(j){ alert(j.error||(j.hidden?"신고가 쌓여 이 글을 숨겼어요. 관리자가 확인해요.":"신고했어요. 확인 후 처리할게요.")); }); return; }
+    if(k==="block"){ if(!confirm("이 사람을 차단할까요? 서로의 글·댓글이 보이지 않아요.")) return; api("POST","",{op:"block",post_id:p.id}).then(function(j){ alert(j.error||"차단했어요."); if(!j.error){ closeSheet("vs"); load(true); } }); return; }
+    if(k==="live"||k==="hide"){ api("POST","",{op:"admin_set",id:p.id,status:k==="live"?"live":"hidden"}).then(function(j){ alert(j.error||"바꿨어요."); if(!j.error) openPost(p.id); }); return; }
+  }
+
+  /* ── 관리자: 신고된 글 ── */
+  function loadAdmin(){
+    $("grid").innerHTML='<div class="empty" style="grid-column:1/-1">불러오는 중…</div>';
+    api("POST","",{op:"admin_list"}).then(function(j){
+      $("grid").innerHTML=""; if(j.error){ say(esc(j.error)); return; }
+      ITEMS=j.items||[];
+      if(!ITEMS.length&&!(j.comments||[]).length){ $("grid").innerHTML='<div class="empty" style="grid-column:1/-1">신고된 글이 없어요 👍</div>'; return; }
+      ITEMS.forEach(function(it){ $("grid").insertAdjacentHTML("beforeend",card(it).replace('</b>','</b><p><span>🚩 '+it.reports+' · '+esc((it.reasons||[]).slice(0,3).join(", "))+'</span></p>')); });
+      (j.comments||[]).forEach(function(c){ $("grid").insertAdjacentHTML("beforeend",'<div class="cd" style="grid-column:1/-1;padding:10px 12px"><b style="font-size:13px">💬 댓글 신고 '+c.reports+'</b> <span class="st">'+esc(c.status)+'</span><p style="margin:6px 0;font-size:14px">'+esc(c.nick)+': '+esc(c.body)+'</p><div class="menu"><button type="button" data-ac="'+c.id+'" data-s="live">✅ 보이기</button><button type="button" data-ac="'+c.id+'" data-s="removed" class="d">🗑 지우기</button><button type="button" data-ap="'+c.post_id+'">글 보기</button></div></div>'); });
+    });
+  }
+  $("grid").addEventListener("click",function(e){ var b=e.target.closest("button[data-ac]"); if(b){ api("POST","",{op:"admin_set",type:"comment",id:+b.getAttribute("data-ac"),status:b.getAttribute("data-s")}).then(function(j){ if(j.error) alert(j.error); else loadAdmin(); }); return; } var o=e.target.closest("button[data-ap]"); if(o) openPost(+o.getAttribute("data-ap")); });
+
+  /* ── 닉네임 · 만 14세 확인 ── */
+  function askProfile(after){
+    if(ME.age_ok===false){ alert("만 14세 미만은 글쓰기·댓글·반응을 할 수 없어요."); return; }
+    $("psB").innerHTML='<p class="note" style="margin-top:0;font-size:14px;color:var(--sub)">누리트립에서 쓸 이름을 정해 주세요. 다른 사람에게는 이 닉네임만 보여요.</p>'+
+      '<label class="lab" for="nk">닉네임 <small>한글·영문·숫자 2~12글자</small></label><input type="text" id="nk" maxlength="12" value="'+esc(ME.nick||"")+'" autocomplete="off">'+
+      '<span class="lab">나이 확인</span><div class="chips" id="ag"><button type="button" data-v="1">만 14세 이상이에요</button><button type="button" data-v="0">만 14세 미만이에요</button></div>'+
+      '<p class="note">만 14세 미만은 보기만 할 수 있어요. 한 번 고르면 바꿀 수 없어요. 생년월일은 저장하지 않아요.</p>'+
+      '<div id="psM"></div><button type="button" class="big" id="psGo">시작하기</button>';
+    var age=null;
+    $("ag").onclick=function(e){ var b=e.target.closest("button"); if(!b) return; age=b.getAttribute("data-v")==="1"; Array.prototype.forEach.call(this.children,function(x){ x.classList.toggle("on",x===b); }); };
+    $("psGo").onclick=function(){
+      var nk=($("nk").value||"").trim();
+      if(!/^[0-9A-Za-z가-힣_]{2,12}$/.test(nk)){ $("psM").innerHTML='<div class="msg">닉네임은 한글·영문·숫자 2~12글자로 적어 주세요.</div>'; return; }
+      if(age===null){ $("psM").innerHTML='<div class="msg">나이 확인을 골라 주세요.</div>'; return; }
+      if(!age&&!confirm("만 14세 미만으로 고르면 글쓰기·댓글을 할 수 없고, 바꿀 수 없어요. 맞나요?")) return;
+      this.disabled=true; var me=this;
+      api("POST","",{op:"profile",nick:nk,age14:age}).then(function(j){ me.disabled=false; if(j.error){ $("psM").innerHTML='<div class="msg">'+esc(j.error)+'</div>'; return; }
+        ME.nick=j.nick; ME.age_ok=j.age_ok; ME.has_profile=true; closeSheet("ps"); if(j.age_ok&&typeof after==="function") after(); });
+    };
+    openSheet("ps");
+  }
+
+  /* ── 올리기 ── */
+  var W=null;
+  $("fab").onclick=function(){
+    if(!token()){ needLogin(); return; }
+    if(!ME.has_profile){ askProfile(openWrite); return; }
+    if(ME.age_ok===false){ alert("만 14세 미만은 글을 올릴 수 없어요."); return; }
+    openWrite();
+  };
+  var TAGS=["맛집","카페","숙소","자연","바다","야경","축제","쇼핑","명소","액티비티"];
+  function today(){ var d=new Date(); return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2); }
+  function SC(){ return ME.shorts_cost||1; }
+  var CHARGE='크레딧이 부족해요. <a href="/pricing#charge" target="_top">충전하기 ›</a>';
+  function openWrite(){
+    W={kind:"",files:[],video:null,place:null,tags:[]};
+    $("wsB").innerHTML='<span class="lab" style="margin-top:0">무엇을 올릴까요?</span>'+
+      '<div class="pick"><label>📷 사진<small>최대 10장</small><input type="file" id="fP" accept="image/*" multiple></label><label>🎬 쇼츠<small>30초까지 · 50MB · '+SC()+'크레딧</small><input type="file" id="fV" accept="video/*"></label></div>'+
+      '<div class="thumbs" id="th"></div>'+
+      '<label class="lab" for="pq">장소 <small>꼭 골라 주세요</small></label><div class="prow"><input type="text" id="pq" placeholder="가게·명소 이름 (예: 성산일출봉)" enterkeyhint="search"><button type="button" id="pS">찾기</button></div><div class="plist" id="pL"></div>'+
+      '<label class="lab" for="vd">다녀온 날짜</label><input type="date" id="vd" max="'+today()+'" value="'+today()+'">'+
+      '<label class="lab" for="bt">한 줄 후기 <small>500자까지</small></label><textarea id="bt" maxlength="500" placeholder="예: 해 뜨기 30분 전에 가야 자리 있어요. 주차는 입구 왼쪽."></textarea>'+
+      '<span class="lab">태그 <small>5개까지</small></span><div class="chips" id="tgs">'+TAGS.map(function(t){ return '<button type="button" data-t="'+t+'">#'+t+'</button>'; }).join("")+'</div>'+
+      '<label class="chk"><input type="checkbox" id="own"> <span>내가 직접 찍은 사진·영상이고, 얼굴이 크게 나온 사람이 있으면 동의를 받았어요. 남의 사진·음악은 올리지 않아요.</span></label>'+
+      '<p class="note">사진 속 위치정보(GPS)는 올리기 전에 지워요. 집 주소처럼 사생활이 드러나는 곳은 올리지 마세요.</p>'+
+      '<div id="wM"></div><div class="prog" id="pg"><i></i></div><button type="button" class="big" id="wGo">올리기</button>';
+    $("fP").onchange=function(){ addPhotos(this.files); this.value=""; };
+    $("fV").onchange=function(){ if(this.files[0]) addVideo(this.files[0]); this.value=""; };
+    $("pS").onclick=findPlace; $("pq").onkeydown=function(e){ if(e.key==="Enter"&&!e.isComposing){ e.preventDefault(); findPlace(); } };
+    $("tgs").onclick=function(e){ var b=e.target.closest("button"); if(!b) return; var t=b.getAttribute("data-t"), i=W.tags.indexOf(t); if(i>=0) W.tags.splice(i,1); else if(W.tags.length<5) W.tags.push(t); b.classList.toggle("on",W.tags.indexOf(t)>=0); };
+    $("wGo").onclick=submit;
+    openSheet("ws");
+  }
+  function wsay(t,ok){ $("wM").innerHTML=t?'<div class="msg'+(ok?" ok":"")+'">'+t+'</div>':""; }
+  function drawThumbs(){
+    var h="";
+    if(W.kind==="photo") W.files.forEach(function(f,i){ h+='<div style="background-image:url(&quot;'+f.prev+'&quot;)"><button type="button" data-rm="'+i+'" aria-label="빼기">✕</button></div>'; });
+    if(W.kind==="shorts"&&W.video) h='<div style="background-image:url(&quot;'+(W.video.thumbUrl||"")+'&quot;);background-color:#222"><button type="button" data-rm="v" aria-label="빼기">✕</button><span>▶ '+Math.round(W.video.dur)+'초</span></div>';
+    $("th").innerHTML=h;
+    $("th").onclick=function(e){ var b=e.target.closest("button[data-rm]"); if(!b) return; var k=b.getAttribute("data-rm"); if(k==="v"){ W.video=null; W.kind=""; } else { W.files.splice(+k,1); if(!W.files.length) W.kind=""; } drawThumbs(); };
+  }
+  /* 사진: 긴 변 1600px 로 줄이고 JPEG 로 다시 저장 → 위치정보(EXIF) 가 사라짐 */
+  function shrink(file){
+    return new Promise(function(res,rej){
+      var u=URL.createObjectURL(file), im=new Image();
+      im.onload=function(){ var s=Math.min(1,1600/Math.max(im.naturalWidth,im.naturalHeight)), w=Math.round(im.naturalWidth*s), h=Math.round(im.naturalHeight*s);
+        var cv=document.createElement("canvas"); cv.width=w; cv.height=h; cv.getContext("2d").drawImage(im,0,0,w,h); URL.revokeObjectURL(u);
+        cv.toBlob(function(b){ if(!b) return rej(new Error("사진을 줄이지 못했어요")); res({blob:b,w:w,h:h,prev:cv.toDataURL("image/jpeg",.5)}); },"image/jpeg",.85); };
+      im.onerror=function(){ URL.revokeObjectURL(u); rej(new Error("이 사진 형식은 열 수 없어요 (HEIC 는 jpg 로 바꿔 주세요)")); };
+      im.src=u;
+    });
+  }
+  function addPhotos(fl){
+    if(W.kind==="shorts"){ wsay("쇼츠와 사진은 같이 올릴 수 없어요. 쇼츠를 빼고 골라 주세요."); return; }
+    var arr=Array.prototype.slice.call(fl||[]).filter(function(f){ return /^image\//.test(f.type)||/\.(jpe?g|png|webp|heic)$/i.test(f.name); });
+    var room=10-W.files.length; if(arr.length>room){ wsay("사진은 10장까지예요. 앞의 "+room+"장만 넣었어요."); arr=arr.slice(0,room); } else wsay("");
+    W.kind="photo";
+    arr.reduce(function(pr,f){ return pr.then(function(){ return shrink(f).then(function(o){ W.files.push(o); drawThumbs(); })["catch"](function(e){ wsay(esc(e.message)); }); }); },Promise.resolve());
+  }
+  function addVideo(f){
+    if(W.files.length){ wsay("사진과 쇼츠는 같이 올릴 수 없어요. 사진을 빼고 골라 주세요."); return; }
+    if(f.size>50*1024*1024){ wsay("영상이 50MB 보다 커요. 폰에서 짧게 잘라 주세요."); return; }
+    var u=URL.createObjectURL(f), v=document.createElement("video"); v.preload="metadata"; v.muted=true; v.playsInline=true;
+    v.onloadedmetadata=function(){
+      var d=v.duration; if(!(d>0)){ wsay("영상 길이를 읽지 못했어요."); return; }
+      if(d>30.9){ URL.revokeObjectURL(u); wsay("쇼츠는 30초까지예요. 지금 영상은 "+Math.round(d)+"초예요. 폰에서 잘라 주세요."); return; }
+      W.kind="shorts"; W.video={file:f,dur:d,thumb:null,thumbUrl:""}; wsay("쇼츠는 올릴 때 "+SC()+"크레딧이 들어요 (영상 저장 비용). 사진은 무료예요."+(ME.credits!=null?" 지금 "+ME.credits+"크레딧":""),true); drawThumbs();
+      v.currentTime=Math.min(.5,d/2);
+    };
+    v.onseeked=function(){ try{ var s=Math.min(1,720/Math.max(v.videoWidth,v.videoHeight)), cv=document.createElement("canvas"); cv.width=Math.round(v.videoWidth*s); cv.height=Math.round(v.videoHeight*s); cv.getContext("2d").drawImage(v,0,0,cv.width,cv.height);
+      cv.toBlob(function(b){ if(W.video&&b){ W.video.thumb=b; W.video.thumbUrl=cv.toDataURL("image/jpeg",.5); drawThumbs(); } URL.revokeObjectURL(u); },"image/jpeg",.8); }catch(e){ URL.revokeObjectURL(u); } };
+    v.onerror=function(){ URL.revokeObjectURL(u); wsay("이 영상은 열 수 없어요. mp4 로 찍은 영상을 골라 주세요."); };
+    v.src=u;
+  }
+  /* 영상 속 위치 기록 지우기: moov 상자 안의 ©xyz · loci 값과 ISO6709 좌표 글자를 같은 길이의 빈 값으로 덮는다 (파일 구조는 그대로) */
+  function scrubVideo(buf){
+    var b=new Uint8Array(buf), n=b.length, off=0, ms=-1, me=-1;
+    while(off+8<=n){ var sz=((b[off]<<24)>>>0)+(b[off+1]<<16)+(b[off+2]<<8)+b[off+3], ty=String.fromCharCode(b[off+4],b[off+5],b[off+6],b[off+7]), hl=8;
+      if(sz===1){ if(off+16>n) break; var hi=((b[off+8]<<24)>>>0)+(b[off+9]<<16)+(b[off+10]<<8)+b[off+11], lo=((b[off+12]<<24)>>>0)+(b[off+13]<<16)+(b[off+14]<<8)+b[off+15]; sz=hi*4294967296+lo; hl=16; }
+      else if(sz===0) sz=n-off;
+      if(sz<hl) break;
+      if(ty==="moov"){ ms=off; me=Math.min(n,off+sz); break; }
+      off+=sz; }
+    if(ms<0) return 0;
+    var hits=0;
+    for(var i=ms+4;i<me-4;i++){
+      var t0=b[i],t1=b[i+1],t2=b[i+2],t3=b[i+3];
+      if((t0===0xA9&&t1===0x78&&t2===0x79&&t3===0x7A)||(t0===0x6C&&t1===0x6F&&t2===0x63&&t3===0x69)){
+        var s=((b[i-4]<<24)>>>0)+(b[i-3]<<16)+(b[i-2]<<8)+b[i-1];
+        if(s>=12&&s<=512&&i-4+s<=me){ for(var k=i+4;k<i-4+s;k++) b[k]=0; hits++; }
+      }
+    }
+    /* Apple 기기: com.apple.quicktime.location.ISO6709 값 (+37.5665+126.9780+050.000/) */
+    var txt=""; for(var j=ms;j<me;j++) txt+=String.fromCharCode(b[j]);
+    var re=/[+-]\d{1,2}\.\d{2,}[+-]\d{1,3}\.\d{2,}([+-]\d+(\.\d+)?)?\/?/g, m;
+    while((m=re.exec(txt))){ for(var q=0;q<m[0].length;q++) b[ms+m.index+q]=0x30; hits++; }
+    return hits;
+  }
+  function findPlace(){
+    var q=($("pq").value||"").trim(); if(q.length<2){ $("pL").innerHTML='<div class="note">두 글자 이상 적어 주세요.</div>'; return; }
+    $("pL").innerHTML='<div class="note">찾는 중…</div>';
+    fetch("/api/naver?op=local&q="+encodeURIComponent(q),{cache:"no-store"}).then(function(r){ return r.json(); }).then(function(j){
+      var it=(j&&j.items)||[];
+      var list=it.map(function(p,i){ return '<button type="button" data-i="'+i+'"><b>'+esc(p.name)+'</b><small>'+esc(p.cat||"")+' · '+esc(p.road||p.addr||"")+'</small></button>'; }).join("");
+      list+='<button type="button" data-i="-1"><b>"'+esc(q)+'" 이름 그대로 쓰기</b><small>목록에 없을 때 (해외 장소 등)</small></button>';
+      $("pL").innerHTML=list;
+      $("pL").onclick=function(e){ var b=e.target.closest("button[data-i]"); if(!b) return; var i=+b.getAttribute("data-i"), p=i>=0?it[i]:null;
+        W.place=p?{name:p.name,addr:p.road||p.addr||"",lat:+p.lat||null,lng:+p.lng||null}:{name:q,addr:"",lat:null,lng:null};
+        Array.prototype.forEach.call(this.children,function(x){ x.classList.toggle("on",x===b); }); };
+    })["catch"](function(){ $("pL").innerHTML='<div class="note">찾지 못했어요. 아래 "이름 그대로 쓰기"를 쓰거나 다시 해 주세요.</div>'; });
+  }
+  function upload(blob,type,ct,onp){
+    return new Promise(function(res,rej){
+      var x=new XMLHttpRequest(); x.open("PUT","/api/trip?op=upload&type="+type);
+      x.setRequestHeader("Authorization","Bearer "+token()); x.setRequestHeader("Content-Type",ct);
+      x.upload.onprogress=function(e){ if(e.lengthComputable&&onp) onp(e.loaded/e.total); };
+      x.onload=function(){ var j={}; try{ j=JSON.parse(x.responseText); }catch(e){} if(x.status===200&&j.u) res(j.u); else { var er=new Error(j.error||("올리지 못했어요 ("+x.status+")")); er.s=x.status; rej(er); } };
+      x.onerror=function(){ rej(new Error("연결이 끊겼어요. 다시 해 주세요.")); };
+      x.send(blob);
+    });
+  }
+  function submit(){
+    if(!W.kind){ wsay("사진이나 쇼츠를 골라 주세요."); return; }
+    if(W.kind==="photo"&&!W.files.length){ wsay("사진을 골라 주세요."); return; }
+    if(!W.place){ wsay("장소를 찾아서 골라 주세요."); $("pq").focus(); return; }
+    if(!$("own").checked){ wsay("직접 찍은 사진·영상인지 확인 칸에 체크해 주세요."); return; }
+    if(W.kind==="shorts"&&ME.credits!=null&&ME.credits<SC()){ wsay(CHARGE); return; }
+    if(W.kind==="shorts"&&!confirm("쇼츠를 올리면 "+SC()+"크레딧이 들어요. 올릴까요?")) return;
+    var go=$("wGo"); go.disabled=true; $("pg").style.display="block"; var bar=$("pg").firstChild; bar.style.width="2%"; wsay("올리는 중이에요. 화면을 닫지 마세요…",true);
+    var media=[], p;
+    if(W.kind==="photo"){
+      var tot=W.files.length;
+      p=W.files.reduce(function(pr,f,i){ return pr.then(function(){ return upload(f.blob,"image","image/jpeg",function(r){ bar.style.width=Math.round((i+r)/tot*95)+"%"; }).then(function(u){ media.push({u:u,w:f.w,h:f.h}); }); }); },Promise.resolve());
+    } else {
+      var f=W.video.file, ct=/quicktime|\.mov$/i.test(f.type+f.name)?"video/quicktime":/webm/i.test(f.type)?"video/webm":"video/mp4";
+      p=f.arrayBuffer().then(function(buf){ scrubVideo(buf); return upload(new Blob([buf],{type:ct}),"video",ct,function(r){ bar.style.width=Math.round(r*90)+"%"; }); }).then(function(u){
+        var m={u:u,dur:W.video.dur}; media.push(m);
+        if(W.video.thumb) return upload(W.video.thumb,"thumb","image/jpeg").then(function(t){ m.thumb=t; })["catch"](function(){});
+      });
+    }
+    p.then(function(){ bar.style.width="97%";
+      return api("POST","",{op:"create",kind:W.kind,media:media,body:$("bt").value,place:W.place,visited:$("vd").value,tags:W.tags});
+    }).then(function(j){
+      if(j.error){ var er=new Error(j.error); er.s=j._s; throw er; }
+      if(j.spent&&ME.credits!=null) ME.credits=Math.max(0,ME.credits-j.spent);
+      bar.style.width="100%"; closeSheet("ws"); go.disabled=false;
+      TAB=W.kind==="shorts"?"shorts":"photo"; SORT="new";
+      Array.prototype.forEach.call($("tabs").children,function(x){ x.classList.toggle("on",x.getAttribute("data-t")===TAB); });
+      Array.prototype.forEach.call($("sorts").children,function(x){ x.classList.toggle("on",x.getAttribute("data-s")==="new"); });
+      $("sorts").style.display=""; load(true); say(j.spent?"올렸어요! 🎉 ("+j.spent+"크레딧 사용)":"올렸어요! 🎉",true);
+    })["catch"](function(e){ go.disabled=false; $("pg").style.display="none"; wsay(e.s===402?CHARGE:esc(e.message||"올리지 못했어요")); });
+  }
+
+  /* ── 시작 ── */
+  api("GET","?op=me").then(function(j){
+    ME=j||{login:false}; if(ME.admin) $("tabAdmin").hidden=false;
+    var m=/[?&]p=(\d+)/.exec(location.search); if(m) openPost(+m[1]);
+  });
+  load(true);
+})();
+</script>
+</body>
+</html>
