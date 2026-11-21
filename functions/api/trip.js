@@ -1,9 +1,19 @@
-// functions/api/trip.js — coverfo 📸 누리트립 (여행 사진·쇼츠 커뮤니티) 1단계 · v427 · v428 쇼츠 크레딧
+// functions/api/trip.js — coverfo 📸 누리트립 (여행 사진·쇼츠 커뮤니티) 1단계 · v427 · v428 쇼츠 크레딧 · v429 2단계(팔로우 · 내 여행 지도 · 테마 지도)
 // © 2026 coverfo All Rights Reserved
 //
 //   GET  /api/trip?op=feed&sort=new|top|near&kind=all|photo|shorts&lat=&lng=&before=&mine=1&saved=1
 //   GET  /api/trip?op=post&id=        → 글 1개 + 댓글
 //   GET  /api/trip?op=me              → { login, nick, age_ok, admin }
+//   v429 GET  /api/trip?op=feed&follow=1         → 팔로우한 사람들의 새 글
+//        GET  /api/trip?op=feed&nick=닉네임       → 그 사람의 글 + author { nick, followers, following, mine }
+//        GET  /api/trip?op=pins                  → 내 여행 지도: { mine:[…], saved:[…] } (로그인)
+//        GET  /api/trip?op=tmaps                 → 내 테마 지도 목록 (로그인)
+//        GET  /api/trip?op=tmap&id=              → 테마 지도 1개 (누구나 · 링크 공유용)
+//        POST {op:'follow', post_id | nick}      → 팔로우 켜기·끄기
+//        POST {op:'tmap_save', id?, title, ids}  → 테마 지도 만들기·고치기 (글 50개까지)
+//        POST {op:'tmap_del', id}                → 테마 지도 지우기
+//   · 1:1 대화는 넣지 않음 (토스 규정상 채팅 서비스 노출 불가 — 홈 채팅 단추를 숨긴 것과 같은 이유)
+//   · 필요한 것: sql/cf_trip_v2.sql 1회 실행
 //   PUT  /api/trip?op=upload&type=image|video|thumb   (본문 = 파일)  → { ok, u:'/media/trip/…' }
 //   POST /api/trip {op:'profile', nick, age14}
 //   POST /api/trip {op:'create', kind, media, body, place:{name,addr,lat,lng}, visited, tags}
@@ -28,6 +38,7 @@ const MAX_VIDEO = 50 * 1024 * 1024;      // 쇼츠 1개 (30초)
 const MAX_POSTS_DAY = 20;
 const SHORTS_COST = 1;                   // v428: 쇼츠 1개 = 1크레딧 (사진은 무료)
 const TAGS = ['맛집', '카페', '숙소', '자연', '바다', '야경', '축제', '쇼핑', '명소', '액티비티'];
+const MAX_MAPS = 30, MAP_POSTS = 50;    // v429 테마 지도: 1인 30개 · 지도 1개에 글 50개까지
 const POST_COLS = 'id,user_id,nick,kind,media,body,place_name,place_addr,lat,lng,visited,tags,status,likes,saves,comments,reports,created_at';
 
 export async function onRequestGet(context) {
@@ -53,6 +64,7 @@ export async function onRequestGet(context) {
     let cm = (await get(c, `cf_trip_comments?post_id=eq.${id}&status=eq.live&select=id,user_id,nick,body,parent_id,created_at&order=created_at.asc&limit=300`)) || [];
     cm = cm.filter((x) => !blocked.has(x.user_id)).map((x) => ({ id: x.id, nick: x.nick, body: x.body, parent_id: x.parent_id, at: x.created_at, mine: !!uid && x.user_id === uid }));
     const [it] = await decorate(c, [p], uid);
+    it.following = !!uid && p.user_id !== uid && !!((await get(c, `cf_trip_follows?user_id=eq.${uid}&target=eq.${p.user_id}&select=target`)) || []).length;   /* v429 */
     return json({ ok: true, post: it, comments: cm, admin });
   }
 
@@ -61,7 +73,22 @@ export async function onRequestGet(context) {
     const kind = ['photo', 'shorts'].includes(url.searchParams.get('kind')) ? url.searchParams.get('kind') : '';
     const before = url.searchParams.get('before') || '';
     let q = `cf_trip_posts?select=${POST_COLS}`;
-    if (url.searchParams.get('mine') === '1') {
+    let author = null;
+    const byNick = clean(url.searchParams.get('nick'), 12);
+    if (url.searchParams.get('follow') === '1') {   /* v429 팔로잉 */
+      if (!uid) return json({ error: '로그인이 필요합니다', login: true }, 401);
+      const f = (await get(c, `cf_trip_follows?user_id=eq.${uid}&select=target&limit=1000`)) || [];
+      if (!f.length) return json({ ok: true, items: [], follows: 0 });
+      q += `&user_id=in.(${f.map((x) => x.target).join(',')})&status=eq.live`;
+    } else if (byNick) {                            /* v429 그 사람의 글 */
+      if (!/^[0-9A-Za-z가-힣_]{2,12}$/.test(byNick)) return json({ error: '닉네임이 잘못되었어요' }, 400);
+      const pr = ((await get(c, `cf_trip_profile?nick=ilike.${encodeURIComponent(byNick.replace(/[%_]/g, '\\$&'))}&select=user_id,nick&limit=1`)) || [])[0];
+      if (!pr) return json({ error: '없는 닉네임이에요' }, 404);
+      if (uid && (await blockedSet(c, uid)).has(pr.user_id)) return json({ error: '볼 수 없는 사람이에요' }, 403);
+      q += `&user_id=eq.${pr.user_id}&status=eq.live`;
+      author = { nick: pr.nick, followers: await count(c, `cf_trip_follows?target=eq.${pr.user_id}`), mine: !!uid && pr.user_id === uid,
+        following: !!uid && pr.user_id !== uid && !!((await get(c, `cf_trip_follows?user_id=eq.${uid}&target=eq.${pr.user_id}&select=target`)) || []).length };
+    } else if (url.searchParams.get('mine') === '1') {
       if (!uid) return json({ error: '로그인이 필요합니다', login: true }, 401);
       q += `&user_id=eq.${uid}&status=neq.removed`;
     } else if (url.searchParams.get('saved') === '1') {
@@ -89,7 +116,35 @@ export async function onRequestGet(context) {
     if (uid) { const bl = await blockedSet(c, uid); rows = rows.filter((r) => !bl.has(r.user_id)); }
     const items = await decorate(c, rows, uid);
     const last = rows.length ? rows[rows.length - 1].created_at : '';
-    return json({ ok: true, items, next: sort === 'new' && rows.length >= PAGE ? last : '' });
+    return json({ ok: true, items, next: sort === 'new' && rows.length >= PAGE ? last : '', author });
+  }
+
+  /* v429 🗺 내 여행 지도 — 내 글 + 저장한 글 */
+  if (op === 'pins') {
+    if (!uid) return json({ error: '로그인이 필요합니다', login: true }, 401);
+    const sv = (await get(c, `cf_trip_saves?user_id=eq.${uid}&select=post_id&order=created_at.desc&limit=300`)) || [];
+    const [mine, saved] = await Promise.all([
+      get(c, `cf_trip_posts?select=${POST_COLS}&user_id=eq.${uid}&status=neq.removed&order=created_at.desc&limit=300`),
+      sv.length ? get(c, `cf_trip_posts?select=${POST_COLS}&id=in.(${sv.map((x) => x.post_id).join(',')})&status=eq.live&limit=300`) : [],
+    ]);
+    const bl = await blockedSet(c, uid);
+    return json({ ok: true, mine: await decorate(c, mine || [], uid), saved: await decorate(c, (saved || []).filter((r) => !bl.has(r.user_id)), uid) });
+  }
+  if (op === 'tmaps') {
+    if (!uid) return json({ error: '로그인이 필요합니다', login: true }, 401);
+    const rows = (await get(c, `cf_trip_maps?user_id=eq.${uid}&select=id,title,post_ids,updated_at&order=updated_at.desc&limit=${MAX_MAPS}`)) || [];
+    return json({ ok: true, maps: rows.map((m) => ({ id: m.id, title: m.title, ids: m.post_ids || [], at: m.updated_at })) });
+  }
+  if (op === 'tmap') {
+    const id = num(url.searchParams.get('id')); if (!id) return json({ error: 'id 가 없습니다' }, 400);
+    const m = ((await get(c, `cf_trip_maps?id=eq.${id}&select=id,user_id,nick,title,post_ids,updated_at`)) || [])[0];
+    if (!m) return json({ error: '없는 지도예요' }, 404);
+    const bl = uid ? await blockedSet(c, uid) : new Set();
+    if (bl.has(m.user_id)) return json({ error: '볼 수 없는 지도예요' }, 403);
+    const ids = (m.post_ids || []).map(num).filter(Boolean).slice(0, MAP_POSTS);
+    let rows = ids.length ? (await get(c, `cf_trip_posts?select=${POST_COLS}&id=in.(${ids.join(',')})&status=eq.live`)) || [] : [];
+    rows = rows.filter((r) => !bl.has(r.user_id)).sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+    return json({ ok: true, map: { id: m.id, title: m.title, nick: m.nick, at: m.updated_at, mine: !!uid && m.user_id === uid, ids }, items: await decorate(c, rows, uid) });
   }
   return json({ error: 'op 가 잘못되었습니다' }, 400);
 }
@@ -150,6 +205,7 @@ export async function onRequestPost(context) {
     if (cur && cur.nick !== nick) {   /* 닉네임을 바꾸면 내 글·댓글에도 */
       await patch(c, `cf_trip_posts?user_id=eq.${uid}`, { nick });
       await patch(c, `cf_trip_comments?user_id=eq.${uid}`, { nick });
+      await patch(c, `cf_trip_maps?user_id=eq.${uid}`, { nick });   /* v429 */
     }
     return json({ ok: true, nick, age_ok: keepAge });
   }
@@ -157,7 +213,7 @@ export async function onRequestPost(context) {
   /* 여기부터는 글쓰기·반응 — 닉네임 + 만 14세 이상 */
   const prof = await profile(c, uid);
   const admin = op.startsWith('admin_') || op === 'delete' ? await isAdmin(request) : false;
-  const needProfile = ['create', 'comment', 'like', 'save', 'report'].includes(op);
+  const needProfile = ['create', 'comment', 'like', 'save', 'report', 'follow', 'tmap_save'].includes(op);
   if (needProfile && !prof) return json({ error: '닉네임을 먼저 정해 주세요', profile: true }, 403);
   if (needProfile && op !== 'report' && !prof.age_ok) return json({ error: '만 14세 미만은 글쓰기·댓글·반응을 할 수 없어요', age: true }, 403);
 
@@ -277,6 +333,59 @@ export async function onRequestPost(context) {
     if (!target) return json({ error: '찾지 못했어요' }, 404);
     if (target === uid) return json({ error: '나를 차단할 수는 없어요' }, 400);
     await fetch(`${c.url}/rest/v1/cf_trip_blocks`, { method: 'POST', headers: hdr(c, { Prefer: 'resolution=ignore-duplicates,return=minimal' }), body: JSON.stringify({ user_id: uid, blocked: target }) });
+    /* v429: 차단하면 서로 팔로우도 끊김 */
+    await fetch(`${c.url}/rest/v1/cf_trip_follows?user_id=eq.${uid}&target=eq.${target}`, { method: 'DELETE', headers: hdr(c) }).catch(() => {});
+    await fetch(`${c.url}/rest/v1/cf_trip_follows?user_id=eq.${target}&target=eq.${uid}`, { method: 'DELETE', headers: hdr(c) }).catch(() => {});
+    return json({ ok: true });
+  }
+
+  /* v429 👥 팔로우 — 누를 때마다 켜기·끄기 */
+  if (op === 'follow') {
+    let target = '';
+    if (num(b.post_id)) target = ((await get(c, `cf_trip_posts?id=eq.${num(b.post_id)}&select=user_id`)) || [])[0]?.user_id || '';
+    else if (/^[0-9A-Za-z가-힣_]{2,12}$/.test(clean(b.nick, 12))) target = ((await get(c, `cf_trip_profile?nick=ilike.${encodeURIComponent(clean(b.nick, 12).replace(/[%_]/g, '\\$&'))}&select=user_id&limit=1`)) || [])[0]?.user_id || '';
+    if (!target) return json({ error: '찾지 못했어요' }, 404);
+    if (target === uid) return json({ error: '나를 팔로우할 수는 없어요' }, 400);
+    if ((await blockedSet(c, uid)).has(target)) return json({ error: '팔로우할 수 없는 사람이에요' }, 403);
+    const had = ((await get(c, `cf_trip_follows?user_id=eq.${uid}&target=eq.${target}&select=target`)) || []).length > 0;
+    if (had) await fetch(`${c.url}/rest/v1/cf_trip_follows?user_id=eq.${uid}&target=eq.${target}`, { method: 'DELETE', headers: hdr(c) });
+    else {
+      const n = await count(c, `cf_trip_follows?user_id=eq.${uid}`);
+      if (n >= 1000) return json({ error: '1,000명까지 팔로우할 수 있어요' }, 429);
+      await fetch(`${c.url}/rest/v1/cf_trip_follows`, { method: 'POST', headers: hdr(c, { Prefer: 'resolution=ignore-duplicates,return=minimal' }), body: JSON.stringify({ user_id: uid, target }) });
+    }
+    return json({ ok: true, on: !had, followers: await count(c, `cf_trip_follows?target=eq.${target}`) });
+  }
+
+  /* v429 🗺 테마 지도 만들기·고치기 — 공개된 글만 담김 */
+  if (op === 'tmap_save') {
+    const title = clean(b.title, 30);
+    if (!title) return json({ error: '지도 이름을 적어 주세요' }, 400);
+    const want = [...new Set((Array.isArray(b.ids) ? b.ids : []).map(num).filter(Boolean))].slice(0, MAP_POSTS);
+    const okRows = want.length ? (await get(c, `cf_trip_posts?id=in.(${want.join(',')})&status=eq.live&select=id`)) || [] : [];
+    const okSet = new Set(okRows.map((r) => r.id));
+    const ids = want.filter((x) => okSet.has(x));
+    if (!ids.length) return json({ error: '지도에 담을 글을 골라 주세요' }, 400);
+    const now = new Date().toISOString();
+    const id = num(b.id);
+    if (id) {
+      const m = ((await get(c, `cf_trip_maps?id=eq.${id}&select=user_id`)) || [])[0];
+      if (!m || m.user_id !== uid) return json({ error: '내 지도만 고칠 수 있어요' }, 403);
+      await patch(c, `cf_trip_maps?id=eq.${id}`, { title, post_ids: ids, nick: prof.nick, updated_at: now });
+      return json({ ok: true, id, n: ids.length });
+    }
+    if ((await count(c, `cf_trip_maps?user_id=eq.${uid}`)) >= MAX_MAPS) return json({ error: `테마 지도는 ${MAX_MAPS}개까지 만들 수 있어요` }, 429);
+    const r = await fetch(`${c.url}/rest/v1/cf_trip_maps`, { method: 'POST', headers: hdr(c, { Prefer: 'return=representation' }), body: JSON.stringify({ user_id: uid, nick: prof.nick, title, post_ids: ids, updated_at: now }) });
+    if (!r.ok) return json({ error: '저장하지 못했어요 (' + r.status + ')' }, 500);
+    const row = (await r.json())[0];
+    return json({ ok: true, id: row && row.id, n: ids.length });
+  }
+  if (op === 'tmap_del') {
+    const id = num(b.id); if (!id) return json({ error: 'id 가 없습니다' }, 400);
+    const m = ((await get(c, `cf_trip_maps?id=eq.${id}&select=user_id`)) || [])[0];
+    if (!m) return json({ ok: true });
+    if (m.user_id !== uid && !(await isAdmin(request))) return json({ error: '내 지도만 지울 수 있어요' }, 403);
+    await fetch(`${c.url}/rest/v1/cf_trip_maps?id=eq.${id}`, { method: 'DELETE', headers: hdr(c) });
     return json({ ok: true });
   }
 
