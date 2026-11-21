@@ -14,7 +14,9 @@
      · 서버: /api/trip · 파일: /media/trip/… (R2) · 주소 /trip/?p=글번호 로 글 바로 열기
      · v429 2단계: 👥 팔로잉(팔로우한 사람의 새 글) · 닉네임 누르면 그 사람의 글 · 🗺 지도(내 글·저장한 글 핀)
        · 테마 지도(글을 골라 묶어 링크 공유, /trip/?m=번호) · 🌐 번역 보기(글·댓글, 기존 /api/trans 마주보기 번역 0.1크레딧)
-       · 지도 그림: Leaflet(cdnjs) + OpenStreetMap 공개 타일(출처 표시) · 1:1 대화는 넣지 않음(토스 규정상 채팅 노출 불가) -->
+       · 지도 그림: Leaflet(cdnjs) + OpenStreetMap 공개 타일(출처 표시) · 1:1 대화는 넣지 않음(토스 규정상 채팅 노출 불가)
+     · v430 3단계: 🙋 질문방(지역별 묻고 답하기 · 게시판 방식) · 🤖 AI 일정(고른 글로 일정표 · 1크레딧) · 예약 버튼 눌림 수(내 글 · 관리자 🏆)
+       · 사진 여러 장이면 아래 동그라미 표시 · 지도 불러오기: cdnjs leaflet.js → 안 되면 unpkg(공식 안내 주소) -->
 <style>
 :root{--ink:#14132a;--sub:#5b5a73;--mute:#8d8ba5;--line:#e6e7f4;--bg:#f4f5fc;--pri:#4f46e5;--pri2:#3730a3;--sky:#0ea5e9;--pink:#ec4899;--err:#b42318;--ok:#0f8a5f}
 *{box-sizing:border-box}
@@ -175,6 +177,34 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 .pk .t{flex:1;min-width:0;font-size:13.5px}
 .pk .t b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pk .t small{color:var(--mute);font-size:12px}
+.dots{display:flex;justify-content:center;gap:6px;padding:8px 0 0}
+.dots i{width:7px;height:7px;border-radius:4px;background:#d3d6ea;transition:width .2s,background .2s}
+.dots i.on{width:18px;background:var(--pri)}
+.ask{grid-column:1/-1;display:block;width:100%;padding:12px 14px;border:0;border-radius:16px;background:#fff;text-align:left;box-shadow:0 6px 18px -14px rgba(20,19,42,.5)}
+.ask .r{display:flex;gap:6px;align-items:center;font-size:12.5px;font-weight:800;color:var(--pri2)}
+.ask .r span{padding:3px 9px;border-radius:999px;background:#eef0ff}
+.ask .r em{font-style:normal;color:var(--mute);font-weight:700}
+.ask p{margin:7px 0 6px;font-size:15px;line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;color:var(--ink)}
+.ask small{font-size:12px;color:var(--mute)}
+.rg{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0 10px}
+.rg::-webkit-scrollbar{display:none}
+.rg button{flex:none;height:32px;padding:0 12px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font-size:13px;font-weight:700;color:var(--sub)}
+.rg button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.qbody{margin:12px 0 0;font-size:17px;font-weight:700;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.stat{margin:8px 2px 0;font-size:12.5px;color:var(--sub);padding:8px 10px;border-radius:10px;background:#f7f8ff}
+.aib{display:flex;align-items:center;gap:10px;width:100%;margin:0 0 12px;padding:12px 14px;border:1.5px solid #d9dcf7;border-radius:16px;background:linear-gradient(100deg,#f0f9ff,#f5f3ff 60%,#fdf2f8);text-align:left}
+.aib b{display:block;font-size:15px;font-weight:900}
+.aib small{font-size:12.5px;color:var(--sub)}
+.aib i{font-style:normal;font-size:26px}
+.day{margin-top:14px;padding:12px;border-radius:16px;background:#fff;border:1px solid var(--line)}
+.day h3{margin:0 0 6px;font-size:15px;font-weight:900}
+.day h3 small{font-weight:700;color:var(--mute);font-size:12.5px;margin-left:6px}
+.stop{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px dashed #e8e9f5}
+.stop:first-of-type{border-top:0}
+.stop .tm2{flex:none;width:52px;font-size:12.5px;font-weight:800;color:var(--pri2);padding-top:2px}
+.stop .tx2{flex:1;min-width:0;font-size:14px;line-height:1.5}
+.stop .tx2 b{display:block;font-size:14.5px}
+.stop button{flex:none;height:30px;padding:0 10px;border-radius:9px;border:1.5px solid var(--line);background:#fff;font-size:12px;font-weight:700}
 .st{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;background:#fff4e5;color:#9a3412}
 </style>
 </head>
@@ -186,6 +216,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     <button type="button" data-t="photo">🖼 사진</button>
     <button type="button" data-t="follow">👥 팔로잉</button>
     <button type="button" data-t="map">🗺 지도</button>
+    <button type="button" data-t="ask">🙋 질문방</button>
     <button type="button" data-t="saved">📌 저장</button>
     <button type="button" data-t="mine">🙋 내 글</button>
     <button type="button" data-t="admin" id="tabAdmin" hidden>🛡 신고</button>
@@ -218,6 +249,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 <!-- v429 테마 지도 보기 · 만들기 -->
 <div class="sheet" id="ts" role="dialog" aria-label="테마 지도"><div class="bd"><div class="hd"><b id="tsT">테마 지도</b><button type="button" data-x="ts">닫기</button></div><div class="in" id="tsB"></div></div></div>
 <div class="sheet" id="ms" role="dialog" aria-label="테마 지도 만들기"><div class="bd"><div class="hd"><b id="msT">테마 지도 만들기</b><button type="button" data-x="ms">닫기</button></div><div class="in f" id="msB"></div></div></div>
+<!-- v430 🤖 AI 일정 -->
+<div class="sheet" id="as" role="dialog" aria-label="AI 일정"><div class="bd"><div class="hd"><b id="asT">🤖 AI 여행 일정</b><button type="button" data-x="as">닫기</button></div><div class="in f" id="asB"></div></div></div>
 <!-- 닉네임 · 나이 확인 -->
 <div class="sheet" id="ps" role="dialog" aria-label="닉네임"><div class="bd"><div class="hd"><b>누리트립 시작하기</b><button type="button" data-x="ps">닫기</button></div><div class="in f" id="psB"></div></div></div>
 
@@ -238,7 +271,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   function vdate(v){ if(!v) return ""; var a=String(v).split("-"); return a[0]+"."+(+a[1])+"."+(+a[2])+" 다녀옴"; }
   function safeU(u){ return /^\/media\/trip\/[\w\-./]+$/.test(String(u||""))?u:""; }
 
-  var ME={login:false}, TAB="shorts", SORT="new", NEXT="", POS=null, ITEMS=[], USER="";
+  var ME={login:false}, TAB="shorts", SORT="new", NEXT="", POS=null, ITEMS=[], USER="", REGION="";
 
   /* 닫기 — 홈 위 덮개로 열렸으면 덮개만 */
   $("close").onclick=function(){ try{ if(window.parent!==window&&window.parent.cfPageClose){ window.parent.cfPageClose(); return; } }catch(e){} location.href="/"; };
@@ -264,12 +297,15 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 
   function load(reset){
     if(reset){ NEXT=""; ITEMS=[]; $("grid").innerHTML=""; say(""); $("ahead").innerHTML=""; }
+    $("fab").textContent=TAB==="ask"?"＋ 질문하기":"＋ 올리기";
     if(TAB==="admin"){ return loadAdmin(); }
     if(TAB==="map"){ return loadMap(); }
     var q="?op=feed";
     if(TAB==="shorts"||TAB==="photo"){ q+="&kind="+TAB+"&sort="+SORT; if(SORT==="near"&&POS) q+="&lat="+POS.lat+"&lng="+POS.lng; }
     if(TAB==="saved") q+="&saved=1"; if(TAB==="mine") q+="&mine=1";
     if(TAB==="follow") q+="&follow=1"; if(TAB==="user") q+="&nick="+encodeURIComponent(USER);
+    if(TAB==="ask"){ q+="&kind=ask&sort=new"+(REGION?"&region="+encodeURIComponent(REGION):""); if(reset) drawRegions(); }
+    if(TAB==="saved"&&reset) $("ahead").innerHTML='<button type="button" class="aib" data-ai="1"><i>🤖</i><span><b>저장한 글로 AI 일정 만들기</b><small>고른 장소를 날짜별로 묶어 줘요 · 1크레딧</small></span></button>';
     if(NEXT) q+="&before="+encodeURIComponent(NEXT);
     $("more").hidden=true;
     if(reset) $("grid").innerHTML='<div class="empty" style="grid-column:1/-1">불러오는 중…</div>';
@@ -279,12 +315,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
       if(j.error){ say(esc(j.error)); return; }
       if(j.author&&reset) drawAuthor(j.author);
       var list=j.items||[]; ITEMS=ITEMS.concat(list);
-      if(!ITEMS.length){ $("grid").innerHTML='<div class="empty" style="grid-column:1/-1">'+(TAB==="follow"?"👥 팔로우한 사람의 새 글이 여기에 모여요.<br>글에서 닉네임 옆 <b>＋ 팔로우</b> 를 눌러 보세요.":TAB==="user"?"아직 올린 글이 없어요.":TAB==="saved"?"📌 저장한 글이 아직 없어요.<br>마음에 드는 글에서 📌 를 눌러 보세요.":TAB==="mine"?"아직 올린 글이 없어요.<br>아래 <b>＋ 올리기</b> 로 첫 여행을 올려 보세요.":"아직 글이 없어요.<br>첫 여행 사진·쇼츠를 올려 보세요!")+'</div>'; return; }
+      if(!ITEMS.length){ $("grid").innerHTML='<div class="empty" style="grid-column:1/-1">'+(TAB==="ask"?"🙋 "+(REGION?esc(REGION)+" ":"")+"질문이 아직 없어요.<br>아래 <b>＋ 질문하기</b> 로 먼저 물어보세요.":TAB==="follow"?"👥 팔로우한 사람의 새 글이 여기에 모여요.<br>글에서 닉네임 옆 <b>＋ 팔로우</b> 를 눌러 보세요.":TAB==="user"?"아직 올린 글이 없어요.":TAB==="saved"?"📌 저장한 글이 아직 없어요.<br>마음에 드는 글에서 📌 를 눌러 보세요.":TAB==="mine"?"아직 올린 글이 없어요.<br>아래 <b>＋ 올리기</b> 로 첫 여행을 올려 보세요.":"아직 글이 없어요.<br>첫 여행 사진·쇼츠를 올려 보세요!")+'</div>'; return; }
       list.forEach(function(it){ $("grid").insertAdjacentHTML("beforeend",card(it)); });
       NEXT=j.next||""; $("more").hidden=!NEXT;
     });
   }
+  function adate(v){ if(!v) return ""; var a=String(v).split("-"); return (+a[1])+"."+(+a[2])+" 출발"; }
   function card(it){
+    if(it.kind==="ask") return '<button type="button" class="ask cd" data-id="'+it.id+'"><span class="r"><span>🙋 '+esc(it.place.name)+'</span>'+(it.visited?'<em>'+esc(adate(it.visited))+'</em>':"")+(it.status&&it.status!=="live"?'<span class="st">'+(it.status==="hidden"?"숨김(신고)":esc(it.status))+'</span>':"")+'</span><p>'+esc(it.body)+'</p><small>'+esc(it.nick)+' · '+esc(ago(it.at))+' · 💬 답변 '+(it.comments||0)+'</small></button>';
     var m=it.media&&it.media[0]||{}, bg=it.kind==="shorts"?safeU(m.thumb):safeU(m.u);
     var badge=it.kind==="shorts"?"▶ "+(m.dur?Math.round(m.dur)+"초":"쇼츠"):(it.media.length>1?"🖼 "+it.media.length:"");
     var st=it.status&&it.status!=="live"?'<span class="st">'+(it.status==="hidden"?"숨김(신고)":it.status)+'</span>':"";
@@ -344,6 +382,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     if(k==="car") return "https://expedia.com/affiliate/8zSjtLw";
     return "";
   }
+  /* v430 버튼 눌림 기록 (작성자 보상용) — 페이지가 넘어가도 보내지게 keepalive */
+  function logClick(id,k){ try{ var h={"Content-Type":"application/json"}, t=token(); if(t) h.Authorization="Bearer "+t; fetch("/api/trip",{method:"POST",keepalive:true,headers:h,body:JSON.stringify({op:"click",id:id,kind:k})})["catch"](function(){}); }catch(e){} }
   function openOut(u){ if(!u) return; try{ window.top.location.href=u; return; }catch(e){} location.href=u; }
 
   /* ── 글 보기 ── */
@@ -352,7 +392,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     $("vsT").textContent="글"; $("vsB").innerHTML='<div class="in">불러오는 중…</div>'; openSheet("vs");
     api("GET","?op=post&id="+id).then(function(j){
       if(j.error){ $("vsB").innerHTML='<div class="in"><div class="msg">'+esc(j.error)+'</div></div>'; return; }
-      CUR=j.post; renderPost(j.post,j.comments||[],j.admin);
+      CUR=j.post; renderPost(j.post,j.comments||[],j.admin); bindDots();
     });
   }
   function renderPost(p,cms,admin){
@@ -360,19 +400,25 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     var st=p.status!=="live"?'<span class="st">'+(p.status==="hidden"?"숨김(신고 확인 중)":p.status)+'</span>':"";
     CMS=cms;
     var cmh=cms.filter(function(c){ return !c.parent_id; }).map(function(c){ return cmRow(c,false)+cms.filter(function(r){ return r.parent_id===c.id; }).map(function(r){ return cmRow(r,true); }).join(""); }).join("");
-    $("vsT").textContent="📍 "+p.place.name;
-    $("vsB").innerHTML='<div class="car">'+med+'</div><div class="in">'+
+    var isAsk=p.kind==="ask";
+    $("vsT").textContent=isAsk?"🙋 "+p.place.name+" 질문":"📍 "+p.place.name;
+    var dots=!isAsk&&p.media.length>1?'<div class="dots" id="dots">'+p.media.map(function(m,i){ return '<i'+(i?"":' class="on"')+'></i>'; }).join("")+'</div>':"";
+    var stat=p.clicks?'<p class="stat">최근 30일 이 글에서 눌린 수 — 🧭 '+p.clicks.nav+' · 🏨 '+p.clicks.stay+' · ✈️ '+p.clicks.air+' · 🚗 '+p.clicks.car+'</p>':"";
+    $("vsB").innerHTML=(isAsk?"":'<div class="car">'+med+'</div>'+dots)+'<div class="in">'+
       '<div class="who"><button type="button" class="un" data-u="1">'+esc(p.nick)+'</button><span>'+esc(ago(p.at))+'</span>'+st+(!p.mine?'<button type="button" class="fl'+(p.following?" on":"")+'" data-f="1">'+(p.following?"팔로잉 ✓":"＋ 팔로우")+'</button>':"")+'</div>'+
-      '<div class="pl">📍 '+esc(p.place.name)+'<small>'+esc(p.place.addr||"")+(p.visited?" · "+esc(vdate(p.visited)):"")+'</small></div>'+
-      (p.body?'<p class="bodytx">'+esc(p.body)+'</p>'+(needTr(p.body)?'<button type="button" class="trb" data-tr="body">🌐 번역 보기 · 0.1크레딧</button><div id="trBody"></div>':""):"")+
+      (isAsk?'<div class="pl">🙋 '+esc(p.place.name)+'<small>'+(p.visited?esc(adate(p.visited))+" 예정":"여행 날짜 미정")+'</small></div>':'<div class="pl">📍 '+esc(p.place.name)+'<small>'+esc(p.place.addr||"")+(p.visited?" · "+esc(vdate(p.visited)):"")+'</small></div>')+
+      (p.body?'<p class="'+(isAsk?"qbody":"bodytx")+'">'+esc(p.body)+'</p>'+(needTr(p.body)?'<button type="button" class="trb" data-tr="body">🌐 번역 보기 · 0.1크레딧</button><div id="trBody"></div>':""):"")+
       (p.tags&&p.tags.length?'<div class="tg">'+p.tags.map(function(t){ return "<span>#"+esc(t)+"</span>"; }).join("")+'</div>':"")+
       '<div class="acts"><button type="button" data-a="like" class="'+(p.liked?"on":"")+'">❤️ <span>'+p.likes+'</span></button><button type="button" data-a="save" class="'+(p.saved?"on":"")+'">📌 저장 <span>'+p.saves+'</span></button><button type="button" data-a="share">↗ 공유</button></div>'+
       '<div class="go"><button type="button" data-g="nav"><i>🧭</i>길안내</button><button type="button" data-g="stay"><i>🏨</i>숙소</button><button type="button" data-g="air"><i>✈️</i>항공</button><button type="button" data-g="car"><i>🚗</i>렌터카</button></div>'+
-      '<p class="aff">숙소·항공·렌터카는 제휴 링크예요. 예약·결제는 그 사이트에서 직접 합니다.</p>'+
+      '<p class="aff">숙소·항공·렌터카는 제휴 링크예요. 예약·결제는 그 사이트에서 직접 합니다.</p>'+stat+
       '<div class="menu">'+(p.mine||admin?'<button type="button" class="d" data-m="del">🗑 글 지우기</button>':"")+(!p.mine?'<button type="button" data-m="report">🚩 신고</button><button type="button" data-m="block">🚫 이 사람 차단</button>':"")+(admin?'<button type="button" data-m="live">✅ 보이기</button><button type="button" data-m="hide">🙈 숨기기</button>':"")+'</div>'+
-      '<div class="cm"><h3>💬 댓글 '+cms.length+'</h3><div id="cmL">'+(cmh||'<div class="note">첫 댓글을 남겨 보세요. 궁금한 걸 물어봐도 좋아요.</div>')+'</div>'+
-      '<div class="cin"><input id="cmI" maxlength="300" placeholder="댓글 달기 (예: 주차 되나요?)" enterkeyhint="send"><button type="button" id="cmS">올리기</button></div><div class="note" id="cmR" hidden></div></div></div>';
+      '<div class="cm"><h3>💬 '+(isAsk?"답변 ":"댓글 ")+cms.length+'</h3><div id="cmL">'+(cmh||'<div class="note">'+(isAsk?"가 본 경험이 있으면 답변해 주세요.":"첫 댓글을 남겨 보세요. 궁금한 걸 물어봐도 좋아요.")+'</div>')+'</div>'+
+      '<div class="cin"><input id="cmI" maxlength="300" placeholder="'+(isAsk?"답변 달기 (가 본 경험을 알려 주세요)":"댓글 달기 (예: 주차 되나요?)")+'" enterkeyhint="send"><button type="button" id="cmS">올리기</button></div><div class="note" id="cmR" hidden></div></div></div>';
   }
+  /* v430 사진 동그라미: 옆으로 넘기면 따라 바뀜 */
+  function bindDots(){ var car=$("vsB").querySelector(".car"), d=$("dots"); if(!car||!d) return;
+    car.addEventListener("scroll",function(){ var i=Math.round(car.scrollLeft/Math.max(1,car.clientWidth)); Array.prototype.forEach.call(d.children,function(x,k){ x.classList.toggle("on",k===i); }); },{passive:true}); }
   function cmRow(c,rp){ return '<div class="c1'+(rp?" rp":"")+'" data-c="'+c.id+'"><b>'+esc(c.nick)+'</b>'+esc(c.body)+'<small>'+esc(ago(c.at))+'</small><span class="cb">'+(rp?"":'<button type="button" data-c-a="re">답글</button>')+(needTr(c.body)?'<button type="button" data-c-a="tr">번역</button>':"")+(c.mine?'<button type="button" data-c-a="del">지우기</button>':'<button type="button" data-c-a="rep">신고</button><button type="button" data-c-a="blk">차단</button>')+'</span></div>'; }
   var REPLY=null, CMS=[];
   $("vsB").addEventListener("click",function(e){
@@ -381,7 +427,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     if(t.closest("button[data-u]")){ openUser(p.nick); return; }
     var fb=t.closest("button[data-f]"); if(fb){ follow({post_id:p.id},function(on){ fb.classList.toggle("on",on); fb.textContent=on?"팔로잉 ✓":"＋ 팔로우"; p.following=on; }); return; }
     var tb=t.closest("button[data-tr]"); if(tb){ tb.disabled=true; tr(p.body,function(x){ tb.remove(); $("trBody").innerHTML='<div class="trx"><small>🌐 번역</small>'+esc(x)+'</div>'; },function(){ tb.disabled=false; }); return; }
-    var g=t.closest("button[data-g]"); if(g){ openOut(goLink(g.getAttribute("data-g"),p.place)); return; }
+    var g=t.closest("button[data-g]"); if(g){ logClick(p.id,g.getAttribute("data-g")); openOut(goLink(g.getAttribute("data-g"),p.place)); return; }
     var m=t.closest("button[data-m]"); if(m){ postMenu(m.getAttribute("data-m"),p); return; }
     var ca=t.closest("button[data-c-a]"); if(ca){ var row=ca.closest(".c1"), cid=+row.getAttribute("data-c"), k=ca.getAttribute("data-c-a");
       if(k==="tr"){ var cc=CMS.filter(function(x){ return x.id===cid; })[0]; if(!cc) return; ca.disabled=true; tr(cc.body,function(x){ ca.remove(); row.insertAdjacentHTML("beforeend",'<div class="trx">'+esc(x)+'</div>'); },function(){ ca.disabled=false; }); return; }
@@ -449,12 +495,18 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   var TILE="https://tile.openstreetmap.org/{z}/{x}/{y}.png", LLP=null;
   function leaflet(){
     if(window.L&&window.L.map) return Promise.resolve(window.L); if(LLP) return LLP;
+    /* v430: 파일 이름을 Leaflet 배포본 그대로(leaflet.js · leaflet.css)로 · cdnjs 가 안 되면 unpkg(Leaflet 공식 안내 주소)로 한 번 더 */
+    var SRC=[["https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css","https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"],["https://unpkg.com/leaflet@1.9.4/dist/leaflet.css","https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"]];
     LLP=new Promise(function(res,rej){
-      var c=document.createElement("link"); c.rel="stylesheet"; c.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.appendChild(c);
-      var sc=document.createElement("script"); sc.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
-      sc.onload=function(){ if(window.L&&window.L.map) res(window.L); else { LLP=null; rej(new Error("지도를 불러오지 못했어요")); } };
-      sc.onerror=function(){ LLP=null; rej(new Error("지도를 불러오지 못했어요. 잠시 뒤 다시 해 주세요.")); };
-      document.head.appendChild(sc);
+      var tryAt=function(i){
+        if(i>=SRC.length){ LLP=null; rej(new Error("지도를 불러오지 못했어요. 잠시 뒤 다시 해 주세요.")); return; }
+        var c=document.createElement("link"); c.rel="stylesheet"; c.href=SRC[i][0]; document.head.appendChild(c);
+        var sc=document.createElement("script"); sc.src=SRC[i][1];
+        sc.onload=function(){ if(window.L&&window.L.map) res(window.L); else tryAt(i+1); };
+        sc.onerror=function(){ c.remove(); sc.remove(); tryAt(i+1); };
+        document.head.appendChild(sc);
+      };
+      tryAt(0);
     });
     return LLP;
   }
@@ -478,6 +530,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     if(!token()){ $("grid").innerHTML=""; needLogin(); return; }
     $("grid").innerHTML='<div style="grid-column:1/-1"><div class="sorts" style="padding:0 0 10px"><button type="button" data-pf="all"'+(PF==="all"?' class="on"':"")+'>둘 다</button><button type="button" data-pf="mine"'+(PF==="mine"?' class="on"':"")+'>🙋 내 글</button><button type="button" data-pf="saved"'+(PF==="saved"?' class="on"':"")+'>📌 저장한 글</button></div>'+
       '<div class="mapbox" id="mapBox"></div><div class="legend"><span><i style="background:#4f46e5"></i>내 글</span><span><i style="background:#ec4899"></i>저장한 글</span><span id="noLL"></span></div>'+
+      '<div class="sec"><button type="button" class="aib" data-ai="1"><i>🤖</i><span><b>AI 여행 일정 만들기</b><small>내 글·저장한 글을 날짜별로 묶어 줘요 · 1크레딧</small></span></button></div>'+
       '<div class="sec"><h2>🗺 테마 지도</h2><p class="note" style="margin-top:0">내 글·저장한 글을 골라 "비 오는 날 제주"처럼 묶고, 링크로 나눠요.</p><button type="button" class="big" id="tmNew" style="margin-top:6px">＋ 테마 지도 만들기</button><div id="tmL"></div></div></div>';
     Promise.all([api("GET","?op=pins"),api("GET","?op=tmaps")]).then(function(r){
       var a=r[0], b=r[1];
@@ -561,9 +614,105 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     if(PINS) go(); else api("GET","?op=pins").then(function(a){ if(a.error){ alert(a.error); return; } PINS=a; go(); });
   }
 
+  /* ── v430 🙋 질문방 ── */
+  var REGIONS=["서울","부산","제주","강원","경기","인천","대구","대전","광주","울산","세종","충북","충남","전북","전남","경북","경남","일본","중국","대만","홍콩·마카오","베트남","태국","필리핀","싱가포르","말레이시아","인도네시아","미국","괌·사이판","유럽","호주","기타 해외"];
+  function drawRegions(){
+    $("ahead").innerHTML='<div class="rg" id="rg"><button type="button" data-r=""'+(REGION?"":' class="on"')+'>전체</button>'+REGIONS.map(function(r){ return '<button type="button" data-r="'+esc(r)+'"'+(REGION===r?' class="on"':"")+'>'+esc(r)+'</button>'; }).join("")+'</div>'+
+      '<p class="note" style="margin:0 2px 10px">같은 곳에 가는 사람·다녀온 사람에게 물어보세요. 답변은 누구나 달 수 있어요. 연락처·만날 약속은 올리지 마세요.</p>';
+    var on=$("rg").querySelector(".on"); if(on&&on.scrollIntoView) try{ on.scrollIntoView({inline:"center",block:"nearest"}); }catch(e){}
+  }
+  $("ahead").addEventListener("click",function(e){
+    var r=e.target.closest("button[data-r]"); if(r){ REGION=r.getAttribute("data-r"); load(true); return; }
+    if(e.target.closest("button[data-ai]")) openAi();
+  });
+  function openAsk(){
+    var A={region:REGION||""};
+    $("wsB").innerHTML='<span class="lab" style="margin-top:0">어느 지역인가요?</span><div class="chips" id="aR">'+REGIONS.map(function(r){ return '<button type="button" data-r="'+esc(r)+'"'+(A.region===r?' class="on"':"")+'>'+esc(r)+'</button>'; }).join("")+'</div>'+
+      '<label class="lab" for="aD">언제 가세요? <small>정하지 않았으면 비워 두세요</small></label><input type="date" id="aD" min="'+today()+'">'+
+      '<label class="lab" for="aB">질문 <small>500자까지</small></label><textarea id="aB" maxlength="500" placeholder="예: 12월 초에 성산일출봉 일출 보려면 몇 시에 가야 하나요?"></textarea>'+
+      '<p class="note">전화번호·카톡 아이디·만날 약속은 올리지 마세요. 신고가 쌓이면 숨겨져요.</p>'+
+      '<div id="wM"></div><div class="prog" id="pg"><i></i></div><button type="button" class="big" id="wGo">질문 올리기</button>';
+    $("aR").onclick=function(e){ var b=e.target.closest("button"); if(!b) return; A.region=b.getAttribute("data-r"); Array.prototype.forEach.call(this.children,function(x){ x.classList.toggle("on",x===b); }); };
+    $("wGo").onclick=function(){
+      var body=($("aB").value||"").trim();
+      if(!A.region){ wsay("지역을 골라 주세요."); return; }
+      if(body.length<5){ wsay("질문을 5글자 이상 적어 주세요."); return; }
+      var me=this; me.disabled=true;
+      api("POST","",{op:"create",kind:"ask",region:A.region,visited:$("aD").value||"",body:body}).then(function(j){ me.disabled=false;
+        if(j.error){ wsay(esc(j.error)); return; }
+        closeSheet("ws"); REGION=A.region; TAB="ask"; Array.prototype.forEach.call($("tabs").children,function(x){ x.classList.toggle("on",x.getAttribute("data-t")==="ask"); }); load(true); say("질문을 올렸어요! 답변이 달리면 💬 숫자가 올라가요.",true); });
+    };
+    $("ws").querySelector(".hd b").textContent="🙋 질문하기";
+    openSheet("ws");
+  }
+
+  /* ── v430 🤖 AI 여행 일정 — 내 글 + 저장한 글에서 골라 날짜별 일정 (1크레딧 · 결과는 저장 안 함 → 테마 지도로 저장 가능) ── */
+  $("grid").addEventListener("click",function(e){ if(e.target.closest("button[data-ai]")) openAi(); });
+  var AIP=null;
+  function openAi(){
+    if(!token()){ needLogin(); return; }
+    var go=function(){
+      var pool=[], seen={};
+      (PINS.mine||[]).concat(PINS.saved||[]).forEach(function(it){ if(it.status==="removed"||seen[it.id]) return; seen[it.id]=1; pool.push(it); });
+      $("asT").textContent="🤖 AI 여행 일정";
+      $("asB").innerHTML='<p class="note" style="margin-top:0">고른 장소만으로 날짜별 일정을 짜요. 없는 곳·가격·영업시간은 만들어 내지 않아요.</p>'+
+        '<span class="lab">며칠인가요?</span><div class="chips" id="aiN">'+["당일","1박2일","2박3일","3박4일","4박5일"].map(function(t,i){ return '<button type="button" data-n="'+i+'"'+(i===1?' class="on"':"")+'>'+t+'</button>'; }).join("")+'</div>'+
+        '<label class="lab" for="aiS">출발 날짜 <small>선택</small></label><input type="date" id="aiS" min="'+today()+'">'+
+        '<span class="lab">몇 명인가요?</span><div class="chips" id="aiP">'+[1,2,3,4,5,6].map(function(n){ return '<button type="button" data-p="'+n+'"'+(n===2?' class="on"':"")+'>'+n+'명</button>'; }).join("")+'</div>'+
+        '<label class="lab" for="aiQ">바라는 점 <small>선택 · 200자</small></label><input type="text" id="aiQ" maxlength="200" placeholder="예: 아이랑 가요, 오전엔 여유 있게">'+
+        '<span class="lab">넣을 장소 고르기 <small>20개까지 · <span id="aiC">0</span>개</small></span>'+
+        (pool.length?'<div id="aiL">'+pool.map(function(it){ var m=it.media&&it.media[0]||{}, bg=it.kind==="shorts"?safeU(m.thumb):safeU(m.u);
+          return '<label class="pk"><input type="checkbox" value="'+it.id+'"><span class="im" style="'+(bg?'background-image:url(&quot;'+esc(bg)+'&quot;)':"")+'"></span><span class="t"><b>📍 '+esc(it.place.name)+'</b><small>'+esc(it.mine?"내 글":it.nick)+(it.place.addr?" · "+esc(it.place.addr):"")+'</small></span></label>'; }).join("")+'</div>':'<p class="note">고를 장소가 없어요. 글을 올리거나 마음에 드는 글을 📌 저장해 주세요.</p>')+
+        '<div id="aiM"></div><button type="button" class="big" id="aiGo">일정 만들기 · 1크레딧</button>';
+      var nights=1, ppl=2;
+      $("aiN").onclick=function(e){ var b=e.target.closest("button"); if(!b) return; nights=+b.getAttribute("data-n"); Array.prototype.forEach.call(this.children,function(x){ x.classList.toggle("on",x===b); }); };
+      $("aiP").onclick=function(e){ var b=e.target.closest("button"); if(!b) return; ppl=+b.getAttribute("data-p"); Array.prototype.forEach.call(this.children,function(x){ x.classList.toggle("on",x===b); }); };
+      var cnt=function(){ var n=$("asB").querySelectorAll("#aiL input:checked").length; $("aiC").textContent=n; return n; };
+      if($("aiL")) $("aiL").onchange=function(e){ var i=e.target; if(i.type!=="checkbox") return; if(cnt()>20){ i.checked=false; cnt(); alert("20개까지 고를 수 있어요"); } i.closest(".pk").classList.toggle("on",i.checked); };
+      $("aiGo").onclick=function(){
+        var ids=Array.prototype.map.call($("asB").querySelectorAll("#aiL input:checked"),function(x){ return +x.value; });
+        if(!ids.length){ $("aiM").innerHTML='<div class="msg">넣을 장소를 하나 이상 골라 주세요.</div>'; return; }
+        var me=this; me.disabled=true; me.textContent="일정 만드는 중… (10~30초)";
+        api("POST","",{op:"ai_plan",ids:ids,nights:nights,start:$("aiS").value||"",ppl:ppl,note:$("aiQ").value||""}).then(function(j){
+          me.disabled=false; me.textContent="일정 만들기 · 1크레딧";
+          if(j._s===402){ $("aiM").innerHTML='<div class="msg">크레딧이 부족해요. <a href="/pricing#charge" target="_top">충전하기 ›</a></div>'; return; }
+          if(j.error){ $("aiM").innerHTML='<div class="msg">'+esc(j.error)+'</div>'; return; }
+          var byId={}; pool.forEach(function(x){ byId[x.id]=x; });
+          AIP={plan:j.plan,byId:byId}; showAi();
+        });
+      };
+      openSheet("as");
+    };
+    if(PINS) go(); else api("GET","?op=pins").then(function(a){ if(a._s===401){ needLogin(); return; } if(a.error){ alert(a.error); return; } PINS=a; go(); });
+  }
+  function ymdAdd(ymd,n){ var a=ymd.split("-"); var d=new Date(+a[0],+a[1]-1,+a[2]+n); return (d.getMonth()+1)+"."+d.getDate(); }
+  function showAi(){
+    var P=AIP.plan, B=AIP.byId;
+    $("asT").textContent="🤖 "+P.title;
+    $("asB").innerHTML='<p class="note" style="margin-top:0">'+(P.nights?P.nights+"박"+(P.nights+1)+"일":"당일")+(P.start?" · "+esc(ymdAdd(P.start,0))+" 출발":"")+" · "+P.ppl+"명"+(P.area?" · 숙소는 "+esc(P.area)+" 쪽":"")+'</p>'+
+      P.days.map(function(d,i){ return '<div class="day"><h3>'+(i+1)+'일째'+(P.start?'<small>'+esc(ymdAdd(P.start,i))+'</small>':"")+(d.theme?'<small>'+esc(d.theme)+'</small>':"")+'</h3>'+d.stops.map(function(s){ var it=B[s.id]||{place:{name:"#"+s.id}};
+        return '<div class="stop"><span class="tm2">'+esc(s.time)+'</span><span class="tx2"><b>📍 '+esc(it.place.name)+'</b>'+esc(s.note)+'</span><button type="button" data-open="'+s.id+'">글</button></div>'; }).join("")+'</div>'; }).join("")+
+      (P.tips&&P.tips.length?'<div class="day"><h3>💡 팁</h3>'+P.tips.map(function(t){ return '<p style="margin:4px 0;font-size:14px;line-height:1.55">· '+esc(t)+'</p>'; }).join("")+'</div>':"")+
+      (P.left&&P.left.length?'<p class="note">일정에 못 넣은 장소 '+P.left.length+'곳: '+P.left.map(function(id){ return esc((B[id]||{place:{name:"#"+id}}).place.name); }).join(", ")+'</p>':"")+
+      '<div class="go" style="grid-template-columns:repeat(3,1fr);margin-top:14px">'+(P.area?'<button type="button" data-ag="stay"><i>🏨</i>숙소</button>':"")+'<button type="button" data-ag="air"><i>✈️</i>항공</button><button type="button" data-ag="car"><i>🚗</i>렌터카</button></div>'+
+      '<p class="aff">숙소·항공·렌터카는 제휴 링크예요. 예약·결제는 그 사이트에서 직접 합니다.</p>'+
+      '<div class="acts"><button type="button" data-asave="1">🗺 테마 지도로 저장</button><button type="button" data-aagain="1">↺ 다시 고르기</button></div>';
+  }
+  $("asB").addEventListener("click",function(e){
+    if(!AIP) return; var t=e.target, P=AIP.plan;
+    var g=t.closest("button[data-ag]"); if(g){ openOut(goLink(g.getAttribute("data-ag"),{name:P.area,addr:""})); return; }
+    if(t.closest("button[data-asave]")){ var ids=[]; P.days.forEach(function(d){ d.stops.forEach(function(s){ ids.push(s.id); }); });
+      api("POST","",{op:"tmap_save",title:P.title.slice(0,30),ids:ids}).then(function(j){ if(j.error){ alert(j.error+(j.profile?" (닉네임을 먼저 정해 주세요)":"")); if(j.profile) askProfile(); return; } closeSheet("as"); openTmap(j.id); api("GET","?op=tmaps").then(function(b){ MYMAPS=b.maps||MYMAPS; drawMyMaps(); }); }); return; }
+    if(t.closest("button[data-aagain]")){ AIP=null; openAi(); return; }
+  });
+
   /* ── 관리자: 신고된 글 ── */
   function loadAdmin(){
     $("grid").innerHTML='<div class="empty" style="grid-column:1/-1">불러오는 중…</div>';
+    /* v430 🏆 많이 눌린 글 (작성자 보상 참고용) */
+    api("POST","",{op:"admin_clicks"}).then(function(j){ if(j.error||TAB!=="admin") return; var it=j.items||[];
+      $("ahead").innerHTML='<div class="day" style="margin:0 0 12px"><h3>🏆 예약 버튼이 많이 눌린 글<small>'+esc(j.since||"")+' 부터 · 숙소+항공+렌터카</small></h3>'+(it.length?it.slice(0,15).map(function(x){ return '<div class="stop"><span class="tm2">'+(x.clicks.stay+x.clicks.air+x.clicks.car)+'번</span><span class="tx2"><b>📍 '+esc(x.place)+'</b>'+esc(x.nick)+' · '+esc(x.email||"이메일 없음")+'<br><small style="color:var(--mute)">🏨 '+x.clicks.stay+' · ✈️ '+x.clicks.air+' · 🚗 '+x.clicks.car+' · 🧭 '+x.clicks.nav+'</small></span><button type="button" data-open="'+x.id+'">글</button></div>'; }).join(""):'<p class="note">아직 기록이 없어요.</p>')+
+        '<p class="note">눌린 수는 예약 수가 아니에요. 실제 예약은 제휴사(Expedia) 보고서에서 확인하고, 보상은 관리자 화면(/admin)의 수동 충전으로 넣어 주세요.</p></div>'; });
     api("POST","",{op:"admin_list"}).then(function(j){
       $("grid").innerHTML=""; if(j.error){ say(esc(j.error)); return; }
       ITEMS=j.items||[];
@@ -602,6 +751,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     if(!token()){ needLogin(); return; }
     if(!ME.has_profile){ askProfile(openWrite); return; }
     if(ME.age_ok===false){ alert("만 14세 미만은 글을 올릴 수 없어요."); return; }
+    if(TAB==="ask"){ openAsk(); return; }
     openWrite();
   };
   var TAGS=["맛집","카페","숙소","자연","바다","야경","축제","쇼핑","명소","액티비티"];
@@ -610,6 +760,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   var CHARGE='크레딧이 부족해요. <a href="/pricing#charge" target="_top">충전하기 ›</a>';
   function openWrite(){
     W={kind:"",files:[],video:null,place:null,tags:[]};
+    $("ws").querySelector(".hd b").textContent="여행 올리기";
     $("wsB").innerHTML='<span class="lab" style="margin-top:0">무엇을 올릴까요?</span>'+
       '<div class="pick"><label>📷 사진<small>최대 10장</small><input type="file" id="fP" accept="image/*" multiple></label><label>🎬 쇼츠<small>30초까지 · 50MB · '+SC()+'크레딧</small><input type="file" id="fV" accept="video/*"></label></div>'+
       '<div class="thumbs" id="th"></div>'+

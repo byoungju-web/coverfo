@@ -1,4 +1,4 @@
-// functions/api/trip.js — coverfo 📸 누리트립 (여행 사진·쇼츠 커뮤니티) 1단계 · v427 · v428 쇼츠 크레딧 · v429 2단계(팔로우 · 내 여행 지도 · 테마 지도)
+// functions/api/trip.js — coverfo 📸 누리트립 (여행 사진·쇼츠 커뮤니티) 1단계 · v427 · v428 쇼츠 크레딧 · v429 2단계(팔로우 · 내 여행 지도 · 테마 지도) · v430 3단계(🤖 AI 일정 · 🙋 질문방 · 예약 버튼 눌림 기록)
 // © 2026 coverfo All Rights Reserved
 //
 //   GET  /api/trip?op=feed&sort=new|top|near&kind=all|photo|shorts&lat=&lng=&before=&mine=1&saved=1
@@ -14,6 +14,14 @@
 //        POST {op:'tmap_del', id}                → 테마 지도 지우기
 //   · 1:1 대화는 넣지 않음 (토스 규정상 채팅 서비스 노출 불가 — 홈 채팅 단추를 숨긴 것과 같은 이유)
 //   · 필요한 것: sql/cf_trip_v2.sql 1회 실행
+//   v430 GET  /api/trip?op=feed&kind=ask&region=제주   → 🙋 질문방 (질문 = kind 'ask' 글 · 답변 = 댓글)
+//        POST {op:'create', kind:'ask', region, visited(여행 날짜, 선택), body}
+//        POST {op:'ai_plan', ids, nights, start, ppl, note} → 🤖 고른 글로 여행 일정 (AI_PLAN_COST 크레딧 · 실패하면 돌려줌 · 저장 안 함)
+//        POST {op:'click', id, kind:nav|stay|air|car}    → 글 아래 버튼이 눌린 수 (로그인 없어도 · 하루 1번 · 글쓴이 본인 제외)
+//        POST {op:'admin_clicks'}                       → 🏆 최근 30일 많이 눌린 글 (관리자 · 보상은 기존 /admin 수동 충전으로)
+//   · 동행·질문은 실시간 채팅이 아니라 게시판 방식 (토스 규정상 채팅 노출 불가)
+//   · AI: plan.js(한 번에 준비)와 같은 Anthropic 경유 방식 · 같은 모델(HUB_MODEL) · 크레딧은 cf_spend · cf_refund 만 씀
+//   · 필요한 것: sql/cf_trip_v3.sql 1회 실행
 //   PUT  /api/trip?op=upload&type=image|video|thumb   (본문 = 파일)  → { ok, u:'/media/trip/…' }
 //   POST /api/trip {op:'profile', nick, age14}
 //   POST /api/trip {op:'create', kind, media, body, place:{name,addr,lat,lng}, visited, tags}
@@ -38,7 +46,13 @@ const MAX_VIDEO = 50 * 1024 * 1024;      // 쇼츠 1개 (30초)
 const MAX_POSTS_DAY = 20;
 const SHORTS_COST = 1;                   // v428: 쇼츠 1개 = 1크레딧 (사진은 무료)
 const TAGS = ['맛집', '카페', '숙소', '자연', '바다', '야경', '축제', '쇼핑', '명소', '액티비티'];
-const MAX_MAPS = 30, MAP_POSTS = 50;    // v429 테마 지도: 1인 30개 · 지도 1개에 글 50개까지
+const MAX_MAPS = 30, MAP_POSTS = 50;
+const AI_PLAN_COST = 1;                  // v430 🤖 AI 일정 1번 = 1크레딧 (🧳 한 번에 준비와 같은 값)
+const MODEL_DEFAULT = 'claude-sonnet-5-5';
+const CLICK_KINDS = ['nav', 'stay', 'air', 'car'];
+/* v430 🙋 질문방 지역 */
+const REGIONS = ['서울', '부산', '제주', '강원', '경기', '인천', '대구', '대전', '광주', '울산', '세종', '충북', '충남', '전북', '전남', '경북', '경남',
+  '일본', '중국', '대만', '홍콩·마카오', '베트남', '태국', '필리핀', '싱가포르', '말레이시아', '인도네시아', '미국', '괌·사이판', '유럽', '호주', '기타 해외'];    // v429 테마 지도: 1인 30개 · 지도 1개에 글 50개까지
 const POST_COLS = 'id,user_id,nick,kind,media,body,place_name,place_addr,lat,lng,visited,tags,status,likes,saves,comments,reports,created_at';
 
 export async function onRequestGet(context) {
@@ -64,13 +78,15 @@ export async function onRequestGet(context) {
     let cm = (await get(c, `cf_trip_comments?post_id=eq.${id}&status=eq.live&select=id,user_id,nick,body,parent_id,created_at&order=created_at.asc&limit=300`)) || [];
     cm = cm.filter((x) => !blocked.has(x.user_id)).map((x) => ({ id: x.id, nick: x.nick, body: x.body, parent_id: x.parent_id, at: x.created_at, mine: !!uid && x.user_id === uid }));
     const [it] = await decorate(c, [p], uid);
+    if ((uid && p.user_id === uid) || admin) it.clicks = await clickStats(c, [id]).then((m) => m[id] || null);   /* v430 */
     it.following = !!uid && p.user_id !== uid && !!((await get(c, `cf_trip_follows?user_id=eq.${uid}&target=eq.${p.user_id}&select=target`)) || []).length;   /* v429 */
     return json({ ok: true, post: it, comments: cm, admin });
   }
 
   if (op === 'feed') {
     const sort = ['new', 'top', 'near'].includes(url.searchParams.get('sort')) ? url.searchParams.get('sort') : 'new';
-    const kind = ['photo', 'shorts'].includes(url.searchParams.get('kind')) ? url.searchParams.get('kind') : '';
+    const kind = ['photo', 'shorts', 'ask'].includes(url.searchParams.get('kind')) ? url.searchParams.get('kind') : '';
+    const region = kind === 'ask' && REGIONS.includes(url.searchParams.get('region') || '') ? url.searchParams.get('region') : '';
     const before = url.searchParams.get('before') || '';
     let q = `cf_trip_posts?select=${POST_COLS}`;
     let author = null;
@@ -98,6 +114,7 @@ export async function onRequestGet(context) {
       q += `&id=in.(${sv.map((x) => x.post_id).join(',')})&status=eq.live`;
     } else q += '&status=eq.live';
     if (kind) q += `&kind=eq.${kind}`;
+    if (region) q += `&place_name=eq.${encodeURIComponent(region)}`;
     let rows;
     if (sort === 'near') {
       const lat = Number(url.searchParams.get('lat')), lng = Number(url.searchParams.get('lng'));
@@ -124,8 +141,8 @@ export async function onRequestGet(context) {
     if (!uid) return json({ error: '로그인이 필요합니다', login: true }, 401);
     const sv = (await get(c, `cf_trip_saves?user_id=eq.${uid}&select=post_id&order=created_at.desc&limit=300`)) || [];
     const [mine, saved] = await Promise.all([
-      get(c, `cf_trip_posts?select=${POST_COLS}&user_id=eq.${uid}&status=neq.removed&order=created_at.desc&limit=300`),
-      sv.length ? get(c, `cf_trip_posts?select=${POST_COLS}&id=in.(${sv.map((x) => x.post_id).join(',')})&status=eq.live&limit=300`) : [],
+      get(c, `cf_trip_posts?select=${POST_COLS}&user_id=eq.${uid}&kind=in.(photo,shorts)&status=neq.removed&order=created_at.desc&limit=300`),
+      sv.length ? get(c, `cf_trip_posts?select=${POST_COLS}&id=in.(${sv.map((x) => x.post_id).join(',')})&kind=in.(photo,shorts)&status=eq.live&limit=300`) : [],
     ]);
     const bl = await blockedSet(c, uid);
     return json({ ok: true, mine: await decorate(c, mine || [], uid), saved: await decorate(c, (saved || []).filter((r) => !bl.has(r.user_id)), uid) });
@@ -185,6 +202,19 @@ export async function onRequestPost(context) {
   const { request, env } = context;
   const c = sb(env); if (!c) return json({ error: 'Supabase 설정이 없습니다' }, 500);
   let b = {}; try { b = await request.json(); } catch { return json({ error: '잘못된 요청입니다' }, 400); }
+  /* v430 버튼 눌림 기록 — 로그인 없어도 (누가 눌렀는지는 해시로만) */
+  if (b.op === 'click') {
+    const id = num(b.id), kind = CLICK_KINDS.includes(b.kind) ? b.kind : '';
+    if (!id || !kind) return json({ ok: false }, 400);
+    const p = ((await get(c, `cf_trip_posts?id=eq.${id}&status=eq.live&select=user_id`)) || [])[0];
+    if (!p) return json({ ok: false });
+    const u = await userId(request, c);
+    if (u && u === p.user_id) return json({ ok: true, self: true });
+    const day = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+    const who = await sha(u ? 'u:' + u : 'ip:' + (request.headers.get('CF-Connecting-IP') || '') + ':' + day + ':' + (env.SUPABASE_SERVICE_ROLE_KEY || '').slice(-12));
+    await fetch(`${c.url}/rest/v1/cf_trip_clicks`, { method: 'POST', headers: hdr(c, { Prefer: 'resolution=ignore-duplicates,return=minimal' }), body: JSON.stringify({ post_id: id, kind, who, day }) }).catch(() => {});
+    return json({ ok: true });
+  }
   const uid = await userId(request, c); if (!uid) return json({ error: '로그인이 필요합니다', login: true }, 401);
   const op = String(b.op || '');
 
@@ -216,6 +246,23 @@ export async function onRequestPost(context) {
   const needProfile = ['create', 'comment', 'like', 'save', 'report', 'follow', 'tmap_save'].includes(op);
   if (needProfile && !prof) return json({ error: '닉네임을 먼저 정해 주세요', profile: true }, 403);
   if (needProfile && op !== 'report' && !prof.age_ok) return json({ error: '만 14세 미만은 글쓰기·댓글·반응을 할 수 없어요', age: true }, 403);
+
+  /* v430 🙋 질문 올리기 — 사진 없이 지역 + 여행 날짜(선택) + 질문 */
+  if (op === 'create' && b.kind === 'ask') {
+    const region = REGIONS.includes(b.region) ? b.region : '';
+    if (!region) return json({ error: '어느 지역인지 골라 주세요' }, 400);
+    const body = cleanText(b.body, 500);
+    if (body.length < 5) return json({ error: '질문을 5글자 이상 적어 주세요' }, 400);
+    const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+    const lim = new Date(Date.now() + 9 * 3600e3 + 366 * 864e5).toISOString().slice(0, 10);
+    const vis = /^\d{4}-\d{2}-\d{2}$/.test(String(b.visited || '')) && b.visited >= today && b.visited <= lim ? b.visited : null;
+    const d0 = new Date(); d0.setUTCHours(0, 0, 0, 0);
+    if ((await count(c, `cf_trip_posts?user_id=eq.${uid}&created_at=gte.${d0.toISOString()}`)) >= MAX_POSTS_DAY) return json({ error: `하루에 ${MAX_POSTS_DAY}개까지 올릴 수 있어요` }, 429);
+    const r = await fetch(`${c.url}/rest/v1/cf_trip_posts`, { method: 'POST', headers: hdr(c, { Prefer: 'return=representation' }), body: JSON.stringify({ user_id: uid, nick: prof.nick, kind: 'ask', media: [], body, place_name: region, place_addr: '', visited: vis, tags: [] }) });
+    if (!r.ok) return json({ error: '올리지 못했어요 (' + r.status + ')' }, 500);
+    const row = (await r.json())[0];
+    return json({ ok: true, id: row && row.id });
+  }
 
   if (op === 'create') {
     const kind = b.kind === 'shorts' ? 'shorts' : b.kind === 'photo' ? 'photo' : '';
@@ -389,6 +436,49 @@ export async function onRequestPost(context) {
     return json({ ok: true });
   }
 
+  /* v430 🤖 AI 여행 일정 — 고른 글(장소)로만 짬 · 결과는 저장하지 않음 */
+  if (op === 'ai_plan') {
+    const want = [...new Set((Array.isArray(b.ids) ? b.ids : []).map(num).filter(Boolean))].slice(0, 20);
+    if (!want.length) return json({ error: '일정에 넣을 글을 골라 주세요' }, 400);
+    const rows = (await get(c, `cf_trip_posts?id=in.(${want.join(',')})&kind=in.(photo,shorts)&or=(status.eq.live,user_id.eq.${uid})&status=neq.removed&select=id,user_id,place_name,place_addr,lat,lng,tags,body,kind`)) || [];
+    if (!rows.length) return json({ error: '일정에 넣을 수 있는 글이 없어요' }, 400);
+    const nights = Math.min(6, Math.max(0, parseInt(b.nights, 10) || 0));
+    const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+    const start = /^\d{4}-\d{2}-\d{2}$/.test(String(b.start || '')) && b.start >= today ? b.start : '';
+    const ppl = Math.min(9, Math.max(1, parseInt(b.ppl, 10) || 2));
+    const note = cleanText(b.note, 200);
+    if (!env.ANTHROPIC_API_KEY && !(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY)) return json({ error: 'AI 설정이 없어요' }, 500);
+    let job = null;
+    try { job = await spend(c, uid, AI_PLAN_COST, '[누리트립 AI 일정] ' + rows.map((r) => r.place_name).join(', ').slice(0, 80)); } catch { return json({ error: '크레딧을 확인하지 못했어요. 잠시 뒤 다시 해 주세요.' }, 500); }
+    if (job === false) return json({ error: '크레딧이 부족합니다', need: AI_PLAN_COST }, 402);
+    try {
+      const raw = await askTrip(env, rows, nights, start, ppl, note);
+      const plan = cleanTrip(raw, rows, nights);
+      await doneJob(c, job);
+      return json({ ok: true, plan: Object.assign(plan, { nights, start, ppl }), cost: AI_PLAN_COST });
+    } catch (e) {
+      await refund(c, job);
+      return json({ error: '일정을 만들지 못했어요 · 크레딧은 돌려드렸어요 (' + String((e && e.message) || e).slice(0, 120) + ')', refunded: true }, 500);
+    }
+  }
+
+  /* v430 🏆 최근 30일 예약 버튼이 많이 눌린 글 (관리자) — 보상은 기존 /admin 수동 충전으로 */
+  if (op === 'admin_clicks') {
+    if (!admin) return json({ error: '관리자만 볼 수 있어요' }, 403);
+    const since = new Date(Date.now() + 9 * 3600e3 - 30 * 864e5).toISOString().slice(0, 10);
+    const cl = (await get(c, `cf_trip_clicks?day=gte.${since}&select=post_id,kind&limit=20000`)) || [];
+    const agg = {};
+    cl.forEach((x) => { const a = agg[x.post_id] || (agg[x.post_id] = { nav: 0, stay: 0, air: 0, car: 0 }); a[x.kind] = (a[x.kind] || 0) + 1; });
+    const top = Object.keys(agg).map(Number).sort((x, y) => (agg[y].stay + agg[y].air + agg[y].car) - (agg[x].stay + agg[x].air + agg[x].car)).slice(0, 30);
+    const posts = top.length ? (await get(c, `cf_trip_posts?id=in.(${top.join(',')})&select=id,user_id,nick,place_name,status`)) || [] : [];
+    const emails = {};
+    await Promise.all([...new Set(posts.map((p) => p.user_id))].map(async (u) => {
+      try { const r = await fetch(`${c.url}/auth/v1/admin/users/${u}`, { headers: hdr(c) }); if (r.ok) { const j = await r.json(); emails[u] = (j && (j.email || (j.user && j.user.email))) || ''; } } catch {}
+    }));
+    const items = top.map((id) => { const p = posts.find((x) => x.id === id); return p ? { id, nick: p.nick, place: p.place_name, status: p.status, email: emails[p.user_id] || '', clicks: agg[id] } : null; }).filter(Boolean);
+    return json({ ok: true, since, items });
+  }
+
   if (op === 'admin_list') {
     if (!admin) return json({ error: '관리자만 볼 수 있어요' }, 403);
     const posts = (await get(c, `cf_trip_posts?or=(reports.gt.0,status.eq.hidden)&status=neq.removed&select=${POST_COLS}&order=reports.desc,created_at.desc&limit=100`)) || [];
@@ -459,6 +549,88 @@ async function refund(c, job) { if (job != null && job !== false) await rpc(c, '
 async function doneJob(c, job) {
   if (job == null || job === false) return;
   await fetch(`${c.url}/rest/v1/cf_jobs?id=eq.${encodeURIComponent(job)}`, { method: 'PATCH', headers: hdr(c), body: JSON.stringify({ status: 'done', updated_at: new Date().toISOString() }) }).catch(() => {});
+}
+/* v430 버튼 눌림 수 (최근 30일) */
+async function clickStats(c, ids) {
+  const since = new Date(Date.now() + 9 * 3600e3 - 30 * 864e5).toISOString().slice(0, 10);
+  const rows = (await get(c, `cf_trip_clicks?post_id=in.(${ids.join(',')})&day=gte.${since}&select=post_id,kind&limit=20000`)) || [];
+  const m = {}; rows.forEach((x) => { const a = m[x.post_id] || (m[x.post_id] = { nav: 0, stay: 0, air: 0, car: 0 }); a[x.kind] = (a[x.kind] || 0) + 1; }); return m;
+}
+async function sha(t) { const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); return Array.from(new Uint8Array(d), (x) => x.toString(16).padStart(2, '0')).join('').slice(0, 32); }
+
+/* v430 🤖 AI 일정 — plan.js 와 같은 경유(ENGINE_PROXY → Supabase anthropic-relay) · 같은 모델 */
+const TRIP_TOOL = {
+  name: 'make_trip',
+  description: 'Return the day-by-day itinerary.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'Short Korean title, e.g. "제주 동쪽 2박3일"' },
+      area: { type: 'string', description: 'Best area/city to stay overnight (Korean short name, e.g. 서귀포, 제주시, 강릉). "" for a day trip.' },
+      days: { type: 'array', items: { type: 'object', properties: {
+        theme: { type: 'string', description: 'Short Korean theme of the day' },
+        stops: { type: 'array', items: { type: 'object', properties: {
+          id: { type: 'integer', description: 'id of one of the given places' },
+          time: { type: 'string', description: 'Rough time like 09:00 or 오전/점심/오후/저녁' },
+          note: { type: 'string', description: 'One short Korean line: what to do there, based only on the given notes' },
+        }, required: ['id', 'time', 'note'] } },
+      }, required: ['theme', 'stops'] } },
+      tips: { type: 'array', items: { type: 'string' }, description: '0-4 short practical Korean tips (moving order, which day for which area). No prices, hours or availability.' },
+    },
+    required: ['title', 'area', 'days', 'tips'],
+  },
+};
+async function askTrip(env, rows, nights, start, ppl, note) {
+  const places = rows.map((r) => ({ id: r.id, name: r.place_name, addr: r.place_addr || '', lat: r.lat, lng: r.lng, tags: r.tags || [], note: String(r.body || '').slice(0, 150) }));
+  const sys = [
+    'You plan a travel itinerary for the coverfo 누리트립 app, in Korean. You only arrange the places the user gives (their own or saved travel posts).',
+    'Rules:',
+    '- Use ONLY the given place ids. Never invent places, restaurants, prices, opening hours or transport times.',
+    '- Each id at most once. You may leave out places that are too far to fit; mention that in tips.',
+    '- Number of days = nights + 1 = ' + (nights + 1) + '. Group nearby places (use lat/lng when present) on the same day and order them to reduce moving.',
+    '- 1 to 5 stops per day. time: rough clock time or 오전/점심/오후/저녁.',
+    '- note: one short line from the post note/tags; if nothing, a neutral line like "사진 찍기 좋은 곳".',
+    '- area: where to stay overnight (short Korean city/area name) when nights > 0, else "".',
+    'Always answer by calling the make_trip tool exactly once (no other text). If you cannot call it, reply with only the same JSON object.',
+  ].join('\n');
+  const user = 'nights: ' + nights + (start ? ', start: ' + start : '') + ', people: ' + ppl + (note ? '\nrequest: ' + note : '') + '\nplaces: ' + JSON.stringify(places);
+  const r = await anthropicFetch(env, '/v1/messages', { method: 'POST', body: JSON.stringify({ model: env.HUB_MODEL || MODEL_DEFAULT, max_tokens: 2000, system: sys, tools: [TRIP_TOOL], messages: [{ role: 'user', content: user }] }) });
+  const t = await r.text();
+  let j = null; try { j = JSON.parse(t); } catch {}
+  if (!r.ok || !j || !Array.isArray(j.content)) throw new Error('AI 오류 ' + r.status);
+  const tu = j.content.find((x) => x && x.type === 'tool_use' && x.name === 'make_trip');
+  if (tu && tu.input && typeof tu.input === 'object') return tu.input;
+  const txt = j.content.filter((x) => x && x.type === 'text').map((x) => x.text || '').join('\n');
+  const m = txt.match(/\{[\s\S]*\}/);
+  if (m) { try { const o = JSON.parse(m[0]); if (o && typeof o === 'object') return o; } catch {} }
+  throw new Error('AI 가 일정을 돌려주지 않았어요');
+}
+function cleanTrip(p, rows, nights) {
+  const okIds = new Set(rows.map((r) => r.id)); const used = new Set();
+  const days = (Array.isArray(p.days) ? p.days : []).slice(0, nights + 1).map((d) => ({
+    theme: clean(d && d.theme, 40),
+    stops: (Array.isArray(d && d.stops) ? d.stops : []).map((x) => ({ id: num(x && x.id), time: clean(x && x.time, 12), note: clean(x && x.note, 80) }))
+      .filter((x) => okIds.has(x.id) && !used.has(x.id) && used.add(x.id)).slice(0, 6),
+  })).filter((d) => d.stops.length);
+  if (!days.length) throw new Error('일정을 만들지 못했어요');
+  return { title: clean(p.title, 40) || '여행 일정', area: nights > 0 ? clean(p.area, 30) : '', days, tips: (Array.isArray(p.tips) ? p.tips : []).map((x) => clean(x, 100)).filter(Boolean).slice(0, 4),
+    left: rows.filter((r) => !used.has(r.id)).map((r) => r.id) };
+}
+function anthropicFetch(env, path, init = {}) {
+  const headers = new Headers(init.headers || {});
+  headers.set('x-api-key', env.ANTHROPIC_API_KEY || '');
+  headers.set('anthropic-version', '2023-06-01');
+  headers.set('content-type', 'application/json');
+  let target = 'https://api.anthropic.com' + path;
+  const sbUrl = (env.SUPABASE_URL || '').replace(/\/+$/, '');
+  const svc = env.SUPABASE_SERVICE_ROLE_KEY || '';
+  if (sbUrl && svc && (env.ENGINE_PROXY || 'on') !== 'off') {
+    target = sbUrl + '/functions/v1/anthropic-relay' + path;
+    headers.set('Authorization', 'Bearer ' + svc);
+    headers.set('apikey', svc);
+    headers.set('x-region', env.GOOGLE_PROXY_REGION || 'ap-northeast-2');
+  }
+  return fetch(target, { ...init, headers });
 }
 async function profile(c, uid) { const r = await get(c, `cf_trip_profile?user_id=eq.${uid}&select=nick,age_ok`); return r && r[0] ? r[0] : null; }
 async function get(c, path) { try { const r = await fetch(`${c.url}/rest/v1/${path}`, { headers: hdr(c) }); return r.ok ? await r.json() : null; } catch { return null; } }
