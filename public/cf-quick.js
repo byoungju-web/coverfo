@@ -253,7 +253,15 @@
     if (/^[A-Z]{3}$/.test(n)) return n;
     if (IATA[l]) return IATA[l];
     var k = l.replace(/(국제)?공항$|\s*airport$|도$|시$/, "").trim();
-    return IATA[k] || "";
+    if (IATA[k]) return IATA[k];
+    /* v422 말로 할 때 받아쓰기가 낱말을 더 붙이면("오사카 운영") 도시를 못 찾아 빈 검색 → 익스피디아 앱이 예전 검색(런던)을 보여 줬음.
+       → 낱말마다 다시 찾아 처음 맞는 도시를 쓴다 (예: "오사카 운영" → OSA) */
+    var ws = l.split(" ");
+    for (var i = 0; i < ws.length; i++) {
+      var w = ws[i].replace(/(국제)?공항$|airport$|(으로|로|까지|행|에서|에)$/, ""), w2 = w.replace(/도$|시$/, "");
+      if (IATA[w]) return IATA[w]; if (IATA[w2]) return IATA[w2];
+    }
+    return "";
   }
   function flightDates(q) {
     var s = String(q || ""), out = [], now = new Date(); now.setHours(0, 0, 0, 0);
