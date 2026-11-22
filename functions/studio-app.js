@@ -310,9 +310,32 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
     });
   }
 
+  /* v448: 영상은 끝까지 다 받은 뒤 재생 — 폰에서 받으면서 재생하면 처음 볼 때 중간중간 끊김 (두 번째부터는 안 끊김으로 확인) */
+  var VURL=null, VLOAD=0;
   function showResult(kind, url){
     var r=$('result'); r.innerHTML='';
-    if(kind==='video'){ var v=document.createElement('video'); v.crossOrigin='anonymous'; v.src=url; v.controls=true; v.playsInline=true; v.autoplay=true; r.appendChild(v); }
+    var my=++VLOAD;
+    if(VURL){ try{ URL.revokeObjectURL(VURL); }catch(e){} VURL=null; }
+    if(kind==='video'){
+      var v=document.createElement('video'); v.controls=true; v.playsInline=true; v.preload='auto'; r.appendChild(v);
+      var cap=document.createElement('div'); cap.className='hint'; cap.textContent='영상을 받는 중… (다 받은 뒤 재생해서 끊기지 않아요)'; r.appendChild(cap);
+      var direct=function(){ if(my!==VLOAD) return; cap.remove(); v.crossOrigin='anonymous'; v.src=url; v.autoplay=true; };
+      fetch(url).then(function(res){
+        if(!res.ok||!res.body||!window.ReadableStream) throw 0;
+        var total=+(res.headers.get('Content-Length')||0), got=0, chunks=[], rd=res.body.getReader();
+        return (function pump(){ return rd.read().then(function(x){
+          if(my!==VLOAD) return null;
+          if(x.done) return new Blob(chunks,{type:'video/mp4'});
+          chunks.push(x.value); got+=x.value.length;
+          if(total) cap.textContent='영상을 받는 중… '+Math.min(100,Math.round(got*100/total))+'% (다 받은 뒤 재생해서 끊기지 않아요)';
+          return pump();
+        }); })();
+      }).then(function(blob){
+        if(!blob||my!==VLOAD) return;
+        VURL=URL.createObjectURL(blob); v.src=VURL; cap.remove();
+        var pp=v.play(); if(pp&&pp.catch) pp.catch(function(){});
+      }).catch(direct);
+    }
     else { var im=document.createElement('img'); im.crossOrigin='anonymous'; im.src=url; r.appendChild(im); }
     var d=document.createElement('a'); d.className='dl'; d.href=url; d.target='_blank'; d.download=''; d.textContent='⬇ 파일 열기 / 저장';
     r.appendChild(d); r.className='result on';
