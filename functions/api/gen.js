@@ -17,9 +17,10 @@
 //   GET  /api/gen?config=1          → { url, anonKey }  (studio 화면이 로그인 세션을 읽으려고 씀)
 //   GET  /api/gen?credits=1         → { free, paid, pool(운영자만) }   운영자 이메일: Secret ADMIN_EMAILS (쉼표 구분, 기본 hasin7jk@gmail.com)
 //   GET  /api/gen?list=1            → 최근 작업 20개
-//   POST /api/gen  {kind:'image'|'video', prompt, aspect, source_job?, extend_job?}  → 작업 시작 (이미지는 바로 완료)
+//   POST /api/gen  {kind:'image'|'video', prompt, aspect, source_job?, extend_job?, seconds?}  → 작업 시작 (이미지는 바로 완료)
 //        source_job: 목록의 이미지 작업 번호. 이미지면 그 이미지를 고쳐서 새로 만들고, 영상이면 첫 장면으로 씀
 //        extend_job: 목록의 영상 작업 번호. 그 영상 뒤에 7초를 이어 붙인 새 영상을 만듦 (720p 영상만 가능, 영상 1건 크레딧)
+//        seconds: 영상 길이 8·15·22·29. 15 이상이면 8초를 만든 뒤 서버가 자동으로 7초씩 이어 붙여 영상 1개로 줌 (조각마다 영상 1건 크레딧, 실패한 조각은 환불)
 //   GET  /api/gen?job=ID            → 진행 확인 (영상은 완료되면 파일을 받아 저장)
 //   DELETE /api/gen?job=ID         → 최근 만든 것에서 삭제 (파일 삭제)
 
@@ -125,7 +126,7 @@ async function getJob(c, jobId, userId) {
 async function listJobs(c, userId) {
   const r = await fetch(
     c.sbUrl + '/rest/v1/cf_jobs?select=id,kind,prompt,cost,status,result_url,error,created_at,meta&user_id=eq.' +
-      encodeURIComponent(userId) + '&kind=in.(image,video)&status=neq.deleted&order=created_at.desc&limit=40',
+      encodeURIComponent(userId) + '&kind=in.(image,video)&status=neq.deleted&meta->>chain_hidden=is.null&order=created_at.desc&limit=40',
     { headers: sbHeaders(c) },
   );
   return r.ok ? await r.json() : [];
@@ -347,12 +348,76 @@ async function finalizeVideo(c, job) {
     const path = job.user_id + '/' + job.id + '.mp4';
     const url = await uploadToStorage(c, path, bytes, 'video/mp4');
     await patchJob(c, job.id, { status: 'done', result_url: url, error: null });
-    return { status: 'done', result_url: url };
+    const meta = job.meta || {};
+    // 자동 연장 중이었으면: 앞 조각(이번 영상에 이미 들어 있음)은 지운다
+    if (meta.chain && meta.extend_of) await dropChainPiece(c, job.user_id, meta.extend_of);
+    // 자동 연장: 목표 길이가 남았으면 이 영상 뒤에 7초를 또 이어 붙인다 (조각마다 그때 크레딧 차감)
+    if (meta.chain && meta.chain.target > (meta.seconds || 8)) {
+      const next = await chainNext(c, Object.assign({}, job, { result_url: url }), bytes);
+      if (next.next_job) return { status: 'running', next_job: next.next_job, seconds: meta.seconds || 8, target: meta.chain.target };
+      return { status: 'done', result_url: url, seconds: meta.seconds || 8, target: meta.chain.target, stopped: next.reason };
+    }
+    return { status: 'done', result_url: url, seconds: meta.seconds || 8 };
   } catch (e) {
     await rpc(c, 'cf_refund', { p_job: job.id }).catch(() => {});
     await patchJob(c, job.id, { status: 'failed', error: String(e.message || e).slice(0, 500) });
+    const meta = job.meta || {};
+    // 자동 연장 조각이 실패하면: 환불하고, 바로 앞까지 만든 영상을 결과로 돌려준다
+    if (meta.chain && meta.extend_of) {
+      const prev = await getJob(c, meta.extend_of, job.user_id).catch(() => null);
+      if (prev && prev.status === 'done' && prev.result_url) {
+        const pm = Object.assign({}, prev.meta || {});
+        delete pm.chain_hidden; delete pm.chain_next;
+        await patchJob(c, prev.id, { meta: pm });
+        return { status: 'done', result_url: prev.result_url, seconds: pm.seconds || 8, target: meta.chain.target, stopped: 'failed', error: String(e.message || e).slice(0, 300) };
+      }
+    }
     return { status: 'failed', error: String(e.message || e).slice(0, 500) };
   }
+}
+
+/* ── 자동 연장 (명령 한 번 → 15·22·29초 영상 1개) ──
+   8초를 먼저 만들고, 끝날 때마다 구글 공식 '연장'으로 7초씩 이어 붙인다.
+   크레딧은 조각을 시작할 때마다 영상 1건(costVideo)씩 차감 — 실패한 조각은 환불, 부족하면 거기까지 만든 영상으로 끝. */
+async function chainNext(c, job, bytes) {
+  const meta = job.meta || {};
+  const chain = meta.chain || {};
+  const prompt = String(chain.prompt || job.prompt || '').slice(0, 1500);
+  let spend;
+  try {
+    spend = await rpc(c, 'cf_spend', { p_user: job.user_id, p_cost: c.costVideo, p_kind: 'video', p_prompt: '[연장 #' + job.id + '] ' + prompt });
+  } catch (e) {
+    return { reason: 'spend_error' };
+  }
+  if (!spend || !spend.ok) return { reason: 'insufficient' };
+  const nextId = spend.job_id;
+  try {
+    const opName = await googleVideoExtend(c, prompt, { b64: bytesToB64(bytes) });
+    await patchJob(c, nextId, { op_name: opName, task_id: opName, meta: { extend_of: job.id, res: '720p', seconds: (meta.seconds || 8) + 7, aspect: meta.aspect || '16:9', chain: chain } });
+    // 앞 조각은 목록에서 숨김 (다음 조각이 끝나면 지움 · 실패하면 다시 보임)
+    await patchJob(c, job.id, { meta: Object.assign({}, meta, { chain_hidden: true, chain_next: nextId }) });
+    return { next_job: nextId };
+  } catch (e) {
+    await rpc(c, 'cf_refund', { p_job: nextId }).catch(() => {});
+    await patchJob(c, nextId, { status: 'failed', error: String(e.message || e).slice(0, 500), meta: { chain_hidden: true } });
+    return { reason: 'failed' };
+  }
+}
+
+// 다음 조각에 이미 들어간 앞 조각: 파일을 지우고 deleted 로 (크레딧 기록은 그대로)
+async function dropChainPiece(c, userId, jobId) {
+  const prev = await getJob(c, jobId, userId).catch(() => null);
+  if (!prev || !(prev.meta && prev.meta.chain_hidden)) return;
+  if (prev.result_url) {
+    if (prev.result_url.indexOf('/media/') === 0 && c.media) {
+      await c.media.delete(prev.result_url.slice('/media/'.length)).catch(() => false);
+    } else {
+      const marker = '/storage/v1/object/public/' + BUCKET + '/';
+      const i = prev.result_url.indexOf(marker);
+      if (i >= 0) await deleteFromStorage(c, prev.result_url.slice(i + marker.length)).catch(() => false);
+    }
+  }
+  await patchJob(c, prev.id, { status: 'deleted', result_url: null });
 }
 
 /* ── GET ─────────────────────────────────────────────── */
@@ -385,7 +450,11 @@ async function handleGet(context) {
   const job = await getJob(c, jobId, user.id);
   if (!job) return json({ error: '작업을 찾을 수 없습니다' }, 404);
 
-  if (job.status === 'done') return json({ status: 'done', result_url: job.result_url, kind: job.kind });
+  // 자동 연장 중 앞 조각을 다시 물어보면 → 지금 만드는 다음 조각을 알려 준다
+  if (job.meta && job.meta.chain_next && (job.status === 'done' || job.status === 'deleted')) {
+    return json({ status: 'running', kind: job.kind, next_job: job.meta.chain_next, seconds: job.meta.seconds || 8, target: job.meta.chain && job.meta.chain.target });
+  }
+  if (job.status === 'done') return json({ status: 'done', result_url: job.result_url, kind: job.kind, seconds: job.meta && job.meta.seconds });
   if (job.status === 'failed' || job.status === 'refunded') return json({ status: 'failed', error: job.error || '', kind: job.kind });
   if (job.status === 'finalizing') return json({ status: 'running', kind: job.kind });
 
@@ -421,6 +490,8 @@ async function handlePost(context) {
   const cost = kind === 'video' ? c.costVideo : c.costImage;
   const srcJobId = body.source_job ? String(body.source_job) : '';
   const extJobId = kind === 'video' && body.extend_job ? String(body.extend_job) : '';
+  // 영상 길이: 8 · 15 · 22 · 29초 (8초 + 자동 연장 7초씩). 수동 '7초 연장'에는 쓰지 않음
+  const target = kind === 'video' && !extJobId && [15, 22, 29].indexOf(parseInt(body.seconds, 10)) >= 0 ? parseInt(body.seconds, 10) : 8;
 
   // 0-1) 영상 연장이면 원본 영상을 먼저 불러온다 — 실패하면 크레딧을 건드리지 않음
   let srcVideo = null;
@@ -480,8 +551,8 @@ async function handlePost(context) {
     }
     const opName = await googleVideoStart(c, prompt, aspect, srcImage);
     // meta.res/seconds/aspect: 나중에 "7초 연장" 이 가능한지(720p) 와 길이 표시에 씀
-    await patchJob(c, jobId, Object.assign({ op_name: opName, task_id: opName, meta: Object.assign({ res: '720p', seconds: 8, aspect: aspect === '9:16' ? '9:16' : '16:9' }, srcImage && srcImage.job_id ? { source_job: srcImage.job_id } : {}) }));
-    return json({ job_id: jobId, status: 'running', kind: 'video', free: spend.free, paid: spend.paid });
+    await patchJob(c, jobId, Object.assign({ op_name: opName, task_id: opName, meta: Object.assign({ res: '720p', seconds: 8, aspect: aspect === '9:16' ? '9:16' : '16:9' }, srcImage && srcImage.job_id ? { source_job: srcImage.job_id } : {}, target > 8 ? { chain: { target: target, prompt: prompt } } : {}) }));
+    return json({ job_id: jobId, status: 'running', kind: 'video', seconds: 8, target: target, free: spend.free, paid: spend.paid });
   } catch (e) {
     // 실패 → 환불
     await rpc(c, 'cf_refund', { p_job: jobId }).catch(() => {});

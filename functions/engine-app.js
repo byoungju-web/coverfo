@@ -274,17 +274,20 @@ h3 .right{margin-left:auto}
     $('tab-app').className = mode === 'app' ? 'on' : '';
     $('tab-3d').className = mode === '3d' ? 'on' : '';
     $('c-go').style.display = mode === 'app' ? '' : 'none';
-    $('c-ext').style.display = chipOn('c-video') ? '' : 'none';
+    /* v442 🧊 앱 만들기는 앱만 — 영상·3D 칩은 🎲 3D 에셋에서만 보이고 씀 */
+    $('c-3d').style.display = mode === '3d' ? '' : 'none';
+    $('c-video').style.display = mode === '3d' ? '' : 'none';
+    $('c-ext').style.display = mode === '3d' && chipOn('c-video') ? '' : 'none';
     $('c-ext-cost').textContent = '+' + (COSTS.engine_extend || 25) + '크레딧';
     $('costhint').textContent = mode === 'app'
-      ? '설계부터 이미지·영상·3D·코드까지 한 번에 · 보통 5~10분 · 실패하면 자동 환불'
+      ? '설계 · 조사 · 이미지 · 앱 코드까지 한 번에 (영상·3D는 만들지 않음) · 실패하면 자동 환불'
       : '이미지 2장 · 영상 · 3D 모델(GLB) · 보통 3~7분 · 실패하면 자동 환불';
     $('gocost').textContent = (mode === 'app' ? COSTS.engine_app : COSTS.engine_3d) + ' 크레딧';
     $('stagesub').textContent = mode === 'app' ? '7단계' : '2·7단계는 건너뜀';
     if ($('toAppCost')) $('toAppCost').textContent = '· ' + COSTS.engine_toapp + ' 크레딧';
     STAGES.forEach(function (s) {
       var el = $('st' + s.n); if (!el) return;
-      var skip = (mode === '3d' && (s.n === 2 || s.n === 7)) || (s.n === 6 && !chipOn('c-3d')) || (s.n === 5 && !chipOn('c-video'));
+      var skip = (mode === '3d' && (s.n === 2 || s.n === 7)) || (s.n === 6 && (mode === 'app' || !chipOn('c-3d'))) || (s.n === 5 && (mode === 'app' || !chipOn('c-video')));
       el.className = el.className.replace(' dim', '') + (skip && !running ? ' dim' : '');
     });
   }
@@ -634,7 +637,7 @@ h3 .right{margin-left:auto}
     $('result').className = 'card result'; $('assets').className = 'card assets'; $('viewer').className = ''; $('viewer').innerHTML = '';
     if (goTimer) { clearInterval(goTimer); goTimer = null; }
     STAGES.forEach(function (s) { setStage(s.n, '', '대기'); setTime(s.n, null); out(s.n, ''); });
-    var want3D = chipOn('c-3d'), wantVideo = chipOn('c-video');
+    var want3D = mode === '3d' && chipOn('c-3d'), wantVideo = mode === '3d' && chipOn('c-video');   /* v442 앱 만들기에서는 영상·3D를 만들지 않음 */
     var S = { prompt: prompt, title: prompt.slice(0, 40), spec: null, research: null, img1: null, img1Mime: 'image/png', img2: null, videoUrl: null, modelUrl: null, thumbUrl: null };
     LAST = S;
     log('run', '🚀 실행 시작 [' + (mode === 'app' ? '앱 만들기' : '3D 에셋') + '] — "' + prompt.slice(0, 60) + '"');
@@ -691,7 +694,7 @@ h3 .right{margin-left:auto}
           }
           throw new Error('4분 안에 끝나지 않아 영상 없이 진행합니다');
         });
-      } else skipStage(5, '"영상 포함" 이 꺼져 있습니다');
+      } else skipStage(5, mode === 'app' ? '앱 만들기에서는 영상을 만들지 않아요' : '"영상 포함" 이 꺼져 있습니다');
       if (want3D) {
         await stage(6, async function () {
           var src = S.img2 ? { b: S.img2, m: 'image/png' } : (S.img1 ? { b: S.img1, m: S.img1Mime } : null);
@@ -716,7 +719,7 @@ h3 .right{margin-left:auto}
           }
           throw new Error('7분 안에 끝나지 않아 3D 모델 없이 진행합니다');
         });
-      } else skipStage(6, '"3D 모델 포함" 이 꺼져 있습니다');
+      } else skipStage(6, mode === 'app' ? '앱 만들기에서는 3D 모델을 만들지 않아요' : '"3D 모델 포함" 이 꺼져 있습니다');
       if (mode === 'app') await runStage7(S);
       else {
         skipStage(7, '3D 에셋 모드 — 코드는 만들지 않습니다 ("이 에셋으로 앱 만들기" 로 이어갈 수 있음)');

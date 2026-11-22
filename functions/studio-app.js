@@ -79,11 +79,12 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
   <div class="card">
     <div class="tabs">
       <button type="button" id="tab-image" class="on">🎨 이미지 (2K)</button>
-      <button type="button" id="tab-video">🎬 영상 8초 (1080p)</button>
+      <button type="button" id="tab-video">🎬 영상 8~29초 (720p)</button>
     </div>
     <div class="src" id="srcbox"><img id="srcimg" alt="" crossorigin="anonymous"><div class="txt"><b id="srctitle">원본 이미지</b><span id="srcdesc"></span></div><button type="button" id="srcclear">원본 해제</button></div>
     <textarea id="prompt" placeholder="무엇을 만들까요? 예) 노을 지는 해변에서 뛰어노는 강아지, 실사 사진"></textarea>
     <div class="row" id="aspects"></div>
+    <div class="row" id="lens"></div>
     <div class="row">
       <span class="hint" id="costhint"></span>
       <button class="go" id="go" type="button"><span id="golabel">이미지 만들기</span><span class="tag" id="gocost">2 크레딧</span></button>
@@ -107,6 +108,8 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
 <script>
 (function(){
   var kind = 'image', aspect = '1:1', costs = {image:2, video:25}, client = null, token = null, busy = false;
+  var secs = 8, LENS = [8,15,22,29]; // 영상 길이: 8초 + 자동 연장 7초씩 (조각마다 영상 1건 크레딧)
+  function vCost(s){ return costs.video * (1 + Math.round((s-8)/7)); }
   var SRC = null; // 원본 이미지 {id, url, prompt}
   var ASPECTS = { image:['1:1','16:9','9:16','4:3','3:4'], video:['16:9','9:16'] };
   var $ = function(id){ return document.getElementById(id); };
@@ -139,6 +142,14 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
       b.addEventListener('click', function(){ aspect=a; renderKind(); });
       box.appendChild(b);
     });
+    var lb = $('lens'); lb.innerHTML = ''; lb.style.display = kind==='video' ? '' : 'none';
+    if (kind==='video') {
+      LENS.forEach(function(s){
+        var b=document.createElement('button'); b.type='button'; b.className='chip'+(s===secs?' on':''); b.textContent=s+'초 · '+vCost(s);
+        b.addEventListener('click', function(){ secs=s; renderKind(); });
+        lb.appendChild(b);
+      });
+    }
     if (SRC) {
       $('golabel').textContent = kind==='image' ? '이미지 수정하기' : '이 이미지로 영상 만들기';
       $('srctitle').textContent = kind==='image' ? '원본 이미지 — 바꿀 내용을 적어 주세요' : '첫 장면 이미지 — 어떻게 움직일지 적어 주세요';
@@ -149,11 +160,13 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
       $('srcbox').className='src';
     }
     $('histtitle').textContent = kind==='image' ? '최근 만든 이미지' : '최근 만든 영상';
-    $('gocost').textContent = costs[kind] + ' 크레딧';
+    $('gocost').textContent = (kind==='video' ? vCost(secs) : costs[kind]) + ' 크레딧';
     if (typeof renderHistory === 'function' && JOBS.length) renderHistory();
     $('costhint').textContent = kind==='image'
       ? (SRC ? '원본을 기준으로 고쳐서 새 이미지를 만듭니다 · 2K' : 'Gemini 3 Flash Image · 2K · 보통 10~20초')
-      : (SRC ? '이미지를 첫 장면으로 8초 영상을 만듭니다 · 보통 1~3분' : 'Veo 3.1 · 8초 · 소리 포함 · 보통 1~3분 · 충전 크레딧으로만 가능');
+      : (SRC ? '이미지를 첫 장면으로 '+secs+'초 영상을 만듭니다' : 'Veo 3.1 · '+secs+'초 · 720p · 소리 포함')
+        + (secs>8 ? ' · 8초 + 7초씩 이어서 파일 1개 · 보통 '+(2+Math.round((secs-8)/7)*2)+'~'+(3+Math.round((secs-8)/7)*3)+'분 · 크레딧은 만들어진 만큼만 (실패한 부분 환불)' : ' · 보통 1~3분')
+        + (SRC ? '' : ' · 충전 크레딧으로만 가능');
   }
   function setSource(it, toKind){
     SRC = it ? { id: it.id, url: it.result_url, prompt: it.prompt||'' } : null;
@@ -233,7 +246,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
         else { var im=document.createElement('img'); im.crossOrigin='anonymous'; im.src=it.result_url; im.loading='lazy'; th.appendChild(im); }
         th.addEventListener('click', function(){ hideMsg(); showResult(it.kind, it.result_url); window.scrollTo({top:0,behavior:'smooth'}); });
       } else if(it.status==='running'||it.status==='finalizing'){
-        th.textContent='⏳'; if(it.kind==='video'){ th.addEventListener('click',function(){ pollVideo(it.id); }); }
+        th.textContent='⏳'; if(it.kind==='video'){ th.addEventListener('click',function(){ pollVideo(it.id, it.meta&&it.meta.chain&&it.meta.chain.target); }); }
       } else {
         th.textContent='✕'; th.title=it.error||''; th.addEventListener('click',function(){ show('err','실패 이유: '+(it.error||'(기록 없음)')); });
       }
@@ -270,7 +283,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
           if(srcId){ for(var k=0;k<JOBS.length;k++){ if(String(JOBS[k].id)===srcId && JOBS[k].kind==='image' && JOBS[k].result_url){ srcJob=JOBS[k]; break; } } }
           kind='video';
           if(srcJob){ setSource(srcJob,'video'); } else { SRC=null; renderKind(); $('result').className='result'; hideMsg(); window.scrollTo({top:0,behavior:'smooth'}); }
-          $('prompt').value=(it.prompt||'').replace(/^\[수정 #\d+\] /,'');
+          $('prompt').value=(it.prompt||'').replace(/^\[(수정|연장) #\d+\] /,'');
           show('info', srcJob ? '원본 이미지와 문장을 불러왔습니다. 문장을 고친 뒤 "생성"을 누르면 새 영상을 만듭니다 (영상 크레딧이 다시 듭니다).' : '문장을 불러왔습니다. 고친 뒤 "생성"을 누르면 새 영상을 만듭니다 (영상 크레딧이 다시 듭니다).');
           $('prompt').focus();
         });
@@ -306,13 +319,35 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
   }
 
   var pollTimer=null;
-  function pollVideo(jobId){
+  function pollVideo(jobId, target){
     if(pollTimer) clearTimeout(pollTimer);
-    setBusy(true); show('info','영상을 만드는 중입니다. 보통 1~3분 걸려요. 이 화면을 닫아도 "최근 만든 것"에서 다시 확인할 수 있습니다.');
-    var started=Date.now();
+    var tail=' 이 화면을 닫아도 "최근 만든 것"에서 다시 확인할 수 있습니다.';
+    function wait(done){
+      if(target && target>8) show('info','영상을 만드는 중입니다 — '+done+'초 / '+target+'초 완성. 8초를 만든 뒤 7초씩 이어 붙여 파일 1개로 만들어요.'+tail);
+      else show('info','영상을 만드는 중입니다. 보통 1~3분 걸려요.'+tail);
+    }
+    setBusy(true); wait(0);
+    var started=Date.now(), done=0, lastHist=0;
     (function tick(){
       api('GET','?job='+jobId).then(function(j){
-        if(j.status==='done'){ setBusy(false); show('ok','완성됐습니다.'); showResult('video', j.result_url); loadCredits(); loadHistory(); markDone(); return; }
+        if(j.target) target=j.target;
+        if(j.next_job){
+          /* 자동 연장: 다음 조각으로 넘어감 (크레딧은 이 조각 몫만 차감) */
+          if(String(j.next_job)!==String(jobId)){ jobId=j.next_job; started=Date.now(); }
+          if(j.seconds && j.seconds>done){ done=j.seconds; loadCredits(); }
+          if(Date.now()-lastHist>30000){ lastHist=Date.now(); loadHistory(); }
+          wait(done); pollTimer=setTimeout(tick, 10000); return;
+        }
+        if(j.status==='done'){
+          setBusy(false);
+          var msg='완성됐습니다.';
+          if(j.stopped && target && j.seconds && j.seconds<target){
+            msg = j.stopped==='insufficient' ? '크레딧이 부족해서 '+j.seconds+'초까지만 만들었습니다 (만든 만큼만 차감).'
+              : '뒷부분 연장이 실패해서 '+j.seconds+'초까지 만든 영상입니다. 실패한 부분 크레딧은 환불됐습니다.'+(j.error?'<br>'+j.error:'');
+            show('err', msg);
+          } else show('ok', msg + (j.seconds?' ('+j.seconds+'초)':''));
+          showResult('video', j.result_url); loadCredits(); loadHistory(); markDone(); return;
+        }
         if(j.status==='failed'){ setBusy(false); show('err','실패했습니다. 크레딧은 환불됐습니다.<br>'+(j.error||'')); loadCredits(); loadHistory(); return; }
         if(Date.now()-started > 12*60*1000){ setBusy(false); show('err','시간이 너무 오래 걸립니다. 잠시 후 "최근 만든 것"에서 확인해 주세요.'); return; }
         pollTimer=setTimeout(tick, 10000);
@@ -343,13 +378,13 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
     if(!token){ show('err','로그인이 필요합니다. <a href="/" target="_top">홈으로</a>'); return; }
     hideMsg(); $('result').className='result'; setBusy(true);
     show('info', kind==='image' ? '이미지를 만드는 중입니다… (10~20초)' : '영상 생성을 시작합니다…');
-    api('POST','',{kind:kind, prompt:p, aspect:aspect, source_job: SRC ? SRC.id : undefined}).then(function(j){
+    api('POST','',{kind:kind, prompt:p, aspect:aspect, source_job: SRC ? SRC.id : undefined, seconds: kind==='video' ? secs : undefined}).then(function(j){
       if(j.__status===402){ setBusy(false); show('err', insufficientMsg(j)); return; }
       if(j.__status===401){ setBusy(false); show('err','로그인이 풀렸습니다. <a href="/" target="_top">홈에서 다시 로그인</a>'); return; }
       if(j.__status!==200){ setBusy(false); show('err','실패했습니다'+(j.refunded?' (크레딧 환불됨)':'')+'.<br>'+(j.error||'')); loadCredits(); return; }
       renderCredits({free:j.free, paid:j.paid}); loadCredits();
       if(j.status==='done'){ setBusy(false); show('ok','완성됐습니다.'); showResult('image', j.result_url); loadHistory(); markDone(); return; }
-      loadHistory(); pollVideo(j.job_id);
+      loadHistory(); pollVideo(j.job_id, j.target);
     }).catch(function(e){ setBusy(false); show('err','네트워크 오류: '+e); });
   });
 
