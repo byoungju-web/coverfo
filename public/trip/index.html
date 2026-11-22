@@ -29,7 +29,9 @@
        · 처음 화면은 사진 · 📌 저장 탭 없앰(📌 저장 단추는 그대로, 저장한 글은 일정짜기·테마지도에서 고름)
        · 테마 지도 만들기·목록은 🗺 테마지도 탭에만 · 질문방은 🇰🇷 국내 / 🌍 해외로 나눔
      · v436 (시험): 안드로이드 웹의 🏨 숙소 → 크롬 intent 대신 coverfo 안내 화면(/trip/go/)을 2.5초 거쳐 Hotels.com 웹으로
-     · v437: 요청대로 숙소 열기를 v434 방식(크롬 intent)으로 되돌림 · /trip/go/ 는 더 이상 쓰지 않음 -->
+     · v437: 요청대로 숙소 열기를 v434 방식(크롬 intent)으로 되돌림 · /trip/go/ 는 더 이상 쓰지 않음
+     · v438: 🏨 숙소를 Hotels.com → 익스피디아(expedia.co.kr Hotel-Search · 항공·렌터카와 같은 익스피디아 제휴 링크)로
+     · v439: 숙소 링크 adref = PZ8dU0Lx_a (링크 빌더 숙소 링크 값) -->
 <style>
 :root{--ink:#14132a;--sub:#5b5a73;--mute:#8d8ba5;--line:#e6e7f4;--bg:#f4f5fc;--pri:#4f46e5;--pri2:#3730a3;--sky:#0ea5e9;--pink:#ec4899;--err:#b42318;--ok:#0f8a5f}
 *{box-sizing:border-box}
@@ -393,11 +395,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   }
 
   /* ── 장소 버튼 (기존 coverfo 제휴 링크) ── */
+  function EW(u){ return "https://expedia.com/affiliate?siteid=1&landingPage="+encodeURIComponent(u)+"&camref=1101l6yR8z&creativeref=1100l86806&adref=PZ8dU0Lx_a"; }   /* v438 익스피디아 제휴 링크 · v439 숙소 전용 adref (이 화면에서 EW 는 숙소에만 씀) */
   function HW(u){ return "https://www.hotels.com/affiliate?landingPage="+encodeURIComponent(u)+"&camref=1100l6zyiV&creativeref=1011l87790&adref=PZuPfKKK0I"; }
   function area(pl){ var a=String(pl.addr||"").split(" "); var s=(a[0]||"").replace(/(특별시|광역시|특별자치시|특별자치도|도)$/,"")+" "+(a[1]||""); return s.trim()||pl.name; }
   function goLink(k,pl){
     if(k==="nav") return pl.lat&&pl.lng?"https://map.kakao.com/link/to/"+encodeURIComponent(pl.name)+","+pl.lat+","+pl.lng:"https://map.kakao.com/link/search/"+encodeURIComponent(pl.name);
-    if(k==="stay") return HW("https://kr.hotels.com/Hotel-Search?destination="+encodeURIComponent(area(pl))+"&adults=2&rooms=1");
+    if(k==="stay") return EW("https://www.expedia.co.kr/Hotel-Search?destination="+encodeURIComponent(area(pl))+"&adults=2&rooms=1");   /* v438 Hotels.com → 익스피디아 */
     if(k==="park") return "https://map.kakao.com/link/search/"+encodeURIComponent(String(pl.name||"")+" 주차장");   /* v431 */
     if(k==="air") return "https://expedia.com/affiliate/dH1Xh9T";
     if(k==="car") return "https://expedia.com/affiliate/8zSjtLw";
