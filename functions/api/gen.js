@@ -297,7 +297,7 @@ async function googleVideoExtend(c, prompt, srcVideo) {
     previous_interaction_id: srcVideo.iid,
     input: 'Extend this video: continue the same scene seamlessly from the last frame, same subject, same style. ' + prompt,
     response_format: { type: 'video', aspect_ratio: srcVideo.aspect === '9:16' ? '9:16' : '16:9', resolution: '720p' },
-    generation_config: { video_config: { task: 'extend' } },
+    // v446: task:'extend' 는 넣지 않음 — 구글: "previous_interaction_id is not allowed when video task is set."
   });
 }
 
@@ -434,7 +434,7 @@ async function finalizeOmni(c, job) {
     if (meta.chain && (meta.piece || 1) < (meta.chain.steps || 1)) {
       const next = await chainNext(c, done);
       if (next.next_job) return { status: 'running', next_job: next.next_job, seconds: newMeta.seconds, target: meta.chain.target };
-      return { status: 'done', result_url: url, seconds: newMeta.seconds, target: meta.chain.target, stopped: next.reason };
+      return { status: 'done', result_url: url, seconds: newMeta.seconds, target: meta.chain.target, stopped: next.reason, error: next.error };
     }
     return { status: 'done', result_url: url, seconds: newMeta.seconds };
   } catch (e) {
@@ -478,7 +478,7 @@ async function chainNext(c, job) {
   } catch (e) {
     await rpc(c, 'cf_refund', { p_job: nextId }).catch(() => {});
     await patchJob(c, nextId, { status: 'failed', error: String(e.message || e).slice(0, 500), meta: { chain_hidden: true } });
-    return { reason: 'failed' };
+    return { reason: 'failed', error: String(e.message || e).slice(0, 300) };
   }
 }
 
