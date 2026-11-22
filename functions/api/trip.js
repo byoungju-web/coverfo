@@ -1,4 +1,4 @@
-// functions/api/trip.js — coverfo 📸 누리트립 (여행 사진·쇼츠 커뮤니티) 1단계 · v427 · v428 쇼츠 크레딧 · v429 2단계(팔로우 · 내 여행 지도 · 테마 지도) · v430 3단계(🤖 AI 일정 · 🙋 질문방 · 예약 버튼 눌림 기록) · v431 AI 일정에 주변 명소·맛집 + 코스 · v432 해외는 구글 지도 · v433 만든 일정 저장
+// functions/api/trip.js — coverfo 📸 누리트립 (여행 사진·쇼츠 커뮤니티) 1단계 · v427 · v428 쇼츠 크레딧 · v429 2단계(팔로우 · 내 여행 지도 · 테마 지도) · v430 3단계(🤖 AI 일정 · 🙋 질문방 · 예약 버튼 눌림 기록) · v431 AI 일정에 주변 명소·맛집 + 코스 · v432 해외는 구글 지도 · v433 만든 일정 저장 · v434 좌표 없는 국내 글 판별
 // © 2026 coverfo All Rights Reserved
 //
 //   GET  /api/trip?op=feed&sort=new|top|near&kind=all|photo|shorts&lat=&lng=&before=&mine=1&saved=1
@@ -483,7 +483,7 @@ export async function onRequestPost(context) {
     try { job = await spend(c, uid, AI_PLAN_COST, '[누리트립 AI 일정] ' + rows.map((r) => r.place_name).join(', ').slice(0, 80)); } catch { return json({ error: '크레딧을 확인하지 못했어요. 잠시 뒤 다시 해 주세요.' }, 500); }
     if (job === false) return json({ error: '크레딧이 부족합니다', need: AI_PLAN_COST }, 402);
     try {
-      const near = await nearbyPicks(env, rows).catch(() => ({ spots: [], foods: [], area: '' }));
+      const near = await nearbyPicks(env, rows, b.where === 'abroad' ? 'abroad' : 'kr').catch(() => ({ spots: [], foods: [], area: '' }));
       const raw = await askTrip(env, rows, near, nights, start, ppl, note);
       const plan = cleanTrip(raw, rows, near, nights);
       await doneJob(c, job);
@@ -621,18 +621,39 @@ function areaOf(rows) {
   return Object.keys(cnt).sort((x, y) => cnt[y] - cnt[x])[0] || '';
 }
 /* v431 그 지역 관광명소·맛집 — 카카오 로컬 키워드 검색(공식 API) · 정확도순 · 반경 20km */
-async function nearbyPicks(env, rows) {
+async function nearbyPicks(env, rows, where) {
   const kk = String(env.KAKAO_REST_KEY || '').trim();
+  const inKr = (a, o) => a > 32.5 && a < 39.5 && o > 124 && o < 132;
+  /* v434 좌표가 없는 글("이름 그대로 쓰기")은 카카오 장소 검색으로 위치를 먼저 찾아 봄 — 이름이 서로 겹치는 한국 장소가 나오면 국내로.
+     찾은 좌표·주소는 이번 일정 지도에만 쓰고 글에는 저장하지 않음 */
+  if (kk && where !== 'abroad') {
+    const norm = (t) => String(t || '').replace(/\s/g, '').toLowerCase();
+    const miss = rows.filter((r) => typeof r.lat !== 'number' || typeof r.lng !== 'number').slice(0, 5);
+    await Promise.all(miss.map(async (r) => {
+      try {
+        const q = String(r.place_name || '').trim(); if (q.length < 2) return;
+        const res = await fetch('https://dapi.kakao.com/v2/local/search/keyword.json?size=1&query=' + encodeURIComponent((q + ' ' + String(r.place_addr || '')).trim()), { headers: { Authorization: 'KakaoAK ' + kk } });
+        if (!res.ok) return;
+        const d = ((await res.json().catch(() => ({}))).documents || [])[0];
+        if (!d) return;
+        const a = norm(d.place_name), b = norm(q);
+        if (!(a.includes(b) || b.includes(a))) return;   /* 이름이 안 겹치면 다른 곳으로 봄 */
+        const la = Number(d.y), lo = Number(d.x);
+        if (!inKr(la, lo)) return;
+        r.lat = la; r.lng = lo;
+        if (!r.place_addr) r.place_addr = String(d.road_address_name || d.address_name || '');
+      } catch {}
+    }));
+  }
   const area = areaOf(rows);
   const ll = rows.filter((r) => typeof r.lat === 'number' && typeof r.lng === 'number');
-  const inKr = (a, o) => a > 32.5 && a < 39.5 && o > 124 && o < 132;
   let y = null, x = null;
   if (ll.length) { y = ll.reduce((t, r) => t + r.lat, 0) / ll.length; x = ll.reduce((t, r) => t + r.lng, 0) / ll.length; }
-  /* v432 해외(좌표가 한국 밖이거나, 좌표 없이 주소가 한글 시·도가 아닌 경우) → 구글 */
-  const krAddr = rows.some((r) => /^(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충청|충북|충남|전라|전북|전남|경상|경북|경남|제주)/.test(String(r.place_addr || '')));
-  if ((y != null && !inKr(y, x)) || (y == null && !krAddr)) return googlePicks(env, rows, y, x);
+  /* v434 국내·해외: 좌표가 있으면 좌표로, 좌표가 하나도 없으면 이용자가 고른 것(where: kr 기본 · abroad)으로 */
+  if ((y != null && !inKr(y, x)) || (y == null && where === 'abroad')) return googlePicks(env, rows, y, x);
   if (!kk) return { spots: [], foods: [], area };
-  if (y == null && !area) return { spots: [], foods: [], area };
+  const name0 = area || clean(rows[0] && rows[0].place_name, 30);
+  if (y == null && !name0) return { spots: [], foods: [], area };
   const search = async (query, cat) => {
     const q = new URLSearchParams({ query, category_group_code: cat, size: '15', sort: 'accuracy' });
     if (y != null) { q.set('x', x.toFixed(6)); q.set('y', y.toFixed(6)); q.set('radius', '20000'); }
@@ -646,7 +667,7 @@ async function nearbyPicks(env, rows) {
     if (cache) { try { await cache.put(ck, new Response(JSON.stringify(docs), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=86400' } })); } catch {} }
     return docs;
   };
-  const name = area || '';
+  const name = name0 || '';
   const [sd, fd] = await Promise.all([search((name + ' 관광명소').trim(), 'AT4'), search((name + ' 맛집').trim(), 'FD6')]);
   const have = new Set(rows.map((r) => String(r.place_name || '').replace(/\s/g, '')));
   const conv = (d, i, pre) => ({ id: pre + (i + 1), name: clean(d.place_name, 40), cat: clean(String(d.category_name || '').split('>').pop(), 20), addr: clean(d.road_address_name || d.address_name, 80),

@@ -23,7 +23,8 @@
      · v432: 해외 코스는 구글 지도(Maps Embed API 경로 지도 · 구글 장소는 구글 지도에만 표시) · AI 결과 아래 버튼 = 길안내 · 주차장 · 숙소 · 렌터카
        (길안내·주차장은 고른 날짜의 첫 장소 기준 · 국내 카카오맵 / 해외 구글 지도 Maps URLs)
      · v433: 🗺 지도 탭 → 🗓 일정짜기 · 지도 칸을 따로 겹(z-index)으로 묶어 뒤 탭 지도가 창 위로 겹쳐 보이던 것 고침
-       · 📋 내가 만든 일정: AI 일정을 만들면 자동 저장 → 목록에서 다시 열기·지우기 (해외 구글 장소는 place id 만 저장) -->
+       · 📋 내가 만든 일정: AI 일정을 만들면 자동 저장 → 목록에서 다시 열기·지우기 (해외 구글 장소는 place id 만 저장)
+     · v434: 고른 장소에 좌표가 하나도 없으면 "국내/해외"를 물어봄(기본 국내) → 국내는 카카오(번호 지도), 해외는 구글 · 좌표가 있으면 좌표로 판단 -->
 <style>
 :root{--ink:#14132a;--sub:#5b5a73;--mute:#8d8ba5;--line:#e6e7f4;--bg:#f4f5fc;--pri:#4f46e5;--pri2:#3730a3;--sky:#0ea5e9;--pink:#ec4899;--err:#b42318;--ok:#0f8a5f}
 *{box-sizing:border-box}
@@ -688,21 +689,25 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
         '<span class="lab">며칠인가요?</span><div class="chips" id="aiN">'+["당일","1박2일","2박3일","3박4일","4박5일"].map(function(t,i){ return '<button type="button" data-n="'+i+'"'+(i===1?' class="on"':"")+'>'+t+'</button>'; }).join("")+'</div>'+
         '<label class="lab" for="aiS">출발 날짜 <small>선택</small></label><input type="date" id="aiS" min="'+today()+'">'+
         '<span class="lab">몇 명인가요?</span><div class="chips" id="aiP">'+[1,2,3,4,5,6].map(function(n){ return '<button type="button" data-p="'+n+'"'+(n===2?' class="on"':"")+'>'+n+'명</button>'; }).join("")+'</div>'+
+        '<div id="aiW" hidden><span class="lab">어디예요? <small>고른 장소에 위치 정보가 없어서 물어봐요</small></span><div class="chips" id="aiWc"><button type="button" data-w="kr" class="on">🇰🇷 국내</button><button type="button" data-w="abroad">🌍 해외</button></div></div>'+
         '<label class="lab" for="aiQ">바라는 점 <small>선택 · 200자</small></label><input type="text" id="aiQ" maxlength="200" placeholder="예: 아이랑 가요, 오전엔 여유 있게">'+
         '<span class="lab">넣을 장소 고르기 <small>20개까지 · <span id="aiC">0</span>개</small></span>'+
         (pool.length?'<div id="aiL">'+pool.map(function(it){ var m=it.media&&it.media[0]||{}, bg=it.kind==="shorts"?safeU(m.thumb):safeU(m.u);
           return '<label class="pk"><input type="checkbox" value="'+it.id+'"><span class="im" style="'+(bg?'background-image:url(&quot;'+esc(bg)+'&quot;)':"")+'"></span><span class="t"><b>📍 '+esc(it.place.name)+'</b><small>'+esc(it.mine?"내 글":it.nick)+(it.place.addr?" · "+esc(it.place.addr):"")+'</small></span></label>'; }).join("")+'</div>':'<p class="note">고를 장소가 없어요. 글을 올리거나 마음에 드는 글을 📌 저장해 주세요.</p>')+
         '<div id="aiM"></div><button type="button" class="big" id="aiGo">일정 만들기 · 1크레딧</button>';
-      var nights=1, ppl=2;
+      var nights=1, ppl=2, where="kr";
+      $("aiWc").onclick=function(e){ var b=e.target.closest("button"); if(!b) return; where=b.getAttribute("data-w"); Array.prototype.forEach.call(this.children,function(x){ x.classList.toggle("on",x===b); }); };
+      var byIdW={}; pool.forEach(function(x){ byIdW[x.id]=x; });
+      var needW=function(){ var ids=Array.prototype.map.call($("asB").querySelectorAll("#aiL input:checked"),function(x){ return +x.value; }); $("aiW").hidden=!(ids.length&&ids.every(function(id){ return !hasLL(byIdW[id]||{}); })); };
       $("aiN").onclick=function(e){ var b=e.target.closest("button"); if(!b) return; nights=+b.getAttribute("data-n"); Array.prototype.forEach.call(this.children,function(x){ x.classList.toggle("on",x===b); }); };
       $("aiP").onclick=function(e){ var b=e.target.closest("button"); if(!b) return; ppl=+b.getAttribute("data-p"); Array.prototype.forEach.call(this.children,function(x){ x.classList.toggle("on",x===b); }); };
       var cnt=function(){ var n=$("asB").querySelectorAll("#aiL input:checked").length; $("aiC").textContent=n; return n; };
-      if($("aiL")) $("aiL").onchange=function(e){ var i=e.target; if(i.type!=="checkbox") return; if(cnt()>20){ i.checked=false; cnt(); alert("20개까지 고를 수 있어요"); } i.closest(".pk").classList.toggle("on",i.checked); };
+      if($("aiL")) $("aiL").onchange=function(e){ var i=e.target; if(i.type!=="checkbox") return; if(cnt()>20){ i.checked=false; cnt(); alert("20개까지 고를 수 있어요"); } i.closest(".pk").classList.toggle("on",i.checked); needW(); };
       $("aiGo").onclick=function(){
         var ids=Array.prototype.map.call($("asB").querySelectorAll("#aiL input:checked"),function(x){ return +x.value; });
         if(!ids.length){ $("aiM").innerHTML='<div class="msg">넣을 장소를 하나 이상 골라 주세요.</div>'; return; }
         var me=this; me.disabled=true; me.textContent="주변 명소·맛집 찾고 코스 짜는 중… (20~40초)";
-        api("POST","",{op:"ai_plan",ids:ids,nights:nights,start:$("aiS").value||"",ppl:ppl,note:$("aiQ").value||""}).then(function(j){
+        api("POST","",{op:"ai_plan",ids:ids,nights:nights,start:$("aiS").value||"",ppl:ppl,note:$("aiQ").value||"",where:$("aiW").hidden?"kr":where}).then(function(j){
           me.disabled=false; me.textContent="일정 만들기 · 1크레딧";
           if(j._s===402){ $("aiM").innerHTML='<div class="msg">크레딧이 부족해요. <a href="/pricing#charge" target="_top">충전하기 ›</a></div>'; return; }
           if(j.error){ $("aiM").innerHTML='<div class="msg">'+esc(j.error)+'</div>'; return; }
