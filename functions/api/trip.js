@@ -1,4 +1,4 @@
-// functions/api/trip.js — coverfo 📸 누리트립 (여행 사진·쇼츠 커뮤니티) 1단계 · v427 · v428 쇼츠 크레딧 · v429 2단계(팔로우 · 내 여행 지도 · 테마 지도) · v430 3단계(🤖 AI 일정 · 🙋 질문방 · 예약 버튼 눌림 기록) · v431 AI 일정에 주변 명소·맛집 + 코스 · v432 해외는 구글 지도
+// functions/api/trip.js — coverfo 📸 누리트립 (여행 사진·쇼츠 커뮤니티) 1단계 · v427 · v428 쇼츠 크레딧 · v429 2단계(팔로우 · 내 여행 지도 · 테마 지도) · v430 3단계(🤖 AI 일정 · 🙋 질문방 · 예약 버튼 눌림 기록) · v431 AI 일정에 주변 명소·맛집 + 코스 · v432 해외는 구글 지도 · v433 만든 일정 저장
 // © 2026 coverfo All Rights Reserved
 //
 //   GET  /api/trip?op=feed&sort=new|top|near&kind=all|photo|shorts&lat=&lng=&before=&mine=1&saved=1
@@ -28,6 +28,9 @@
 //   v432 🌍 해외: 구글 Places API (New) Text Search (공식 · 서버 키 GOOGLE_PLACES_KEY · Pro 필드만 요청 = Text Search Pro 요금 등급)
 //        · 구글 장소는 구글 지도 위에만 그림(구글 정책) → 화면은 Maps Embed API 지도(브라우저용 키 GOOGLE_MAPS_EMBED_KEY · 무료) 로 코스 표시
 //        · 두 키가 다 있어야 해외 명소·맛집을 넣음 (하나라도 없으면 고른 글로만) · 구글 결과는 캐시·저장하지 않음 (place id 만 화면에 넘김)
+//   v433 📋 만든 일정 저장 (sql/cf_trip_v4.sql) — 만들면 자동 저장 · 1인 50개까지(넘으면 오래된 것부터 지움)
+//        GET ?op=plans → 내 일정 목록 · GET ?op=plan&id= → 일정 1개 · POST {op:'plan_del', id}
+//        · 해외(구글) 장소는 place id · 시간 · 설명만 저장 (이름·주소·좌표·종류 = 구글 내용은 저장 안 함 · 구글 정책)
 //   PUT  /api/trip?op=upload&type=image|video|thumb   (본문 = 파일)  → { ok, u:'/media/trip/…' }
 //   POST /api/trip {op:'profile', nick, age14}
 //   POST /api/trip {op:'create', kind, media, body, place:{name,addr,lat,lng}, visited, tags}
@@ -52,7 +55,7 @@ const MAX_VIDEO = 50 * 1024 * 1024;      // 쇼츠 1개 (30초)
 const MAX_POSTS_DAY = 20;
 const SHORTS_COST = 1;                   // v428: 쇼츠 1개 = 1크레딧 (사진은 무료)
 const TAGS = ['맛집', '카페', '숙소', '자연', '바다', '야경', '축제', '쇼핑', '명소', '액티비티'];
-const MAX_MAPS = 30, MAP_POSTS = 50;
+const MAX_MAPS = 30, MAP_POSTS = 50, MAX_PLANS = 50;
 const AI_PLAN_COST = 1;                  // v430 🤖 AI 일정 1번 = 1크레딧 (🧳 한 번에 준비와 같은 값)
 const MODEL_DEFAULT = 'claude-sonnet-5-5';
 const CLICK_KINDS = ['nav', 'stay', 'air', 'car'];
@@ -158,6 +161,22 @@ export async function onRequestGet(context) {
     const rows = (await get(c, `cf_trip_maps?user_id=eq.${uid}&select=id,title,post_ids,updated_at&order=updated_at.desc&limit=${MAX_MAPS}`)) || [];
     return json({ ok: true, maps: rows.map((m) => ({ id: m.id, title: m.title, ids: m.post_ids || [], at: m.updated_at })) });
   }
+  /* v433 📋 내가 만든 일정 */
+  if (op === 'plans') {
+    if (!uid) return json({ error: '로그인이 필요합니다', login: true }, 401);
+    const rows = (await get(c, `cf_trip_plans?user_id=eq.${uid}&select=id,title,plan,created_at&order=created_at.desc&limit=${MAX_PLANS}`)) || [];
+    return json({ ok: true, plans: rows.map((r) => { const p = r.plan || {}; return { id: r.id, title: r.title, at: r.created_at, nights: p.nights || 0, start: p.start || '', ppl: p.ppl || 0, google: !!p.google, n: (p.days || []).reduce((t, d) => t + ((d && d.stops) || []).length, 0) }; }) });
+  }
+  if (op === 'plan') {
+    if (!uid) return json({ error: '로그인이 필요합니다', login: true }, 401);
+    const id = num(url.searchParams.get('id')); if (!id) return json({ error: 'id 가 없습니다' }, 400);
+    const r = ((await get(c, `cf_trip_plans?id=eq.${id}&user_id=eq.${uid}&select=id,title,plan,created_at`)) || [])[0];
+    if (!r) return json({ error: '없는 일정이에요' }, 404);
+    const plan = r.plan || {};
+    if (plan.google) plan.gkey = embedKey(env);   /* 지도 키는 저장하지 않고 열 때 붙임 */
+    return json({ ok: true, plan_id: r.id, plan, at: r.created_at });
+  }
+
   if (op === 'tmap') {
     const id = num(url.searchParams.get('id')); if (!id) return json({ error: 'id 가 없습니다' }, 400);
     const m = ((await get(c, `cf_trip_maps?id=eq.${id}&select=id,user_id,nick,title,post_ids,updated_at`)) || [])[0];
@@ -433,6 +452,12 @@ export async function onRequestPost(context) {
     const row = (await r.json())[0];
     return json({ ok: true, id: row && row.id, n: ids.length });
   }
+  if (op === 'plan_del') {
+    const id = num(b.id); if (!id) return json({ error: 'id 가 없습니다' }, 400);
+    await fetch(`${c.url}/rest/v1/cf_trip_plans?id=eq.${id}&user_id=eq.${uid}`, { method: 'DELETE', headers: hdr(c) });
+    return json({ ok: true });
+  }
+
   if (op === 'tmap_del') {
     const id = num(b.id); if (!id) return json({ error: 'id 가 없습니다' }, 400);
     const m = ((await get(c, `cf_trip_maps?id=eq.${id}&select=user_id`)) || [])[0];
@@ -462,7 +487,9 @@ export async function onRequestPost(context) {
       const raw = await askTrip(env, rows, near, nights, start, ppl, note);
       const plan = cleanTrip(raw, rows, near, nights);
       await doneJob(c, job);
-      return json({ ok: true, plan: Object.assign(plan, { nights, start, ppl }), cost: AI_PLAN_COST });
+      Object.assign(plan, { nights, start, ppl });
+      const plan_id = await savePlan(c, uid, plan, rows).catch(() => 0);   /* v433 저장 실패해도 일정은 보여 줌 */
+      return json({ ok: true, plan, plan_id, cost: AI_PLAN_COST });
     } catch (e) {
       await refund(c, job);
       return json({ error: '일정을 만들지 못했어요 · 크레딧은 돌려드렸어요 (' + String((e && e.message) || e).slice(0, 120) + ')', refunded: true }, 500);
@@ -716,6 +743,21 @@ function anthropicFetch(env, path, init = {}) {
     headers.set('x-region', env.GOOGLE_PROXY_REGION || 'ap-northeast-2');
   }
   return fetch(target, { ...init, headers });
+}
+/* v433 만든 일정 저장 — 해외(구글) 장소는 place id 만 남기고 구글 내용(이름·주소·좌표·종류·주소 링크)은 지움 */
+async function savePlan(c, uid, plan, rows) {
+  const names = {}; rows.forEach((r) => { names[r.id] = clean(r.place_name, 40); });
+  const days = (plan.days || []).map((d) => ({ theme: d.theme, stops: (d.stops || []).map((s) => (plan.google && s.src !== 'post')
+    ? { id: s.id, time: s.time, note: s.note, src: s.src, post_id: 0, name: '', cat: '', addr: '', lat: null, lng: null, url: '', pid: s.pid || '' }
+    : s) }));
+  const keep = Object.assign({}, plan, { days, gkey: '', left_names: (plan.left || []).map((id) => names[id] || '') });
+  const r = await fetch(`${c.url}/rest/v1/cf_trip_plans`, { method: 'POST', headers: hdr(c, { Prefer: 'return=representation' }), body: JSON.stringify({ user_id: uid, title: clean(plan.title, 40) || '여행 일정', plan: keep }) });
+  if (!r.ok) return 0;
+  const row = (await r.json())[0];
+  /* 50개 넘으면 오래된 것부터 지움 */
+  const all = (await get(c, `cf_trip_plans?user_id=eq.${uid}&select=id&order=created_at.desc&offset=${MAX_PLANS}&limit=100`)) || [];
+  if (all.length) await fetch(`${c.url}/rest/v1/cf_trip_plans?id=in.(${all.map((x) => x.id).join(',')})`, { method: 'DELETE', headers: hdr(c) }).catch(() => {});
+  return row && row.id || 0;
 }
 async function profile(c, uid) { const r = await get(c, `cf_trip_profile?user_id=eq.${uid}&select=nick,age_ok`); return r && r[0] ? r[0] : null; }
 async function get(c, path) { try { const r = await fetch(`${c.url}/rest/v1/${path}`, { headers: hdr(c) }); return r.ok ? await r.json() : null; } catch { return null; } }

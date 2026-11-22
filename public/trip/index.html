@@ -21,7 +21,9 @@
        · 안드로이드 웹(소리 앱 아님)에서 숙소는 크롬으로 열기(Hotels.com 앱으로 넘어가지 않게) · 크롬이 없으면 원래 주소
        · 🤖 AI 일정: 고른 글 + 주변 명소·맛집(카카오 장소 검색)으로 날짜별 코스 · 지도에 날짜 색 번호와 이동 선
      · v432: 해외 코스는 구글 지도(Maps Embed API 경로 지도 · 구글 장소는 구글 지도에만 표시) · AI 결과 아래 버튼 = 길안내 · 주차장 · 숙소 · 렌터카
-       (길안내·주차장은 고른 날짜의 첫 장소 기준 · 국내 카카오맵 / 해외 구글 지도 Maps URLs) -->
+       (길안내·주차장은 고른 날짜의 첫 장소 기준 · 국내 카카오맵 / 해외 구글 지도 Maps URLs)
+     · v433: 🗺 지도 탭 → 🗓 일정짜기 · 지도 칸을 따로 겹(z-index)으로 묶어 뒤 탭 지도가 창 위로 겹쳐 보이던 것 고침
+       · 📋 내가 만든 일정: AI 일정을 만들면 자동 저장 → 목록에서 다시 열기·지우기 (해외 구글 장소는 place id 만 저장) -->
 <style>
 :root{--ink:#14132a;--sub:#5b5a73;--mute:#8d8ba5;--line:#e6e7f4;--bg:#f4f5fc;--pri:#4f46e5;--pri2:#3730a3;--sky:#0ea5e9;--pink:#ec4899;--err:#b42318;--ok:#0f8a5f}
 *{box-sizing:border-box}
@@ -160,7 +162,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 .trx{margin-top:8px;padding:10px 12px;border-radius:12px;background:#f3f4ff;font-size:14.5px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
 .trx small{display:block;margin-bottom:4px;font-size:11.5px;font-weight:700;color:var(--mute)}
 .c1 .trx{font-size:13.5px;padding:6px 10px;margin-top:4px}
-.mapbox{height:58vh;min-height:300px;border-radius:16px;overflow:hidden;background:#dfe2f3;border:1px solid var(--line)}
+.mapbox{position:relative;z-index:0;isolation:isolate;height:58vh;min-height:300px;border-radius:16px;overflow:hidden;background:#dfe2f3;border:1px solid var(--line)}
 .mapbox.sm{height:46vh;min-height:260px}
 .mp{font-size:13px;line-height:1.5;min-width:150px}
 .mp b{display:block;font-size:14px}
@@ -220,7 +222,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     <button type="button" data-t="shorts" class="on">🎬 쇼츠</button>
     <button type="button" data-t="photo">🖼 사진</button>
     <button type="button" data-t="follow">👥 팔로잉</button>
-    <button type="button" data-t="map">🗺 지도</button>
+    <button type="button" data-t="map">🗓 일정짜기</button>
     <button type="button" data-t="ask">🙋 질문방</button>
     <button type="button" data-t="saved">📌 저장</button>
     <button type="button" data-t="mine">🙋 내 글</button>
@@ -538,16 +540,27 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     });
   }
   document.addEventListener("click",function(e){ var o=e.target.closest&&e.target.closest("button[data-open]"); if(o) openPost(+o.getAttribute("data-open")); });
-  var PINS=null, PF="all", MYMAPS=[];
+  var PINS=null, PF="all", MYMAPS=[], MYPLANS=[];
+  /* v433 📋 내가 만든 일정 목록 */
+  function drawPlans(){
+    var el=$("plL"); if(!el) return;
+    el.innerHTML=MYPLANS.length?MYPLANS.map(function(m){ return '<div class="tm"><div class="t"><b>🤖 '+esc(m.title)+'</b><small>'+(m.nights?m.nights+"박"+(m.nights+1)+"일":"당일")+(m.start?" · "+esc(ymdAdd(m.start,0))+" 출발":"")+" · 장소 "+m.n+"곳 · "+esc(ago(m.at))+'</small></div><button type="button" data-plo="'+m.id+'">열기</button><button type="button" class="d" data-pld="'+m.id+'">지우기</button></div>'; }).join(""):'<p class="note">아직 만든 일정이 없어요. 위 단추로 만들면 여기에 저장돼요.</p>';
+  }
+  function openPlan(id){
+    $("asT").textContent="🤖 일정"; $("asB").innerHTML='<p class="note">불러오는 중…</p>'; openSheet("as");
+    api("GET","?op=plan&id="+id).then(function(j){ if(j.error){ $("asB").innerHTML='<div class="msg">'+esc(j.error)+'</div>'; return; } AIP={plan:j.plan,byId:{}}; showAi(); });
+  }
+  function reloadPlans(){ api("GET","?op=plans").then(function(b){ if(b&&b.plans){ MYPLANS=b.plans; drawPlans(); } }); }
   function hasLL(it){ return it.place&&typeof it.place.lat==="number"&&typeof it.place.lng==="number"; }
   function loadMap(){
     if(!token()){ $("grid").innerHTML=""; needLogin(); return; }
     $("grid").innerHTML='<div style="grid-column:1/-1"><div class="sorts" style="padding:0 0 10px"><button type="button" data-pf="all"'+(PF==="all"?' class="on"':"")+'>둘 다</button><button type="button" data-pf="mine"'+(PF==="mine"?' class="on"':"")+'>🙋 내 글</button><button type="button" data-pf="saved"'+(PF==="saved"?' class="on"':"")+'>📌 저장한 글</button></div>'+
       '<div class="mapbox" id="mapBox"></div><div class="legend"><span><i style="background:#4f46e5"></i>내 글</span><span><i style="background:#ec4899"></i>저장한 글</span><span id="noLL"></span></div>'+
       '<div class="sec"><button type="button" class="aib" data-ai="1"><i>🤖</i><span><b>AI 여행 일정 만들기</b><small>내 글·저장한 글을 날짜별로 묶어 줘요 · 1크레딧</small></span></button></div>'+
+      '<div class="sec"><h2>📋 내가 만든 일정</h2><div id="plL"><p class="note">불러오는 중…</p></div></div>'+
       '<div class="sec"><h2>🗺 테마 지도</h2><p class="note" style="margin-top:0">내 글·저장한 글을 골라 "비 오는 날 제주"처럼 묶고, 링크로 나눠요.</p><button type="button" class="big" id="tmNew" style="margin-top:6px">＋ 테마 지도 만들기</button><div id="tmL"></div></div></div>';
-    Promise.all([api("GET","?op=pins"),api("GET","?op=tmaps")]).then(function(r){
-      var a=r[0], b=r[1];
+    Promise.all([api("GET","?op=pins"),api("GET","?op=tmaps"),api("GET","?op=plans")]).then(function(r){
+      var a=r[0], b=r[1]; MYPLANS=(r[2]&&r[2].plans)||[]; drawPlans();
       if(a._s===401){ $("grid").innerHTML=""; needLogin(); return; }
       if(a.error){ say(esc(a.error)); return; }
       PINS=a; MYMAPS=b.maps||[]; drawPins(); drawMyMaps();
@@ -572,6 +585,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     var o=t.closest("button[data-tm]"); if(o){ openTmap(+o.getAttribute("data-tm")); return; }
     var sh=t.closest("button[data-tms]"); if(sh){ var mm=MYMAPS.filter(function(x){ return x.id===+sh.getAttribute("data-tms"); })[0]; shareUrl(location.origin+"/trip/?m="+sh.getAttribute("data-tms"),mm?mm.title:"누리트립 테마 지도"); return; }
     var ed=t.closest("button[data-tme]"); if(ed){ makeTmap(MYMAPS.filter(function(x){ return x.id===+ed.getAttribute("data-tme"); })[0]||null); return; }
+    var po=t.closest("button[data-plo]"); if(po){ openPlan(+po.getAttribute("data-plo")); return; }
+    var pd=t.closest("button[data-pld]"); if(pd){ if(!confirm("이 일정을 지울까요?")) return; var pid=+pd.getAttribute("data-pld"); api("POST","",{op:"plan_del",id:pid}).then(function(j){ if(j.error){ alert(j.error); return; } MYPLANS=MYPLANS.filter(function(x){ return x.id!==pid; }); drawPlans(); }); return; }
     var dl=t.closest("button[data-tmd]"); if(dl){ if(!confirm("이 테마 지도를 지울까요? 글은 그대로 남아요.")) return; api("POST","",{op:"tmap_del",id:+dl.getAttribute("data-tmd")}).then(function(j){ if(j.error){ alert(j.error); return; } MYMAPS=MYMAPS.filter(function(x){ return x.id!==+dl.getAttribute("data-tmd"); }); drawMyMaps(); }); return; }
   });
   function shareUrl(u,title){
@@ -692,7 +707,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
           if(j._s===402){ $("aiM").innerHTML='<div class="msg">크레딧이 부족해요. <a href="/pricing#charge" target="_top">충전하기 ›</a></div>'; return; }
           if(j.error){ $("aiM").innerHTML='<div class="msg">'+esc(j.error)+'</div>'; return; }
           var byId={}; pool.forEach(function(x){ byId[x.id]=x; });
-          AIP={plan:j.plan,byId:byId}; showAi();
+          AIP={plan:j.plan,byId:byId}; showAi(); reloadPlans();
         });
       };
       openSheet("as");
@@ -727,10 +742,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
       (P.google?(P.gkey?'<iframe class="mapbox sm" id="aiG" style="border:0;width:100%;display:block" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen title="구글 지도 코스" src="'+esc(gEmbed(P,null))+'"></iframe>':'<p class="note">해외 코스 지도는 구글 지도 키를 넣으면 보여요.</p>'):'<div class="mapbox sm" id="aiMap"></div>')+
       '<div class="legend"><span>📍 고른 글</span><span>🏞 주변 명소</span><span>🍽 맛집</span>'+(P.src?'<span>· '+esc(P.src)+'</span>':"")+'</div>'+
       P.days.map(function(d,i){ var col=DAYC[i%DAYC.length]; return '<div class="day"><h3><span style="display:inline-block;width:11px;height:11px;border-radius:6px;background:'+col+';margin-right:6px"></span>'+(i+1)+'일째'+(P.start?'<small>'+esc(ymdAdd(P.start,i))+'</small>':"")+(d.theme?'<small>'+esc(d.theme)+'</small>':"")+'</h3>'+d.stops.map(function(s,si){
-        var btn=s.src==="post"&&s.post_id?'<button type="button" data-open="'+s.post_id+'">글</button>':(s.url?'<button type="button" data-kurl="'+esc(s.url)+'">정보</button>':"");
-        return '<div class="stop"><span class="tm2"><span style="display:inline-grid;place-items:center;width:20px;height:20px;border-radius:10px;background:'+col+';color:#fff;font-size:11px;margin-right:4px">'+(si+1)+'</span>'+esc(s.time)+'</span><span class="tx2"><b>'+(ICON[s.src]||"📍")+' '+esc(s.name)+'</b>'+esc(s.note)+(s.cat?' <small style="color:var(--mute)">· '+esc(s.cat)+'</small>':"")+'</span>'+btn+'</div>'; }).join("")+'</div>'; }).join("")+
+        var info=s.url||(s.pid?"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(s.name||"place")+"&query_place_id="+encodeURIComponent(s.pid):"");
+        var btn=s.src==="post"&&s.post_id?'<button type="button" data-open="'+s.post_id+'">글</button>':(info?'<button type="button" data-kurl="'+esc(info)+'">정보</button>':"");
+        var nm=s.name||(s.pid?"구글 지도 장소 (정보에서 이름 확인)":"장소");
+        return '<div class="stop"><span class="tm2"><span style="display:inline-grid;place-items:center;width:20px;height:20px;border-radius:10px;background:'+col+';color:#fff;font-size:11px;margin-right:4px">'+(si+1)+'</span>'+esc(s.time)+'</span><span class="tx2"><b>'+(ICON[s.src]||"📍")+' '+esc(nm)+'</b>'+esc(s.note)+(s.cat?' <small style="color:var(--mute)">· '+esc(s.cat)+'</small>':"")+'</span>'+btn+'</div>'; }).join("")+'</div>'; }).join("")+
       (P.tips&&P.tips.length?'<div class="day"><h3>💡 팁</h3>'+P.tips.map(function(t){ return '<p style="margin:4px 0;font-size:14px;line-height:1.55">· '+esc(t)+'</p>'; }).join("")+'</div>':"")+
-      (P.left&&P.left.length?'<p class="note">일정에 못 넣은 내 장소 '+P.left.length+'곳: '+P.left.map(function(id){ return esc(((AIP.byId[id]||{}).place||{name:"#"+id}).name); }).join(", ")+'</p>':"")+
+      (P.left&&P.left.length?'<p class="note">일정에 못 넣은 내 장소 '+P.left.length+'곳: '+P.left.map(function(id,k){ return esc(((AIP.byId[id]||{}).place||{}).name||(P.left_names&&P.left_names[k])||("#"+id)); }).join(", ")+'</p>':"")+
       (!P.near?'<p class="note">이 지역은 주변 명소·맛집을 찾지 못해 고른 장소로만 짰어요.</p>':'<p class="note">명소·맛집은 '+(P.google?"Google 지도":"카카오맵 장소 검색")+' 상위 결과예요. 영업 여부·시간은 "정보"에서 확인하세요.</p>')+
       '<div class="go" style="margin-top:14px"><button type="button" data-ag="nav"><i>🧭</i>길안내</button><button type="button" data-ag="park"><i>🅿️</i>주차장</button><button type="button" data-ag="stay"><i>🏨</i>숙소</button><button type="button" data-ag="car"><i>🚗</i>렌터카</button></div>'+
       '<p class="aff">길안내·주차장은 <b id="aiGoDay">1일째</b> 첫 장소 기준이에요 (위에서 날짜를 고르면 바뀌어요). 숙소·렌터카는 제휴 링크예요.</p>'+
@@ -756,8 +773,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     if(k==="stay") return goLink("stay",{name:P.area||s.name,addr:""});
     if(k==="car") return goLink("car",{});
     if(P.google){
-      if(k==="nav") return "https://www.google.com/maps/dir/?api=1&destination="+encodeURIComponent(hasLL?s.lat+","+s.lng:s.name+(s.addr?" "+s.addr:""))+(s.pid?"&destination_place_id="+encodeURIComponent(s.pid):"");
-      if(k==="park") return "https://www.google.com/maps/search/?api=1&query="+encodeURIComponent("parking near "+s.name+(s.addr?", "+s.addr:""));
+      if(k==="nav") return "https://www.google.com/maps/dir/?api=1&destination="+encodeURIComponent(hasLL?s.lat+","+s.lng:(s.name||"place")+(s.addr?" "+s.addr:""))+(s.pid?"&destination_place_id="+encodeURIComponent(s.pid):"");
+      if(k==="park") return "https://www.google.com/maps/search/?api=1&query="+encodeURIComponent("parking near "+(s.name||P.area||"")+(s.addr?", "+s.addr:""));
     }
     return goLink(k,{name:s.name,addr:s.addr||"",lat:hasLL?s.lat:null,lng:hasLL?s.lng:null});
   }
