@@ -472,15 +472,12 @@
      · 장소·날짜를 모르면 v414 짧은 제휴 링크(첫 화면) 그대로. */
   function HW(u) { return "https://www.hotels.com/affiliate?landingPage=" + encodeURIComponent(u) + "&camref=1100l6zyiV&creativeref=1011l87790&adref=PZuPfKKK0I"; }
   function EW(u) { return "https://expedia.com/affiliate?siteid=1&landingPage=" + encodeURIComponent(u) + "&camref=1101l6yR8z&creativeref=1100l86806&adref=PZ57Rpcpu5"; }
-  /* v439 숙소 전용 익스피디아 제휴 링크 — 링크 빌더에서 숙소 검색 주소로 만든 링크의 adref (항공·렌터카와 성과 구분) */
-  function HEW(u) { return "https://expedia.com/affiliate?siteid=1&landingPage=" + encodeURIComponent(u) + "&camref=1101l6yR8z&creativeref=1100l86806&adref=PZ8dU0Lx_a"; }
   var EXP_KR = "https://www.expedia.co.kr";
   function hotelsSearch(dest, o) {
     var d = String(dest || "").replace(TRIP_RE, " ").replace(GENERIC_STAY, " ").replace(/\s+/g, " ").trim();
-    /* v438 숙소도 항공권·렌터카처럼 익스피디아(expedia.co.kr, 같은 익스피디아 제휴 링크 EW)로. Hotel-Search 칸 이름은 Hotels.com 과 같은 형식 */
-    if (!d) return HEW(EXP_KR + "/");
-    return HEW(EXP_KR + "/Hotel-Search?destination=" + E(d) + (o.ci && o.co ? "&startDate=" + o.ci + "&endDate=" + o.co : "") + "&adults=" + (o.ppl || 2) + "&rooms=1");
-  }   /* v414 숙소 → Hotels.com · 항공권·렌터카 → 익스피디아 (Expedia Group 제휴 링크) · v438 숙소 → 익스피디아 */   /* v412 숙소·항공권 → HopeGoo 첫 화면, 렌터카 → Daytrip 첫 화면 */
+    if (!d) return HOTELS_AFF;
+    return HW("https://kr.hotels.com/Hotel-Search?destination=" + E(d) + (o.ci && o.co ? "&startDate=" + o.ci + "&endDate=" + o.co : "") + "&adults=" + (o.ppl || 2) + "&rooms=1");
+  }   /* v414 숙소 → Hotels.com · 항공권·렌터카 → 익스피디아 (Expedia Group 제휴 링크) */   /* v412 숙소·항공권 → HopeGoo 첫 화면, 렌터카 → Daytrip 첫 화면 */
   function tripHotel(o) {
     return hotelsSearch(o.stay, o);   /* v415 Hotels.com 검색 (지역·날짜·인원 채움) · 아래 Trip.com 주소 만들기는 쓰지 않음 */
     var kw = String(o.stay || "").replace(TRIP_RE, " ").replace(/\b(accommodations?|lodgings?)\b/gi, " ").replace(/\s+/g, " ").trim(), l = kw.toLowerCase(), id = 0, hit = "";
@@ -514,8 +511,8 @@
     var su = String(url || "");
     /* v415 예전에 저장한 Trip.com · HopeGoo 숙소 → Hotels.com 에서 그 숙소 이름으로 검색 (날짜·인원 채움) */
     if (/^https:\/\/([a-z0-9-]+\.)*(trip|hopegoo)\.com\//i.test(su)) return hotelsSearch(name || o.stay, o);
-    if (/^https:\/\/([a-z0-9-]+\.)*hotels\.com\//i.test(su)) return hotelsSearch(name || o.stay, o);   /* v438 예전에 저장한 Hotels.com 숙소 → 익스피디아에서 그 숙소 이름으로 검색 (날짜·인원 채움) */
-    if (/^https:\/\/([a-z0-9-]+\.)*expedia\.[a-z.]+\//i.test(su) && !/\/affiliate/i.test(su)) return HEW(su);   /* v439 저장한 숙소 = 숙소 링크 */
+    if (/^https:\/\/([a-z0-9-]+\.)*hotels\.com\//i.test(su) && !/\/affiliate/i.test(su)) return HW(su);   /* v415 Hotels.com 숙소 링크에 제휴 표시 */
+    if (/^https:\/\/([a-z0-9-]+\.)*expedia\.[a-z.]+\//i.test(su) && !/\/affiliate/i.test(su)) return EW(su);
     return su;
     var u = String(url || ""), id = (u.match(/hotelId=(\d+)/i) || u.match(/hotel-detail-(\d+)/i) || u.match(/\/hotels\/detail\/(\d+)/i) || [])[1], city = (u.match(/cityId=(\d+)/i) || [])[1];
     if (!id) return u;
@@ -565,7 +562,7 @@
     if (pk) return { u: "", w: "숙소", none: pk + " 같은 개인정보가 들어 있어 검색하지 않았어요. 지역·숙소 이름과 날짜·인원만 적어 주세요. (coverfo는 개인정보를 저장하지 않습니다)", info: i };
     var sv = savedStay(q);
     if (sv) { i.saved = { name: sv.name, u: tripSaved(sv.stay, i, sv.name) }; return { u: i.saved.u, w: "🏨 " + sv.name, info: i, stay: i }; }   /* v37: 내 숙소로 저장한 곳이면 그 숙소로 바로 */
-    return { u: tripHotel(i), w: "🏨 익스피디아", info: i, stay: i };   /* v438 */   /* v36: 숙소는 Trip.com 한 곳만 (전에는 Booking.com + 여기어때/Airbnb) */
+    return { u: tripHotel(i), w: "🏨 Hotels.com", info: i, stay: i };   /* v36: 숙소는 Trip.com 한 곳만 (전에는 Booking.com + 여기어때/Airbnb) */
   }
 
   /* ── 규칙으로 판별 → {kind, q} ── */
