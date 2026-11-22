@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>숙소 여는 중 — 누리트립</title>
+<!-- coverfo 누리트립 v436 · 숙소 안내 화면 (시험)
+     안드로이드 웹에서 🏨 숙소를 누르면 Hotels.com 앱으로 넘어가 상세 화면이 안 열려서,
+     누른 뒤 이 화면을 잠깐 거친 다음(누름 없이) Hotels.com 웹으로 넘어가게 해 본다.
+     · 넘어가는 주소는 Hotels.com 만 허용 (다른 사이트로 보내는 데 쓰이지 않게)
+     · location.replace → 이 화면은 뒤로 가기 기록에 남지 않음 -->
+<style>
+html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;background:#f4f5fc;color:#14132a}
+.w{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;box-sizing:border-box;text-align:center}
+.sp{width:38px;height:38px;border-radius:50%;border:4px solid #dcdff5;border-top-color:#4f46e5;animation:r 1s linear infinite}
+@keyframes r{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.sp{animation:none}}
+p{margin:0;font-size:15px;line-height:1.6;color:#5b5a73}
+b{font-size:17px}
+a{display:inline-block;margin-top:6px;padding:10px 16px;border-radius:12px;background:#fff;border:1.5px solid #e6e7f4;color:#3730a3;font-weight:700;text-decoration:none;font-size:14px}
+</style>
+</head>
+<body>
+<div class="w">
+  <div class="sp" aria-hidden="true"></div>
+  <b>Hotels.com 숙소 화면을 여는 중이에요</b>
+  <p>잠시만 기다려 주세요.</p>
+  <p id="m" hidden>열리지 않았어요. 주소가 올바르지 않아요.</p>
+  <a id="b" href="#" hidden>직접 열기 (앱으로 열릴 수 있어요)</a>
+</div>
+<script>
+(function(){
+  var u="";
+  try{ u=new URLSearchParams(location.search).get("u")||""; }catch(e){}
+  var ok=/^https:\/\/(www|kr)\.hotels\.com\/(affiliate\?|Hotel-Search\?|ho\d+)/.test(u);
+  if(!ok){ document.getElementById("m").hidden=false; return; }
+  var b=document.getElementById("b"); b.href=u;
+  setTimeout(function(){ b.hidden=false; },4000);
+  setTimeout(function(){ location.replace(u); },2500);
+})();
+</script>
+</body>
+</html>

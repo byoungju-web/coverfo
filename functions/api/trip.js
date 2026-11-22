@@ -1,4 +1,4 @@
-// functions/api/trip.js — coverfo 📸 누리트립 (여행 사진·쇼츠 커뮤니티) 1단계 · v427 · v428 쇼츠 크레딧 · v429 2단계(팔로우 · 내 여행 지도 · 테마 지도) · v430 3단계(🤖 AI 일정 · 🙋 질문방 · 예약 버튼 눌림 기록) · v431 AI 일정에 주변 명소·맛집 + 코스 · v432 해외는 구글 지도 · v433 만든 일정 저장 · v434 좌표 없는 국내 글 판별
+// functions/api/trip.js — coverfo 📸 누리트립 (여행 사진·쇼츠 커뮤니티) 1단계 · v427 · v428 쇼츠 크레딧 · v429 2단계(팔로우 · 내 여행 지도 · 테마 지도) · v430 3단계(🤖 AI 일정 · 🙋 질문방 · 예약 버튼 눌림 기록) · v431 AI 일정에 주변 명소·맛집 + 코스 · v432 해외는 구글 지도 · v433 만든 일정 저장 · v434 좌표 없는 국내 글 판별 · v435 질문방 국내/해외
 // © 2026 coverfo All Rights Reserved
 //
 //   GET  /api/trip?op=feed&sort=new|top|near&kind=all|photo|shorts&lat=&lng=&before=&mine=1&saved=1
@@ -96,6 +96,7 @@ export async function onRequestGet(context) {
     const sort = ['new', 'top', 'near'].includes(url.searchParams.get('sort')) ? url.searchParams.get('sort') : 'new';
     const kind = ['photo', 'shorts', 'ask'].includes(url.searchParams.get('kind')) ? url.searchParams.get('kind') : '';
     const region = kind === 'ask' && REGIONS.includes(url.searchParams.get('region') || '') ? url.searchParams.get('region') : '';
+    const scope = kind === 'ask' && !region && ['kr', 'abroad'].includes(url.searchParams.get('scope')) ? url.searchParams.get('scope') : '';   /* v435 국내 17곳 · 해외 나머지 */
     const before = url.searchParams.get('before') || '';
     let q = `cf_trip_posts?select=${POST_COLS}`;
     let author = null;
@@ -124,6 +125,7 @@ export async function onRequestGet(context) {
     } else q += '&status=eq.live';
     if (kind) q += `&kind=eq.${kind}`;
     if (region) q += `&place_name=eq.${encodeURIComponent(region)}`;
+    if (scope) q += `&place_name=in.(${(scope === 'kr' ? REGIONS.slice(0, 17) : REGIONS.slice(17)).map((r) => encodeURIComponent('"' + r + '"')).join(',')})`;
     let rows;
     if (sort === 'near') {
       const lat = Number(url.searchParams.get('lat')), lng = Number(url.searchParams.get('lng'));

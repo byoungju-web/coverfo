@@ -24,7 +24,11 @@
        (길안내·주차장은 고른 날짜의 첫 장소 기준 · 국내 카카오맵 / 해외 구글 지도 Maps URLs)
      · v433: 🗺 지도 탭 → 🗓 일정짜기 · 지도 칸을 따로 겹(z-index)으로 묶어 뒤 탭 지도가 창 위로 겹쳐 보이던 것 고침
        · 📋 내가 만든 일정: AI 일정을 만들면 자동 저장 → 목록에서 다시 열기·지우기 (해외 구글 장소는 place id 만 저장)
-     · v434: 고른 장소에 좌표가 하나도 없으면 "국내/해외"를 물어봄(기본 국내) → 국내는 카카오(번호 지도), 해외는 구글 · 좌표가 있으면 좌표로 판단 -->
+     · v434: 고른 장소에 좌표가 하나도 없으면 "국내/해외"를 물어봄(기본 국내) → 국내는 카카오(번호 지도), 해외는 구글 · 좌표가 있으면 좌표로 판단
+     · v435: 탭 2줄 — 윗줄 🖼 사진 · 🎬 쇼츠 · 🗓 일정짜기 · 🗺 테마지도 / 아랫줄 🙋 내 글 · 👥 팔로잉 · 🙋 질문방 (· 🛡 신고)
+       · 처음 화면은 사진 · 📌 저장 탭 없앰(📌 저장 단추는 그대로, 저장한 글은 일정짜기·테마지도에서 고름)
+       · 테마 지도 만들기·목록은 🗺 테마지도 탭에만 · 질문방은 🇰🇷 국내 / 🌍 해외로 나눔
+     · v436 (시험): 안드로이드 웹의 🏨 숙소 → 크롬 intent 대신 coverfo 안내 화면(/trip/go/)을 2.5초 거쳐 Hotels.com 웹으로 -->
 <style>
 :root{--ink:#14132a;--sub:#5b5a73;--mute:#8d8ba5;--line:#e6e7f4;--bg:#f4f5fc;--pri:#4f46e5;--pri2:#3730a3;--sky:#0ea5e9;--pink:#ec4899;--err:#b42318;--ok:#0f8a5f}
 *{box-sizing:border-box}
@@ -36,9 +40,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 .bar{display:flex;align-items:center;gap:8px;height:54px;padding:0 12px}
 .bar h1{flex:1;margin:0;font-size:18px;font-weight:900;letter-spacing:-.03em;background:linear-gradient(90deg,var(--sky),var(--pri) 55%,var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent}
 .bar .x{height:36px;padding:0 14px;border-radius:18px;border:1.5px solid var(--line);background:#fff;font-size:13.5px;font-weight:700}
-.tabs{display:flex;gap:4px;padding:0 10px;overflow-x:auto;scrollbar-width:none}
-.tabs::-webkit-scrollbar{display:none}
-.tabs button{flex:none;height:40px;padding:0 12px;border:0;background:none;font-size:14.5px;font-weight:700;color:var(--sub);border-bottom:3px solid transparent}
+.tabs{display:block;padding:0 6px}
+.tabs .tr{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.tabs .tr::-webkit-scrollbar{display:none}
+.tabs button{flex:1 1 0;min-width:max-content;height:40px;padding:0 8px;border:0;background:none;font-size:14px;font-weight:700;color:var(--sub);border-bottom:3px solid transparent}
 .tabs button.on{color:var(--ink);border-bottom-color:var(--pri)}
 .sorts{display:flex;gap:6px;padding:10px 12px;overflow-x:auto;scrollbar-width:none}
 .sorts::-webkit-scrollbar{display:none}
@@ -220,14 +225,18 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 <header class="top">
   <div class="bar"><h1>누리트립</h1><button type="button" class="x" id="close">닫기</button></div>
   <nav class="tabs" id="tabs" aria-label="보기">
-    <button type="button" data-t="shorts" class="on">🎬 쇼츠</button>
-    <button type="button" data-t="photo">🖼 사진</button>
-    <button type="button" data-t="follow">👥 팔로잉</button>
-    <button type="button" data-t="map">🗓 일정짜기</button>
-    <button type="button" data-t="ask">🙋 질문방</button>
-    <button type="button" data-t="saved">📌 저장</button>
-    <button type="button" data-t="mine">🙋 내 글</button>
-    <button type="button" data-t="admin" id="tabAdmin" hidden>🛡 신고</button>
+    <div class="tr">
+      <button type="button" data-t="photo" class="on">🖼 사진</button>
+      <button type="button" data-t="shorts">🎬 쇼츠</button>
+      <button type="button" data-t="map">🗓 일정짜기</button>
+      <button type="button" data-t="tmap">🗺 테마지도</button>
+    </div>
+    <div class="tr">
+      <button type="button" data-t="mine">🙋 내 글</button>
+      <button type="button" data-t="follow">👥 팔로잉</button>
+      <button type="button" data-t="ask">🙋 질문방</button>
+      <button type="button" data-t="admin" id="tabAdmin" hidden>🛡 신고</button>
+    </div>
   </nav>
 </header>
 <div class="sorts" id="sorts">
@@ -279,7 +288,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   function vdate(v){ if(!v) return ""; var a=String(v).split("-"); return a[0]+"."+(+a[1])+"."+(+a[2])+" 다녀옴"; }
   function safeU(u){ return /^\/media\/trip\/[\w\-./]+$/.test(String(u||""))?u:""; }
 
-  var ME={login:false}, TAB="shorts", SORT="new", NEXT="", POS=null, ITEMS=[], USER="", REGION="";
+  var ME={login:false}, TAB="photo", SORT="new", NEXT="", POS=null, ITEMS=[], USER="", REGION="", SCOPE="kr";
+  function setTabOn(t){ Array.prototype.forEach.call($("tabs").querySelectorAll("button[data-t]"),function(x){ x.classList.toggle("on",x.getAttribute("data-t")===t); }); }
 
   /* 닫기 — 홈 위 덮개로 열렸으면 덮개만 */
   $("close").onclick=function(){ try{ if(window.parent!==window&&window.parent.cfPageClose){ window.parent.cfPageClose(); return; } }catch(e){} location.href="/"; };
@@ -295,7 +305,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   function needLogin(){ say('로그인이 필요해요. <button type="button" class="more" id="lg" style="display:inline-block;margin:6px 0 0">로그인하기</button>'); var b=$("lg"); if(b) b.onclick=loginGo; window.scrollTo(0,0); }
 
   /* ── 탭 · 정렬 ── */
-  $("tabs").addEventListener("click",function(e){ var b=e.target.closest("button[data-t]"); if(!b) return; TAB=b.getAttribute("data-t"); USER=""; Array.prototype.forEach.call(this.children,function(x){ x.classList.toggle("on",x===b); }); $("sorts").style.display=(TAB==="shorts"||TAB==="photo")?"":"none"; load(true); });
+  $("tabs").addEventListener("click",function(e){ var b=e.target.closest("button[data-t]"); if(!b) return; TAB=b.getAttribute("data-t"); USER=""; setTabOn(TAB); $("sorts").style.display=(TAB==="shorts"||TAB==="photo")?"":"none"; load(true); });
   $("sorts").addEventListener("click",function(e){ var b=e.target.closest("button[data-s]"); if(!b) return; var s=b.getAttribute("data-s");
     var go=function(){ SORT=s; Array.prototype.forEach.call($("sorts").children,function(x){ x.classList.toggle("on",x===b); }); load(true); };
     if(s==="near"&&!POS){ if(!navigator.geolocation){ say("이 기기에서는 위치를 쓸 수 없어요."); return; } say("내 위치를 확인하는 중…",true);
@@ -308,12 +318,13 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     $("fab").textContent=TAB==="ask"?"＋ 질문하기":"＋ 올리기";
     if(TAB==="admin"){ return loadAdmin(); }
     if(TAB==="map"){ return loadMap(); }
+    if(TAB==="tmap"){ return loadTmaps(); }
     var q="?op=feed";
     if(TAB==="shorts"||TAB==="photo"){ q+="&kind="+TAB+"&sort="+SORT; if(SORT==="near"&&POS) q+="&lat="+POS.lat+"&lng="+POS.lng; }
     if(TAB==="saved") q+="&saved=1"; if(TAB==="mine") q+="&mine=1";
     if(TAB==="follow") q+="&follow=1"; if(TAB==="user") q+="&nick="+encodeURIComponent(USER);
-    if(TAB==="ask"){ q+="&kind=ask&sort=new"+(REGION?"&region="+encodeURIComponent(REGION):""); if(reset) drawRegions(); }
-    if(TAB==="saved"&&reset) $("ahead").innerHTML='<button type="button" class="aib" data-ai="1"><i>🤖</i><span><b>저장한 글로 AI 일정 만들기</b><small>고른 장소를 날짜별로 묶어 줘요 · 1크레딧</small></span></button>';
+    if(TAB==="ask"){ q+="&kind=ask&sort=new"+(REGION?"&region="+encodeURIComponent(REGION):"&scope="+SCOPE); if(reset) drawRegions(); }
+
     if(NEXT) q+="&before="+encodeURIComponent(NEXT);
     $("more").hidden=true;
     if(reset) $("grid").innerHTML='<div class="empty" style="grid-column:1/-1">불러오는 중…</div>';
@@ -323,7 +334,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
       if(j.error){ say(esc(j.error)); return; }
       if(j.author&&reset) drawAuthor(j.author);
       var list=j.items||[]; ITEMS=ITEMS.concat(list);
-      if(!ITEMS.length){ $("grid").innerHTML='<div class="empty" style="grid-column:1/-1">'+(TAB==="ask"?"🙋 "+(REGION?esc(REGION)+" ":"")+"질문이 아직 없어요.<br>아래 <b>＋ 질문하기</b> 로 먼저 물어보세요.":TAB==="follow"?"👥 팔로우한 사람의 새 글이 여기에 모여요.<br>글에서 닉네임 옆 <b>＋ 팔로우</b> 를 눌러 보세요.":TAB==="user"?"아직 올린 글이 없어요.":TAB==="saved"?"📌 저장한 글이 아직 없어요.<br>마음에 드는 글에서 📌 를 눌러 보세요.":TAB==="mine"?"아직 올린 글이 없어요.<br>아래 <b>＋ 올리기</b> 로 첫 여행을 올려 보세요.":"아직 글이 없어요.<br>첫 여행 사진·쇼츠를 올려 보세요!")+'</div>'; return; }
+      if(!ITEMS.length){ $("grid").innerHTML='<div class="empty" style="grid-column:1/-1">'+(TAB==="ask"?"🙋 "+(REGION?esc(REGION)+" ":(SCOPE==="kr"?"국내 ":"해외 "))+"질문이 아직 없어요.<br>아래 <b>＋ 질문하기</b> 로 먼저 물어보세요.":TAB==="follow"?"👥 팔로우한 사람의 새 글이 여기에 모여요.<br>글에서 닉네임 옆 <b>＋ 팔로우</b> 를 눌러 보세요.":TAB==="user"?"아직 올린 글이 없어요.":TAB==="saved"?"📌 저장한 글이 아직 없어요.<br>마음에 드는 글에서 📌 를 눌러 보세요.":TAB==="mine"?"아직 올린 글이 없어요.<br>아래 <b>＋ 올리기</b> 로 첫 여행을 올려 보세요.":"아직 글이 없어요.<br>첫 여행 사진·쇼츠를 올려 보세요!")+'</div>'; return; }
       list.forEach(function(it){ $("grid").insertAdjacentHTML("beforeend",card(it)); });
       NEXT=j.next||""; $("more").hidden=!NEXT;
     });
@@ -394,12 +405,13 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   /* v430 버튼 눌림 기록 (작성자 보상용) — 페이지가 넘어가도 보내지게 keepalive */
   function logClick(id,k){ if(["nav","stay","air","car"].indexOf(k)<0) return; try{ var h={"Content-Type":"application/json"}, t=token(); if(t) h.Authorization="Bearer "+t; fetch("/api/trip",{method:"POST",keepalive:true,headers:h,body:JSON.stringify({op:"click",id:id,kind:k})})["catch"](function(){}); }catch(e){} }
   function openOut(u){ if(!u) return; try{ window.top.location.href=u; return; }catch(e){} location.href=u; }
-  /* v431 숙소: 안드로이드 웹 브라우저에서는 Hotels.com 앱으로 넘어가면 상세 화면이 안 열려서, 크롬 안에서 열리게 (크롬이 없으면 원래 주소).
-     coverfo 소리 앱(웹뷰)은 지금처럼 앱 안에서 열림 */
+  /* v436 (시험) 숙소: 안드로이드 웹에서는 Hotels.com 앱으로 넘어가면 상세 화면이 안 열려서, coverfo 안내 화면(/trip/go/)을 거쳐
+     누름 없이 Hotels.com 웹으로 넘어가게 해 봄 (v431~ 의 크롬 intent 방식은 실제 폰에서 앱으로 넘어가 효과가 없었음).
+     coverfo 소리 앱(웹뷰)·아이폰·PC 는 지금처럼 바로 엶 */
   function openStay(u){
     var UA=navigator.userAgent||"";
     if(/Android/i.test(UA)&&!/CoverfoSori/i.test(UA)&&!window.CoverfoApp&&/^https:\/\//.test(u)){
-      openOut("intent://"+u.replace(/^https:\/\//,"")+"#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url="+encodeURIComponent(u)+";end"); return; }
+      openOut(location.origin+"/trip/go/?u="+encodeURIComponent(u)); return; }
     openOut(u);
   }
 
@@ -481,7 +493,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   }
   function openUser(nick){
     closeSheet("vs"); closeSheet("ts"); closeReel();
-    TAB="user"; USER=nick; Array.prototype.forEach.call($("tabs").children,function(x){ x.classList.remove("on"); });
+    TAB="user"; USER=nick; setTabOn("");
     $("sorts").style.display="none"; window.scrollTo(0,0); load(true);
   }
   function drawAuthor(a){
@@ -558,14 +570,19 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     $("grid").innerHTML='<div style="grid-column:1/-1"><div class="sorts" style="padding:0 0 10px"><button type="button" data-pf="all"'+(PF==="all"?' class="on"':"")+'>둘 다</button><button type="button" data-pf="mine"'+(PF==="mine"?' class="on"':"")+'>🙋 내 글</button><button type="button" data-pf="saved"'+(PF==="saved"?' class="on"':"")+'>📌 저장한 글</button></div>'+
       '<div class="mapbox" id="mapBox"></div><div class="legend"><span><i style="background:#4f46e5"></i>내 글</span><span><i style="background:#ec4899"></i>저장한 글</span><span id="noLL"></span></div>'+
       '<div class="sec"><button type="button" class="aib" data-ai="1"><i>🤖</i><span><b>AI 여행 일정 만들기</b><small>내 글·저장한 글을 날짜별로 묶어 줘요 · 1크레딧</small></span></button></div>'+
-      '<div class="sec"><h2>📋 내가 만든 일정</h2><div id="plL"><p class="note">불러오는 중…</p></div></div>'+
-      '<div class="sec"><h2>🗺 테마 지도</h2><p class="note" style="margin-top:0">내 글·저장한 글을 골라 "비 오는 날 제주"처럼 묶고, 링크로 나눠요.</p><button type="button" class="big" id="tmNew" style="margin-top:6px">＋ 테마 지도 만들기</button><div id="tmL"></div></div></div>';
+      '<div class="sec"><h2>📋 내가 만든 일정</h2><div id="plL"><p class="note">불러오는 중…</p></div></div></div>';
     Promise.all([api("GET","?op=pins"),api("GET","?op=tmaps"),api("GET","?op=plans")]).then(function(r){
       var a=r[0], b=r[1]; MYPLANS=(r[2]&&r[2].plans)||[]; drawPlans();
       if(a._s===401){ $("grid").innerHTML=""; needLogin(); return; }
       if(a.error){ say(esc(a.error)); return; }
       PINS=a; MYMAPS=b.maps||[]; drawPins(); drawMyMaps();
     });
+  }
+  /* v435 🗺 테마지도 탭 — 만들기 단추 + 내 테마 지도 목록 (여기에만) */
+  function loadTmaps(){
+    if(!token()){ $("grid").innerHTML=""; needLogin(); return; }
+    $("grid").innerHTML='<div style="grid-column:1/-1"><div class="sec" style="margin-top:4px"><h2>🗺 테마 지도</h2><p class="note" style="margin-top:0">내 글·저장한 글을 골라 "비 오는 날 제주"처럼 묶고, 링크로 나눠요.</p><button type="button" class="big" id="tmNew" style="margin-top:6px">＋ 테마 지도 만들기</button><div id="tmL"><p class="note">불러오는 중…</p></div></div></div>';
+    api("GET","?op=tmaps").then(function(b){ if(b._s===401){ $("grid").innerHTML=""; needLogin(); return; } MYMAPS=b.maps||[]; drawMyMaps(); });
   }
   function drawPins(){
     if(!PINS||!$("mapBox")) return;
@@ -645,24 +662,30 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   }
 
   /* ── v430 🙋 질문방 ── */
-  var REGIONS=["서울","부산","제주","강원","경기","인천","대구","대전","광주","울산","세종","충북","충남","전북","전남","경북","경남","일본","중국","대만","홍콩·마카오","베트남","태국","필리핀","싱가포르","말레이시아","인도네시아","미국","괌·사이판","유럽","호주","기타 해외"];
+  var REGIONS_KR=["서울","부산","제주","강원","경기","인천","대구","대전","광주","울산","세종","충북","충남","전북","전남","경북","경남"];
+  var REGIONS_AB=["일본","중국","대만","홍콩·마카오","베트남","태국","필리핀","싱가포르","말레이시아","인도네시아","미국","괌·사이판","유럽","호주","기타 해외"];
+  var REGIONS=REGIONS_KR.concat(REGIONS_AB);
   function drawRegions(){
-    $("ahead").innerHTML='<div class="rg" id="rg"><button type="button" data-r=""'+(REGION?"":' class="on"')+'>전체</button>'+REGIONS.map(function(r){ return '<button type="button" data-r="'+esc(r)+'"'+(REGION===r?' class="on"':"")+'>'+esc(r)+'</button>'; }).join("")+'</div>'+
+    var RL=SCOPE==="kr"?REGIONS_KR:REGIONS_AB;
+    $("ahead").innerHTML='<div class="chips" style="margin:0 0 8px"><button type="button" data-sc="kr"'+(SCOPE==="kr"?' class="on"':"")+'>🇰🇷 국내</button><button type="button" data-sc="abroad"'+(SCOPE==="abroad"?' class="on"':"")+'>🌍 해외</button></div>'+
+      '<div class="rg" id="rg"><button type="button" data-r=""'+(REGION?"":' class="on"')+'>'+(SCOPE==="kr"?"국내 전체":"해외 전체")+'</button>'+RL.map(function(r){ return '<button type="button" data-r="'+esc(r)+'"'+(REGION===r?' class="on"':"")+'>'+esc(r)+'</button>'; }).join("")+'</div>'+
       '<p class="note" style="margin:0 2px 10px">같은 곳에 가는 사람·다녀온 사람에게 물어보세요. 답변은 누구나 달 수 있어요. 연락처·만날 약속은 올리지 마세요.</p>';
     var on=$("rg").querySelector(".on"); if(on&&on.scrollIntoView) try{ on.scrollIntoView({inline:"center",block:"nearest"}); }catch(e){}
   }
   $("ahead").addEventListener("click",function(e){
+    var sc=e.target.closest("button[data-sc]"); if(sc){ SCOPE=sc.getAttribute("data-sc"); REGION=""; load(true); return; }
     var r=e.target.closest("button[data-r]"); if(r){ REGION=r.getAttribute("data-r"); load(true); return; }
     if(e.target.closest("button[data-ai]")) openAi();
   });
   function openAsk(){
     var A={region:REGION||""};
-    $("wsB").innerHTML='<span class="lab" style="margin-top:0">어느 지역인가요?</span><div class="chips" id="aR">'+REGIONS.map(function(r){ return '<button type="button" data-r="'+esc(r)+'"'+(A.region===r?' class="on"':"")+'>'+esc(r)+'</button>'; }).join("")+'</div>'+
+    var chip=function(r){ return '<button type="button" data-r="'+esc(r)+'"'+(A.region===r?' class="on"':"")+'>'+esc(r)+'</button>'; };
+    $("wsB").innerHTML='<span class="lab" style="margin-top:0">어느 지역인가요?</span><div id="aR"><p class="note" style="margin:0 0 6px">🇰🇷 국내</p><div class="chips">'+REGIONS_KR.map(chip).join("")+'</div><p class="note" style="margin:10px 0 6px">🌍 해외</p><div class="chips">'+REGIONS_AB.map(chip).join("")+'</div></div>'+
       '<label class="lab" for="aD">언제 가세요? <small>정하지 않았으면 비워 두세요</small></label><input type="date" id="aD" min="'+today()+'">'+
       '<label class="lab" for="aB">질문 <small>500자까지</small></label><textarea id="aB" maxlength="500" placeholder="예: 12월 초에 성산일출봉 일출 보려면 몇 시에 가야 하나요?"></textarea>'+
       '<p class="note">전화번호·카톡 아이디·만날 약속은 올리지 마세요. 신고가 쌓이면 숨겨져요.</p>'+
       '<div id="wM"></div><div class="prog" id="pg"><i></i></div><button type="button" class="big" id="wGo">질문 올리기</button>';
-    $("aR").onclick=function(e){ var b=e.target.closest("button"); if(!b) return; A.region=b.getAttribute("data-r"); Array.prototype.forEach.call(this.children,function(x){ x.classList.toggle("on",x===b); }); };
+    $("aR").onclick=function(e){ var b=e.target.closest("button[data-r]"); if(!b) return; A.region=b.getAttribute("data-r"); Array.prototype.forEach.call(this.querySelectorAll("button[data-r]"),function(x){ x.classList.toggle("on",x===b); }); };
     $("wGo").onclick=function(){
       var body=($("aB").value||"").trim();
       if(!A.region){ wsay("지역을 골라 주세요."); return; }
@@ -670,7 +693,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
       var me=this; me.disabled=true;
       api("POST","",{op:"create",kind:"ask",region:A.region,visited:$("aD").value||"",body:body}).then(function(j){ me.disabled=false;
         if(j.error){ wsay(esc(j.error)); return; }
-        closeSheet("ws"); REGION=A.region; TAB="ask"; Array.prototype.forEach.call($("tabs").children,function(x){ x.classList.toggle("on",x.getAttribute("data-t")==="ask"); }); load(true); say("질문을 올렸어요! 답변이 달리면 💬 숫자가 올라가요.",true); });
+        closeSheet("ws"); REGION=A.region; SCOPE=REGIONS_KR.indexOf(A.region)>=0?"kr":"abroad"; TAB="ask"; setTabOn("ask"); load(true); say("질문을 올렸어요! 답변이 달리면 💬 숫자가 올라가요.",true); });
     };
     $("ws").querySelector(".hd b").textContent="🙋 질문하기";
     openSheet("ws");
@@ -982,7 +1005,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
       if(j.spent&&ME.credits!=null) ME.credits=Math.max(0,ME.credits-j.spent);
       bar.style.width="100%"; closeSheet("ws"); go.disabled=false;
       TAB=W.kind==="shorts"?"shorts":"photo"; SORT="new";
-      Array.prototype.forEach.call($("tabs").children,function(x){ x.classList.toggle("on",x.getAttribute("data-t")===TAB); });
+      setTabOn(TAB);
       Array.prototype.forEach.call($("sorts").children,function(x){ x.classList.toggle("on",x.getAttribute("data-s")==="new"); });
       $("sorts").style.display=""; load(true); say(j.spent?"올렸어요! 🎉 ("+j.spent+"크레딧 사용)":"올렸어요! 🎉",true);
     })["catch"](function(e){ go.disabled=false; $("pg").style.display="none"; wsay(e.s===402?CHARGE:esc(e.message||"올리지 못했어요")); });
