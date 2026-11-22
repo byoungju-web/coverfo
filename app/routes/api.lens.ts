@@ -6,7 +6,7 @@
  *        → 사진 1장 분석. 같은 사진(hash)+모드+언어가 cf_lens 표에 있으면 캐시로 돌려주고 크레딧 0.
  *          없으면 크레딧 1 차감 → Gemini(사진 읽기) → Claude Fable 5.1(쉬운 말 정리) → cf_lens 저장.
  *   POST /api/lens  {op:'video', mode, hash, lang}
- *        → 설명 영상(Veo 3.1 fast, 9:16, 8초) 시작. 이미 영상이 있으면 재사용(크레딧 0). 없으면 25 차감.
+ *        → 설명 영상(Gemini Omni Flash, 9:16, 약 10초) 시작. 이미 영상이 있으면 재사용(크레딧 0). 없으면 25 차감.
  *   POST /api/lens  {op:'photo', mode, hash, lang}
  *        → (일 모드, 또는 문서 모드에서 제품이 읽힌 경우) gpt image 2 로 스튜디오 사진 1장. 이미 있으면 재사용(0), 없으면 2 차감.
  *   GET  /api/lens?op=status&hash=...&mode=...&lang=...
@@ -23,6 +23,7 @@
  */
 import type { ActionFunctionArgs, LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { anthropicFetch, envOf, extractJson, fail, getUserId, googleFetch, ok, readJson } from '~/lib/engine/server';
+import { b64ToBytes, omniStart, videoPart } from '~/lib/engine/omni';
 import { ENGINE_MODELS } from '~/lib/engine/models';
 import { braveSearch } from '~/lib/.server/brave';
 
@@ -31,7 +32,7 @@ const LENS_MODELS = {
   vision: ENGINE_MODELS.stage3, // gemini-3.1-flash-image — 사진 읽기(글자·물건·동작). 응답은 글(TEXT)만 받음
   writer: ENGINE_MODELS.stage1, // claude-fable-5-1 — 쉬운 말로 정리 + 사용자 언어로
   photo: ENGINE_MODELS.stage4, // gpt-image-2 — 일·상품 스튜디오 사진 (quality medium)
-  video: 'veo-3.1-fast-generate-preview', // 스튜디오(functions/api/gen.js)와 같은 영상 모델
+  video: ENGINE_MODELS.stage5, // gemini-omni-1.1-flash — 스튜디오·엔진과 같은 영상 모델 (v450: 구글이 Veo 3.1 Preview 종료)
 } as const;
 
 type Mode = 'lifemovie' | 'worktok';
@@ -572,22 +573,14 @@ export async function action({ request, context }: ActionFunctionArgs) {
     }
 
     try {
-      const r = await googleFetch(env, `/v1beta/models/${env.VIDEO_MODEL || LENS_MODELS.video}:predictLongRunning`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instances: [{ prompt: videoPrompt(mode, row.result) }],
-          // 스튜디오와 같은 값: 720p · 8초 (Veo 3.1 은 4~8초만 허용)
-          parameters: { aspectRatio: '9:16', resolution: '720p', durationSeconds: 8, sampleCount: 1 },
-        }),
+      // v450: Gemini Omni Flash (Interactions API) — 스튜디오와 같은 모델·방식. 길이는 구글이 정함(약 10초)
+      const opName = await omniStart(env, {
+        model: env.VIDEO_MODEL || LENS_MODELS.video,
+        input: videoPrompt(mode, row.result),
+        response_format: { type: 'video', aspect_ratio: '9:16', resolution: '720p' },
       });
-      const d: any = await r.json().catch(() => ({}));
 
-      if (!r.ok || !d.name) {
-        throw new Error('Veo ' + r.status + ': ' + (d?.error?.message || JSON.stringify(d).slice(0, 300)));
-      }
-
-      await patchLens(c, hash, mode, lang, { video_status: 'running', video_op: d.name, video_job: s.job_id, video_user: user.id });
+      await patchLens(c, hash, mode, lang, { video_status: 'running', video_op: opName, video_job: s.job_id, video_user: user.id });
 
       return ok({ started: true, cost: cost.video, free: s.free, paid: s.paid });
     } catch (e: any) {
@@ -715,17 +708,28 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     return ok({ status: row.video_status || 'none' });
   }
 
-  // 구글 작업 상태
+  // 구글 작업 상태 (v450: interactions/<번호>)
   let opData: any;
+  let opOk = true;
+  let opStatus = 0;
 
   try {
     const r = await googleFetch(env, `/v1beta/${row.video_op}`, { method: 'GET' });
-    opData = await r.json();
+    opOk = r.ok;
+    opStatus = r.status;
+    opData = await r.json().catch(() => ({}));
   } catch (e: any) {
     return ok({ status: 'running', note: String(e.message || e).slice(0, 200) });
   }
 
-  if (!opData || !opData.done) {
+  // 429·5xx 는 잠시 후 다시 확인
+  if (!opOk && (opStatus === 429 || opStatus >= 500)) {
+    return ok({ status: 'running' });
+  }
+
+  const st = String(opData?.status || '');
+
+  if (opOk && (st === 'in_progress' || st === 'requires_action' || st === 'queued')) {
     return ok({ status: 'running' });
   }
 
@@ -737,26 +741,48 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   }
 
   try {
-    if (opData.error) {
-      throw new Error(opData.error.message || JSON.stringify(opData.error).slice(0, 300));
+    if (!opOk) {
+      throw new Error('google interaction ' + opStatus + ': ' + JSON.stringify(opData).slice(0, 300));
     }
 
-    const resp = opData.response || {};
-    const samples = (resp.generateVideoResponse && resp.generateVideoResponse.generatedSamples) || [];
-    const uri: string | undefined = samples[0]?.video?.uri;
-
-    if (!uri) {
-      const filtered = resp.generateVideoResponse?.raiMediaFilteredReasons;
-      throw new Error(filtered ? '구글 안전 필터로 생성되지 않았습니다 (' + JSON.stringify(filtered).slice(0, 160) + ')' : '영상 결과가 없습니다');
+    if (st === 'failed' || st === 'cancelled') {
+      throw new Error('구글 영상 생성 실패: ' + JSON.stringify(opData.error || st).slice(0, 300));
     }
 
-    const dl = await googleFetch(env, uri, { method: 'GET' });
+    const v = videoPart(opData);
 
-    if (!dl.ok) {
-      throw new Error('google download ' + dl.status);
+    if (!v) {
+      throw new Error('영상이 만들어지지 않았습니다 (구글 안전 필터일 수 있어요)');
     }
 
-    const bytes = new Uint8Array(await dl.arrayBuffer());
+    let bytes: Uint8Array;
+
+    if (v.data) {
+      bytes = b64ToBytes(v.data);
+    } else {
+      let u = String(v.uri);
+
+      if (!u.startsWith('http')) {
+        u = 'https://generativelanguage.googleapis.com/v1beta/' + u.replace(/^\/+/, '');
+      }
+
+      if (!u.includes(':download') && /\/files\/[^/:?]+$/.test(u)) {
+        u += ':download';
+      }
+
+      if (!u.includes('alt=media')) {
+        u += (u.includes('?') ? '&' : '?') + 'alt=media';
+      }
+
+      const dl = await googleFetch(env, u, { method: 'GET' });
+
+      if (!dl.ok) {
+        throw new Error('google download ' + dl.status);
+      }
+
+      bytes = new Uint8Array(await dl.arrayBuffer());
+    }
+
     const videoUrl = await saveMedia(env, `lens/${hash}-${mode}-${lang}.mp4`, bytes, 'video/mp4');
     await patchLens(c, hash, mode, lang, { video_status: 'done', video_url: videoUrl, video_error: null });
     await jobDone(c, row.video_job);

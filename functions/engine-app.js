@@ -125,7 +125,7 @@ h3 .right{margin-left:auto}
     <div class="row" id="opts">
       <button type="button" class="chip on" id="c-3d">3D 모델 포함</button>
       <button type="button" class="chip on" id="c-video">영상 포함</button>
-      <button type="button" class="chip" id="c-ext" title="4초 영상 뒤에 7초를 이어 붙여 11초로 만듭니다 (영상 1건 크레딧 추가)">영상 7초 연장 <small id="c-ext-cost"></small></button>
+      <button type="button" class="chip" id="c-ext" title="약 10초 영상 뒤에 약 10초를 이어 붙여 약 20초로 만듭니다 (영상 1건 크레딧 추가)">영상 연장 (약 20초) <small id="c-ext-cost"></small></button>
       <button type="button" class="chip on" id="c-go">완성되면 채팅으로 이동</button>
       <button type="button" class="chip stop" id="stop">■ 중지</button>
     </div>
@@ -179,7 +179,7 @@ h3 .right{margin-left:auto}
     { n: 2, key: 'stage2', role: '에셋·디자인 조사' },
     { n: 3, key: 'stage3', role: '사진급 이미지' },
     { n: 4, key: 'stage4', role: '질감·조명 보정' },
-    { n: 5, key: 'stage5', role: '4초 영상' },
+    { n: 5, key: 'stage5', role: '약 10초 영상' },
     { n: 6, key: 'stage6', role: '이미지 → 3D 모델 (GLB)' },
     { n: 7, key: 'stage7', role: '최종 코딩 (index.html)' }
   ];
@@ -196,6 +196,7 @@ h3 .right{margin-left:auto}
   var BANNED = [
     /claude-fable-5-1|fable\\s?5\\.1|claude-opus-4-5-20251101|opus\\s?4\\.5|claude/gi,
     /gpt-6-astra|astra\\s?6|gpt-image-2|gpt\\s?image\\s?2|gpt\\s?image|openai/gi,
+    /gemini-omni-[0-9.]+-flash|omni\\s?flash|gemini\\s?omni/gi,
     /gemini-3\\.1-flash-image(-preview)?|gemini\\s?3(\\.1)?\\s?flash\\s?image|gemini|google/gi,
     /models\\/veo-3\\.1-[a-z-]+\\/operations\\//gi, /veo-3\\.1-[a-z-]+|veo\\s?3\\.1|veo/gi,
     /meshy-7\\.1|meshy\\s?3d|meshy/gi, /anthropic|cloudflare/gi
@@ -685,7 +686,7 @@ h3 .right{margin-left:auto}
             if (s.done && s.videoUri) {
               S.videoUrl = location.origin + '/api/stage5-veo-status?file=' + encodeURIComponent(s.videoUri);
               out(5, '<video src="' + S.videoUrl + '" controls muted playsinline></video>');
-              log('ok', '✓ 5단계 영상 완료 (4초)');
+              log('ok', '✓ 5단계 영상 완료 (약 10초)');
               if (chipOn('c-ext')) await extendVideo(s.videoUri, S.spec && S.spec.promptForVideo);
               return;
             }
@@ -752,7 +753,7 @@ h3 .right{margin-left:auto}
     var n = 0;
     if (S.img1) { n++; var u1 = 'data:' + S.img1Mime + ';base64,' + S.img1; card('<img src="' + u1 + '" alt="">', '이미지 1', function () { saveFile(u1, 'coverfo-3d-image1.png'); }); }
     if (S.img2) { n++; var u2 = 'data:image/png;base64,' + S.img2; card('<img src="' + u2 + '" alt="">', '이미지 2', function () { saveFile(u2, 'coverfo-3d-image2.png'); }); }
-    if (S.videoUrl) { n++; card('<video src="' + esc(S.videoUrl) + '" controls muted playsinline loop></video>', '영상 · 4초', function () { saveFile(S.videoUrl, 'coverfo-3d-video.mp4'); }); }
+    if (S.videoUrl) { n++; card('<video src="' + esc(S.videoUrl) + '" controls muted playsinline loop></video>', '영상', function () { saveFile(S.videoUrl, 'coverfo-3d-video.mp4'); }); }
     if (S.modelUrl) { n++; card(S.thumbUrl ? '<img src="' + esc(S.thumbUrl) + '" alt="">' : '<div style="aspect-ratio:1/1;display:grid;place-items:center;font-size:32px">🎲</div>', '3D 모델 · GLB', function () { saveFile(S.modelUrl, 'coverfo-3d-model.glb'); }); }
     $('acount').textContent = n ? n + '개 에셋' : '만들어진 에셋이 없습니다';
     $('assets').className = 'card assets on';
@@ -768,7 +769,7 @@ h3 .right{margin-left:auto}
     if (S.modelUrl) h += '<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}<\\/script>\\n';
     h += '<style>body{margin:0;background:#0f1117;color:#eee;font-family:Inter,system-ui,sans-serif}.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 60px}h1{font-size:22px;margin:0 0 4px}p.sub{color:#9aa;margin:0 0 18px;font-size:13px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.card{background:#171a22;border:1px solid #262a35;border-radius:16px;overflow:hidden}.card img,.card video{width:100%;display:block;background:#000}.card .cap{padding:10px 12px;font-size:12.5px;color:#aab}#viewer{width:100%;aspect-ratio:16/9;background:#0b0d13}.full{grid-column:1/-1}</style>\\n</head>\\n<body>\\n<!-- © 2026 coverfo All Rights Reserved — Coverfo Creator Engine™ v1 -->\\n<div class="wrap">\\n<h1>' + t + '</h1>\\n<p class="sub">' + esc(S.prompt || '') + '</p>\\n<div class="grid">\\n';
     if (S.modelUrl) h += '<div class="card full"><div id="viewer"></div><div class="cap">3D 모델 · 드래그로 회전 · <a href="' + esc(S.modelUrl) + '" style="color:#8ab4ff">GLB 다운로드</a></div></div>\\n';
-    if (S.videoUrl) h += '<div class="card"><video src="' + esc(S.videoUrl) + '" crossorigin="anonymous" autoplay muted loop playsinline controls preload="metadata"></video><div class="cap">영상 · 4초</div></div>\\n';
+    if (S.videoUrl) h += '<div class="card"><video src="' + esc(S.videoUrl) + '" crossorigin="anonymous" autoplay muted loop playsinline controls preload="metadata"></video><div class="cap">영상</div></div>\\n';
     if (i1) h += '<div class="card"><img src="' + i1 + '" alt=""><div class="cap">이미지 1</div></div>\\n';
     if (i2) h += '<div class="card"><img src="' + i2 + '" alt=""><div class="cap">이미지 2</div></div>\\n';
     h += '</div>\\n</div>\\n';
@@ -835,15 +836,15 @@ h3 .right{margin-left:auto}
     saveHist({ at: Date.now(), mode: 'app', prompt: LAST.prompt, title: LAST.title, ok: !!finalHtml, size: finalHtml.length, html: finalHtml, stages: summary, chat: chatUrlId });
   });
 
-  /* ───────── 영상 7초 연장 (4초 → 11초). 크레딧을 따로 차감하고, 실패하면 4초 영상을 그대로 씁니다 ───────── */
+  /* ───────── 영상 연장 (약 10초 → 약 20초). 크레딧을 따로 차감하고, 실패하면 처음 영상을 그대로 씁니다 ───────── */
   async function extendVideo(videoUri, promptForVideo) {
     var jobBefore = jobId;
     jobId = null;
-    if (!(await spendCredit('engine_extend', '영상 7초 연장'))) { jobId = jobBefore; log('bad', '연장 크레딧이 부족해 4초 영상으로 진행합니다'); return; }
+    if (!(await spendCredit('engine_extend', '영상 연장'))) { jobId = jobBefore; log('bad', '연장 크레딧이 부족해 처음 영상(약 10초)으로 진행합니다'); return; }
     var extJob = jobId; jobId = jobBefore;
     try {
-      log('run', '… 영상 7초 연장 중 (보통 1~3분)');
-      out(5, '<pre>영상 7초 연장 중… 기다려 주세요</pre>');
+      log('run', '… 영상 연장 중 (보통 1~3분)');
+      out(5, '<pre>영상 연장 중… 기다려 주세요</pre>');
       var j = await post('/api/stage5-veo-extend', { videoUri: videoUri, prompt: promptForVideo || '' });
       var deadline = Date.now() + 240000;
       while (Date.now() < deadline) {
@@ -853,16 +854,16 @@ h3 .right{margin-left:auto}
         if (s.done && s.videoUri) {
           S.videoUrl = location.origin + '/api/stage5-veo-status?file=' + encodeURIComponent(s.videoUri);
           out(5, '<video src="' + S.videoUrl + '" controls muted playsinline></video>');
-          log('ok', '✓ 영상 연장 완료 (11초)');
+          log('ok', '✓ 영상 연장 완료 (약 20초)');
           if (extJob) { try { fetch('/api/engine-credit', { method: 'POST', headers: headers(), body: JSON.stringify({ op: 'done', job_id: extJob }) }); } catch (e2) {} }
           return;
         }
         if (s.done) throw new Error('연장 영상이 돌아오지 않았습니다');
-        out(5, '<pre>영상 7초 연장 중… ' + Math.round((deadline - Date.now()) / 1000) + '초 더 기다립니다</pre>');
+        out(5, '<pre>영상 연장 중… ' + Math.round((deadline - Date.now()) / 1000) + '초 더 기다립니다</pre>');
       }
       throw new Error('4분 안에 끝나지 않았습니다');
     } catch (e) {
-      log('bad', '영상 연장 실패 — 4초 영상으로 진행합니다 (연장 크레딧 환불): ' + clean(String(e.message || e)));
+      log('bad', '영상 연장 실패 — 처음 영상(약 10초)으로 진행합니다 (연장 크레딧 환불): ' + clean(String(e.message || e)));
       out(5, '<video src="' + S.videoUrl + '" controls muted playsinline></video>');
       if (extJob) { try { await fetch('/api/engine-credit', { method: 'POST', headers: headers(), body: JSON.stringify({ op: 'refund', job_id: extJob }) }); loadCredit(); } catch (e2) {} }
     }
