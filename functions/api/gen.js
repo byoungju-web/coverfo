@@ -10,7 +10,7 @@
 //        없으면 Supabase Storage(cf-media 버킷)에 저장.
 // 선택 (Text 변수로 넣으면 코드 수정 없이 바꿀 수 있음):
 //   IMAGE_MODEL  (기본 gemini-3.1-flash-image-preview)
-//   VIDEO_MODEL  (기본 veo-3.1-fast-generate-preview)
+//   VIDEO_MODEL  (기본 gemini-omni-1.1-flash — 구글이 2026-10-22 Veo 3.1 Preview 를 종료하고 안내한 대체 모델, Interactions API)
 //   COST_IMAGE   (기본 2)   COST_VIDEO (기본 25)
 //
 // 요청:
@@ -19,8 +19,8 @@
 //   GET  /api/gen?list=1            → 최근 작업 20개
 //   POST /api/gen  {kind:'image'|'video', prompt, aspect, source_job?, extend_job?, seconds?}  → 작업 시작 (이미지는 바로 완료)
 //        source_job: 목록의 이미지 작업 번호. 이미지면 그 이미지를 고쳐서 새로 만들고, 영상이면 첫 장면으로 씀
-//        extend_job: 목록의 영상 작업 번호. 그 영상 뒤에 7초를 이어 붙인 새 영상을 만듦 (720p 영상만 가능, 영상 1건 크레딧)
-//        seconds: 영상 길이 8·15·22·29. 15 이상이면 8초를 만든 뒤 서버가 자동으로 7초씩 이어 붙여 영상 1개로 줌 (조각마다 영상 1건 크레딧, 실패한 조각은 환불)
+//        extend_job: 목록의 영상 작업 번호. 그 영상 뒤에 이어 붙인 새 영상을 만듦 (v445 Omni 로 만든 영상만 가능, 영상 1건 크레딧)
+//        seconds: 영상 길이 10·20·30·40. 20 이상이면 첫 영상을 만든 뒤 서버가 자동으로 약 10초씩 이어 붙여 영상 1개로 줌 (조각마다 영상 1건 크레딧, 실패한 조각은 환불)
 //   GET  /api/gen?job=ID            → 진행 확인 (영상은 완료되면 파일을 받아 저장)
 //   DELETE /api/gen?job=ID         → 최근 만든 것에서 삭제 (파일 삭제)
 
@@ -41,7 +41,7 @@ function cfg(env) {
     anon: env.SUPABASE_ANON_KEY || '',
     service: env.SUPABASE_SERVICE_ROLE_KEY || '',
     imageModel: env.IMAGE_MODEL || 'gemini-3.1-flash-image-preview',
-    videoModel: env.VIDEO_MODEL || 'veo-3.1-fast-generate-preview',
+    videoModel: env.VIDEO_MODEL || 'gemini-omni-1.1-flash',
     costImage: parseInt(env.COST_IMAGE || '2', 10),
     costVideo: parseInt(env.COST_VIDEO || '25', 10),
     // 구글 호출 중계: 기본 켜짐. Secret GOOGLE_PROXY=off 로 끌 수 있음
@@ -201,24 +201,14 @@ async function loadSourceImage(c, userId, srcJobId) {
   return { mime: mime.split(';')[0], b64: bytesToB64(bytes), job_id: job.id };
 }
 
-// 목록에 있는 영상 작업을 연장 원본으로 불러온다 (본인 것 + 완료된 영상만). 구글 연장은 720p 영상만 받는다.
+// 목록에 있는 영상 작업을 연장 원본으로 불러온다 (본인 것 + 완료된 영상만).
+// v445 Omni: 구글에 남아 있는 그 영상의 대화 번호(meta.iid)로 이어 붙인다 → 예전 Veo 영상은 연장 불가
 async function loadSourceVideo(c, userId, jobId) {
   const job = await getJob(c, jobId, userId);
   if (!job || job.kind !== 'video' || job.status !== 'done' || !job.result_url) throw new Error('연장할 영상을 찾을 수 없습니다');
   const meta = job.meta || {};
-  if (meta.res !== '720p') throw new Error('이 영상은 예전(1080p) 방식으로 만들어져 연장할 수 없습니다. 새로 만든 영상부터 연장됩니다.');
-  let bytes;
-  if (job.result_url.indexOf('/media/') === 0) {
-    if (!c.media) throw new Error('R2 저장소 연결(MEDIA 바인딩)이 없습니다');
-    const obj = await c.media.get(job.result_url.slice('/media/'.length));
-    if (!obj) throw new Error('원본 영상 파일이 없습니다');
-    bytes = new Uint8Array(await obj.arrayBuffer());
-  } else {
-    const r = await fetch(job.result_url);
-    if (!r.ok) throw new Error('원본 영상을 읽지 못했습니다 (' + r.status + ')');
-    bytes = new Uint8Array(await r.arrayBuffer());
-  }
-  return { b64: bytesToB64(bytes), job_id: job.id, seconds: parseInt(meta.seconds || '8', 10) || 8, aspect: meta.aspect || '16:9' };
+  if (!meta.iid) throw new Error('이 영상은 예전 방식(Veo)으로 만들어져 연장할 수 없습니다. 새로 만든 영상부터 연장됩니다.');
+  return { job_id: job.id, iid: meta.iid, seconds: parseInt(meta.seconds || '10', 10) || 10, aspect: meta.aspect || '16:9' };
 }
 
 function b64ToBytes(b64) {
@@ -271,39 +261,81 @@ async function googleImage(c, prompt, aspect, srcImage) {
   return { mime: img.inlineData.mimeType || 'image/png', b64: img.inlineData.data };
 }
 
-async function googleVideoStart(c, prompt, aspect, srcImage) {
-  const inst = { prompt: prompt };
-  // 720p: 구글 영상 연장(7초 이어 붙이기)은 720p 영상만 받아서, 새 영상은 720p 로 만듭니다
-  const params = { aspectRatio: aspect === '9:16' ? '9:16' : '16:9', resolution: '720p', durationSeconds: 8 };
-  if (srcImage) {
-    inst.image = { bytesBase64Encoded: srcImage.b64, mimeType: srcImage.mime }; // Veo는 inlineData 대신 이 형식
-    params.personGeneration = 'allow_adult'; // 이미지→영상은 구글이 이 값만 허용
+/* ── 영상: Gemini Omni Flash (Interactions API) ──
+   구글 공식 문서(ai.google.dev/gemini-api/docs/omni) 기준:
+   POST /v1beta/interactions {model, input, response_format:{type:'video', aspect_ratio, resolution}}
+   background:true 로 시작하면 번호(id)를 바로 받고, GET /v1beta/interactions/{id} 로 완료(completed)를 확인한다.
+   연장: previous_interaction_id 로 이전 영상 뒤에 이어 붙임 (문서: 10초씩, 합계 최대 40초) */
+async function omniStart(c, body) {
+  const send = (b) => gfetch(c, '/interactions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
+  let r = await send(Object.assign({ background: true }, body));
+  let d = await r.json().catch(() => ({}));
+  // 혹시 이 모델이 background 를 안 받으면 → 한 번 더, 기다렸다 받는 방식으로 (결과는 같은 번호로 다시 조회)
+  if (r.status === 400 && /background/i.test(JSON.stringify(d))) {
+    r = await send(body);
+    d = await r.json().catch(() => ({}));
   }
-  const body = { instances: [inst], parameters: params };
-  const r = await gfetch(c, '/models/' + c.videoModel + ':predictLongRunning', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok || !d.name) throw new Error('google video ' + r.status + ': ' + JSON.stringify(d).slice(0, 400));
-  return d.name;
+  if (!r.ok || !d.id) throw new Error('google video ' + r.status + ': ' + JSON.stringify(d).slice(0, 400));
+  return 'interactions/' + d.id;
 }
 
-// 영상 뒤에 7초 이어 붙이기 (Veo 3.1 video extension). 원본 mp4 를 본문에 넣어 보낸다.
-async function googleVideoExtend(c, prompt, srcVideo) {
-  const body = {
-    instances: [{ prompt: 'Continue the same scene seamlessly, same subject, same style. ' + prompt, video: { inlineData: { mimeType: 'video/mp4', data: srcVideo.b64 } } }],
-    parameters: { resolution: '720p', sampleCount: 1 },
-  };
-  const r = await gfetch(c, '/models/' + c.videoModel + ':predictLongRunning', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+async function googleVideoStart(c, prompt, aspect, srcImage) {
+  const input = srcImage
+    ? [{ type: 'image', data: srcImage.b64, mime_type: srcImage.mime }, { type: 'text', text: prompt }]
+    : prompt;
+  return omniStart(c, {
+    model: c.videoModel,
+    input: input,
+    response_format: { type: 'video', aspect_ratio: aspect === '9:16' ? '9:16' : '16:9', resolution: '720p' },
   });
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok || !d.name) throw new Error('google video extend ' + r.status + ': ' + JSON.stringify(d).slice(0, 400));
-  return d.name;
+}
+
+// 영상 뒤에 이어 붙이기: 구글에 저장된 이전 영상 대화(iid)를 이어서 요청
+async function googleVideoExtend(c, prompt, srcVideo) {
+  return omniStart(c, {
+    model: c.videoModel,
+    previous_interaction_id: srcVideo.iid,
+    input: 'Extend this video: continue the same scene seamlessly from the last frame, same subject, same style. ' + prompt,
+    response_format: { type: 'video', aspect_ratio: srcVideo.aspect === '9:16' ? '9:16' : '16:9', resolution: '720p' },
+    generation_config: { video_config: { task: 'extend' } },
+  });
+}
+
+// 응답 어디에 있든 영상 조각({type:'video', data|uri})을 찾는다 (steps[].content[] / output_video 등)
+function findVideo(o, depth) {
+  if (!o || typeof o !== 'object' || (depth || 0) > 8) return null;
+  const isVid = o.type === 'video' || /^video\//.test(String(o.mime_type || o.mimeType || ''));
+  if (isVid && (o.data || o.uri)) return o;
+  for (const k in o) {
+    const f = findVideo(o[k], (depth || 0) + 1);
+    if (f) return f;
+  }
+  return null;
+}
+function findText(o, out, depth) {
+  out = out || [];
+  if (!o || typeof o !== 'object' || (depth || 0) > 8) return out;
+  if (o.type === 'text' && typeof o.text === 'string') out.push(o.text);
+  for (const k in o) findText(o[k], out, (depth || 0) + 1);
+  return out;
+}
+
+// mp4 의 실제 길이(초) — 'mvhd' 상자의 timescale/duration
+function mp4Seconds(bytes) {
+  for (let i = 4; i < Math.min(bytes.length - 32, 4 * 1024 * 1024); i++) {
+    if (bytes[i] === 0x6d && bytes[i + 1] === 0x76 && bytes[i + 2] === 0x68 && bytes[i + 3] === 0x64) {
+      const v = bytes[i + 4];
+      const u32 = (p) => ((bytes[p] << 24) >>> 0) + (bytes[p + 1] << 16) + (bytes[p + 2] << 8) + bytes[p + 3];
+      if (v === 1) {
+        const ts = u32(i + 24);
+        const dur = u32(i + 28) * 4294967296 + u32(i + 32);
+        return ts ? dur / ts : 0;
+      }
+      const ts = u32(i + 16);
+      return ts ? u32(i + 20) / ts : 0;
+    }
+  }
+  return 0;
 }
 
 async function googleVideoStatus(c, opName) {
@@ -321,6 +353,7 @@ async function googleDownload(c, uri) {
 
 /* ── 영상 마무리: 구글에서 받아 저장소에 올리고 job 완료 처리 ── */
 async function finalizeVideo(c, job) {
+  if (String(job.op_name).indexOf('interactions/') === 0) return finalizeOmni(c, job);
   const op = await googleVideoStatus(c, job.op_name);
   if (!op.done) return { status: 'running' };
 
@@ -348,38 +381,83 @@ async function finalizeVideo(c, job) {
     const path = job.user_id + '/' + job.id + '.mp4';
     const url = await uploadToStorage(c, path, bytes, 'video/mp4');
     await patchJob(c, job.id, { status: 'done', result_url: url, error: null });
-    const meta = job.meta || {};
-    // 자동 연장 중이었으면: 앞 조각(이번 영상에 이미 들어 있음)은 지운다
-    if (meta.chain && meta.extend_of) await dropChainPiece(c, job.user_id, meta.extend_of);
-    // 자동 연장: 목표 길이가 남았으면 이 영상 뒤에 7초를 또 이어 붙인다 (조각마다 그때 크레딧 차감)
-    if (meta.chain && meta.chain.target > (meta.seconds || 8)) {
-      const next = await chainNext(c, Object.assign({}, job, { result_url: url }), bytes);
-      if (next.next_job) return { status: 'running', next_job: next.next_job, seconds: meta.seconds || 8, target: meta.chain.target };
-      return { status: 'done', result_url: url, seconds: meta.seconds || 8, target: meta.chain.target, stopped: next.reason };
-    }
-    return { status: 'done', result_url: url, seconds: meta.seconds || 8 };
+    return { status: 'done', result_url: url, seconds: (job.meta && job.meta.seconds) || 8 };
   } catch (e) {
     await rpc(c, 'cf_refund', { p_job: job.id }).catch(() => {});
     await patchJob(c, job.id, { status: 'failed', error: String(e.message || e).slice(0, 500) });
-    const meta = job.meta || {};
-    // 자동 연장 조각이 실패하면: 환불하고, 바로 앞까지 만든 영상을 결과로 돌려준다
+    return { status: 'failed', error: String(e.message || e).slice(0, 500) };
+  }
+}
+
+/* ── v445 Omni 영상 마무리: 구글 대화(interaction)가 끝났으면 영상을 받아 저장 ── */
+async function finalizeOmni(c, job) {
+  const iid = String(job.op_name).slice('interactions/'.length);
+  const r = await gfetch(c, '/interactions/' + encodeURIComponent(iid), { method: 'GET' });
+  const d = await r.json().catch(() => ({}));
+  // 429·5xx 는 잠시 후 다시 확인, 그 밖의 오류는 실패 처리(환불)
+  if (!r.ok && (r.status === 429 || r.status >= 500)) throw new Error('google interaction ' + r.status);
+  const st = String(d.status || '');
+  if (r.ok && (st === 'in_progress' || st === 'requires_action' || st === 'queued')) return { status: 'running' };
+
+  const locked = await patchJob(c, job.id, { status: 'finalizing' }, 'status=eq.running');
+  if (!locked) return { status: 'running' };
+
+  const meta = job.meta || {};
+  try {
+    if (!r.ok) throw new Error('google interaction ' + r.status + ': ' + JSON.stringify(d).slice(0, 300));
+    if (st === 'failed' || st === 'cancelled') throw new Error('구글 영상 생성 실패: ' + JSON.stringify(d.error || d.status).slice(0, 300));
+    const outs = Array.isArray(d.steps) ? d.steps.filter((x) => x && x.type === 'model_output') : [];
+    const v = findVideo(outs.length ? outs : d);
+    if (!v) {
+      const said = findText(outs.length ? outs : d).join(' ').slice(0, 200);
+      throw new Error('영상이 만들어지지 않았습니다 (구글 안전 필터일 수 있어요 — 문구를 바꿔 다시 시도해 보세요)' + (said ? ' · ' + said : ''));
+    }
+    let bytes;
+    if (v.data) bytes = b64ToBytes(v.data);
+    else {
+      let u = String(v.uri);
+      if (u.indexOf(':download') < 0 && /\/files\/[^/:?]+$/.test(u)) u += ':download';
+      if (u.indexOf('alt=media') < 0) u += (u.indexOf('?') >= 0 ? '&' : '?') + 'alt=media';
+      bytes = await googleDownload(c, u);
+    }
+    const secs = Math.round(mp4Seconds(bytes) * 10) / 10;
+    // 연장 결과가 '앞 영상 + 뒷부분' 한 파일이 아니면(뒷부분만 오면) 실패로 보고 환불 — 앞 영상을 결과로 줌
+    if (meta.extend_of && meta.prev_seconds && secs && secs < meta.prev_seconds + 2) {
+      throw new Error('구글이 앞 영상과 합친 파일이 아니라 뒷부분(' + secs + '초)만 돌려줬습니다. 이 조각 크레딧은 환불했습니다.');
+    }
+    const path = job.user_id + '/' + job.id + '.mp4';
+    const url = await uploadToStorage(c, path, bytes, 'video/mp4');
+    const newMeta = Object.assign({}, meta, { iid: iid, seconds: secs || meta.seconds || 10 });
+    await patchJob(c, job.id, { status: 'done', result_url: url, error: null, meta: newMeta });
+    if (meta.chain && meta.extend_of) await dropChainPiece(c, job.user_id, meta.extend_of);
+    const done = Object.assign({}, job, { meta: newMeta, result_url: url });
+    if (meta.chain && (meta.piece || 1) < (meta.chain.steps || 1)) {
+      const next = await chainNext(c, done);
+      if (next.next_job) return { status: 'running', next_job: next.next_job, seconds: newMeta.seconds, target: meta.chain.target };
+      return { status: 'done', result_url: url, seconds: newMeta.seconds, target: meta.chain.target, stopped: next.reason };
+    }
+    return { status: 'done', result_url: url, seconds: newMeta.seconds };
+  } catch (e) {
+    const msg = String(e.message || e).slice(0, 500);
+    await rpc(c, 'cf_refund', { p_job: job.id }).catch(() => {});
+    await patchJob(c, job.id, { status: 'failed', error: msg });
     if (meta.chain && meta.extend_of) {
       const prev = await getJob(c, meta.extend_of, job.user_id).catch(() => null);
       if (prev && prev.status === 'done' && prev.result_url) {
         const pm = Object.assign({}, prev.meta || {});
         delete pm.chain_hidden; delete pm.chain_next;
         await patchJob(c, prev.id, { meta: pm });
-        return { status: 'done', result_url: prev.result_url, seconds: pm.seconds || 8, target: meta.chain.target, stopped: 'failed', error: String(e.message || e).slice(0, 300) };
+        return { status: 'done', result_url: prev.result_url, seconds: pm.seconds || 10, target: meta.chain.target, stopped: 'failed', error: msg.slice(0, 300) };
       }
     }
-    return { status: 'failed', error: String(e.message || e).slice(0, 500) };
+    return { status: 'failed', error: msg };
   }
 }
 
 /* ── 자동 연장 (명령 한 번 → 15·22·29초 영상 1개) ──
-   8초를 먼저 만들고, 끝날 때마다 구글 공식 '연장'으로 7초씩 이어 붙인다.
+   첫 영상을 만들고, 끝날 때마다 구글 공식 '연장'으로 이어 붙인다 (v445 Omni: 조각당 약 10초).
    크레딧은 조각을 시작할 때마다 영상 1건(costVideo)씩 차감 — 실패한 조각은 환불, 부족하면 거기까지 만든 영상으로 끝. */
-async function chainNext(c, job, bytes) {
+async function chainNext(c, job) {
   const meta = job.meta || {};
   const chain = meta.chain || {};
   const prompt = String(chain.prompt || job.prompt || '').slice(0, 1500);
@@ -392,8 +470,8 @@ async function chainNext(c, job, bytes) {
   if (!spend || !spend.ok) return { reason: 'insufficient' };
   const nextId = spend.job_id;
   try {
-    const opName = await googleVideoExtend(c, prompt, { b64: bytesToB64(bytes) });
-    await patchJob(c, nextId, { op_name: opName, task_id: opName, meta: { extend_of: job.id, res: '720p', seconds: (meta.seconds || 8) + 7, aspect: meta.aspect || '16:9', chain: chain } });
+    const opName = await googleVideoExtend(c, prompt, { iid: meta.iid, aspect: meta.aspect || '16:9' });
+    await patchJob(c, nextId, { op_name: opName, task_id: opName, meta: { extend_of: job.id, res: '720p', piece: (meta.piece || 1) + 1, prev_seconds: meta.seconds || 0, aspect: meta.aspect || '16:9', chain: chain } });
     // 앞 조각은 목록에서 숨김 (다음 조각이 끝나면 지움 · 실패하면 다시 보임)
     await patchJob(c, job.id, { meta: Object.assign({}, meta, { chain_hidden: true, chain_next: nextId }) });
     return { next_job: nextId };
@@ -491,7 +569,9 @@ async function handlePost(context) {
   const srcJobId = body.source_job ? String(body.source_job) : '';
   const extJobId = kind === 'video' && body.extend_job ? String(body.extend_job) : '';
   // 영상 길이: 8 · 15 · 22 · 29초 (8초 + 자동 연장 7초씩). 수동 '7초 연장'에는 쓰지 않음
-  const target = kind === 'video' && !extJobId && [15, 22, 29].indexOf(parseInt(body.seconds, 10)) >= 0 ? parseInt(body.seconds, 10) : 8;
+  // v445 Omni: 한 조각 약 10초 → 10·20·30·40초 = 1~4조각 (구글 문서: 연장 합계 최대 40초)
+  const target = kind === 'video' && !extJobId && [20, 30, 40].indexOf(parseInt(body.seconds, 10)) >= 0 ? parseInt(body.seconds, 10) : 10;
+  const steps = Math.round(target / 10);
 
   // 0-1) 영상 연장이면 원본 영상을 먼저 불러온다 — 실패하면 크레딧을 건드리지 않음
   let srcVideo = null;
@@ -546,13 +626,13 @@ async function handlePost(context) {
     }
     if (srcVideo) {
       const opName2 = await googleVideoExtend(c, prompt, srcVideo);
-      await patchJob(c, jobId, { op_name: opName2, task_id: opName2, meta: { extend_of: srcVideo.job_id, res: '720p', seconds: srcVideo.seconds + 7, aspect: srcVideo.aspect } });
+      await patchJob(c, jobId, { op_name: opName2, task_id: opName2, meta: { extend_of: srcVideo.job_id, res: '720p', prev_seconds: srcVideo.seconds, aspect: srcVideo.aspect } });
       return json({ job_id: jobId, status: 'running', kind: 'video', free: spend.free, paid: spend.paid });
     }
     const opName = await googleVideoStart(c, prompt, aspect, srcImage);
     // meta.res/seconds/aspect: 나중에 "7초 연장" 이 가능한지(720p) 와 길이 표시에 씀
-    await patchJob(c, jobId, Object.assign({ op_name: opName, task_id: opName, meta: Object.assign({ res: '720p', seconds: 8, aspect: aspect === '9:16' ? '9:16' : '16:9' }, srcImage && srcImage.job_id ? { source_job: srcImage.job_id } : {}, target > 8 ? { chain: { target: target, prompt: prompt } } : {}) }));
-    return json({ job_id: jobId, status: 'running', kind: 'video', seconds: 8, target: target, free: spend.free, paid: spend.paid });
+    await patchJob(c, jobId, Object.assign({ op_name: opName, task_id: opName, meta: Object.assign({ res: '720p', piece: 1, aspect: aspect === '9:16' ? '9:16' : '16:9' }, srcImage && srcImage.job_id ? { source_job: srcImage.job_id } : {}, steps > 1 ? { chain: { target: target, steps: steps, prompt: prompt } } : {}) }));
+    return json({ job_id: jobId, status: 'running', kind: 'video', seconds: 0, target: target, free: spend.free, paid: spend.paid });
   } catch (e) {
     // 실패 → 환불
     await rpc(c, 'cf_refund', { p_job: jobId }).catch(() => {});

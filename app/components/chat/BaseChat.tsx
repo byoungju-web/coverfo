@@ -481,7 +481,16 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       alert={actionAlert}
                       clearAlert={() => clearAlert?.()}
                       postMessage={(message) => {
-                        sendMessage?.({} as any, message);
+                        /*
+                         * v444: 'coverfo AI 로 고치기' 는 실제로 파일을 고쳐야 하므로 앱 생성(build)으로 보냅니다.
+                         * '[제작 지시]' 가 없으면 글 답변(discuss)으로 판별돼 "The Plan" 설명만 나오고 코드는 안 고쳐졌습니다.
+                         * '<<coverfo-spec>>' 뒤 문구는 채팅 화면에 보이지 않습니다.
+                         */
+                        sendMessage?.(
+                          {} as any,
+                          message +
+                            '\n\n<<coverfo-spec>>\n[제작 지시]\n위 오류만 고쳐 주세요. 오류와 상관없는 부분은 바꾸지 마세요. 설명은 두 문장 이내로 짧게 해주세요.',
+                        );
                         clearAlert?.();
                       }}
                     />

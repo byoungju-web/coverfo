@@ -79,7 +79,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
   <div class="card">
     <div class="tabs">
       <button type="button" id="tab-image" class="on">🎨 이미지 (2K)</button>
-      <button type="button" id="tab-video">🎬 영상 8~29초 (720p)</button>
+      <button type="button" id="tab-video">🎬 영상 10~40초 (720p)</button>
     </div>
     <div class="src" id="srcbox"><img id="srcimg" alt="" crossorigin="anonymous"><div class="txt"><b id="srctitle">원본 이미지</b><span id="srcdesc"></span></div><button type="button" id="srcclear">원본 해제</button></div>
     <textarea id="prompt" placeholder="무엇을 만들까요? 예) 노을 지는 해변에서 뛰어노는 강아지, 실사 사진"></textarea>
@@ -108,8 +108,8 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
 <script>
 (function(){
   var kind = 'image', aspect = '1:1', costs = {image:2, video:25}, client = null, token = null, busy = false;
-  var secs = 8, LENS = [8,15,22,29]; // 영상 길이: 8초 + 자동 연장 7초씩 (조각마다 영상 1건 크레딧)
-  function vCost(s){ return costs.video * (1 + Math.round((s-8)/7)); }
+  var secs = 10, LENS = [10,20,30,40]; // v445 영상 길이: 약 10초 + 자동 연장 약 10초씩 (조각마다 영상 1건 크레딧)
+  function vCost(s){ return costs.video * Math.round(s/10); }
   var SRC = null; // 원본 이미지 {id, url, prompt}
   var ASPECTS = { image:['1:1','16:9','9:16','4:3','3:4'], video:['16:9','9:16'] };
   var $ = function(id){ return document.getElementById(id); };
@@ -145,7 +145,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
     var lb = $('lens'); lb.innerHTML = ''; lb.style.display = kind==='video' ? '' : 'none';
     if (kind==='video') {
       LENS.forEach(function(s){
-        var b=document.createElement('button'); b.type='button'; b.className='chip'+(s===secs?' on':''); b.textContent=s+'초 · '+vCost(s);
+        var b=document.createElement('button'); b.type='button'; b.className='chip'+(s===secs?' on':''); b.textContent='약 '+s+'초 · '+vCost(s);
         b.addEventListener('click', function(){ secs=s; renderKind(); });
         lb.appendChild(b);
       });
@@ -164,8 +164,8 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
     if (typeof renderHistory === 'function' && JOBS.length) renderHistory();
     $('costhint').textContent = kind==='image'
       ? (SRC ? '원본을 기준으로 고쳐서 새 이미지를 만듭니다 · 2K' : 'Gemini 3 Flash Image · 2K · 보통 10~20초')
-      : (SRC ? '이미지를 첫 장면으로 '+secs+'초 영상을 만듭니다' : 'Veo 3.1 · '+secs+'초 · 720p · 소리 포함')
-        + (secs>8 ? ' · 8초 + 7초씩 이어서 파일 1개 · 보통 '+(2+Math.round((secs-8)/7)*2)+'~'+(3+Math.round((secs-8)/7)*3)+'분 · 크레딧은 만들어진 만큼만 (실패한 부분 환불)' : ' · 보통 1~3분')
+      : (SRC ? '이미지를 첫 장면으로 약 '+secs+'초 영상을 만듭니다' : 'Gemini Omni Flash · 약 '+secs+'초 · 720p · 소리 포함')
+        + (secs>10 ? ' · 약 10초씩 이어서 파일 1개 · 크레딧은 만들어진 만큼만 (실패한 부분 환불)' : '')
         + (SRC ? '' : ' · 충전 크레딧으로만 가능');
   }
   function setSource(it, toKind){
@@ -253,7 +253,7 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
       var t=document.createElement('div'); t.className='t';
       t.innerHTML='<span></span><small></small>';
       t.querySelector('span').textContent=(it.prompt||'').slice(0,40);
-      var secs = it.kind==='video' && it.meta && it.meta.seconds ? ' · '+it.meta.seconds+'초' : '';
+      var secs = it.kind==='video' && it.meta && it.meta.seconds ? ' · '+Math.round(it.meta.seconds)+'초' : '';
       t.querySelector('small').textContent=(it.kind==='video'?'영상':'이미지')+secs+' · '+it.cost+'크레딧'+(it.status==='failed'||it.status==='refunded'?' · 실패(환불)':'');
       var acts=document.createElement('div'); acts.className='acts';
       var bs=document.createElement('button'); bs.type='button'; bs.textContent='저장'; bs.disabled=!done;
@@ -288,13 +288,13 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
           $('prompt').focus();
         });
         acts.appendChild(br);
-        /* 7초 연장: 720p 로 만든 영상만 가능 (구글 영상 연장 규칙). 예전 1080p 영상은 버튼을 숨깁니다 */
-        if(done && it.meta && it.meta.res==='720p'){
-          var bx=document.createElement('button'); bx.type='button'; bx.textContent='7초 연장';
-          bx.title='이 영상 뒤에 7초를 이어 붙인 새 영상을 만듭니다 (영상 1건 크레딧)';
+        /* 연장: v445 Omni 로 만든 영상(meta.iid)만 가능. 예전 Veo 영상은 버튼을 숨깁니다 */
+        if(done && it.meta && it.meta.iid){
+          var bx=document.createElement('button'); bx.type='button'; bx.textContent='이어서 연장';
+          bx.title='이 영상 뒤에 약 10초를 이어 붙인 새 영상을 만듭니다 (영상 1건 크레딧)';
           bx.addEventListener('click', function(){
             if(busy) return;
-            if(!confirm('이 영상 뒤에 7초를 이어 붙일까요? ('+costs.video+'크레딧, 새 영상으로 저장됩니다)')) return;
+            if(!confirm('이 영상 뒤에 약 10초를 이어 붙일까요? ('+costs.video+'크레딧, 새 영상으로 저장됩니다)')) return;
             setBusy(true); hideMsg();
             api('POST','',{kind:'video', prompt:(it.prompt||'').replace(/^\[(수정|연장) #\d+\] /,''), aspect:(it.meta&&it.meta.aspect)||'16:9', extend_job: it.id}).then(function(j){
               if(j.__status===402){ setBusy(false); show('err', insufficientMsg(j)); return; }
@@ -323,8 +323,8 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
     if(pollTimer) clearTimeout(pollTimer);
     var tail=' 이 화면을 닫아도 "최근 만든 것"에서 다시 확인할 수 있습니다.';
     function wait(done){
-      if(target && target>8) show('info','영상을 만드는 중입니다 — '+done+'초 / '+target+'초 완성. 8초를 만든 뒤 7초씩 이어 붙여 파일 1개로 만들어요.'+tail);
-      else show('info','영상을 만드는 중입니다. 보통 1~3분 걸려요.'+tail);
+      if(target && target>10) show('info','영상을 만드는 중입니다 — '+(done?Math.round(done)+'초':'첫 조각')+' / 약 '+target+'초. 약 10초씩 이어 붙여 파일 1개로 만들어요.'+tail);
+      else show('info','영상을 만드는 중입니다. 잠시만 기다려 주세요.'+tail);
     }
     setBusy(true); wait(0);
     var started=Date.now(), done=0, lastHist=0;
@@ -342,10 +342,10 @@ h3{font-size:14px;margin:18px 4px 8px;color:#333}
           setBusy(false);
           var msg='완성됐습니다.';
           if(j.stopped && target && j.seconds && j.seconds<target){
-            msg = j.stopped==='insufficient' ? '크레딧이 부족해서 '+j.seconds+'초까지만 만들었습니다 (만든 만큼만 차감).'
-              : '뒷부분 연장이 실패해서 '+j.seconds+'초까지 만든 영상입니다. 실패한 부분 크레딧은 환불됐습니다.'+(j.error?'<br>'+j.error:'');
+            msg = j.stopped==='insufficient' ? '크레딧이 부족해서 약 '+Math.round(j.seconds)+'초까지만 만들었습니다 (만든 만큼만 차감).'
+              : '뒷부분 연장이 실패해서 약 '+Math.round(j.seconds)+'초까지 만든 영상입니다. 실패한 부분 크레딧은 환불됐습니다.'+(j.error?'<br>'+j.error:'');
             show('err', msg);
-          } else show('ok', msg + (j.seconds?' ('+j.seconds+'초)':''));
+          } else show('ok', msg + (j.seconds?' (약 '+Math.round(j.seconds)+'초)':''));
           showResult('video', j.result_url); loadCredits(); loadHistory(); markDone(); return;
         }
         if(j.status==='failed'){ setBusy(false); show('err','실패했습니다. 크레딧은 환불됐습니다.<br>'+(j.error||'')); loadCredits(); loadHistory(); return; }
