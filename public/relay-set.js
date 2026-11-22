@@ -668,7 +668,7 @@
     return h + '</div>';
   }
 
-  /* ── 공용: 복사 · AI 영상(구글 Veo, 스튜디오와 같은 /api/gen) ── */
+  /* ── 공용: 복사 · AI 영상(Gemini Omni Flash, 스튜디오와 같은 /api/gen) ── */
   function copyText(t) {
     var done = function () { log('ok', '복사했어요'); alert('복사했어요. 붙여넣기 하세요.'); };
     if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t).then(done, function () { copyOld(t); done(); });
@@ -736,7 +736,7 @@
     h += '<label class="set-lb">릴스 · 쇼츠 길이</label>' + chips([['15', '15초'], ['30', '30초'], ['60', '60초']], 'data-sn-secs', String(n.secs));
     h += '<label class="set-lb">번역 (선택 · 한 나라 ' + COST.plan + '크레딧)</label><div class="set-chips">'
       + LANGS.map(function (l) { return '<button class="set-chip' + (n.langs.indexOf(l) >= 0 ? ' on' : '') + '" data-sn-lang="' + l + '">🌐 ' + l + '</button>'; }).join('') + '</div>';
-    h += '<label class="se-chk"><input type="checkbox" id="sn-veo"' + (n.veo ? ' checked' : '') + '>🎥 AI 실사 영상(8초)을 영상 배경으로 · +' + COST.veo + ' 크레딧 (1~3분 더 걸려요)</label>';
+    h += '<label class="se-chk"><input type="checkbox" id="sn-veo"' + (n.veo ? ' checked' : '') + '>🎥 AI 실사 영상(약 10초)을 영상 배경으로 · +' + COST.veo + ' 크레딧 (1~3분 더 걸려요)</label>';
     h += '<div class="set-row"><button class="btn btn-primary" id="sn-go"' + (n.busy ? ' disabled' : '') + '>' + (n.busy ? '만드는 중… (1~3분)' : '📣 한 번에 만들기') + '</button>'
       + '<span class="set-cost">기획·글 ' + COST.plan + ' + 이미지 ' + COST.image + ' + 목소리 ' + COST.voice + ' + 음악 ' + COST.clip + (n.veo ? ' + AI 영상 ' + COST.veo : '') + (n.langs.length ? ' + 번역 ' + n.langs.length * COST.plan : '') + ' = <b>' + snsCost() + '</b> 크레딧</span></div>';
     if (n.steps.length) h += stepsHtml(n.steps);
@@ -775,7 +775,7 @@
     n.busy = true; n.err = ''; n.plan = null; n.img = ''; n.voice = ''; n.music = ''; n.clip = ''; n.trans = {};
     if (X.r.key === 'sns') { X.r.url = ''; X.r.err = ''; }
     n.steps = [{ k: 'plan', t: '① AI 기획 · 글 (포스트 · 블로그 · 해시태그 · 대본)', st: 'run' }, { k: 'img', t: '② 📸 이미지', st: '' }, { k: 'voice', t: '③ 🎙️ 내레이션 목소리', st: '' }, { k: 'music', t: '④ 🎵 배경음악', st: '' }];
-    if (n.veo) n.steps.push({ k: 'veo', t: '⑤ 🎥 AI 실사 영상 8초', st: '' });
+    if (n.veo) n.steps.push({ k: 'veo', t: '⑤ 🎥 AI 실사 영상 약 10초', st: '' });
     if (n.langs.length) n.steps.push({ k: 'tr', t: '🌐 번역 (' + n.langs.join(' · ') + ')', st: '' });
     var setSt = function (k, st, d) { n.steps.forEach(function (x) { if (x.k === k) { x.st = st; if (d !== undefined) x.d = d; } }); render(); };
     render();
@@ -789,7 +789,7 @@
       + ' "narration":"릴스·쇼츠 내레이션 한국어 ' + chars + '자 안팎 (' + n.secs + '초 분량, 말하듯 자연스럽게)",'
       + ' "image_scene":"인스타 포스트 이미지 장면 영어 설명 (고급스러운 사진 느낌, 글자 없이)",'
       + ' "music":"배경음악 영어 설명 (장르·분위기·악기·템포, 보컬 없음)",'
-      + ' "video_scene":"8초 세로 영상 장면 영어 설명 (카메라 움직임 포함, 사람이 말하지 않음, 글자 없이)"}.'
+      + ' "video_scene":"약 10초 세로 영상 장면 영어 설명 (카메라 움직임 포함, 사람이 말하지 않음, 글자 없이)"}.'
       + ' 실존 인물·상표·가수 이름은 쓰지 마.';
     aiText(topic, prompt).then(function (t) {
       var o = parseJSON(t);
@@ -829,7 +829,7 @@
       .then(function () { n.busy = false; render(); });
   }
 
-  /* ── 🗣️ AI 아바타 영상 (말하는 나): 얼굴 사진 1장 + 대본 → 사진 속 사람이 말하는 8초 영상 (구글 Veo) ── */
+  /* ── 🗣️ AI 아바타 영상 (말하는 나): 얼굴 사진 1장 + 대본 → 사진 속 사람이 말하는 약 10초 영상 (Gemini Omni Flash) ── */
   var TONES = [['bright', '😊 밝고 친근하게', 'in a bright, friendly and warm tone'], ['calm', '🙂 차분하고 믿음직하게', 'in a calm, trustworthy tone'],
     ['fun', '🤩 신나고 활기차게', 'in an excited, energetic tone'], ['pro', '👔 전문가처럼 또박또박', 'clearly and confidently like a professional presenter']];
   X.a = { photo: '', script: '', topic: '', tone: 'bright', aspect: '9:16', ok: false, busy: false, sec: 0, url: '', err: '' };
@@ -853,14 +853,14 @@
     var h = '<div class="set-box">' + head('🗣️ AI 아바타 영상 · 말하는 나', '얼굴 사진 1장 + 대본만 넣으면, 사진 속 사람이 입 모양 · 표정을 맞춰 말하는 영상을 AI가 만들어요. 쇼핑몰 제품 소개 · 학원 강의 맛보기 · 릴스에 내 얼굴로.');
     h += '<label class="set-lb">① 얼굴 사진</label><label class="se-pick">🙂 얼굴 사진 고르기 (정면 · 밝은 사진)<input type="file" id="av-file" accept="image/*"></label>';
     if (a.photo) h += '<img class="se-prev" src="' + a.photo + '" alt="사진">';
-    h += '<label class="set-lb">② 대본 — 8초 분량 (50자 안팎)</label><textarea class="set-in" id="av-script" maxlength="80" placeholder="예) 안녕하세요! 오늘 새로 나온 밤라떼, 지금 오시면 쿠키 하나 더 드려요.">' + esc(a.script) + '</textarea>'
+    h += '<label class="set-lb">② 대본 — 약 10초 분량 (50자 안팎)</label><textarea class="set-in" id="av-script" maxlength="80" placeholder="예) 안녕하세요! 오늘 새로 나온 밤라떼, 지금 오시면 쿠키 하나 더 드려요.">' + esc(a.script) + '</textarea>'
       + '<div class="set-cost" id="av-count" style="margin-top:4px">' + a.script.length + '자' + (a.script.length > 55 ? ' · 길면 말이 빨라지거나 잘릴 수 있어요' : '') + '</div>';
     h += '<div class="set-row" style="margin-top:6px"><input class="set-in" style="flex:1;min-width:150px" id="av-topic" maxlength="80" placeholder="주제만 쓰면 AI가 대본을 써요" value="' + esc(a.topic).replace(/"/g, '&quot;') + '"><button class="btn btn-secondary btn-sm" id="av-ai">✍️ AI 대본 · ' + COST.plan + '크레딧</button></div>';
     h += '<label class="set-lb">③ 말투</label>' + chips(TONES.map(function (t) { return [t[0], t[1]]; }), 'data-av-tone', a.tone);
     h += '<label class="set-lb">④ 화면</label>' + chips([['9:16', '📱 세로 (릴스 · 쇼츠)'], ['16:9', '🖥 가로 (유튜브)']], 'data-av-aspect', a.aspect);
     h += '<label class="se-chk"><input type="checkbox" id="av-ok"' + (a.ok ? ' checked' : '') + '>내 사진이거나, 사진 속 사람에게 허락을 받았어요</label>'
       + '<div class="set-cost" style="margin:4px 0 0 26px">연예인 · 다른 사람 · 어린이 사진은 쓰지 마세요.</div>';
-    h += '<div class="set-row"><button class="btn btn-primary" id="av-go"' + (a.busy ? ' disabled' : '') + '>' + (a.busy ? '만드는 중… ' + a.sec + '초 (보통 1~3분)' : '🗣️ 말하는 영상 만들기') + '</button><span class="set-cost"><b>' + COST.veo + '</b> 크레딧 · 8초</span></div>';
+    h += '<div class="set-row"><button class="btn btn-primary" id="av-go"' + (a.busy ? ' disabled' : '') + '>' + (a.busy ? '만드는 중… ' + a.sec + '초 (보통 1~3분)' : '🗣️ 말하는 영상 만들기') + '</button><span class="set-cost"><b>' + COST.veo + '</b> 크레딧 · 약 10초</span></div>';
     h += '<div class="set-cost" style="margin-top:8px">목소리는 AI가 새로 만든 목소리예요 (내 목소리가 아니에요). 사진에 따라 구글 AI가 만들지 않을 수 있는데, 그때는 크레딧이 돌아와요.</div>';
     h += errBox(a.err);
     if (a.url) {
@@ -946,16 +946,16 @@
     { c: 'meme', i: '📦', t: '택배 기다림', d: '배송 조회만 50번째', meme: { scene: '현관문 앞에서 택배 상자를 기다리는 고양이', top: '배송 조회 50번째', bottom: '오늘 온다며...' } },
 
     /* 🗣️ AI 아바타 */
-    { c: 'avatar', i: '🛍️', t: '상품 소개 영상', d: '내 얼굴 사진으로 8초 상품 소개', avatar: { script: '안녕하세요! 오늘 소개할 제품은 정말 자신 있어요. 지금 바로 만나 보세요.', tone: 'bright' } },
-    { c: 'avatar', i: '🎓', t: '강의 맛보기 영상', d: '강사 사진으로 8초 강의 인사', avatar: { script: '안녕하세요, 여러분. 이번 강의에서 꼭 알아야 할 세 가지를 쉽게 알려 드릴게요.', tone: 'pro' } },
-    { c: 'avatar', i: '🏪', t: '매장 인사 영상', d: '사장님 사진으로 8초 환영 인사', avatar: { script: '어서 오세요! 오늘도 정성껏 준비했습니다. 편하게 둘러보세요.', tone: 'calm' } },
+    { c: 'avatar', i: '🛍️', t: '상품 소개 영상', d: '내 얼굴 사진으로 약 10초 상품 소개', avatar: { script: '안녕하세요! 오늘 소개할 제품은 정말 자신 있어요. 지금 바로 만나 보세요.', tone: 'bright' } },
+    { c: 'avatar', i: '🎓', t: '강의 맛보기 영상', d: '강사 사진으로 약 10초 강의 인사', avatar: { script: '안녕하세요, 여러분. 이번 강의에서 꼭 알아야 할 세 가지를 쉽게 알려 드릴게요.', tone: 'pro' } },
+    { c: 'avatar', i: '🏪', t: '매장 인사 영상', d: '사장님 사진으로 약 10초 환영 인사', avatar: { script: '어서 오세요! 오늘도 정성껏 준비했습니다. 편하게 둘러보세요.', tone: 'calm' } },
 
     /* 🎨 이미지 · 영상 (스튜디오로 문장을 채워 보냄) */
     { c: 'studio', i: '🍰', t: '메뉴 사진', d: '고급 카페 메뉴판용 음식 사진', studio: { kind: 'image', prompt: '나무 테이블 위 크림 라떼와 딸기 케이크, 창가 자연광, 고급 카페 메뉴판 사진, 얕은 심도' }, cost: 2 },
     { c: 'studio', i: '📦', t: '제품 누끼 느낌 사진', d: '흰 배경 쇼핑몰 대표 이미지', studio: { kind: 'image', prompt: '흰 배경 가운데 놓인 화장품 병, 부드러운 그림자, 쇼핑몰 대표 이미지, 깔끔한 스튜디오 조명' }, cost: 2 },
     { c: 'studio', i: '🔤', t: '가게 로고 시안', d: '심플한 로고 아이디어 이미지', studio: { kind: 'image', prompt: '동네 빵집을 위한 심플하고 귀여운 로고 시안, 밀 이삭과 빵 모양, 따뜻한 갈색, 흰 배경, 글자 없이' }, cost: 2 },
     { c: 'studio', i: '🛋️', t: '매장 인테리어 컨셉', d: '새 매장 분위기 미리 보기', studio: { kind: 'image', prompt: '따뜻한 우드톤 미니멀 카페 인테리어, 큰 창, 초록 식물, 오후 햇살, 실사 건축 사진' }, cost: 2 },
-    { c: 'studio', i: '🎬', t: '8초 홍보 영상', d: 'AI 실사 영상 한 편', studio: { kind: 'video', prompt: '갓 구운 빵에서 김이 오르는 모습을 천천히 다가가며 찍은 따뜻한 베이커리 홍보 영상, 시네마틱' }, cost: 25 },
+    { c: 'studio', i: '🎬', t: '약 10초 홍보 영상', d: 'AI 실사 영상 한 편', studio: { kind: 'video', prompt: '갓 구운 빵에서 김이 오르는 모습을 천천히 다가가며 찍은 따뜻한 베이커리 홍보 영상, 시네마틱' }, cost: 25 },
 
     /* 📱 앱 만들기 (앱 만들기 화면으로 요청 문장을 채워 보냄 — 채팅 크레딧 사용) */
     { c: 'app', i: '☕', t: '카페 주문 앱', d: '메뉴 · 장바구니 · 주문 접수 화면', app: '모바일용 카페 주문 웹앱을 만들어줘. 메뉴(사진·가격·옵션), 장바구니, 주문하기, 주문 번호 화면, 사장님용 주문 목록 화면. 한국어, 깔끔한 디자인.' },
@@ -1568,7 +1568,7 @@
       keepA(); var a = X.a, topic = (a.topic || a.script).trim();
       if (!topic) { alert('대본 칸이나 주제 칸에 무엇을 말할지 먼저 적어 주세요.'); return; }
       a.err = ''; a.busy = true; render();
-      aiText(topic, '위 주제로 사람이 카메라를 보고 8초 동안 말할 한국어 대본을 써. 40~50자, 1~2문장, 친근한 말투. 따옴표·설명 없이 대본만.')
+      aiText(topic, '위 주제로 사람이 카메라를 보고 약 10초 동안 말할 한국어 대본을 써. 40~50자, 1~2문장, 친근한 말투. 따옴표·설명 없이 대본만.')
         .then(function (t) { a.script = t.trim().replace(/^["'“”]+|["'“”]+$/g, '').slice(0, 80); })
         .catch(function (e) { a.err = e.message; }).then(function () { a.busy = false; render(); });
     });

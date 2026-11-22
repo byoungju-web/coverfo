@@ -18,7 +18,7 @@ export async function onRequestGet(context){
     valid:_0x10,
     domain:_0xD,
     mode:_0xE,
-    pipeline:_0xF.indexOf('7')>-1?"Fable 5.1 \u2192 Astra 6 \u2192 Gemini 3 Flash Image \u2192 gpt image 2 \u2192 Veo 3.1 \u2192 Tripo3D \u2192 Opus 4.5 (7-stage realistic)":"Fable 5.1 \u2192 Astra 6 \u2192 Gemini 3 Flash \u2192 Veo 3.1 \u2192 Opus 4.5 (5-stage)",
+    pipeline:_0xF.indexOf('7')>-1?"Fable 5.1 \u2192 Astra 6 \u2192 Gemini 3 Flash Image \u2192 gpt image 2 \u2192 Gemini Omni Flash \u2192 Tripo3D \u2192 Opus 4.5 (7-stage realistic)":"Fable 5.1 \u2192 Astra 6 \u2192 Gemini 3 Flash \u2192 Gemini Omni Flash \u2192 Opus 4.5 (5-stage)",
     engine:"coverfo 3D Orchestrator Engine\u2122 v2.1 \u2014 OBFUSCATED \u2014 7 Stage",
     version:"2.1.7-obfuscated",
     features:{gemini3Flash:!0,veo3_1:!0,tripo3d:_0xE.indexOf('3d')>-1||_0xF.indexOf('7')>-1},

@@ -568,7 +568,7 @@ async function handlePost(context) {
   const cost = kind === 'video' ? c.costVideo : c.costImage;
   const srcJobId = body.source_job ? String(body.source_job) : '';
   const extJobId = kind === 'video' && body.extend_job ? String(body.extend_job) : '';
-  // 영상 길이: 8 · 15 · 22 · 29초 (8초 + 자동 연장 7초씩). 수동 '7초 연장'에는 쓰지 않음
+  // 영상 길이: 약 10 · 20 · 30 · 40초 (약 10초 + 자동 연장 약 10초씩). 수동 '이어서 연장'에는 쓰지 않음
   // v445 Omni: 한 조각 약 10초 → 10·20·30·40초 = 1~4조각 (구글 문서: 연장 합계 최대 40초)
   const target = kind === 'video' && !extJobId && [20, 30, 40].indexOf(parseInt(body.seconds, 10)) >= 0 ? parseInt(body.seconds, 10) : 10;
   const steps = Math.round(target / 10);
