@@ -28,7 +28,8 @@
      · v435: 탭 2줄 — 윗줄 🖼 사진 · 🎬 쇼츠 · 🗓 일정짜기 · 🗺 테마지도 / 아랫줄 🙋 내 글 · 👥 팔로잉 · 🙋 질문방 (· 🛡 신고)
        · 처음 화면은 사진 · 📌 저장 탭 없앰(📌 저장 단추는 그대로, 저장한 글은 일정짜기·테마지도에서 고름)
        · 테마 지도 만들기·목록은 🗺 테마지도 탭에만 · 질문방은 🇰🇷 국내 / 🌍 해외로 나눔
-     · v436 (시험): 안드로이드 웹의 🏨 숙소 → 크롬 intent 대신 coverfo 안내 화면(/trip/go/)을 2.5초 거쳐 Hotels.com 웹으로 -->
+     · v436 (시험): 안드로이드 웹의 🏨 숙소 → 크롬 intent 대신 coverfo 안내 화면(/trip/go/)을 2.5초 거쳐 Hotels.com 웹으로
+     · v437: 요청대로 숙소 열기를 v434 방식(크롬 intent)으로 되돌림 · /trip/go/ 는 더 이상 쓰지 않음 -->
 <style>
 :root{--ink:#14132a;--sub:#5b5a73;--mute:#8d8ba5;--line:#e6e7f4;--bg:#f4f5fc;--pri:#4f46e5;--pri2:#3730a3;--sky:#0ea5e9;--pink:#ec4899;--err:#b42318;--ok:#0f8a5f}
 *{box-sizing:border-box}
@@ -405,13 +406,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   /* v430 버튼 눌림 기록 (작성자 보상용) — 페이지가 넘어가도 보내지게 keepalive */
   function logClick(id,k){ if(["nav","stay","air","car"].indexOf(k)<0) return; try{ var h={"Content-Type":"application/json"}, t=token(); if(t) h.Authorization="Bearer "+t; fetch("/api/trip",{method:"POST",keepalive:true,headers:h,body:JSON.stringify({op:"click",id:id,kind:k})})["catch"](function(){}); }catch(e){} }
   function openOut(u){ if(!u) return; try{ window.top.location.href=u; return; }catch(e){} location.href=u; }
-  /* v436 (시험) 숙소: 안드로이드 웹에서는 Hotels.com 앱으로 넘어가면 상세 화면이 안 열려서, coverfo 안내 화면(/trip/go/)을 거쳐
-     누름 없이 Hotels.com 웹으로 넘어가게 해 봄 (v431~ 의 크롬 intent 방식은 실제 폰에서 앱으로 넘어가 효과가 없었음).
-     coverfo 소리 앱(웹뷰)·아이폰·PC 는 지금처럼 바로 엶 */
+  /* v431 숙소: 안드로이드 웹 브라우저에서는 Hotels.com 앱으로 넘어가면 상세 화면이 안 열려서, 크롬 안에서 열리게 (크롬이 없으면 원래 주소).
+     coverfo 소리 앱(웹뷰)은 지금처럼 앱 안에서 열림 · v437 에서 v434 그대로 되돌림 */
   function openStay(u){
     var UA=navigator.userAgent||"";
     if(/Android/i.test(UA)&&!/CoverfoSori/i.test(UA)&&!window.CoverfoApp&&/^https:\/\//.test(u)){
-      openOut(location.origin+"/trip/go/?u="+encodeURIComponent(u)); return; }
+      openOut("intent://"+u.replace(/^https:\/\//,"")+"#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url="+encodeURIComponent(u)+";end"); return; }
     openOut(u);
   }
 
