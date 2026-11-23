@@ -39,6 +39,8 @@
 //   { op:"kakao_set", on } 받기 켜기·끄기 · { op:"kakao_test" } 시험 메시지 · { op:"kakao_unlink" } 연결 끊기(메시지 동의 철회 + 저장한 키 지움)
 //     브리핑 알림 시각이 되면 cron_due 가 웹 알림과 함께 내 카톡 '나와의 채팅방'으로 제목·요약·듣기 링크를 보낸다 (크레딧 차감 없음).
 //     카톡 키(토큰)는 서버(Supabase cf_kakao_memo, 서버만 읽음)에만 두고 화면으로 내보내지 않는다. 남에게는 보내지 않는다(나에게 보내기 API).
+//   v459 📅 일정 먼저 알림 (sql/cf_calnudge.sql 1번 실행): 🔔 먼저 챙기기를 켜고 구글 캘린더를 연결한 사람에게 cron_due 가
+//     장소 있는 일정은 1시간 전(그 장소 비 올 확률 포함), 장소 없는 일정은 15분 전에 웹 알림·카톡 나에게로 알린다 (알림 1번 MEMORY_NUDGE_COST)
 //   { op:"cron_run", id }                 → 그 레시피를 사람 없이 실행. 남에게 보내기·수정은 하지 않고 '확인 대기'로 멈춘다.
 //                                            결과(또는 확인 요청)는 지메일이 연결돼 있으면 내 메일 주소로만 보낸다.
 //
@@ -871,7 +873,10 @@ async function cronDue(env) {
   /* v366 🧠 먼저 챙기기 (sql/cf_memory.sql) — 표가 없거나 켠 사람이 없으면 조용히 넘어간다 */
   let nudges = 0;
   try { nudges = await memNudge(env, now); } catch {}
-  return { ok: true, ids, pushes, kakaos, reminds, parcels, nudges };
+  /* v459 📅 일정 먼저 알림 (sql/cf_calnudge.sql) — 먼저 챙기기를 켜고 구글 캘린더를 연결한 사람만 · 표·칸이 없으면 조용히 넘어간다 */
+  let calNudges = 0;
+  try { calNudges = await calNudge(env, now); } catch {}
+  return { ok: true, ids, pushes, kakaos, reminds, parcels, nudges, calNudges };
 }
 
 /* ───────────── v366 🧠 먼저 챙기기: 🔔 를 켠 사람에게 하루 1번까지 ─────────────
@@ -909,6 +914,130 @@ async function memNudge(env, now) {
     sent++;
   }
   return sent;
+}
+/* ───────────── v459 📅 일정 먼저 알림 (자비스처럼 먼저 말 걸기) ─────────────
+   · 대상: 🔔 먼저 챙기기를 켠 사람(cf_memory_set.nudge) 중 커넥션 허브에서 구글 캘린더를 연결한 사람
+   · 한국 시각 6시~22시 59분에만 · 한 사람의 캘린더는 10분에 1번만 확인 (cal_at) · 한 번 깨울 때 최대 8명
+   · 알릴 때: 장소가 있는 일정은 시작 60분 전, 장소가 없으면 15분 전 (CAL_NUDGE_LEAD · CAL_NUDGE_SHORT 로 바꿀 수 있음)
+   · 내용: 일정 제목·시각·장소 + 그 시각 그 장소의 비 올 확률(카카오 장소 검색 → Open-Meteo) + 카카오맵 링크
+   · 이동 시간(교통)은 아직 계산하지 않는다 — 카카오모빌리티 길찾기 API 는 사용 권한 신청이 필요해서
+   · 크레딧: 먼저 챙기기와 같은 MEMORY_NUDGE_COST(기본 1)를 알림을 보낼 때만 · 웹 알림·카톡 어느 쪽도 못 보내면 돌려준다
+   · 같은 일정은 두 번 알리지 않는다 (cal_sent · 최근 40개) · 캘린더는 읽기만 한다 */
+const calSchema = { key: null };
+async function calNudge(env, now) {
+  const canPush = !!(env.VAPID_PUBLIC && env.VAPID_PRIVATE), canKakao = !!String(env.KAKAO_REST_KEY || '').trim();
+  if ((!canPush && !canKakao) || !env.COMPOSIO_API_KEY) return 0;
+  const hh = new Date(now + 9 * 3600e3).getUTCHours();
+  if (hh < 6 || hh >= 23) return 0;
+  const iso = (t) => new Date(t).toISOString();
+  let rows = [];
+  try { rows = await sbReq(env, 'GET', 'cf_memory_set?select=user_id,cal_at,cal_sent&nudge=eq.true&or=(cal_at.is.null,cal_at.lte.' + encodeURIComponent(iso(now)) + ')&limit=8'); } catch { return 0; }
+  const num = (k, d) => { const v = Number(env[k]); return Number.isFinite(v) && v > 0 ? v : d; };
+  const LEAD = num('CAL_NUDGE_LEAD', 60), SHORT = num('CAL_NUDGE_SHORT', 15);
+  const v = env.MEMORY_NUDGE_COST, n = Number(v);
+  const cost = v !== undefined && v !== '' && Number.isFinite(n) && n >= 0 ? n : 1;
+  let sent = 0;
+  for (const s of Array.isArray(rows) ? rows : []) {
+    const uid = String(s.user_id), cu = 'cf_' + uid;
+    /* 다음 확인 시각을 먼저 옮겨 두 번 처리하지 않게 (같은 값일 때만) */
+    const claimQ = 'cf_memory_set?user_id=eq.' + encodeURIComponent(uid) + (s.cal_at ? '&cal_at=eq.' + encodeURIComponent(s.cal_at) : '&cal_at=is.null');
+    const claim = await sbReq(env, 'PATCH', claimQ, { cal_at: iso(now + 10 * 60e3) }, 'return=representation').catch(() => []);
+    if (!Array.isArray(claim) || !claim.length) continue;
+    let acc = {};
+    try { acc = await accounts(env, cu); } catch { continue; }
+    if (!(acc.googlecalendar && acc.googlecalendar.length)) {
+      /* 캘린더를 연결하지 않았으면 6시간 뒤에 다시 본다 */
+      await sbReq(env, 'PATCH', 'cf_memory_set?user_id=eq.' + encodeURIComponent(uid), { cal_at: iso(now + 6 * 3600e3) }, 'return=minimal').catch(() => {});
+      continue;
+    }
+    const evs = await calEvents(env, cu, now, now + (LEAD + 20) * 60e3).catch(() => []);
+    const done = Array.isArray(s.cal_sent) ? s.cal_sent : [];
+    const pick = evs.find((e) => {
+      const lead = e.location ? LEAD : SHORT;
+      return e.start > now && e.start - lead * 60e3 <= now + 5 * 60e3 && !done.includes(e.key);
+    });
+    if (!pick) continue;
+    const msg = await calMessage(env, pick, now);
+    let job = null;
+    try { job = await spend(env, uid, cost, 'memory:nudge'); } catch { continue; }
+    if (job === false) continue;   /* 크레딧 부족 → 보내지 않음 (차감 없음) */
+    let ok = false;
+    if (canPush) { const r = await pushUser(env, uid, { title: msg.title, body: msg.body, url: msg.url, tag: 'cf-cal-' + pick.key.slice(0, 40) }).catch(() => null); if (r && r.sent) ok = true; }
+    if (canKakao) { try { const r = await kakaoRow(env, uid); if (r && r.is_on) { const x = await kakaoMemo(env, r, msg.title + '\n' + msg.body, msg.link, msg.button); if (x && x.ok) ok = true; } } catch {} }
+    if (!ok) { await refund(env, job); continue; }
+    await doneJob(env, job);
+    await sbReq(env, 'PATCH', 'cf_memory_set?user_id=eq.' + encodeURIComponent(uid), { cal_sent: done.concat([pick.key]).slice(-40) }, 'return=minimal').catch(() => {});
+    sent++;
+  }
+  return sent;
+}
+/* 구글 캘린더(커넥션 허브 · Composio)에서 [from, to] 사이에 시작하는 일정 — 하루 종일 일정은 뺀다. 인자 이름은 도구 설명에서 찾는다 */
+async function calEvents(env, cu, from, to) {
+  if (!calSchema.key) {
+    const t = await cmp(env, 'GET', '/tools/GOOGLECALENDAR_EVENTS_LIST');
+    const props = (t.ok && ((t.j.input_parameters || t.j.inputParameters || {}).properties)) || {};
+    const none = !Object.keys(props).length;
+    const pick = (names, d) => names.find((x) => props[x]) || (none ? d : null);
+    calSchema.key = {
+      cal: pick(['calendarId', 'calendar_id'], 'calendarId'), min: pick(['timeMin', 'time_min'], 'timeMin'), max: pick(['timeMax', 'time_max'], 'timeMax'),
+      single: pick(['singleEvents', 'single_events'], 'singleEvents'), order: pick(['orderBy', 'order_by'], 'orderBy'), n: pick(['maxResults', 'max_results'], 'maxResults'),
+    };
+  }
+  const k = calSchema.key;
+  if (!k.min || !k.max) return [];
+  const args = { [k.min]: new Date(from).toISOString(), [k.max]: new Date(to).toISOString() };
+  if (k.cal) args[k.cal] = 'primary';
+  if (k.single) args[k.single] = true;
+  if (k.order) args[k.order] = 'startTime';
+  if (k.n) args[k.n] = 10;
+  const r = await execTool(env, cu, 'GOOGLECALENDAR_EVENTS_LIST', args);
+  if (!r.ok) return [];
+  /* 응답이 감싸여 있어도 start 가 있는 목록을 찾는다 */
+  const find = (o, d) => {
+    if (!o || typeof o !== 'object' || d > 5) return null;
+    if (Array.isArray(o)) return o.some((x) => x && typeof x === 'object' && x.start) ? o : null;
+    for (const key of Object.keys(o)) { const f = find(o[key], d + 1); if (f) return f; }
+    return null;
+  };
+  const list = find(r.data, 0) || [];
+  const clean = (x, m) => String(x || '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, m);
+  const out = [];
+  for (const e of list) {
+    const st = e && e.start && e.start.dateTime;
+    if (!st || e.status === 'cancelled') continue;
+    const t = Date.parse(st);
+    if (!Number.isFinite(t)) continue;
+    out.push({ key: 'ev:' + clean(e.id, 60) + ':' + t, start: t, title: clean(e.summary, 40) || '일정', location: clean(e.location, 60) });
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
+/* 알림 문구: 제목·시각·장소 + 비 올 확률 (장소가 카카오 장소 검색으로 찾아질 때만) */
+async function calMessage(env, e, now) {
+  const k = new Date(e.start + 9 * 3600e3);
+  const h = k.getUTCHours(), mi = k.getUTCMinutes();
+  const when = (h < 12 ? '오전 ' : '오후 ') + ((h % 12) || 12) + '시' + (mi ? ' ' + mi + '분' : '');
+  const left = Math.max(1, Math.round((e.start - now) / 60e3));
+  const title = '📅 ' + (left >= 60 ? (Math.round(left / 6) / 10) + '시간' : left + '분') + ' 뒤 ' + e.title;
+  let body = when + (e.location ? ' · ' + e.location : '');
+  let rain = '';
+  if (e.location) {
+    try {
+      const kk = String(env.KAKAO_REST_KEY || '').trim();
+      const g = await (await fetch('https://dapi.kakao.com/v2/local/search/keyword.json?size=1&query=' + encodeURIComponent(e.location), { headers: { Authorization: 'KakaoAK ' + kk }, signal: AbortSignal.timeout(6000) })).json();
+      const d = g && g.documents && g.documents[0];
+      if (d && d.x && d.y) {
+        const w = await (await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + Number(d.y) + '&longitude=' + Number(d.x) + '&hourly=precipitation_probability&timezone=UTC&forecast_days=2', { signal: AbortSignal.timeout(6000) })).json();
+        const hs = (w && w.hourly && w.hourly.time) || [], ps = (w && w.hourly && w.hourly.precipitation_probability) || [];
+        const want = new Date(e.start).toISOString().slice(0, 13);
+        const i = hs.findIndex((x) => String(x).slice(0, 13) === want);
+        if (i >= 0 && ps[i] >= 50) rain = '비 올 확률 ' + ps[i] + '% — 우산 챙기세요';
+      }
+    } catch {}
+    body += '\n이동 시간 생각해서 미리 준비하세요' + (rain ? ' · ' + rain : '');
+    /* 카톡 '나에게 보내기' 버튼 주소는 카카오 앱 설정에 등록된 도메인(coverfo.com)만 — 다른 지도 주소는 넣지 않는다 */
+    return { title, body, url: '/?cal=1', link: 'https://coverfo.com/?cal=1', button: '📅 coverfo 열기' };
+  }
+  return { title, body: body + (rain ? '\n' + rain : ''), url: '/?cal=1', link: 'https://coverfo.com/?cal=1', button: '📅 coverfo 열기' };
 }
 async function nudgePick(env, uid, now, kday, done) {
   const u = encodeURIComponent(uid);
