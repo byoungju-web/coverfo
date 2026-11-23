@@ -30,6 +30,8 @@
 // · v357 share_votes: 친구들이 같이 정하기 링크에서 고른 결과 → 소리가 1위를 말하고 예약 문의(send_sms 또는 화면 단추)로 이어 준다. 새 투표가 오면 화면이 FRIEND VOTES 알림을 소리에게 넣는다.
 // · v361 shop_reply: 가게 답장 문자(붙여넣기·말로)를 화면이 규칙으로 정리 → 소리가 "8시는 가능하대요. 확정 문자 보낼까요?" → send_sms(앱) 또는 화면 단추. SHOP REPLY 알림.
 // · v363 track_parcel: 쿠팡 주문목록 열기 · 배송 문자/송장 → 📦 화면에 채움. v364: 🚚 배송 조회(1크레딧)·🔔 배송완료 알림(3크레딧)은 이용자가 화면 단추로만.
+// · v458 하나의 소리: open_screen 에 voice_memo(🎙 음성 메모·회의록) · news(📰 뉴스 요약) · trip(🧳 누리트립) · lens(📷 사진으로 묻기) · lens_translate(사진 글자 번역) 추가
+//   news_brief: 화면이 /api/news (네이버 뉴스 검색 · 목록 무료)로 제목만 받아 소리가 3개만 읽음. 요약(크레딧)은 뉴스 화면에서 이용자가 누름
 // · v441 place_list: 목록은 화면에만 — 소리는 이름·주소를 읽지 않고 "목록을 띄웠어요" 한마디만 (이용자 요청)
 // · v344 place_list: 맛집·카페·장소를 카카오 장소 검색(KAKAO_REST_KEY)으로 찾아 coverfo 화면에 번호 목록 → "영금물회 열어줘"·"2번" 은 press_button 이 카카오맵 장소 화면을 연다.
 //   { op:"places", q, page? } → { items:[{name,cat,addr,phone,url}], more }  (로그인 키 또는 소리 앱 기기 키 · 무료 · 저장 안 함)
@@ -97,6 +99,9 @@ const INSTRUCTIONS = [
   /* v325 말로 연결: 만들기 화면 · 통역톡 */
   'MAKING THINGS: when the user asks you to MAKE an app, website, tool, game or calculator (e.g. "가계부 앱 만들어줘", "이번 주 할 일 앱 만들어 줘"), call open_screen with screen "app_maker" and text = their request in their words. For an image/picture/poster use "image_maker", for a short video use "video_maker", for a 3D model use "3d_maker". Say only "네, 만들기 화면을 열게요." before calling. The conversation ends when that screen opens, so say nothing more.',
   'INTERPRETER: when the user wants to start interpretation/translation chat with another person (e.g. "통역 시작해", "통역톡 열어 줘", "외국인이랑 대화하게 통역 켜 줘"), call open_screen with screen "interpreter". Say only "네, 통역톡을 열게요."',
+  /* v458 하나의 소리: 홈의 다른 기능도 말로 */
+  'OTHER COVERFO SCREENS: for recording a memo or a meeting ("회의 녹음해 줘", "음성 메모 시작", "회의록 만들어 줘") call open_screen with screen "voice_memo" (text "meeting" for a meeting). For 누리트립 ("누리트립 열어 줘", "여행 사진 보여 줘", "여행 일정 짜 줘", "테마지도") call open_screen with screen "trip". To ask about something with the camera ("사진으로 물어볼게", "이거 찍어서 알려 줘") call open_screen with screen "lens"; to translate text in a photo ("메뉴판 번역해 줘", "이 안내판 뭐라고 써 있어?") use screen "lens_translate". Say only "네, 열게요." before calling.',
+  'NEWS: for news ("오늘 뉴스 뭐 있어?", "경제 뉴스 알려 줘", "삼성전자 소식") call news_brief with q = the topic in Korean (empty for top news). Read only the top 3 titles briefly and name the source (네이버 뉴스 검색) once; never add facts that are not in the titles. If the user wants details, links or a summary ("자세히", "요약해 줘", "뉴스 화면 열어 줘"), call open_screen with screen "news" and text = the same topic — the 3-line summary there costs credits and the user presses it.',
   /* v325 👣 내 발자취 */
   'MEMORY OF PAST ACTIVITY: when the user refers to something they looked at or did before (e.g. "어제 찾던 쇼핑몰 다시 띄워 줘", "아까 본 맛집 뭐였지?", "지난번에 물어본 사진"), call recall with words that describe it (query) and open=true if they want it opened again. If it returns ok:false with off:true, tell them in one sentence they can turn on 👣 내 발자취 in 내 정보. If nothing is found, say so in one short sentence. Never invent past activity.',
   /* v327 📒 내 정보 · ⏰ 알림 · 🏃 한 마디 루틴 */
@@ -433,14 +438,23 @@ const TOOLS = [{
 }, {
   type: 'function',
   name: 'open_screen',
-  description: 'Open a coverfo screen: app_maker (make an app/site/tool with AI), image_maker, video_maker, 3d_maker, or interpreter (통역톡).',
+  description: 'Open a coverfo screen: app_maker (make an app/site/tool with AI), image_maker, video_maker, 3d_maker, interpreter (통역톡), voice_memo (🎙 음성 메모·회의록 — record and get a transcript, to-dos and decisions), news (📰 뉴스 요약 screen with links and a 3-line summary), trip (🧳 누리트립 — travel photos, shorts, trip planner, theme maps), lens (📷 ask about a photo with the camera), lens_translate (📷 translate text in a photo: menus, signs, documents).',
   parameters: {
     type: 'object',
     properties: {
-      screen: { type: 'string', enum: ['app_maker', 'image_maker', 'video_maker', '3d_maker', 'interpreter'] },
-      text: { type: 'string', description: 'What to make, in the user\'s own words, e.g. "카드 내역이 자동 분류되는 가계부 앱". Empty for interpreter.' },
+      screen: { type: 'string', enum: ['app_maker', 'image_maker', 'video_maker', '3d_maker', 'interpreter', 'voice_memo', 'news', 'trip', 'lens', 'lens_translate'] },
+      text: { type: 'string', description: 'What to make, in the user\'s own words, e.g. "카드 내역이 자동 분류되는 가계부 앱". news: the topic (e.g. "경제"). voice_memo: "meeting" for a meeting. Empty otherwise.' },
     },
     required: ['screen'],
+  },
+}, {
+  /* v458 📰 뉴스 헤드라인: 화면이 /api/news (네이버 뉴스 검색 · 목록 무료)로 제목만 받아 돌려준다 */
+  type: 'function',
+  name: 'news_brief',
+  description: 'Get the latest news headlines (titles and press only, from 네이버 뉴스 검색) for a topic, free. Read the top 3 briefly. For links or a summary, open_screen news.',
+  parameters: {
+    type: 'object',
+    properties: { q: { type: 'string', description: 'Topic in Korean as said, e.g. "경제", "삼성전자", "날씨". Empty for top news.' } },
   },
 }, {
   type: 'function',
