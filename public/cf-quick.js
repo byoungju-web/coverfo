@@ -464,13 +464,14 @@
   var TRIP_SUB = { US: "us", GB: "uk", CA: "ca", AU: "au", NZ: "nz", SG: "sg", PH: "ph", IN: "in", AE: "ae", SA: "sa", ID: "id" };
   var TRIP_RE = /(트립\s*닷컴|트립닷컴|trip\s*\.\s*com|tripcom|trip\.com)\s*(에서|으로|로|에)?/gi;
   function tripHost(c) { return c === "KR" ? "https://kr.trip.com" : "https://www.trip.com"; }
-  var HOTELS_AFF = "https://www.hotels.com/affiliate/O5MJY9Z", EXP_FLIGHT = "https://expedia.com/affiliate/dH1Xh9T", EXP_CAR = "https://expedia.com/affiliate/8zSjtLw";
+  var HC_AFF = "clickref=1100lDHRM8ZP&affdtl=PHG.1100lDHRM8ZP.PZuPfKKK0I&rffrid=aff.hcom.KR.038.000.1110l47345.kwrd%3D1100lDHRM8ZP&affcid=HCOM-KR.DIRECT.PHG.1110l47345&afflid=1100lDHRM8ZP";   /* v454 숙소: kr.hotels.com 주소로 바로 (제휴 표시 값 포함) — 누리트립과 같음 */
+  var HOTELS_AFF = "https://kr.hotels.com/?" + HC_AFF, EXP_FLIGHT = "https://expedia.com/affiliate/dH1Xh9T", EXP_CAR = "https://expedia.com/affiliate/8zSjtLw";
   /* v415 칸이 채워진 화면 + 제휴: 링크 빌더의 긴 제휴 링크(landingPage = 열 화면 주소)에 검색 주소를 넣는다.
      · 숙소: kr.hotels.com/Hotel-Search?destination&startDate&endDate&adults&rooms
      · 항공권: expedia.co.kr/go/flight/search/{Oneway|Roundtrip}/출발일[/돌아오는날]?load=1&FromAirport&ToAirport&NumAdult (Expedia Group deeplink 문서)
      · 렌터카: expedia.co.kr/go/car/search/Airport/시작일/종료일?PickUpLoc=공항코드&PickUpTime=11AM&DropTime=11AM (Expedia Group deeplink 문서)
      · 장소·날짜를 모르면 v414 짧은 제휴 링크(첫 화면) 그대로. */
-  function HW(u) { return "https://www.hotels.com/affiliate?landingPage=" + encodeURIComponent(u) + "&camref=1100l6zyiV&creativeref=1011l87790&adref=PZuPfKKK0I"; }
+  function HW(u) { return u + (u.indexOf("?") < 0 ? "?" : "&") + HC_AFF; }
   function EW(u) { return "https://expedia.com/affiliate?siteid=1&landingPage=" + encodeURIComponent(u) + "&camref=1101l6yR8z&creativeref=1100l86806&adref=PZ57Rpcpu5"; }
   var EXP_KR = "https://www.expedia.co.kr";
   function hotelsSearch(dest, o) {

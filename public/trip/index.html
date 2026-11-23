@@ -393,7 +393,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   }
 
   /* ── 장소 버튼 (기존 coverfo 제휴 링크) ── */
-  function HW(u){ return "https://www.hotels.com/affiliate?landingPage="+encodeURIComponent(u)+"&camref=1100l6zyiV&creativeref=1011l87790&adref=PZuPfKKK0I"; }
+  /* v454 숙소: 제휴 중간 주소(www.hotels.com/affiliate)를 거치지 않고, 그 주소가 넘겨주던 kr.hotels.com 주소(제휴 표시 값 포함)로 바로.
+     v453 시험에서 스마트폰 웹 상세 화면이 열려서 PC 웹·소리 앱도 같은 주소로 */
+  var HC_AFF="clickref=1100lDHRM8ZP&affdtl=PHG.1100lDHRM8ZP.PZuPfKKK0I&rffrid=aff.hcom.KR.038.000.1110l47345.kwrd%3D1100lDHRM8ZP&affcid=HCOM-KR.DIRECT.PHG.1110l47345&afflid=1100lDHRM8ZP";
+  function HW(u){ return u+(u.indexOf("?")<0?"?":"&")+HC_AFF; }
   function area(pl){ var a=String(pl.addr||"").split(" "); var s=(a[0]||"").replace(/(특별시|광역시|특별자치시|특별자치도|도)$/,"")+" "+(a[1]||""); return s.trim()||pl.name; }
   function goLink(k,pl){
     if(k==="nav") return pl.lat&&pl.lng?"https://map.kakao.com/link/to/"+encodeURIComponent(pl.name)+","+pl.lat+","+pl.lng:"https://map.kakao.com/link/search/"+encodeURIComponent(pl.name);
@@ -408,19 +411,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   function openOut(u){ if(!u) return; try{ window.top.location.href=u; return; }catch(e){} location.href=u; }
   /* v431 숙소: 안드로이드 웹 브라우저에서는 Hotels.com 앱으로 넘어가면 상세 화면이 안 열려서, 크롬 안에서 열리게 (크롬이 없으면 원래 주소).
      coverfo 소리 앱(웹뷰)은 지금처럼 앱 안에서 열림 · v437 에서 v434 그대로 되돌림 */
-  /* v453 시험: 스마트폰 웹에서는 제휴 중간 주소(www.hotels.com/affiliate)를 거치지 않고,
-     PC 에서 그 주소를 거친 뒤 도착하는 kr.hotels.com 주소(제휴 표시 값 포함)로 바로 엽니다.
-     PC 웹·소리 앱은 지금처럼 제휴 중간 주소 그대로 */
-  function HD(u){
-    var m=/[?&]landingPage=([^&]+)/.exec(u||""); if(!m) return u;
-    var land=decodeURIComponent(m[1]);
-    return land+(land.indexOf("?")<0?"?":"&")+"clickref=1100lDHRM8ZP&affdtl=PHG.1100lDHRM8ZP.PZuPfKKK0I"
-      +"&rffrid="+encodeURIComponent("aff.hcom.KR.038.000.1110l47345.kwrd=1100lDHRM8ZP")
-      +"&affcid=HCOM-KR.DIRECT.PHG.1110l47345&afflid=1100lDHRM8ZP";
-  }
   function openStay(u){
     var UA=navigator.userAgent||"";
-    if(/Android|iPhone|iPad|iPod/i.test(UA)&&!/CoverfoSori/i.test(UA)&&!window.CoverfoApp) u=HD(u);
     if(/Android/i.test(UA)&&!/CoverfoSori/i.test(UA)&&!window.CoverfoApp&&/^https:\/\//.test(u)){
       openOut("intent://"+u.replace(/^https:\/\//,"")+"#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url="+encodeURIComponent(u)+";end"); return; }
     openOut(u);
