@@ -167,7 +167,7 @@ export async function onRequestGet(context) {
   if (op === 'plans') {
     if (!uid) return json({ error: '로그인이 필요합니다', login: true }, 401);
     const rows = (await get(c, `cf_trip_plans?user_id=eq.${uid}&select=id,title,plan,created_at&order=created_at.desc&limit=${MAX_PLANS}`)) || [];
-    return json({ ok: true, plans: rows.map((r) => { const p = r.plan || {}; return { id: r.id, title: r.title, at: r.created_at, nights: p.nights || 0, start: p.start || '', ppl: p.ppl || 0, google: !!p.google, n: (p.days || []).reduce((t, d) => t + ((d && d.stops) || []).length, 0) }; }) });
+    return json({ ok: true, plans: rows.map((r) => { const p = r.plan || {}; return { id: r.id, title: r.title, at: r.created_at, nights: p.nights || 0, start: p.start || '', ppl: p.ppl || 0, google: !!p.google, mine: !!p.mine, n: (p.days || []).reduce((t, d) => t + ((d && d.stops) || []).length, 0) }; }) });
   }
   if (op === 'plan') {
     if (!uid) return json({ error: '로그인이 필요합니다', login: true }, 401);
@@ -177,6 +177,25 @@ export async function onRequestGet(context) {
     const plan = r.plan || {};
     if (plan.google) plan.gkey = embedKey(env);   /* 지도 키는 저장하지 않고 열 때 붙임 */
     return json({ ok: true, plan_id: r.id, plan, at: r.created_at });
+  }
+  /* v460 🅿️ 이 장소 근처 주차장 — 카카오 로컬 카테고리 검색(PK6 · 공식 API) · 가까운 순 15곳 · 좌표가 없으면 이름으로 위치부터 찾음 */
+  if (op === 'parking') {
+    const kk = String(env.KAKAO_REST_KEY || '').trim();
+    if (!kk) return json({ error: '장소 검색 설정이 없어요' }, 500);
+    let y = Number(url.searchParams.get('lat')), x = Number(url.searchParams.get('lng'));
+    const q = cleanText(url.searchParams.get('q'), 40);
+    if (!(isFinite(y) && isFinite(x) && y > 32.5 && y < 39.5 && x > 124 && x < 132)) {
+      if (q.length < 2) return json({ error: '장소가 없어요' }, 400);
+      const r0 = await fetch('https://dapi.kakao.com/v2/local/search/keyword.json?size=1&query=' + encodeURIComponent(q), { headers: { Authorization: 'KakaoAK ' + kk } }).catch(() => null);
+      const d0 = r0 && r0.ok ? ((await r0.json().catch(() => ({}))).documents || [])[0] : null;
+      if (!d0) return json({ ok: true, items: [], note: '장소 위치를 찾지 못했어요' });
+      y = Number(d0.y); x = Number(d0.x);
+    }
+    const qs = new URLSearchParams({ category_group_code: 'PK6', x: x.toFixed(6), y: y.toFixed(6), radius: '3000', sort: 'distance', size: '15' });
+    const r = await fetch('https://dapi.kakao.com/v2/local/search/category.json?' + qs.toString(), { headers: { Authorization: 'KakaoAK ' + kk } }).catch(() => null);
+    const docs = r && r.ok ? ((await r.json().catch(() => ({}))).documents || []) : [];
+    return json({ ok: true, at: { lat: y, lng: x }, items: docs.map((d) => ({ name: clean(d.place_name, 40), addr: clean(d.road_address_name || d.address_name, 80), dist: Number(d.distance) || 0, lat: Number(d.y), lng: Number(d.x),
+      url: /^https?:\/\/place\.map\.kakao\.com\//.test(String(d.place_url || '')) ? String(d.place_url).replace(/^http:/, 'https:') : '' })).filter((o) => o.name && isFinite(o.lat) && isFinite(o.lng)) });
   }
 
   if (op === 'tmap') {
@@ -459,6 +478,27 @@ export async function onRequestPost(context) {
     await fetch(`${c.url}/rest/v1/cf_trip_plans?id=eq.${id}&user_id=eq.${uid}`, { method: 'DELETE', headers: hdr(c) });
     return json({ ok: true });
   }
+  /* v460 ✍️ 내가 직접 만든(또는 고친) 코스 저장 — 국내(카카오) 장소만 · 크레딧 없음 · 📋 내가 만든 일정에 함께 보임 */
+  if (op === 'plan_mine') {
+    const P = b.plan && typeof b.plan === 'object' ? b.plan : {};
+    const okU = (u) => (/^https:\/\/place\.map\.kakao\.com\//.test(String(u || '')) ? String(u).slice(0, 200) : '');
+    const nn = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
+    const days = (Array.isArray(P.days) ? P.days : []).slice(0, 7).map((d) => ({
+      theme: clean(d && d.theme, 40),
+      stops: (Array.isArray(d && d.stops) ? d.stops : []).slice(0, 15).map((s) => ({
+        id: clean(s && s.id, 12), time: clean(s && s.time, 12), note: clean(s && s.note, 80),
+        src: ['post', 'typed', 'spot', 'food'].indexOf(s && s.src) >= 0 ? s.src : 'spot', post_id: num(s && s.post_id) || 0,
+        name: clean(s && s.name, 40), cat: clean(s && s.cat, 20), addr: clean(s && s.addr, 80), lat: nn(s && s.lat), lng: nn(s && s.lng), url: okU(s && s.url), pid: '',
+      })).filter((s) => s.name),
+    })).filter((d) => d.stops.length);
+    if (!days.length) return json({ error: '코스에 장소를 하나 이상 넣어 주세요' }, 400);
+    const plan = { title: clean(P.title, 40) || '내가 만든 코스', area: clean(P.area, 30), days, tips: [], left: [], near: true, src: '명소·맛집: 카카오맵 장소 검색',
+      google: false, gkey: '', mine: true, nights: Math.min(6, Math.max(0, days.length - 1)), start: /^\d{4}-\d{2}-\d{2}$/.test(String(P.start || '')) ? P.start : '', ppl: Math.min(9, Math.max(1, parseInt(P.ppl, 10) || 2)) };
+    if (P.entry && isFinite(Number(P.entry.lat)) && isFinite(Number(P.entry.lng))) plan.entry = { name: clean(P.entry.name, 30), lat: Number(P.entry.lat), lng: Number(P.entry.lng), kind: P.entry.kind === 'me' ? 'me' : 'ic' };
+    const plan_id = await savePlan(c, uid, plan, []).catch(() => 0);
+    if (!plan_id) return json({ error: '저장하지 못했어요' }, 500);
+    return json({ ok: true, plan_id });
+  }
 
   if (op === 'tmap_del') {
     const id = num(b.id); if (!id) return json({ error: 'id 가 없습니다' }, 400);
@@ -472,9 +512,13 @@ export async function onRequestPost(context) {
   /* v430 🤖 AI 여행 일정 — 고른 글(장소)로만 짬 · 결과는 저장하지 않음 */
   if (op === 'ai_plan') {
     const want = [...new Set((Array.isArray(b.ids) ? b.ids : []).map(num).filter(Boolean))].slice(0, 20);
-    if (!want.length) return json({ error: '일정에 넣을 글을 골라 주세요' }, 400);
-    const rows = (await get(c, `cf_trip_posts?id=in.(${want.join(',')})&kind=in.(photo,shorts)&or=(status.eq.live,user_id.eq.${uid})&status=neq.removed&select=id,user_id,place_name,place_addr,lat,lng,tags,body,kind`)) || [];
-    if (!rows.length) return json({ error: '일정에 넣을 수 있는 글이 없어요' }, 400);
+    /* v460 장소 직접 입력 (글이 없어도) — 쉼표로 여러 곳 · 지역 이름("단양")만 넣으면 그 지역 명소·맛집으로 */
+    const typed = [...new Set((Array.isArray(b.places) ? b.places : []).map((x) => cleanText(x, 40)).filter((x) => x.length >= 2))].slice(0, 10);
+    if (!want.length && !typed.length) return json({ error: '넣을 장소를 고르거나 직접 적어 주세요' }, 400);
+    const rows = want.length ? (await get(c, `cf_trip_posts?id=in.(${want.join(',')})&kind=in.(photo,shorts)&or=(status.eq.live,user_id.eq.${uid})&status=neq.removed&select=id,user_id,place_name,place_addr,lat,lng,tags,body,kind`)) || [] : [];
+    const tp = typed.length ? await typedPlaces(env, typed) : { stops: [], areas: [] };
+    if (!rows.length && !tp.stops.length && !tp.areas.length) return json({ error: want.length ? '일정에 넣을 수 있는 글이 없어요' : '적은 장소를 찾지 못했어요. 이름을 조금 바꿔 다시 적어 주세요' }, 400);
+    const stopRows = rows.concat(tp.stops);
     const nights = Math.min(6, Math.max(0, parseInt(b.nights, 10) || 0));
     const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
     const start = /^\d{4}-\d{2}-\d{2}$/.test(String(b.start || '')) && b.start >= today ? b.start : '';
@@ -482,12 +526,17 @@ export async function onRequestPost(context) {
     const note = cleanText(b.note, 200);
     if (!env.ANTHROPIC_API_KEY && !(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY)) return json({ error: 'AI 설정이 없어요' }, 500);
     let job = null;
-    try { job = await spend(c, uid, AI_PLAN_COST, '[누리트립 AI 일정] ' + rows.map((r) => r.place_name).join(', ').slice(0, 80)); } catch { return json({ error: '크레딧을 확인하지 못했어요. 잠시 뒤 다시 해 주세요.' }, 500); }
+    try { job = await spend(c, uid, AI_PLAN_COST, '[누리트립 AI 일정] ' + stopRows.concat(tp.areas).map((r) => r.place_name).join(', ').slice(0, 80)); } catch { return json({ error: '크레딧을 확인하지 못했어요. 잠시 뒤 다시 해 주세요.' }, 500); }
     if (job === false) return json({ error: '크레딧이 부족합니다', need: AI_PLAN_COST }, 402);
     try {
-      const near = await nearbyPicks(env, rows, b.where === 'abroad' ? 'abroad' : 'kr').catch(() => ({ spots: [], foods: [], area: '' }));
-      const raw = await askTrip(env, rows, near, nights, start, ppl, note);
-      const plan = cleanTrip(raw, rows, near, nights);
+      const near = await nearbyPicks(env, stopRows.concat(tp.areas), typed.length && !rows.length ? 'kr' : (b.where === 'abroad' ? 'abroad' : 'kr')).catch(() => ({ spots: [], foods: [], area: '' }));
+      if (!stopRows.length && !near.spots.length && !near.foods.length) throw new Error('그 지역 명소·맛집을 찾지 못했어요');
+      const raw = await askTrip(env, stopRows, near, nights, start, ppl, note);
+      const plan = cleanTrip(raw, stopRows, near, nights);
+      /* v460 진입점: 출발 쪽(내 위치 · 없으면 서울)에서 들어오는 고속도로 나들목에서 가까운 곳부터 */
+      if (!plan.google) await orderFromEntry(env, plan, b.from).catch(() => {});
+      /* v460 코스·식당 추가와 지도 '주변 명소·맛집'에 쓰는 후보 (카카오 장소 검색 결과만 · 구글은 넣지 않음) */
+      if (!plan.google) plan.cands = { spots: near.spots, foods: near.foods };
       await doneJob(c, job);
       Object.assign(plan, { nights, start, ppl });
       const plan_id = await savePlan(c, uid, plan, rows).catch(() => 0);   /* v433 저장 실패해도 일정은 보여 줌 */
@@ -606,7 +655,7 @@ const TRIP_TOOL = {
       days: { type: 'array', items: { type: 'object', properties: {
         theme: { type: 'string', description: 'Short Korean theme of the day' },
         stops: { type: 'array', items: { type: 'object', properties: {
-          id: { type: 'string', description: 'id of one of the given places (p…, s… or f…)' },
+          id: { type: 'string', description: 'id of one of the given places (p…, t…, s… or f…)' },
           time: { type: 'string', description: 'Clock time like 09:30, 12:00' },
           note: { type: 'string', description: 'One short Korean line: what to do there' },
         }, required: ['id', 'time', 'note'] } },
@@ -700,15 +749,86 @@ async function googlePicks(env, rows, y, x) {
   const ok = (o) => o.name && isFinite(o.lat) && isFinite(o.lng) && !have.has(o.name.replace(/\s/g, ''));
   return Object.assign(base, { spots: sd.map((p, i) => conv(p, i, 's')).filter(ok).slice(0, 12), foods: fd.map((p, i) => conv(p, i, 'f')).filter(ok).slice(0, 12) });
 }
+/* v460 이용자가 적은 장소 → 카카오 장소 검색(공식 API) 1건. 지역 이름만 적었으면(카카오가 지역으로 알아들은 경우) 코스에 넣지 않고 지역으로만 */
+async function typedPlaces(env, list) {
+  const kk = String(env.KAKAO_REST_KEY || '').trim();
+  const out = { stops: [], areas: [] };
+  await Promise.all(list.map(async (q, i) => {
+    let d = null, sn = null;
+    if (kk) {
+      try {
+        const r = await fetch('https://dapi.kakao.com/v2/local/search/keyword.json?size=1&query=' + encodeURIComponent(q), { headers: { Authorization: 'KakaoAK ' + kk } });
+        if (r.ok) { const j = await r.json().catch(() => ({})); d = (j.documents || [])[0] || null; sn = j.meta && j.meta.same_name; }
+      } catch {}
+    }
+    const regionOnly = sn && Array.isArray(sn.region) && sn.region.length && !String(sn.keyword || '').trim();
+    if (regionOnly || /^[가-힣]{1,6}(특별시|광역시|시|군|구|도)$/.test(q)) {
+      const reg = String((sn && sn.region && sn.region[0]) || (d && (d.address_name || '')) || q);
+      out.areas.push({ area_only: true, place_name: q, place_addr: reg.split(/\s+/).length > 1 ? reg : '- ' + q, lat: d ? Number(d.y) : null, lng: d ? Number(d.x) : null });
+      return;
+    }
+    const url = d && /^https?:\/\/place\.map\.kakao\.com\//.test(String(d.place_url || '')) ? String(d.place_url).replace(/^http:/, 'https:') : '';
+    out.stops.push(d ? { tid: 't' + (i + 1), id: 0, typed: true, place_name: clean(d.place_name, 40), place_addr: clean(d.road_address_name || d.address_name, 80), lat: Number(d.y), lng: Number(d.x), url, tags: [], body: '' }
+      : { tid: 't' + (i + 1), id: 0, typed: true, place_name: q, place_addr: '', lat: null, lng: null, url: '', tags: [], body: '' });
+  }));
+  return out;
+}
+const rowKey = (r) => r.tid || 'p' + r.id;
+/* v460 🚗 진입점: 출발 쪽에서 가장 가까운 고속도로 나들목(IC) → 그 날 코스를 그쪽에서 시작하게 (거꾸로가 더 가까우면 뒤집음)
+   · 출발 위치: 이용자가 허용한 내 위치(from) · 없으면 서울시청 · 그 지역 안(15km 이내)에 있으면 내 위치에서 시작
+   · 2일째부터는 전날 마지막 장소에서 가까운 쪽부터 · 시각 칸은 그대로 두고 장소만 순서대로 다시 배치 */
+async function orderFromEntry(env, plan, from) {
+  const inKr = (a, o) => a > 32.5 && a < 39.5 && o > 124 && o < 132;
+  const km = (a, b) => { const r = Math.PI / 180, x = (b.lng - a.lng) * Math.cos((a.lat + b.lat) / 2 * r), y = b.lat - a.lat; return Math.sqrt(x * x + y * y) * 111.2; };
+  const hasLL = (s) => typeof s.lat === 'number' && typeof s.lng === 'number' && isFinite(s.lat) && isFinite(s.lng);
+  let origin = { lat: 37.5663, lng: 126.9779, mine: false };
+  const fl = from && Number(from.lat), fo = from && Number(from.lng);
+  if (from && isFinite(fl) && isFinite(fo) && inKr(fl, fo)) origin = { lat: fl, lng: fo, mine: true };
+  const d0 = plan.days[0];
+  const pts = d0.stops.filter(hasLL);
+  if (pts.length < 2) return;
+  const center = { lat: pts.reduce((t, s) => t + s.lat, 0) / pts.length, lng: pts.reduce((t, s) => t + s.lng, 0) / pts.length };
+  let entry = null;
+  if (km(origin, center) < 15) entry = { name: '내 위치', lat: origin.lat, lng: origin.lng, kind: 'me' };
+  else {
+    const kk = String(env.KAKAO_REST_KEY || '').trim();
+    if (kk) {
+      try {
+        const q = new URLSearchParams({ query: 'IC', x: center.lng.toFixed(6), y: center.lat.toFixed(6), radius: '20000', size: '15', sort: 'distance' });
+        const r = await fetch('https://dapi.kakao.com/v2/local/search/keyword.json?' + q.toString(), { headers: { Authorization: 'KakaoAK ' + kk } });
+        const docs = r.ok ? ((await r.json().catch(() => ({}))).documents || []) : [];
+        const ics = docs.map((d) => ({ name: clean(d.place_name, 30), lat: Number(d.y), lng: Number(d.x), cat: String(d.category_name || '') }))
+          .filter((x) => x.name && isFinite(x.lat) && isFinite(x.lng) && (/(IC|나들목)$/.test(x.name) || /나들목|IC/.test(x.cat)) && !/(하이패스|휴게소|주유소|정류장)/.test(x.name));
+        ics.sort((a, b) => km(origin, a) - km(origin, b));
+        if (ics[0]) entry = { name: ics[0].name, lat: ics[0].lat, lng: ics[0].lng, kind: 'ic' };
+      } catch {}
+    }
+  }
+  const flip = (d, ref) => {
+    const ll = d.stops.filter(hasLL);
+    if (!ref || ll.length < 2) return;
+    if (km(ref, ll[ll.length - 1]) + 0.3 < km(ref, ll[0])) {
+      const times = d.stops.map((s) => s.time);
+      d.stops.reverse();
+      d.stops.forEach((s, i) => { s.time = times[i]; });
+    }
+  };
+  flip(d0, entry || origin);
+  for (let i = 1; i < plan.days.length; i++) {
+    const prev = plan.days[i - 1].stops.filter(hasLL);
+    flip(plan.days[i], prev[prev.length - 1]);
+  }
+  if (entry) plan.entry = entry;
+}
 async function askTrip(env, rows, near, nights, start, ppl, note) {
-  const posts = rows.map((r) => ({ id: 'p' + r.id, name: r.place_name, addr: r.place_addr || '', lat: r.lat, lng: r.lng, tags: r.tags || [], note: String(r.body || '').slice(0, 150) }));
+  const posts = rows.map((r) => ({ id: rowKey(r),name: r.place_name, addr: r.place_addr || '', lat: r.lat, lng: r.lng, tags: r.tags || [], note: String(r.body || '').slice(0, 150) }));
   const spots = near.spots.map((x) => ({ id: x.id, name: x.name, cat: x.cat, addr: x.addr, lat: x.lat, lng: x.lng }));
   const foods = near.foods.map((x) => ({ id: x.id, name: x.name, cat: x.cat, addr: x.addr, lat: x.lat, lng: x.lng }));
   const sys = [
     'You plan a realistic travel course for the coverfo 누리트립 app, in Korean.',
-    'You get three lists: posts (places the user picked — MUST all be included), spots (top map search results for tourist attractions in the area) and foods (top map search results for restaurants in the area). Write all text in Korean.',
+    'You get three lists: posts (places the user picked or typed, ids p… or t… — MUST all be included; it may be empty when the user only named an area), spots (top map search results for tourist attractions in the area) and foods (top map search results for restaurants in the area). Write all text in Korean.',
     'Rules:',
-    '- Use ONLY the given ids (p…, s…, f…). Never invent places, prices, opening hours, menus or transport times. Each id at most once.',
+    '- Use ONLY the given ids (p…, t…, s…, f…). Never invent places, prices, opening hours, menus or transport times. Each id at most once.',
     '- Number of days = nights + 1 = ' + (nights + 1) + '.',
     '- Include every post. If spots/foods are given: add 2-4 spots per day and a lunch stop from foods every day; add a dinner stop from foods on days that continue into the evening (not needed on the last day if it ends in the afternoon).',
     '- Order each day as a sensible driving course: group places by lat/lng, start near the first place, avoid going back and forth, put the meal near the stops before/after it.',
@@ -733,21 +853,21 @@ async function askTrip(env, rows, near, nights, start, ppl, note) {
 }
 function cleanTrip(p, rows, near, nights) {
   const book = {};
-  rows.forEach((r) => { book['p' + r.id] = { src: 'post', post_id: r.id, name: clean(r.place_name, 40), addr: clean(r.place_addr, 80), cat: '', lat: typeof r.lat === 'number' ? r.lat : null, lng: typeof r.lng === 'number' ? r.lng : null, url: '' }; });
+  rows.forEach((r) => { book[rowKey(r)] = { src: r.typed ? 'typed' : 'post', post_id: r.typed ? 0 : r.id, name: clean(r.place_name, 40), addr: clean(r.place_addr, 80), cat: '', lat: typeof r.lat === 'number' ? r.lat : null, lng: typeof r.lng === 'number' ? r.lng : null, url: r.url || '' }; });
   near.spots.forEach((x) => { book[x.id] = Object.assign({ src: 'spot' }, x); });
   near.foods.forEach((x) => { book[x.id] = Object.assign({ src: 'food' }, x); });
   const used = new Set();
   const days = (Array.isArray(p.days) ? p.days : []).slice(0, nights + 1).map((d) => ({
     theme: clean(d && d.theme, 40),
     stops: (Array.isArray(d && d.stops) ? d.stops : []).map((x) => {
-      let id = String(x && x.id != null ? x.id : '').trim(); if (/^\d+$/.test(id)) id = 'p' + id;
+      let id = String(x && x.id != null ? x.id : '').trim(); if (/^\d+$/.test(id)) id = 'p' + id; if (/^pt\d+$/.test(id)) id = id.slice(1);
       const b = book[id]; if (!b || used.has(id)) return null; used.add(id);
       return { id, time: clean(x && x.time, 12), note: clean(x && x.note, 80), src: b.src, post_id: b.post_id || 0, name: b.name, cat: b.cat || '', addr: b.addr || '', lat: b.lat, lng: b.lng, url: b.url || '', pid: b.pid || '' };
     }).filter(Boolean).slice(0, 9),
   })).filter((d) => d.stops.length);
   if (!days.length) throw new Error('일정을 만들지 못했어요');
   return { title: clean(p.title, 40) || '여행 일정', area: nights > 0 ? clean(p.area, 30) || near.area : '', days, tips: (Array.isArray(p.tips) ? p.tips : []).map((x) => clean(x, 100)).filter(Boolean).slice(0, 4),
-    left: rows.filter((r) => !used.has('p' + r.id)).map((r) => r.id), near: near.spots.length + near.foods.length > 0,
+    left: rows.filter((r) => !r.typed && !used.has('p' + r.id)).map((r) => r.id), left_typed: rows.filter((r) => r.typed && !used.has(r.tid)).map((r) => r.place_name), near: near.spots.length + near.foods.length > 0,
     src: near.spots.length + near.foods.length > 0 ? (near.google ? '주변 명소·맛집: Google 지도' : '주변 명소·맛집: 카카오맵 장소 검색') : '',
     google: !!near.google, gkey: near.google ? near.gkey || '' : '' };
 }
