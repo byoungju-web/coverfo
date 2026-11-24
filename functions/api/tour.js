@@ -114,8 +114,10 @@ export async function onRequestPost(context) {
   { const a = ALIAS[region.toLowerCase()] || ALIAS[region]; if (a) region = a; }
   const page = Math.max(1, Math.min(10, parseInt(b.page, 10) || 1));
   try {
-    if (op !== 'festival' && !region) return json({ ok: false, need: 'region', note: '어느 지역인지 알려 주세요 (예: 속초, 경주, 제주)' });
-    const geo = region ? await where(env, region) : null;
+    /* v461 🏞 가볼 만한 곳: 지역 없이 휴대폰 위치(x·y)만 오면 내 주변 */
+    const px = +b.x, py = +b.y, nearMe = op === 'spot' && !region && isFinite(px) && isFinite(py) && px > 124 && px < 132 && py > 33 && py < 39.5;
+    if (op !== 'festival' && !region && !nearMe) return json({ ok: false, need: 'region', note: '어느 지역인지 알려 주세요 (예: 속초, 경주, 제주)' });
+    const geo = nearMe ? await revGeo(env, px, py) : region ? await where(env, region) : null;
     if (region && !geo) return json({ ok: false, notFound: true, note: '"' + region + '" 지역을 찾지 못했어요' });
     let all, from = '', to = '';
     /* v381 🌤 첫 쪽만: 그 지역(도시 좌표 · 시·도면 시청·도청) 날씨를 함께 (실패해도 목록은 그대로) */
@@ -128,7 +130,7 @@ export async function onRequestPost(context) {
       from = r.from; to = r.to;
       all = await festivals(env, key, geo, from, to, svcL);
     } else if (op === 'spot') {
-      all = await spots(env, key, geo, svcL);
+      all = svcL === 'kor' ? await kakaoSpots(env, key, geo, nearMe) : await spots(env, key, geo, svcL);   /* v461 한국어는 카카오맵 관광명소 */
     } else if (op === 'camp') {
       all = await camps(env, key, geo, String(b.type || 'all'));
     } else {
@@ -136,7 +138,7 @@ export async function onRequestPost(context) {
     }
     const items = all.slice((page - 1) * PER, page * PER);
     const wx = await wxP;
-    return json({ ok: true, kind: op, lang, wx: wx || undefined, region: geo ? geo.label : (lang === 'ko' ? '전국' : ''), from, to, page, total: all.length, more: all.length > page * PER, items, source: '한국관광공사 TourAPI' });
+    return json({ ok: true, kind: op, lang, wx: wx || undefined, region: geo ? (nearMe ? '내 주변 (' + geo.label + ')' : geo.label) : (lang === 'ko' ? '전국' : ''), from, to, page, total: all.length, more: all.length > page * PER, items, source: op === 'spot' && svcL === 'kor' ? '카카오맵 · 사진 한국관광공사' : '한국관광공사 TourAPI' });
   } catch (e) {
     if (e && e.status) return json({ error: e.message }, e.status);
     return json({ error: String((e && e.message) || e).slice(0, 200) }, 502);
@@ -245,6 +247,41 @@ async function spots(env, key, geo, svc) {
   /* 사진 있는 곳을 조금 앞으로 (거리 순서는 유지) */
   const list = rows.map(norm);
   return list.filter((x) => x.img).concat(list.filter((x) => !x.img));
+}
+
+/* ── v461 🏞 가볼 만한 곳 (한국어) — 카카오맵 관광명소(AT4)가 먼저
+   · 카카오 로컬 공식 API 두 가지를 합침: ① 카테고리 검색 AT4(그 지역 중심 반경 20km · 가까운 순 45곳) ② 키워드 "지역 관광명소"(정확도 순 45곳)
+   · 관광공사 목록(사진 있음)과 이름이 같으면 사진·전화를 붙이고, 카카오에 없는 관광공사 장소는 그대로 더함
+   · 가까운 순(지역 중심에서) · 사진 있는 곳을 조금 앞으로 — 기존 화면('n곳 · 가까운 순')과 같은 방식 */
+async function kakaoSpots(env, key, geo, nearMe) {
+  const kk = String(env.KAKAO_REST_KEY || '').trim();
+  const c = await center(env, geo).catch(() => null);
+  const tour = await spots(env, key, geo, 'kor').catch(() => []);
+  if (!kk) return tour;
+  const H = { headers: { Authorization: 'KakaoAK ' + kk } };
+  const pull = (path, params) => [1, 2, 3].map((page) => fetch('https://dapi.kakao.com/v2/local/search/' + path + '?' + new URLSearchParams(Object.assign({ size: '15', page: String(page) }, params)).toString(), H)
+    .then((r) => (r.ok ? r.json() : {})).then((d) => (d && Array.isArray(d.documents) ? d.documents : [])).catch(() => []));
+  const near = c ? { x: String(c.x), y: String(c.y), radius: '20000' } : {};
+  const jobs = [];
+  if (c) jobs.push(...pull('category.json', Object.assign({ category_group_code: 'AT4', sort: 'distance' }, near)));
+  jobs.push(...pull('keyword.json', Object.assign({ query: (nearMe ? '' : geo.label + ' ') + '관광명소', category_group_code: 'AT4' }, near)));
+  const docs = [].concat(...(await Promise.all(jobs)));
+  const key2 = (t) => String(t || '').replace(/\(.*?\)|\[.*?\]/g, '').replace(/[\s·.,-]/g, '').toLowerCase();
+  const byName = new Map(); tour.forEach((t) => { const k = key2(t.title); if (k && !byName.has(k)) byName.set(k, t); });
+  const seen = new Set(), used = new Set(), out = [];
+  for (const d of docs) {
+    if (!d || !d.id || seen.has(d.id)) continue; seen.add(d.id);
+    const x = +d.x, y = +d.y; if (!(x > 124 && x < 132 && y > 33 && y < 39.5)) continue;
+    const k = key2(d.place_name), t = byName.get(k); if (t) used.add(k);
+    const url = /^https?:\/\/place\.map\.kakao\.com\//.test(String(d.place_url || '')) ? String(d.place_url).replace(/^http:/, 'https:') : '';
+    out.push({ id: 'k' + String(d.id).replace(/\D/g, '').slice(0, 15), title: clean(d.place_name, 60), addr: clean(d.road_address_name || d.address_name, 80), tel: clean(d.phone || (t && t.tel) || '', 40),
+      img: (t && t.img) || '', x, y, start: '', end: '', dist: 0, url, cat: clean(String(d.category_name || '').split('>').pop(), 20) });
+  }
+  tour.forEach((t) => { const k = key2(t.title); if (!used.has(k) && t.x && t.y) { used.add(k); out.push(t); } });
+  if (c) out.forEach((o) => { o.dist = Math.round(km(c, o) * 1000); });
+  if (c) out.sort((a, b) => a.dist - b.dist);
+  const list = out.filter((o) => o.title).slice(0, 80);
+  return list.filter((o) => o.img).concat(list.filter((o) => !o.img));
 }
 
 /* ── v373 🐶 반려동물 동반 · ♿ 무장애: 같은 방식(가까운 순 20km · 시·도면 지역 전체)으로 각 서비스에서 ── */

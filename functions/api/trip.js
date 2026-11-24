@@ -170,8 +170,18 @@ export async function onRequestGet(context) {
     return json({ ok: true, plans: rows.map((r) => { const p = r.plan || {}; return { id: r.id, title: r.title, at: r.created_at, nights: p.nights || 0, start: p.start || '', ppl: p.ppl || 0, google: !!p.google, mine: !!p.mine, n: (p.days || []).reduce((t, d) => t + ((d && d.stops) || []).length, 0) }; }) });
   }
   if (op === 'plan') {
-    if (!uid) return json({ error: '로그인이 필요합니다', login: true }, 401);
     const id = num(url.searchParams.get('id')); if (!id) return json({ error: 'id 가 없습니다' }, 400);
+    /* v461 🔗 공유 링크(/trip/?pl=번호.열쇠)로 열면 로그인 없이 보기만 — 열쇠는 주인이 [공유]를 눌렀을 때만 생김 */
+    const k = String(url.searchParams.get('k') || '');
+    if (k) {
+      if (!/^[0-9a-z]{12}$/.test(k)) return json({ error: '잘못된 링크예요' }, 400);
+      const r = ((await get(c, `cf_trip_plans?id=eq.${id}&select=id,user_id,title,plan,created_at`)) || [])[0];
+      if (!r || !r.plan || r.plan.share !== k) return json({ error: '없거나 지워진 일정이에요' }, 404);
+      const plan = Object.assign({}, r.plan); delete plan.share;
+      if (plan.google) plan.gkey = embedKey(env);
+      return json({ ok: true, plan_id: r.id, plan, at: r.created_at, shared: true, mine: !!uid && r.user_id === uid });
+    }
+    if (!uid) return json({ error: '로그인이 필요합니다', login: true }, 401);
     const r = ((await get(c, `cf_trip_plans?id=eq.${id}&user_id=eq.${uid}&select=id,title,plan,created_at`)) || [])[0];
     if (!r) return json({ error: '없는 일정이에요' }, 404);
     const plan = r.plan || {};
@@ -472,6 +482,18 @@ export async function onRequestPost(context) {
     if (!r.ok) return json({ error: '저장하지 못했어요 (' + r.status + ')' }, 500);
     const row = (await r.json())[0];
     return json({ ok: true, id: row && row.id, n: ids.length });
+  }
+  /* v461 🔗 내 일정 공유 링크 — 열쇠(무작위 12자)를 한 번 만들어 일정에 넣고 계속 같은 링크 · 지우면 링크도 끝 */
+  if (op === 'plan_share') {
+    const id = num(b.id); if (!id) return json({ error: 'id 가 없습니다' }, 400);
+    const r = ((await get(c, `cf_trip_plans?id=eq.${id}&user_id=eq.${uid}&select=id,plan`)) || [])[0];
+    if (!r) return json({ error: '없는 일정이에요' }, 404);
+    const plan = r.plan || {};
+    if (/^[0-9a-z]{12}$/.test(String(plan.share || ''))) return json({ ok: true, id, key: plan.share });
+    plan.share = rand(12);
+    const u = await fetch(`${c.url}/rest/v1/cf_trip_plans?id=eq.${id}&user_id=eq.${uid}`, { method: 'PATCH', headers: hdr(c), body: JSON.stringify({ plan }) });
+    if (!u.ok) return json({ error: '링크를 만들지 못했어요 (' + u.status + ')' }, 500);
+    return json({ ok: true, id, key: plan.share });
   }
   if (op === 'plan_del') {
     const id = num(b.id); if (!id) return json({ error: 'id 가 없습니다' }, 400);

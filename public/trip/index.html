@@ -182,6 +182,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 .tm .t{flex:1;min-width:0}
 .tm .t b{display:block;font-size:14.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tm .t small{font-size:12px;color:var(--mute)}
+.tm .t[data-plo]{cursor:pointer}
 .tm button{flex:none;height:32px;padding:0 10px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font-size:12.5px;font-weight:700}
 .tm button.d{color:var(--err);border-color:#f3d0cc}
 .pk{display:flex;align-items:center;gap:10px;padding:8px;margin-top:6px;border-radius:12px;border:1.5px solid var(--line);background:#fff;cursor:pointer}
@@ -593,11 +594,22 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   /* v433 📋 내가 만든 일정 목록 */
   function drawPlans(){
     var el=$("plL"); if(!el) return;
-    el.innerHTML=MYPLANS.length?MYPLANS.map(function(m){ return '<div class="tm"><div class="t"><b>'+(m.mine?"✍️ ":"🤖 ")+esc(m.title)+'</b><small>'+(m.nights?m.nights+"박"+(m.nights+1)+"일":"당일")+(m.start?" · "+esc(ymdAdd(m.start,0))+" 출발":"")+" · 장소 "+m.n+"곳 · "+esc(ago(m.at))+'</small></div><button type="button" data-plo="'+m.id+'">열기</button><button type="button" class="d" data-pld="'+m.id+'">지우기</button></div>'; }).join(""):'<p class="note">아직 만든 일정이 없어요. 위 단추로 만들면 여기에 저장돼요.</p>';
+    el.innerHTML=MYPLANS.length?MYPLANS.map(function(m){ return '<div class="tm"><div class="t" data-plo="'+m.id+'" role="button" tabindex="0"><b>'+(m.mine?"✍️ ":"🤖 ")+esc(m.title)+'</b><small>'+(m.nights?m.nights+"박"+(m.nights+1)+"일":"당일")+(m.start?" · "+esc(ymdAdd(m.start,0))+" 출발":"")+" · 장소 "+m.n+"곳 · "+esc(ago(m.at))+'</small></div><button type="button" data-plo="'+m.id+'">열기</button><button type="button" data-pls="'+m.id+'">↗ 공유</button><button type="button" class="d" data-pld="'+m.id+'">지우기</button></div>'; }).join(""):'<p class="note">아직 만든 일정이 없어요. 위 단추로 만들면 여기에 저장돼요.</p>';
   }
   function openPlan(id){
     $("asT").textContent="🤖 일정"; $("asB").innerHTML='<p class="note">불러오는 중…</p>'; openSheet("as");
-    api("GET","?op=plan&id="+id).then(function(j){ if(j.error){ $("asB").innerHTML='<div class="msg">'+esc(j.error)+'</div>'; return; } AIP=newAip(j.plan,{}); showAi(); });
+    api("GET","?op=plan&id="+id).then(function(j){ if(j.error){ $("asB").innerHTML='<div class="msg">'+esc(j.error)+'</div>'; return; } AIP=newAip(j.plan,{}); AIP.plan_id=id; showAi(); });
+  }
+  /* v461 🔗 일정 공유 — 주인이 누르면 링크(/trip/?pl=번호.열쇠)를 만들어 나눔 · 받은 사람은 로그인 없이 보고, 로그인하면 내 일정에 담기 */
+  function sharePlan(id,title){
+    api("POST","",{op:"plan_share",id:id}).then(function(j){
+      if(j.error){ alert(j.error); return; }
+      shareUrl(location.origin+"/trip/?pl="+id+"."+j.key,"🗓 "+(title||"누리트립 여행 일정"));
+    });
+  }
+  function openSharedPlan(id,k){
+    $("asT").textContent="🔗 받은 일정"; $("asB").innerHTML='<p class="note">불러오는 중…</p>'; openSheet("as");
+    api("GET","?op=plan&id="+id+"&k="+encodeURIComponent(k)).then(function(j){ if(j.error){ $("asB").innerHTML='<div class="msg">'+esc(j.error)+'</div>'; return; } AIP=newAip(j.plan,{}); AIP.shared=!j.mine; if(j.mine) AIP.plan_id=id; showAi(); });
   }
   function reloadPlans(){ api("GET","?op=plans").then(function(b){ if(b&&b.plans){ MYPLANS=b.plans; drawPlans(); } }); }
   function hasLL(it){ return it.place&&typeof it.place.lat==="number"&&typeof it.place.lng==="number"; }
@@ -639,7 +651,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     var o=t.closest("button[data-tm]"); if(o){ openTmap(+o.getAttribute("data-tm")); return; }
     var sh=t.closest("button[data-tms]"); if(sh){ var mm=MYMAPS.filter(function(x){ return x.id===+sh.getAttribute("data-tms"); })[0]; shareUrl(location.origin+"/trip/?m="+sh.getAttribute("data-tms"),mm?mm.title:"누리트립 테마 지도"); return; }
     var ed=t.closest("button[data-tme]"); if(ed){ makeTmap(MYMAPS.filter(function(x){ return x.id===+ed.getAttribute("data-tme"); })[0]||null); return; }
-    var po=t.closest("button[data-plo]"); if(po){ openPlan(+po.getAttribute("data-plo")); return; }
+    var po=t.closest("[data-plo]"); if(po){ openPlan(+po.getAttribute("data-plo")); return; }
+    var ps=t.closest("button[data-pls]"); if(ps){ var pm=MYPLANS.filter(function(x){ return x.id===+ps.getAttribute("data-pls"); })[0]; sharePlan(+ps.getAttribute("data-pls"),pm?pm.title:""); return; }
     var pd=t.closest("button[data-pld]"); if(pd){ if(!confirm("이 일정을 지울까요?")) return; var pid=+pd.getAttribute("data-pld"); api("POST","",{op:"plan_del",id:pid}).then(function(j){ if(j.error){ alert(j.error); return; } MYPLANS=MYPLANS.filter(function(x){ return x.id!==pid; }); drawPlans(); }); return; }
     var dl=t.closest("button[data-tmd]"); if(dl){ if(!confirm("이 테마 지도를 지울까요? 글은 그대로 남아요.")) return; api("POST","",{op:"tmap_del",id:+dl.getAttribute("data-tmd")}).then(function(j){ if(j.error){ alert(j.error); return; } MYMAPS=MYMAPS.filter(function(x){ return x.id!==+dl.getAttribute("data-tmd"); }); drawMyMaps(); }); return; }
   });
@@ -868,7 +881,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     var P=AIP.plan, canEdit=!P.google&&!!P.cands, mineV=AIP.view==="mine"&&canEdit;
     if(AIDAY!=null&&!P.days[AIDAY]) AIDAY=null;
     $("asT").textContent=(P.mine?"✍️ ":"🤖 ")+P.title;
-    var head='<p class="note" style="margin-top:0">'+(P.nights?P.nights+"박"+(P.nights+1)+"일":"당일")+(P.start?" · "+esc(ymdAdd(P.start,0))+" 출발":"")+" · "+P.ppl+"명"+(P.area?" · 숙소는 "+esc(P.area)+" 쪽":"")+'</p>';
+    var head=(AIP.shared?'<p class="note" style="margin-top:0">🔗 공유받은 일정이에요. 고치거나 그대로 💾 저장하면 내 일정에 담겨요 (로그인 필요).</p>':"")+'<p class="note" style="margin-top:0">'+(P.nights?P.nights+"박"+(P.nights+1)+"일":"당일")+(P.start?" · "+esc(ymdAdd(P.start,0))+" 출발":"")+" · "+P.ppl+"명"+(P.area?" · 숙소는 "+esc(P.area)+" 쪽":"")+'</p>';
     var tabs=canEdit?'<div class="chips" id="aiV" style="margin-bottom:8px"><button type="button" data-v="ai"'+(mineV?"":' class="on"')+'>'+(P.mine?"✍️ 이 코스":"🤖 AI 코스")+'</button><button type="button" data-v="mine"'+(mineV?' class="on"':"")+'>✍️ 내가 직접 만들기</button></div>':"";
     if(mineV){
       var mu=namesOf(AIP.mine), cs={spots:candList("spot"),foods:candList("food")}, picked=[];
@@ -906,8 +919,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
       (P.left_typed&&P.left_typed.length?'<p class="note">일정에 못 넣은 적은 장소: '+P.left_typed.map(esc).join(", ")+'</p>':"")+
       (!P.near?'<p class="note">이 지역은 주변 명소·맛집을 찾지 못해 고른 장소로만 짰어요.</p>':'<p class="note">명소·맛집은 '+(P.google?"Google 지도":"카카오맵 장소 검색")+' 상위 결과예요. 영업 여부·시간은 "정보"에서 확인하세요.</p>')+
       goBtns(false)+
-      (AIP.dirty&&canEdit?'<div class="acts"><button type="button" data-msave="ai" class="on">💾 고친 코스 저장</button></div>':"")+
-      '<div class="acts"><button type="button" data-asave="1">🗺 내 글만 테마 지도로</button><button type="button" data-aagain="1">↺ 다시 고르기</button></div>';
+      ((AIP.dirty||AIP.shared)&&canEdit?'<div class="acts"><button type="button" data-msave="ai" class="on">'+(AIP.dirty?"💾 고친 코스 저장":"💾 내 일정에 담기")+'</button></div>':"")+
+      (AIP.plan_id&&!AIP.shared?'<div class="acts"><button type="button" data-plshare="1">↗ 이 일정 공유하기</button></div>':"")+
+      (AIP.shared?"":'<div class="acts"><button type="button" data-asave="1">🗺 내 글만 테마 지도로</button><button type="button" data-aagain="1">↺ 다시 고르기</button></div>');
     if(!P.google) drawCourse($("aiMap"),P.days,AIDAY,{entry:(AIDAY==null||AIDAY===0)?P.entry:null,pts:canEdit?exPts(AIP.show.spot,AIP.show.food,usedNames()):[],onAdd:function(key){ var a=key.split(":"); aiAdd(AIDAY==null?0:AIDAY,a[0],+a[1]); }})["catch"](function(e){ $("aiMap").innerHTML='<div class="empty">'+esc(e.message)+'</div>'; });
   }
   /* v432 구글 지도 경로 (Maps Embed API · directions: 출발 → 들르는 곳 → 도착) */
@@ -953,12 +967,13 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     var ms=t.closest("button[data-msave]"); if(ms){ var mine=ms.getAttribute("data-msave")==="mine";
       var base=(P.area||String(P.title||"").split(" ")[0]||"").slice(0,12);
       var body=mine?{title:(base?base+" ":"")+"내가 만든 코스",area:P.area||"",days:[{theme:"내가 만든 코스",stops:AIP.mine}],start:P.start||"",ppl:P.ppl||2,entry:P.entry||null}
-        :{title:String(P.title||"여행 일정").slice(0,34)+" (고침)",area:P.area||"",days:P.days,start:P.start||"",ppl:P.ppl||2,entry:P.entry||null};
+        :{title:String(P.title||"여행 일정").slice(0,34)+(AIP.dirty?" (고침)":""),area:P.area||"",days:P.days,start:P.start||"",ppl:P.ppl||2,entry:P.entry||null};
       ms.disabled=true; ms.textContent="저장하는 중…";
       api("POST","",{op:"plan_mine",plan:body}).then(function(j){ ms.disabled=false;
-        if(j.error){ ms.textContent=mine?"💾 내 코스 저장":"💾 고친 코스 저장"; alert(j.error); return; }
+        if(j.error){ ms.textContent=mine?"💾 내 코스 저장":AIP.dirty?"💾 고친 코스 저장":"💾 내 일정에 담기"; alert(j._s===401?"로그인하면 내 일정에 담을 수 있어요":j.error); return; }
         if(!mine) AIP.dirty=false; ms.textContent="✓ 저장했어요 · 📋 내가 만든 일정에 있어요"; reloadPlans(); });
       return; }
+    if(t.closest("button[data-plshare]")&&AIP&&AIP.plan_id){ sharePlan(AIP.plan_id,P.title); return; }
     var ku=t.closest("button[data-kurl]"); if(ku){ openOut(ku.getAttribute("data-kurl")); return; }
     var g=t.closest("button[data-ag]"); if(g){ var k=g.getAttribute("data-ag");
       if(k==="park"&&!P.google){ openParking(aiFirst(P)); return; }
@@ -1173,7 +1188,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
     ME=j||{login:false}; if(ME.admin) $("tabAdmin").hidden=false;
     var m=/[?&]p=(\d+)/.exec(location.search); if(m) openPost(+m[1]);
     var mm=/[?&]m=(\d+)/.exec(location.search); if(mm) openTmap(+mm[1]);   /* v429 테마 지도 링크 */
+    var pl=/[?&]pl=(\d+)\.([0-9a-z]{12})/.exec(location.search); if(pl) openSharedPlan(+pl[1],pl[2]);   /* v461 🔗 공유받은 일정 */
   });
+  /* v461 ?t=map → 처음부터 그 탭 (홈 'AI 여행 파트너'의 🗓 일정짜기) */
+  var tq=/[?&]t=(photo|shorts|map|tmap|mine|follow|ask)\b/.exec(location.search); if(tq){ TAB=tq[1]; setTabOn(TAB); $("sorts").style.display=(TAB==="shorts"||TAB==="photo")?"":"none"; }
   load(true);
 })();
 </script>
