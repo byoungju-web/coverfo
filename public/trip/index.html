@@ -594,7 +594,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   /* v433 📋 내가 만든 일정 목록 */
   function drawPlans(){
     var el=$("plL"); if(!el) return;
-    el.innerHTML=MYPLANS.length?MYPLANS.map(function(m){ return '<div class="tm"><div class="t" data-plo="'+m.id+'" role="button" tabindex="0"><b>'+(m.mine?"✍️ ":"🤖 ")+esc(m.title)+'</b><small>'+(m.nights?m.nights+"박"+(m.nights+1)+"일":"당일")+(m.start?" · "+esc(ymdAdd(m.start,0))+" 출발":"")+" · 장소 "+m.n+"곳 · "+esc(ago(m.at))+'</small></div><button type="button" data-plo="'+m.id+'">열기</button><button type="button" data-pls="'+m.id+'">↗ 공유</button><button type="button" class="d" data-pld="'+m.id+'">지우기</button></div>'; }).join(""):'<p class="note">아직 만든 일정이 없어요. 위 단추로 만들면 여기에 저장돼요.</p>';
+    el.innerHTML=MYPLANS.length?MYPLANS.map(function(m){ return '<div class="tm"><div class="t" data-plo="'+m.id+'" role="button" tabindex="0"><b>'+(m.mine?"✍️ ":"🤖 ")+esc(m.title)+'</b><small>'+(m.nights?m.nights+"박"+(m.nights+1)+"일":"당일")+(m.start?" · "+esc(ymdAdd(m.start,0))+" 출발":"")+" · 장소 "+m.n+"곳 · "+esc(ago(m.at))+'</small></div><button type="button" data-pls="'+m.id+'">↗ 공유</button><button type="button" class="d" data-pld="'+m.id+'">지우기</button></div>'; }).join(""):'<p class="note">아직 만든 일정이 없어요. 위 단추로 만들면 여기에 저장돼요.</p>';
   }
   function openPlan(id){
     $("asT").textContent="🤖 일정"; $("asB").innerHTML='<p class="note">불러오는 중…</p>'; openSheet("as");
