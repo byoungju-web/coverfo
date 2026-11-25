@@ -198,6 +198,8 @@ body.pk{--bg:#F7F4FF;--ink:#17132B;--sub:#6B658A;--line:#E5DEF9;--pri:#7B61FF;--
       h+='<div class="nk"><label for="nick">닉네임만 입력하면 돼요</label></div><input class="nkin" id="nick" maxlength="12" placeholder="예) 홍대 맛집러" value="'+esc(store("cf_s_nick"))+'" autocomplete="off">'
         +'<button type="button" class="vote" id="pkgo">'+(T.mine.length?'투표 바꾸기':'투표하기')+'</button><div class="hint">'+(D.anon?'익명 투표라 누가 골랐는지는 보이지 않아요 · ':'')+'로그인 없이, 10초면 충분해요</div>';
     }
+    /* v475 딥링크: 나도 같이 정하기 만들기 → coverfo 홈 위에 결정 만들기 화면 */
+    h+='<a href="/?go=decide" style="display:block;text-align:center;margin:18px 0 4px;font-size:14px;font-weight:800;color:#7C4DFF;text-decoration:none">🤝 나도 친구랑 같이 정하기 만들기 ›</a>';
     return h;
   }
   function pickSend(){

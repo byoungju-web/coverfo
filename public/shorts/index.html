@@ -605,7 +605,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
   /* ── ⑤ 공유하기 ── */
   var CH=[["reels","인스타 릴스","◎","#FFE4EF","#E1306C"],["tiktok","틱톡","♪","#F1F1F4","#111"],["yt","유튜브 쇼츠","▶","#FFE6E6","#FF0000"],["kakao","카톡","💬","#FFF6C7","#3C1E1E"],["feed","coverfo 피드","","#F0EBFF","#7C4DFF"]];
   /* v472: 함께 보내는 글은 "나도 만들기 + 주소" 한 줄만 (사용자 요청 · 해시태그 없음 → 카톡 # 검색 링크 문제도 없음) */
-  function caption(){ return S.link?"🎬 나도 만들기 👉 https://coverfo.com/shorts/":""; }
+  function caption(){ return S.link?"🎬 나도 만들기 👉 https://coverfo.com/?go=shorts":""; }
   function step5(){
     if(!S.url){ go(3); return; }
     var h='<div class="eb">STEP 5 · 공유하기</div><div class="h2">친구에게<br>자랑해볼까요?</div><div class="ch">'+CH.map(function(c){ return '<button type="button" data-ch="'+c[0]+'" aria-pressed="'+!!S.ch[c[0]]+'"><span class="i" style="background:'+c[3]+';color:'+c[4]+'">'+(c[0]==="feed"?'<span style="width:28px;height:28px;display:block">'+GRAPE+'</span>':c[2])+'</span>'+c[1]+'<small>✓ 선택됨</small></button>'; }).join("")+'</div>';
