@@ -34,11 +34,12 @@ function lead(s) {
   if (!s) return '';
   if (s.kind === 'places') return '같이 골라 줘요 · 마음에 드는 곳에 👍 를 눌러 주세요';
   if (s.kind === 'trip') return '같이 갈까요? · 🙋 갈게요 / 🙅 어려워요 를 눌러 주세요';
+  if (s.kind === 'pick') return '같이 정해요 · 닉네임만 적고 10초면 투표 끝 (가입 없이)';
   return '이 루틴을 내 coverfo 에 담아 쓸 수 있어요';
 }
 
 function page(s, origin) {
-  const title = s ? (s.sender ? s.sender + ' 님이 보낸 ' : '') + s.title : 'coverfo';
+  const title = s ? (s.kind === 'pick' ? (s.sender ? s.sender + '님이 초대했어요 · ' : '') + s.title : (s.sender ? s.sender + ' 님이 보낸 ' : '') + s.title) : 'coverfo';
   const desc = s ? lead(s) : '없는 링크이거나 30일이 지나 지워졌어요';
   const data = s ? JSON.stringify({ id: s.id, kind: s.kind, title: s.title, sender: s.sender, data: s.data, expires_at: s.expires_at }).replace(/</g, '\\u003c').replace(/\u2028|\u2029/g, '') : 'null';
   return `<!DOCTYPE html>
@@ -102,6 +103,47 @@ a{color:inherit}
 .fin{background:#ecfdf5;border:1.5px solid #6ee7b7;color:#065f46;border-radius:16px;padding:14px;margin:14px 0 0;font-size:16px;font-weight:800;line-height:1.45;word-break:keep-all}
 .fin small{display:block;font-size:12.5px;font-weight:600;color:#047857;margin-top:3px}
 @media (prefers-reduced-motion:no-preference){.b{transition:background .15s,color .15s}}
+/* v467 🗳 같이 정하기 투표 (kind pick) — 홈 '친구랑 같이 정하기' 화면과 같은 색 */
+body.pk{--bg:#F7F4FF;--ink:#17132B;--sub:#6B658A;--line:#E5DEF9;--pri:#7B61FF;--soft:#F3F0FF}
+.pk .logo{color:#7B61FF}
+.pk .phd{background:#17132B;color:#fff;border-radius:24px;padding:20px 18px 18px}
+.pk .phd small{display:block;font-size:13px;color:#c3bbe9;margin-bottom:4px}
+.pk .phd h1{margin:0;font-size:23px;line-height:1.3;letter-spacing:-.02em;word-break:keep-all}
+.pk .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.pk .chips span{font-size:12.5px;font-weight:700;background:#322a5a;color:#fff;border-radius:999px;padding:5px 10px}
+.pk .cnt2{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:18px 2px 10px}
+.pk .cnt2 b{display:block;font-size:16px}
+.pk .cnt2 small{font-size:12.5px;color:var(--sub)}
+.pk .faces{font-size:20px;letter-spacing:-4px;white-space:nowrap}
+.pk .op{display:block;width:100%;text-align:left;background:#fff;border:1.5px solid var(--line);border-radius:20px;padding:16px;margin:0 0 12px;font:inherit;color:var(--ink);cursor:pointer}
+.pk .op.on{border:2px solid #7B61FF;box-shadow:0 10px 24px -18px rgba(123,97,255,.9)}
+.pk .op:disabled{cursor:default}
+.pk .op .r1{display:flex;align-items:center;gap:12px}
+.pk .op .em{flex:0 0 44px;height:44px;border-radius:14px;background:#F3F0FF;display:flex;align-items:center;justify-content:center;font-size:24px}
+.pk .op .nm{flex:1;min-width:0}
+.pk .op .nm b{display:block;font-size:17px;line-height:1.3}
+.pk .op .nm small{display:block;font-size:12.5px;color:var(--sub);margin-top:2px}
+.pk .op .vt{text-align:right}
+.pk .op .vt b{display:block;font-size:18px}
+.pk .op .vt small{font-size:12px;color:var(--sub)}
+.pk .bar{height:8px;border-radius:99px;background:#EEE9FF;margin:12px 0 8px;overflow:hidden}
+.pk .bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#7B61FF,#00A9E8)}
+.pk .op .st{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--sub)}
+.pk .op .st em{font-style:normal;font-weight:800;color:#7B61FF}
+.pk .nk{margin:6px 2px 8px;font-size:14px;font-weight:800}
+.pk .nkin{width:100%;border:1.5px solid var(--line);border-radius:16px;background:#fff;font:inherit;font-size:16px;padding:14px 16px;color:var(--ink);outline:0}
+.pk .nkin:focus{border-color:#7B61FF}
+.pk .vote{display:flex;width:100%;min-height:56px;margin-top:12px;border:0;border-radius:18px;background:linear-gradient(135deg,#7B61FF 0%,#5E8BFF 48%,#00C2FF 100%);color:#fff;font:inherit;font-size:17px;font-weight:800;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 14px 30px -18px rgba(94,139,255,.9)}
+.pk .vote:disabled{opacity:.6}
+.pk .hint{text-align:center;font-size:12.5px;color:var(--sub);margin-top:8px}
+.pk .res{background:#FFF4D6;border-radius:24px;padding:22px 16px;text-align:center;margin:14px 0 4px}
+.pk .res small{display:block;font-size:13px;color:#b26a00;font-weight:700}
+.pk .res h2{margin:6px 0 4px;font-size:26px;letter-spacing:-.02em;color:#17132B;word-break:keep-all}
+.pk .res p{margin:0 0 12px;font-size:14px;color:#6B658A}
+.pk .res .win{display:inline-flex;align-items:center;gap:8px;background:#fff;border-radius:999px;padding:10px 18px;font-weight:800;font-size:16px;box-shadow:0 8px 20px -14px rgba(178,106,0,.6)}
+.pk .cta{background:#F3F0FF}
+.pk .cta p{color:#3d3565}
+.pk .b.pri{background:linear-gradient(135deg,#7B61FF,#5E8BFF);border:0}
 </style>
 </head>
 <body>
@@ -133,6 +175,48 @@ a{color:inherit}
   function has(k){ return T.mine.indexOf(k)>=0; }
   function msg(t){ var m=document.getElementById("msg"); if(m) m.textContent=t||""; }
   var D=S.data||{};
+  if(S.kind==="pick") document.body.classList.add("pk");
+  var SEL=null;   /* v467 투표: 아직 보내지 않은 내 선택 */
+  function closed(){ return !!(D.deadline&&new Date(D.deadline).getTime()<Date.now()); }
+  function dl(){ if(!D.deadline) return "마감 없음"; var d=new Date(D.deadline), n=new Date(), t=new Date(n.getFullYear(),n.getMonth(),n.getDate()).getTime(), dd=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime(); var hm=("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2); return (dd===t?"오늘":dd===t+864e5?"내일":(d.getMonth()+1)+"/"+d.getDate())+" "+hm+(closed()?" 마감됨":" 마감"); }
+  function pickHtml(){
+    var items=D.items||[], tot=0; items.forEach(function(x,i){ var t=T.tally[String(i+1)]; tot+=t?t.n:0; });
+    var best=-1,bn=0,tie=false; items.forEach(function(x,i){ var t=T.tally[String(i+1)], n=t?t.n:0; if(n>bn){ bn=n; best=i; tie=false; } else if(n===bn&&n>0) tie=true; });
+    var cl=closed(), F=D.final;
+    if(SEL===null) SEL=T.mine.slice();
+    var h='<div class="phd"><small>'+(S.sender?esc(S.sender)+'님이 초대했어요':'친구가 초대했어요')+'</small><h1>'+esc(S.title)+'</h1><div class="chips">'+(D.q?'<span>📍 '+esc(D.q)+'</span>':'')+'<span>⏰ '+esc(dl())+'</span>'+(D.anon?'<span>🙈 익명 투표</span>':'')+(D.multi?'<span>✅ 여러 개 선택</span>':'<span>☝️ 하나만 선택</span>')+'</div></div>';
+    if((cl||(F&&F.text))&&best>=0&&!tie){ var w=items[best]; h+='<div class="res" role="status"><small>'+(F&&F.text?esc(F.text):'투표가 끝났어요')+'</small><h2>'+esc(w.name)+'로 결정!</h2><p>친구 '+T.people+'명이 함께 정했어요</p><span class="win">'+esc(w.emoji||"🏆")+' '+esc(w.name)+' · '+bn+'표</span></div>'; }
+    else if(F&&F.text){ var fd=new Date(F.at); h+='<div class="fin" role="status">🎉 '+esc(F.text)+'<small>'+(S.sender?esc(S.sender)+' 님이 ':'')+'확정했어요'+(isNaN(fd)?'':' · '+(fd.getMonth()+1)+'/'+fd.getDate())+'</small></div>'; }
+    else if(cl) h+='<div class="res"><small>투표가 끝났어요</small><h2>'+(tie?'동점이에요':'아직 표가 없어요')+'</h2><p>만든 사람이 정하면 여기에 보여요</p></div>';
+    var faces=["🙂","😄","😎","🥰","🤔","😋","🤩"];
+    h+='<div class="cnt2"><div><b>지금까지 '+T.people+'명이 참여했어요</b><small>'+(cl?'마감된 투표예요':'실시간으로 투표가 모이고 있어요')+'</small></div><span class="faces" aria-hidden="true">'+faces.slice(0,Math.min(5,Math.max(1,T.people))).join("")+'</span></div><div class="msg" id="msg" role="status"></div>';
+    items.forEach(function(x,i){
+      var k=String(i+1), t=T.tally[k], n=t?t.n:0, pc=tot?Math.round(n*100/tot):0, on=SEL.indexOf(k)>=0;
+      h+='<button type="button" class="op'+(on?' on':'')+'" data-pk="'+k+'" aria-pressed="'+on+'"'+(cl?' disabled':'')+'><div class="r1"><span class="em" aria-hidden="true">'+esc(x.emoji||"•")+'</span><span class="nm"><b>'+esc(x.name)+'</b>'+(x.desc?'<small>'+esc(x.desc)+'</small>':'')+'</span><span class="vt"><b>'+n+'표</b><small>'+pc+'%</small></span></div><div class="bar"><i style="width:'+pc+'%"></i></div><div class="st"><span>'+(!D.anon&&t&&t.nicks.length?esc(t.nicks.join(", "))+(n>t.nicks.length?" 외":""):'')+'</span><em>'+(cl?'':on?'선택했어요':'눌러서 선택하기')+'</em></div></button>';
+    });
+    if(!cl){
+      h+='<div class="nk"><label for="nick">닉네임만 입력하면 돼요</label></div><input class="nkin" id="nick" maxlength="12" placeholder="예) 홍대 맛집러" value="'+esc(store("cf_s_nick"))+'" autocomplete="off">'
+        +'<button type="button" class="vote" id="pkgo">'+(T.mine.length?'투표 바꾸기':'투표하기')+'</button><div class="hint">'+(D.anon?'익명 투표라 누가 골랐는지는 보이지 않아요 · ':'')+'로그인 없이, 10초면 충분해요</div>';
+    }
+    return h;
+  }
+  function pickSend(){
+    if(!SEL.length){ msg("먼저 마음에 드는 후보를 눌러 주세요"); return; }
+    var nk=nick(); if(!nk){ msg("닉네임을 적어 주세요"); var ni=document.getElementById("nick"); if(ni) ni.focus(); return; }
+    store("cf_s_nick",nk);
+    var ops=[]; SEL.forEach(function(k){ if(!has(k)||!D.multi) ops.push({k:k,on:true}); });
+    if(D.multi) T.mine.forEach(function(k){ if(SEL.indexOf(k)<0) ops.push({k:k,on:false}); });
+    if(!ops.length) ops.push({k:SEL[0],on:true});
+    busy=true; var g=document.getElementById("pkgo"); if(g) g.disabled=true;
+    var run=function(i,last){
+      if(i>=ops.length){ busy=false; if(last&&last.ok){ T={tally:last.tally||{},people:last.people||0,mine:last.mine||[]}; SEL=T.mine.slice(); render(); msg(""); var m=document.getElementById("msg"); if(m){ m.style.color="#008a60"; m.textContent="투표가 완료됐어요 🎉 결과는 마감 뒤에도 이 링크에서 볼 수 있어요"; } } return; }
+      api({op:"vote",id:S.id,voter:voter,nick:nk,pick:ops[i].k,on:ops[i].on}).then(function(j){
+        if(!(j&&j.ok)){ busy=false; render(); msg((j&&j.error)||"저장하지 못했어요. 다시 눌러 주세요."); return; }
+        run(i+1,j);
+      }).catch(function(){ busy=false; render(); msg("연결이 끊겼어요. 다시 눌러 주세요."); });
+    };
+    run(0,null);
+  }
   function head(lines){
     var F=D.final, fin='';
     if(F&&F.text){ var fd=new Date(F.at); fin='<div class="fin" role="status">🎉 '+esc(F.text)+'<small>'+(S.sender?esc(S.sender)+' 님이 ':'')+'확정했어요'+(isNaN(fd)?'':' · '+(fd.getMonth()+1)+'/'+fd.getDate())+'</small></div>'; }
@@ -141,7 +225,8 @@ a{color:inherit}
   function meBox(){ return '<div class="me"><label for="nick">내 별명</label><input id="nick" maxlength="12" placeholder="예: ** (누가 눌렀는지 보여요)" value="'+esc(store("cf_s_nick"))+'" autocomplete="off"></div>'; }
   function render(){
     var h="";
-    if(S.kind==="places"){
+    if(S.kind==="pick"){ h=pickHtml(); }
+    else if(S.kind==="places"){
       var best="", bn=0; Object.keys(T.tally).forEach(function(k){ if(T.tally[k].n>bn){ bn=T.tally[k].n; best=k; } });
       h+=head('마음에 드는 곳에 <b>👍</b> 를 눌러 주세요. 여러 곳 눌러도 돼요.')+meBox()+'<div class="cnt">지금까지 '+T.people+'명이 골랐어요</div><div class="msg" id="msg" role="status"></div>';
       (D.items||[]).forEach(function(x,i){
@@ -177,6 +262,9 @@ a{color:inherit}
   }
   function load(){ return api({op:"get",id:S.id,voter:voter}).then(function(j){ if(j&&j.ok){ T={tally:j.tally||{},people:j.people||0,mine:j.mine||[]}; if(j.share&&j.share.data){ D.final=j.share.data.final||null; } if(!busy) render(); } else if(j&&j.gone){ S=null; app.innerHTML='<div class="gone"><b style="font-size:18px">링크를 찾을 수 없어요</b><br>30일이 지나 지워졌거나 보낸 사람이 지웠어요.</div>'; } }).catch(function(){}); }
   app.addEventListener("click",function(e){
+    var pb=e.target.closest&&e.target.closest("[data-pk]");
+    if(pb&&S.kind==="pick"){ e.preventDefault(); if(busy||closed()) return; var pk=pb.getAttribute("data-pk"), at=SEL.indexOf(pk); if(D.multi){ if(at>=0) SEL.splice(at,1); else SEL.push(pk); } else SEL=[pk]; render(); return; }
+    if(e.target.closest&&e.target.closest("#pkgo")){ e.preventDefault(); if(!busy) pickSend(); return; }
     var b=e.target.closest&&e.target.closest("[data-v]");
     if(b){
       e.preventDefault(); if(busy) return;

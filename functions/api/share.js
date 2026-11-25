@@ -6,8 +6,10 @@
 //        kind "places"  data { q, items:[{ name, cat, addr, url(카카오맵 장소), phone }] ≤10 }
 //        kind "trip"    data { sub, steps:[{ icon, name, desc, u(https) }] ≤8, checklist:[글] ≤20 }
 //        kind "routine" data { name(≤12), cmds:[글 ≤80] ≤5 }
+//        kind "pick"    data { q(위치 ≤40), items:[{ name ≤30, desc ≤40, emoji }] 2~6, deadline(ISO·30일 안·없으면 null), anon, multi, tpl }   (v467 🗳 홈 '같이 정하기' 투표)
 //   { op:"get", id, voter? }                      (누구나)  → { ok, share, tally, people, mine, owner }
 //   { op:"vote", id, voter, nick, pick, on }      (누구나)  → places: pick "1"~"10" 켜기·끄기(여러 곳 가능) · trip: "go"|"no" 하나만 · routine: "take"
+//                                                             pick: "1"~"6" (중복 선택이 아니면 하나만 · 마감 뒤에는 못 누름 · 익명이면 별명을 보여 주지 않음)
 //   { op:"mine" }                                 (로그인)  → 내가 만든 링크 최근 20개 + 누른 사람 수
 //   { op:"del", id }                              (로그인 · 만든 사람만) → 지우기
 //   { op:"final", id, text }                      (로그인 · 만든 사람만 · v361) → "🎉 영금물회 저녁 7시 4명 예약했어요" 를 링크 맨 위에 (빈 글이면 지움)
@@ -20,7 +22,7 @@
 const KEEP_DAYS = 30;
 const DAY_MAX = 30;
 const VOTE_MAX = 300;
-const KINDS = ['places', 'trip', 'routine'];
+const KINDS = ['places', 'trip', 'routine', 'pick'];
 
 export async function onRequestPost(context) {
   const env = context.env || {};
@@ -59,7 +61,7 @@ async function create(c, uid, b, request) {
   const title = clean(b.title, 60);
   if (!title) throw httpErr(400, '제목이 없어요');
   const sender = clean(b.sender, 12);
-  const data = kind === 'places' ? placesData(b.data) : kind === 'trip' ? tripData(b.data) : routineData(b.data);
+  const data = kind === 'places' ? placesData(b.data) : kind === 'trip' ? tripData(b.data) : kind === 'pick' ? pickData(b.data) : routineData(b.data);
   if (looksPrivate(title) || looksPrivate(sender)) throw httpErr(400, '제목·별명에 전화·카드·계좌번호처럼 보이는 숫자는 넣을 수 없어요');
 
   const since = new Date(Date.now() - 86400e3).toISOString();
@@ -111,6 +113,20 @@ function tripData(d) {
   if (steps.some((x) => looksPrivate(x.desc)) || checklist.some(looksPrivate)) throw httpErr(400, '전화·카드·계좌번호처럼 보이는 숫자는 보낼 수 없어요');
   return { sub: clean(d.sub, 160), steps, checklist };
 }
+/* v467 🗳 같이 정하기 투표 — 후보 2~6개 · 마감 시간 · 익명 · 중복 선택 */
+function pickData(d) {
+  d = d || {};
+  const items = (Array.isArray(d.items) ? d.items : []).slice(0, 6).map((x) => {
+    x = x || {};
+    return { name: clean(x.name, 30), desc: clean(x.desc, 40), emoji: clean(x.emoji, 4) };
+  }).filter((x) => x.name);
+  if (items.length < 2) throw httpErr(400, '후보를 2개 이상 적어 주세요');
+  if (items.some((x) => looksPrivate(x.name) || looksPrivate(x.desc))) throw httpErr(400, '후보에 전화·카드·계좌번호처럼 보이는 숫자는 넣을 수 없어요');
+  let deadline = null;
+  const t = Date.parse(String(d.deadline || ''));
+  if (isFinite(t) && t > Date.now() && t < Date.now() + (KEEP_DAYS - 1) * 86400e3) deadline = new Date(t).toISOString();
+  return { q: clean(d.q, 40), items, deadline, anon: d.anon === true, multi: d.multi === true, tpl: clean(d.tpl, 20) };
+}
 function routineData(d) {
   d = d || {};
   const name = clean(d.name, 12).replace(/\s+/g, '');
@@ -133,7 +149,12 @@ async function get(c, request, b) {
     const uid = await userId(request, c);
     owner = !!uid && uid === s.user_id;
   }
-  return { ok: true, share: pub(s), owner, ...tally(votes, voter) };
+  return { ok: true, share: pub(s), owner, ...hide(s, tally(votes, voter)) };
+}
+/* v467 익명 투표면 누가 골랐는지(별명)는 아무에게도 보내지 않는다 */
+function hide(s, t) {
+  if (s.kind === 'pick' && s.data && s.data.anon) Object.keys(t.tally).forEach((k) => { t.tally[k].nicks = []; });
+  return t;
 }
 async function readShare(c, id) {
   const r = await req(c, 'GET', 'cf_share?select=id,user_id,kind,title,sender,data,created_at,expires_at&id=eq.' + id + '&limit=1');
@@ -168,6 +189,11 @@ async function vote(c, b) {
     const n = parseInt(pick, 10);
     const len = (s.data && Array.isArray(s.data.items) ? s.data.items.length : 0);
     if (!(n >= 1 && n <= len && String(n) === pick)) throw httpErr(400, '없는 번호예요');
+  } else if (s.kind === 'pick') {
+    const n = parseInt(pick, 10);
+    const len = (s.data && Array.isArray(s.data.items) ? s.data.items.length : 0);
+    if (!(n >= 1 && n <= len && String(n) === pick)) throw httpErr(400, '없는 번호예요');
+    if (s.data.deadline && Date.parse(s.data.deadline) < Date.now()) throw httpErr(409, '투표가 마감됐어요');
   } else if (s.kind === 'trip') {
     if (pick !== 'go' && pick !== 'no') throw httpErr(400, '잘못된 선택이에요');
   } else if (pick !== 'take') throw httpErr(400, '잘못된 선택이에요');
@@ -180,12 +206,13 @@ async function vote(c, b) {
     const mineNow = (Array.isArray(all) ? all : []).some((v) => v.voter === voter);
     if (Array.isArray(all) && all.length >= VOTE_MAX && !mineNow) throw httpErr(429, '이 링크는 누른 사람이 너무 많아 더 받을 수 없어요');
     if (s.kind === 'trip') await req(c, 'DELETE', base + '&pick=in.(go,no)');
+    if (s.kind === 'pick' && !(s.data && s.data.multi)) await req(c, 'DELETE', base + '&pick=neq.' + encodeURIComponent(pick));   /* v467 하나만 고르기 */
     await req(c, 'POST', 'cf_share_vote', { share_id: id, voter, pick, nick }, 'resolution=merge-duplicates,return=minimal');
     /* 별명을 바꿨으면 이 사람의 다른 표에도 같이 */
     await req(c, 'PATCH', base, { nick }, 'return=minimal').catch(() => {});
   }
   const votes = await req(c, 'GET', 'cf_share_vote?select=voter,pick,nick&share_id=eq.' + id + '&order=created_at.asc&limit=' + VOTE_MAX);
-  return { ok: true, ...tally(votes, voter) };
+  return { ok: true, ...hide(s, tally(votes, voter)) };
 }
 
 /* ── v361 확정 알림: 만든 사람이 예약을 확정하면 친구 화면 맨 위에 한 줄 ── */
