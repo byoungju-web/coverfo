@@ -53,7 +53,7 @@ function page(s, origin) {
 <meta property="og:type" content="website">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(desc)}">
-<meta property="og:image" content="${esc(origin)}/coverfo-icon-512.png">
+<meta property="og:image" content="${esc(origin)}${s && s.kind === 'pick' ? '/og/decide.jpg' : '/coverfo-icon-512.png'}">
 <meta name="twitter:card" content="summary">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta name="theme-color" content="#6D3DF0">

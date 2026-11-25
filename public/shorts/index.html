@@ -11,7 +11,11 @@
 <meta property="og:url" content="https://coverfo.com/shorts/">
 <meta property="og:title" content="🎬 여행 자동 쇼츠 — coverfo">
 <meta property="og:description" content="사진만 고르면 포도야가 여행 쇼츠로 자동 편집해 줘요. 음악·자막까지 무료.">
-<meta property="og:image" content="https://coverfo.com/social_preview_index.jpg">
+<meta property="og:image" content="https://coverfo.com/og/shorts.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<script>/* v476 카톡·문자 등 밖에서 이 주소(링크 미리보기용)를 열면 coverfo 홈 위에서 열리도록 /?go=shorts 로 보낸다. 홈 안(덮개 창)·coverfo 안에서 온 경우는 그대로 */
+(function(){ try{ if(window.top===window&&!/[?&]v=/.test(location.search)&&!/coverfo\.com|localhost|127\.0\.0\.1/.test(document.referrer||"")) location.replace("/?go=shorts"); }catch(e){} })();</script>
 <script src="/shorts/store.js?v=470"></script>
 <script src="/shorts/mux.js?v=470"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -605,7 +609,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
   /* ── ⑤ 공유하기 ── */
   var CH=[["reels","인스타 릴스","◎","#FFE4EF","#E1306C"],["tiktok","틱톡","♪","#F1F1F4","#111"],["yt","유튜브 쇼츠","▶","#FFE6E6","#FF0000"],["kakao","카톡","💬","#FFF6C7","#3C1E1E"],["feed","coverfo 피드","","#F0EBFF","#7C4DFF"]];
   /* v472: 함께 보내는 글은 "나도 만들기 + 주소" 한 줄만 (사용자 요청 · 해시태그 없음 → 카톡 # 검색 링크 문제도 없음) */
-  function caption(){ return S.link?"🎬 나도 만들기 👉 https://coverfo.com/?go=shorts":""; }
+  function caption(){ return S.link?"🎬 나도 만들기 👉 https://coverfo.com/shorts/":""; }
   function step5(){
     if(!S.url){ go(3); return; }
     var h='<div class="eb">STEP 5 · 공유하기</div><div class="h2">친구에게<br>자랑해볼까요?</div><div class="ch">'+CH.map(function(c){ return '<button type="button" data-ch="'+c[0]+'" aria-pressed="'+!!S.ch[c[0]]+'"><span class="i" style="background:'+c[3]+';color:'+c[4]+'">'+(c[0]==="feed"?'<span style="width:28px;height:28px;display:block">'+GRAPE+'</span>':c[2])+'</span>'+c[1]+'<small>✓ 선택됨</small></button>'; }).join("")+'</div>';
