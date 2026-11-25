@@ -23,7 +23,7 @@
      ③ 스타일: 감성 브이로그 · 신나는 여행 · 시네마틱 · 귀여운 포도야 / 음악(이 화면이 직접 만드는 음악 — 저작권 걱정 없음) / 자막 / 길이 15·30·60초
      ④ 미리보기: 이 휴대폰에서 영상으로 만든다(서버로 사진을 보내지 않음 · 무료) — 지원하면 mp4, 아니면 webm
      ⑤ 공유: 휴대폰 공유창(릴스·틱톡·유튜브 쇼츠·카톡) · 휴대폰에 저장 · coverfo 피드(누리트립 쇼츠, 기존처럼 1크레딧)
-     · 'made with coverfo' 표시와 coverfo.com/trip 링크는 켜고 끌 수 있다 -->
+     · 영상 안에는 coverfo 글자·주소를 넣지 않는다 (v473). 마지막 제목 장면과 함께 보내는 글(나도 만들기 링크)은 켜고 끌 수 있다 -->
 <style>
 :root{--bg:#F5F3FF;--card:#fff;--ink:#1B1638;--sub:#6D6890;--mute:#9b97b8;--line:#ECE7FB;--pri:#7C4DFF;--pri2:#5B34E0;--pink:#F0509A;--soft:#F0EBFF;--err:#B42318;--ok:#0F7A4A}
 *{box-sizing:border-box}
@@ -337,7 +337,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
     h+='<div class="card"><div class="sec">♪ 음악 선택</div>'+Object.keys(MUS).map(function(k){ var m=MUS[k]; return '<div class="mu" role="radio" aria-checked="'+(S.music===k)+'" data-mu="'+k+'" tabindex="0"><span class="t"><b>'+m.n+'</b><small>'+m.d+'</small></span>'+(k==="none"?'':'<button type="button" class="pl" data-play="'+k+'" aria-label="'+m.n+' 들어보기">'+(PV.k===k?"❚❚":"▶")+'</button>')+'</div>'; }).join("")+'<p class="note">음악은 이 화면이 직접 만드는 곡이라 저작권 걱정 없이 올릴 수 있어요.</p></div>';
     h+='<div class="card"><div class="sec">T 자막</div><input class="tin" id="ttl" maxlength="30" value="'+esc(S.title)+'" aria-label="쇼츠 제목"><div class="chs" style="margin-top:10px">'+Object.keys(CAPS).map(function(k){ return '<button type="button" data-cap="'+k+'" aria-pressed="'+(S.cap===k)+'">'+CAPS[k]+'</button>'; }).join("")+'</div><p class="note">장소 이름은 사진마다 자막으로 붙어요.</p></div>';
     h+='<div class="card"><div class="sec">⏱ 길이</div><div class="len">'+[15,30,60].map(function(x){ return '<button type="button" data-len="'+x+'" aria-pressed="'+(S.len===x)+'">'+x+'초</button>'; }).join("")+'</div></div>';
-    h+='<div class="card swr"><span class="t"><b>made with coverfo 표시</b><small>영상 오른쪽 아래와 마지막 장면에 작게 넣어요 (주소는 넣지 않아요)</small></span><button type="button" class="sw" role="switch" aria-checked="'+S.wm+'" data-wm="1" aria-label="made with coverfo 표시"></button></div>';
+    h+='<div class="card swr"><span class="t"><b>마지막 제목 장면</b><small>영상 끝에 포도와 제목이 나오는 장면을 2초 넣어요</small></span><button type="button" class="sw" role="switch" aria-checked="'+S.wm+'" data-wm="1" aria-label="마지막 제목 장면"></button></div>';
     var on=S.photos.filter(function(p){ return p.on; }).length;
     h+='<div class="card"><div class="sec">🖼 들어갈 사진 '+on+'장</div><div class="ph">'+S.photos.map(function(p,i){ return '<button type="button" aria-pressed="'+p.on+'" data-ph="'+i+'" style="background-image:url(\''+esc(thumb(p))+'\')" aria-label="'+(i+1)+'번 사진 '+(p.on?'빼기':'넣기')+'">'+(p.best?'<span class="bd">베스트 컷</span>':'')+(p.cap?'<span class="cp">'+esc(p.cap)+'</span>':'')+'</button>'; }).join("")+'</div><p class="note">눌러서 넣고 뺄 수 있어요 · '+S.len+'초에는 '+want()+'장 안팎이 좋아요</p></div>';
     $("main").innerHTML=h+'<div class="msg" id="msg" role="status"></div>';
@@ -467,15 +467,13 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
           ctx.fillStyle="#fff"; ctx.textAlign="left"; ctx.fillText(p2.cap,58,ty+4,W-130); ctx.globalAlpha=1;
         }
       }
-      /* v472: 영상 안에는 주소를 넣지 않고 오른쪽 아래 작은 "made with coverfo" 만 (사용자 요청) — 주소는 함께 보내는 글에 넣는다 */
-      if(P.wm){ ctx.font="800 22px -apple-system, sans-serif"; ctx.textAlign="right"; var wy=st==="cine"?H-110:H-60; ctx.fillStyle="rgba(0,0,0,.35)"; var ww=ctx.measureText("made with coverfo").width; rr(ctx,W-48-ww-20,wy-28,ww+40,40,20); ctx.fill(); ctx.fillStyle="#fff"; ctx.fillText("made with coverfo",W-48,wy); }
+      /* v473: 영상 안 "made with coverfo" 표시는 넣지 않는다 (사용자 요청) */
     } else {
-      /* 마지막 장면: made with coverfo */
+      /* 마지막 장면: 포도 + 제목 */
       var e=(t-P.body)/P.end, gr2=ctx.createLinearGradient(0,0,W,H); gr2.addColorStop(0,"#2A1C6B"); gr2.addColorStop(1,"#7C4DFF"); ctx.fillStyle=gr2; ctx.fillRect(0,0,W,H);
       ctx.globalAlpha=Math.min(1,e*3);
       if(GIMG.complete) ctx.drawImage(GIMG,W/2-110,H/2-330,220,220);
       ctx.textAlign="center"; ctx.fillStyle="#fff"; ctx.font=fontFor(P.cap,50); wrap(ctx,P.title,W-120).forEach(function(l,k3){ ctx.fillText(l,W/2,H/2-40+k3*62); });
-      ctx.font="800 34px -apple-system, sans-serif"; ctx.fillStyle="rgba(255,255,255,.92)"; ctx.fillText("made with coverfo",W/2,H/2+150);
       ctx.globalAlpha=1;
     }
     ctx.restore();
