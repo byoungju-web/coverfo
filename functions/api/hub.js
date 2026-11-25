@@ -876,7 +876,83 @@ async function cronDue(env) {
   /* v459 📅 일정 먼저 알림 (sql/cf_calnudge.sql) — 먼저 챙기기를 켜고 구글 캘린더를 연결한 사람만 · 표·칸이 없으면 조용히 넘어간다 */
   let calNudges = 0;
   try { calNudges = await calNudge(env, now); } catch {}
-  return { ok: true, ids, pushes, kakaos, reminds, parcels, nudges, calNudges };
+  /* v468 🍇 포도야 알림 친구 — 기념일 D-7·D-3·당일 (sql/cf_pdy.sql) · 표가 없거나 켠 사람이 없으면 조용히 넘어간다 */
+  let pdys = 0;
+  try { pdys = await pdyCron(env, now); } catch {}
+  return { ok: true, ids, pushes, kakaos, reminds, parcels, nudges, calNudges, pdys };
+}
+
+/* ───────────── v468 🍇 포도야 알림 친구: 이용자가 고른 시각(한국 시각 hh시)에 하루 1번 ─────────────
+   · 대상: cf_pdy_set.on_day 를 켠 사람 · 오늘(한국 날짜) 아직 확인하지 않았고 지금이 hh시 이후(22시 전)일 때
+   · 알릴 것: cf_pdy_day 에서 켠 것 중 오늘이 D-7 · D-3 · 당일인 것 (매월은 D-3 · 당일만) — 여러 개면 한 알림에 모아서
+   · 웹 알림(브라우저) + 카톡 '나에게 보내기'(연결한 사람만) · 크레딧을 쓰지 않는다
+   · 오늘 확인 표시(last_day)를 먼저 해서 두 번 보내지 않는다 · 한 번 깨울 때 최대 30명 */
+async function pdyCron(env, now) {
+  const canPush = !!(env.VAPID_PUBLIC && env.VAPID_PRIVATE), canKakao = !!String(env.KAKAO_REST_KEY || '').trim();
+  if (!canPush && !canKakao) return 0;
+  const k = new Date(now + 9 * 3600e3), hh = k.getUTCHours();
+  if (hh < 7 || hh >= 22) return 0;
+  const kday = k.toISOString().slice(0, 10);
+  let rows = [];
+  try { rows = await sbReq(env, 'GET', 'cf_pdy_set?select=*&on_day=eq.true&last_day=neq.' + kday + '&hh=lte.' + hh + '&limit=30'); } catch { return 0; }
+  const today = Date.parse(kday + 'T00:00:00Z');
+  let sent = 0;
+  for (const s of Array.isArray(rows) ? rows : []) {
+    const claim = await sbReq(env, 'PATCH', 'cf_pdy_set?user_id=eq.' + encodeURIComponent(s.user_id) + '&last_day=eq.' + encodeURIComponent(s.last_day || ''), { last_day: kday }, 'return=representation').catch(() => []);
+    if (!Array.isArray(claim) || !claim.length) continue;
+    const days = await sbReq(env, 'GET', 'cf_pdy_day?select=*&user_id=eq.' + encodeURIComponent(s.user_id) + '&is_on=eq.true&limit=50').catch(() => []);
+    const due = [];
+    for (const d of Array.isArray(days) ? days : []) {
+      const left = pdyLeft(d, today);
+      if (left == null) continue;
+      const ok = left === 0 ? s.d0 !== false : left === 3 ? s.d3 !== false : left === 7 ? (s.d7 !== false && d.kind !== 'monthly') : false;
+      if (ok) due.push({ d, left });
+    }
+    if (!due.length) continue;
+    due.sort((a, b) => a.left - b.left);
+    const msg = pdyMessage(due, s.tone);
+    let ok = false;
+    if (canPush) { const r = await pushUser(env, s.user_id, { title: msg.title, body: msg.body, url: '/?pdy=1', tag: 'cf-pdy-' + kday }).catch(() => null); if (r && r.sent) ok = true; }
+    if (canKakao) { try { const r = await kakaoRow(env, s.user_id); if (r && r.is_on) { const x = await kakaoMemo(env, r, msg.title + '\n' + msg.body, 'https://coverfo.com/?pdy=1', '🍇 포도야 열기'); if (x && x.ok) ok = true; } } catch {} }
+    if (ok) sent++;
+  }
+  return sent;
+}
+/* 오늘(한국 날짜 0시, UTC 표기)부터 그날까지 남은 날 — 지난 한 번짜리는 null */
+function pdyLeft(d, today) {
+  const t0 = new Date(today), y = t0.getUTCFullYear(), m = t0.getUTCMonth();
+  let t = null;
+  if (d.kind === 'once') { t = Date.parse(String(d.day || '') + 'T00:00:00Z'); if (!isFinite(t) || t < today) return null; }
+  else if (d.kind === 'monthly') {
+    const dom = Number(d.dom) || 1;
+    const at = (yy, mm) => { const dim = new Date(Date.UTC(yy, mm + 1, 0)).getUTCDate(); return Date.UTC(yy, mm, Math.min(dom, dim)); };
+    t = at(y, m); if (t < today) t = at(y, m + 1);
+  } else {
+    const mm = /^(\d{2})-(\d{2})$/.exec(String(d.md || '')); if (!mm) return null;
+    const at = (yy) => { const mo = +mm[1] - 1, dim = new Date(Date.UTC(yy, mo + 1, 0)).getUTCDate(); return Date.UTC(yy, mo, Math.min(+mm[2], dim)); };
+    t = at(y); if (t < today) t = at(y + 1);
+  }
+  return Math.round((t - today) / 86400e3);
+}
+function pdyMessage(due, tone) {
+  const lbl = (x) => x.left === 0 ? '오늘' : 'D-' + x.left;
+  const f = due[0], name = String(f.d.title || '그날').slice(0, 30);
+  const happy = !/(기일|제사|추모)/.test(name);
+  const gift = happy && f.d.kind !== 'monthly' && !f.d.gift;
+  let title;
+  if (tone === 'fun') title = f.left === 0 ? '🎉 두구두구! 오늘은 ' + name + '!' : '🍇 ' + name + ' ' + lbl(f) + '! 미리미리 출발~';
+  else if (tone === 'cool') title = '🍇 ' + name + ' ' + lbl(f) + '.';
+  else {
+    const c = name.charCodeAt(name.length - 1), jong = c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 > 0;   /* 받침 있으면 '이에요·이', 없으면 '예요·가' */
+    title = f.left === 0 ? '🍇 오늘은 ' + name + (jong ? '이에요' : '예요') : '🍇 ' + name + (jong ? '이 ' : '가 ') + f.left + '일 남았어요';
+  }
+  const parts = [];
+  if (f.d.gift) parts.push('🎁 정한 선물: ' + String(f.d.gift).slice(0, 40));
+  else if (gift) parts.push(tone === 'cool' ? '선물 확인.' : tone === 'fun' ? '선물 고르러 가 볼까요? 🎁' : '선물 같이 골라 볼까요? 🎁');
+  if (f.d.memo) parts.push(String(f.d.memo).slice(0, 40));
+  const more = due.slice(1, 4).map((x) => String(x.d.title).slice(0, 20) + ' ' + lbl(x));
+  if (more.length) parts.push('그리고 ' + more.join(' · '));
+  return { title, body: parts.join('\n') || '눌러서 포도야 열기' };
 }
 
 /* ───────────── v366 🧠 먼저 챙기기: 🔔 를 켠 사람에게 하루 1번까지 ─────────────

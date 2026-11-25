@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#F6F4FF">
+<title>포도야 알림 친구 — coverfo</title>
+<!-- coverfo 🍇 포도야 알림 친구 (v468)
+     기억하고, 챙기고, 같이 정하는 작은 친구 — 홈 카드 ③ 에서 열린다 (홈 위 한 화면 덮개 · cf-page.js)
+     · 🏠 홈: 날씨 · 오늘 알림 · 가까운 기념일 · 오늘의 추천 → 같이 정하기
+     · ☀️ 아침 브리핑: 기존 아침 브리핑(/brief · /api/hub brief_get·brief_save)을 그대로 쓴다 — 시각·요일만 여기서 바꿈
+     · 🎂 기념일·알림: /api/pdy (sql/cf_pdy.sql) — D-7 · D-3 · 당일에 웹 알림·카톡으로 먼저 알려 줌 (무료)
+     · 🗳 정하기: 같이 정하기 투표 링크(/api/share kind pick) — 친구끼리 대화하는 창은 만들지 않음
+     · ⚙️ 설정: 알림 켜기·시각 · 이 브라우저 웹 알림(/brief 와 같은 방식) · 포도야 성격
+     · 선물 추천은 관계별 기본 목록(AI 아님 · 크레딧 없음). 로그인 토큰은 홈과 같은 방법으로 읽는다. -->
+<style>
+:root{--bg:#F6F4FF;--card:#fff;--ink:#1B1738;--sub:#6E6A8C;--mute:#9A96B5;--line:#ECE8FB;--pri:#7B5CFF;--pri2:#5B3FE0;--soft:#F1EDFF;--yel:#FFF4D6;--yel2:#B26A00;--grn:#DDF7EA;--grn2:#0F7A4A;--pch:#FFE9DC;--pch2:#D9480F;--err:#B42318}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;-webkit-text-size-adjust:100%}
+button,input,select{font-family:inherit}
+button{cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid rgba(123,92,255,.45);outline-offset:2px}
+.top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;gap:8px;height:54px;padding:0 14px;max-width:560px;margin:0 auto}
+.bar h1{flex:1;margin:0;font-size:17px;font-weight:800;letter-spacing:-.02em;display:flex;align-items:center;gap:6px}
+.bar .x{height:36px;padding:0 14px;border-radius:18px;border:1.5px solid #E2DCFA;background:#fff;font-size:13.5px;font-weight:700;color:var(--pri2)}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding:0 14px 10px;max-width:560px;margin:0 auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:none;display:flex;align-items:center;gap:6px;height:38px;padding:0 13px 0 7px;border-radius:999px;border:1.5px solid #E6E1FA;background:#fff;color:var(--ink);font-size:13.5px;font-weight:700}
+.tabs button i{font-style:normal;width:22px;height:22px;border-radius:50%;background:var(--pri);color:#fff;font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.tabs button[aria-selected="true"]{background:#1B1738;border-color:#1B1738;color:#fff}
+.wrap{max-width:560px;margin:0 auto;padding:14px 14px 48px}
+.card{background:var(--card);border-radius:24px;padding:16px;margin:0 0 12px;box-shadow:0 10px 28px -22px rgba(70,40,160,.45)}
+.hero{position:relative;overflow:hidden;border-radius:26px;padding:18px 18px 16px;color:#fff;background:linear-gradient(150deg,#9478FF 0%,#7B5CFF 45%,#5B3FE0 100%);box-shadow:0 18px 36px -22px rgba(91,63,224,.9);margin-bottom:12px}
+.hero small{font-size:12.5px;opacity:.9}
+.hero h2{margin:8px 0 8px;font-size:25px;line-height:1.28;letter-spacing:-.03em;font-weight:900;max-width:70%}
+.hero h2 .gr{display:inline-block;width:26px;height:26px;vertical-align:-4px}
+.hero p{margin:0 0 14px;font-size:13.5px;opacity:.92;max-width:72%}
+.hero .chips{display:flex;gap:6px;flex-wrap:wrap}
+.hero .chips span{background:rgba(255,255,255,.22);border-radius:999px;padding:6px 11px;font-size:12.5px;font-weight:800}
+.hero .big{position:absolute;right:10px;top:14px;width:96px;height:96px;border-radius:50%;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center}
+.hero .big svg{width:74px;height:74px;filter:drop-shadow(0 6px 10px rgba(40,10,120,.35))}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.mini{border-radius:22px;padding:14px;min-height:132px}
+.mini.w{background:#fff;box-shadow:0 10px 28px -22px rgba(70,40,160,.45)}
+.mini.y{background:var(--yel)}
+.mini .ic{font-size:22px;line-height:1}
+.mini small{display:block;font-size:12px;color:var(--sub);margin-top:10px}
+.mini b{display:block;font-size:20px;letter-spacing:-.02em;margin-top:3px}
+.mini .s{font-size:12.5px;color:var(--sub);margin-top:4px;line-height:1.45}
+.mini.y .li{font-size:14px;font-weight:800;line-height:1.5;margin-top:2px;word-break:keep-all}
+.near{display:flex;align-items:center;gap:12px}
+.near .em{flex:0 0 46px;height:46px;border-radius:15px;background:var(--pch);display:flex;align-items:center;justify-content:center;font-size:24px}
+.near .t{flex:1;min-width:0}
+.near .t b{display:block;font-size:16.5px;letter-spacing:-.02em}
+.near .t small{display:block;font-size:12.5px;color:var(--sub);margin-top:2px}
+.btn-dk{flex:none;height:40px;padding:0 15px;border:0;border-radius:20px;background:#1B1738;color:#fff;font-size:13.5px;font-weight:800}
+.rec{background:var(--grn);border-radius:24px;padding:16px;margin:0 0 12px}
+.rec .h{font-size:13px;font-weight:800;color:var(--grn2)}
+.rec b{display:block;font-size:17px;margin:8px 0 4px;letter-spacing:-.02em}
+.rec p{margin:0 0 12px;font-size:13.5px;color:#3c6b55}
+.pill{display:inline-flex;align-items:center;gap:4px;height:38px;padding:0 14px;border-radius:19px;border:0;background:#fff;color:var(--ink);font-size:13.5px;font-weight:800;text-decoration:none}
+.say{display:flex;gap:8px;align-items:center}
+.say input{flex:1;min-width:0;height:46px;border:1.5px solid var(--line);border-radius:23px;padding:0 16px;font-size:15px;background:#F8F7FD;color:var(--ink)}
+.say button{flex:none;width:46px;height:46px;border-radius:50%;border:0;background:var(--pri);color:#fff;font-size:18px}
+.lbl{font-size:13px;font-weight:800;color:var(--sub);margin:0 0 8px}
+.ttl{font-size:23px;font-weight:900;letter-spacing:-.03em;margin:4px 0 2px}
+.hd{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin:2px 2px 12px}
+.hd small{font-size:12.5px;color:var(--sub)}
+.badge{flex:none;font-size:12px;font-weight:800;background:var(--yel);color:var(--yel2);border-radius:999px;padding:5px 10px}
+.notif{display:flex;align-items:center;gap:12px}
+.notif .bell{flex:0 0 46px;height:46px;border-radius:14px;background:var(--pri);color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px}
+.notif .t{flex:1;min-width:0}.notif b{display:block;font-size:16px}.notif small{font-size:12.5px;color:var(--sub)}
+.eyebrow{font-size:12px;font-weight:900;color:var(--pri);letter-spacing:.04em}
+.brief h3{margin:6px 0 12px;font-size:19px;letter-spacing:-.02em}
+.brief li{list-style:none;font-size:14.5px;line-height:1.55;margin:0 0 9px;word-break:keep-all}
+.brief ul{margin:0;padding:0}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.bp{height:48px;border-radius:16px;border:0;background:var(--pri);color:#fff;font-size:14.5px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none}
+.bw{height:48px;border-radius:16px;border:1.5px solid var(--line);background:#fff;color:var(--ink);font-size:14.5px;font-weight:800;display:flex;align-items:center;justify-content:center;text-decoration:none}
+.chs{display:flex;flex-wrap:wrap;gap:8px}
+.chs button{height:40px;padding:0 15px;border-radius:20px;border:1.5px solid var(--line);background:#fff;color:var(--ink);font-size:14px;font-weight:700}
+.chs button[aria-pressed="true"]{background:#1B1738;border-color:#1B1738;color:#fff}
+.okline{margin-top:12px;background:var(--soft);color:var(--pri2);border-radius:14px;padding:11px 13px;font-size:13.5px;font-weight:800}
+.dc{background:#fff;border-radius:22px;padding:14px;margin:0 0 10px;box-shadow:0 10px 28px -22px rgba(70,40,160,.45)}
+.dc .r1{display:flex;align-items:center;gap:12px}
+.dc .dd{flex:0 0 52px;height:52px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900;letter-spacing:-.03em}
+.dd.a{background:#FFE4DC;color:#D9480F}.dd.b{background:var(--yel);color:#8A5200}.dd.c{background:var(--grn);color:var(--grn2)}.dd.d{background:var(--soft);color:var(--pri2)}.dd.m{background:var(--soft);font-size:22px}
+.dc .t{flex:1;min-width:0}
+.dc .t b{font-size:16px;letter-spacing:-.02em}
+.dc .t .tg{display:inline-block;margin-left:6px;font-size:11px;font-weight:800;color:var(--pri2);background:var(--soft);border-radius:8px;padding:2px 7px;vertical-align:2px}
+.dc .t small{display:block;font-size:12.5px;color:var(--sub);margin-top:3px}
+.sw{position:relative;flex:0 0 50px;height:30px;border-radius:15px;border:0;background:#E3DEF7;padding:0}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .15s}
+.sw[aria-checked="true"]{background:var(--pri)}
+.sw[aria-checked="true"]::after{left:23px}
+.dc .acts{display:flex;gap:8px;margin-top:10px}
+.dc .acts button{flex:1;height:40px;border-radius:13px;border:0;background:var(--soft);color:var(--pri2);font-size:13.5px;font-weight:800}
+.dc .acts button.rm{flex:0 0 44px;background:#F6F5FA;color:var(--mute)}
+.dc .gift{margin-top:10px;background:var(--yel);border-radius:13px;padding:10px 12px;font-size:13.5px;font-weight:800;color:#5c3b00}
+.add{display:block;width:100%;height:54px;border-radius:20px;border:2px dashed #D6CCFA;background:transparent;color:var(--pri2);font-size:15px;font-weight:800;margin:4px 0 12px}
+.fm label{display:block;font-size:13px;font-weight:800;color:var(--sub);margin:12px 0 6px}
+.fm input[type=text],.fm input[type=date],.fm select{width:100%;height:46px;border:1.5px solid var(--line);border-radius:14px;padding:0 13px;font-size:15px;background:#F8F7FD;color:var(--ink)}
+.fm .two{margin-top:16px}
+.bk{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.bk:first-of-type{border-top:0}
+.bk .t{flex:1;min-width:0;font-size:14.5px;font-weight:700}
+.bk .t small{display:block;font-size:12px;color:var(--sub);font-weight:600}
+.bk button{flex:none;height:34px;padding:0 11px;border-radius:12px;border:0;background:var(--soft);color:var(--pri2);font-size:12.5px;font-weight:800}
+.ph{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.ph .av{flex:0 0 46px;height:46px;border-radius:50%;background:var(--soft);display:flex;align-items:center;justify-content:center}
+.ph .av svg{width:34px;height:34px}
+.ph b{display:block;font-size:17px}.ph small{font-size:12.5px;color:var(--sub)}
+.ph .on{margin-left:auto;font-size:11.5px;font-weight:800;color:var(--grn2);background:var(--grn);border-radius:999px;padding:4px 9px}
+.qin{width:100%;height:48px;border:1.5px solid var(--line);border-radius:16px;padding:0 14px;font-size:16px;font-weight:800;background:#F8F7FD;color:var(--ink)}
+.ci{display:flex;align-items:center;gap:8px;background:#F8F7FD;border-radius:14px;padding:6px 6px 6px 10px;margin-top:8px}
+.ci span{font-size:20px}
+.ci input{flex:1;min-width:0;height:36px;border:0;background:transparent;font-size:15px;font-weight:700;color:var(--ink);outline:0}
+.ci button{flex:0 0 34px;height:34px;border:0;border-radius:10px;background:transparent;color:var(--mute);font-size:15px}
+.mini-add{margin-top:8px;width:100%;height:42px;border-radius:13px;border:1.5px dashed #D6CCFA;background:#fff;color:var(--pri2);font-size:13.5px;font-weight:800}
+.ask{display:flex;width:100%;align-items:center;justify-content:center;gap:6px;min-height:54px;border:0;border-radius:18px;background:var(--yel);color:#5c3b00;font-size:15px;font-weight:900;margin-top:14px}
+.ask:disabled{opacity:.6}
+.lk{background:linear-gradient(135deg,#7B61FF 0%,#5E8BFF 48%,#00C2FF 100%);color:#fff;border-radius:22px;padding:16px;margin-top:12px}
+.lk .u{font-size:16px;font-weight:900;word-break:break-all;margin:6px 0 12px}
+.lk .bb{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.lk .bb>*{height:42px;border-radius:13px;border:0;background:#fff;color:var(--pri2);font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;text-decoration:none}
+.sr{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.sr:first-of-type{border-top:0}
+.sr .t{flex:1;min-width:0}.sr b{display:block;font-size:15px}.sr small{display:block;font-size:12.5px;color:var(--sub);margin-top:2px}
+.sr.sub{padding-left:14px}
+.tone{display:block;width:100%;text-align:left;background:#F8F7FD;border:1.5px solid transparent;border-radius:16px;padding:13px 14px;margin-top:8px;color:var(--ink)}
+.tone b{display:block;font-size:15px}.tone small{font-size:12.5px;color:var(--sub)}
+.tone[aria-checked="true"]{background:#fff;border-color:var(--pri);box-shadow:0 8px 20px -16px rgba(123,92,255,.9)}
+.tone[aria-checked="true"] b::after{content:" ✓";color:var(--pri)}
+.note{font-size:12.5px;color:var(--sub);line-height:1.6;margin:10px 2px 0}
+.msg{min-height:18px;font-size:13px;color:var(--err);margin:8px 2px 0}
+.msg.ok{color:var(--grn2)}
+.empty{text-align:center;color:var(--sub);font-size:14px;padding:18px 0}
+.sheet-bg{position:fixed;inset:0;z-index:40;background:rgba(20,10,50,.45);display:none}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;max-height:86vh;overflow-y:auto;background:var(--bg);border-radius:26px 26px 0 0;padding:18px 16px 28px;display:none;max-width:560px;margin:0 auto}
+.sheet.on,.sheet-bg.on{display:block}
+.sheet h3{margin:0 0 4px;font-size:19px;letter-spacing:-.02em}
+.gi{display:flex;align-items:center;gap:10px;background:#fff;border-radius:16px;padding:10px 10px 10px 12px;margin-top:8px}
+.gi .e{font-size:24px}
+.gi .t{flex:1;min-width:0;font-size:15px;font-weight:800}
+.gi a,.gi button{flex:none;height:36px;padding:0 11px;border-radius:12px;border:0;background:var(--soft);color:var(--pri2);font-size:12.5px;font-weight:800;display:inline-flex;align-items:center;text-decoration:none}
+.gi button.on{background:var(--pri);color:#fff}
+.gate{text-align:center;padding:40px 10px}
+.gate .gr{width:80px;height:80px}
+.gate p{color:var(--sub);line-height:1.6}
+@media (prefers-reduced-motion:reduce){.sw::after{transition:none}}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="bar"><h1><span id="lg"></span>포도야</h1><button type="button" class="x" id="close">✕ 닫기</button></div>
+  <div class="tabs" role="tablist" id="tabs">
+    <button type="button" role="tab" data-tab="home" aria-selected="true"><i>1</i>포도야 홈</button>
+    <button type="button" role="tab" data-tab="brief" aria-selected="false"><i>2</i>아침 브리핑</button>
+    <button type="button" role="tab" data-tab="days" aria-selected="false"><i>3</i>기념일 · 알림</button>
+    <button type="button" role="tab" data-tab="pick" aria-selected="false"><i>4</i>같이 정하기</button>
+    <button type="button" role="tab" data-tab="set" aria-selected="false"><i>5</i>설정</button>
+  </div>
+</div>
+<main class="wrap" id="main"><div class="empty">불러오는 중…</div></main>
+<div class="sheet-bg" id="shbg"></div>
+<div class="sheet" id="sh" role="dialog" aria-modal="true" aria-labelledby="shT"></div>
+<script>
+(function(){
+  "use strict";
+  var $=function(id){ return document.getElementById(id); };
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(m){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]; }); }
+  /* 포도 모양 — 포도랑(podolang) 로고와 같은 그림 (초록 잎 + 보라 포도알 두 개) */
+  function grape(cls){ return '<svg class="'+(cls||"")+'" viewBox="0 0 120 120" aria-hidden="true"><path d="M60 14 C 62 10, 68 8, 72 12 C 76 16, 74 24, 60 26 C 46 24, 44 16, 48 12 C 52 8, 58 10, 60 14 Z" fill="#2ECC71"/><circle cx="46" cy="70" r="26" fill="#8B5CF6" stroke="#6D28D9" stroke-width="3"/><circle cx="76" cy="70" r="26" fill="#A78BFA" stroke="#6D28D9" stroke-width="3"/></svg>'; }
+  $("lg").innerHTML=grape().replace("<svg ",'<svg width="24" height="24" ');
+  function auth(){ try{ for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf("sb-")===0&&k.indexOf("-auth-token")>0){ var v=JSON.parse(localStorage.getItem(k)||"null"); var t=v&&(v.access_token||(v.currentSession&&v.currentSession.access_token)); if(t) return t; } } }catch(e){} return ""; }
+  function api(path,body){
+    var tok=auth();
+    if(!tok) return Promise.resolve({status:401,login:true,error:"로그인이 필요해요"});
+    return fetch(path,{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tok},body:JSON.stringify(body)})
+      .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ j=j||{}; j.status=r.status; return j; }); })
+      .catch(function(){ return {status:0,error:"연결하지 못했어요. 잠시 뒤 다시 해 주세요."}; });
+  }
+  function inFrame(){ try{ return window.parent!==window&&!!window.parent.cfPageClose; }catch(e){ return false; } }
+  function closePage(){ if(inFrame()){ try{ window.parent.cfPageClose(); return; }catch(e){} } location.href="/"; }
+  $("close").onclick=closePage;
+  function go(u){ location.href=u; }
+  function openOut(u){ var w=null; try{ w=window.open(u,"_blank","noopener"); }catch(e){} if(!w) location.href=u; }
+  function toast(m,ok){ var e=$("msg"); if(e){ e.className="msg"+(ok?" ok":""); e.textContent=m||""; } }
+
+  /* ── 날짜 (한국 날짜 기준) ── */
+  function kToday(){ var k=new Date(Date.now()+9*3600e3); return Date.UTC(k.getUTCFullYear(),k.getUTCMonth(),k.getUTCDate()); }
+  function left(d){
+    var today=kToday(), t0=new Date(today), y=t0.getUTCFullYear(), m=t0.getUTCMonth(), t=null;
+    if(d.kind==="once"){ t=Date.parse(String(d.day||"")+"T00:00:00Z"); if(!isFinite(t)||t<today) return null; }
+    else if(d.kind==="monthly"){ var dom=+d.dom||1; var at=function(yy,mm){ var dim=new Date(Date.UTC(yy,mm+1,0)).getUTCDate(); return Date.UTC(yy,mm,Math.min(dom,dim)); }; t=at(y,m); if(t<today) t=at(y,m+1); }
+    else { var mm=/^(\d{2})-(\d{2})$/.exec(String(d.md||"")); if(!mm) return null; var at2=function(yy){ var mo=+mm[1]-1, dim=new Date(Date.UTC(yy,mo+1,0)).getUTCDate(); return Date.UTC(yy,mo,Math.min(+mm[2],dim)); }; t=at2(y); if(t<today) t=at2(y+1); }
+    return Math.round((t-today)/864e5);
+  }
+  function dLabel(n){ return n===0?"오늘":"D-"+n; }
+  var WD="일월화수목금토";
+  function dateLine(d){
+    if(d.kind==="monthly") return "매월 "+d.dom+"일";
+    if(d.kind==="once"){ var p=String(d.day).split("-"); return (+p[1])+"월 "+(+p[2])+"일 · 한 번"; }
+    var q=String(d.md).split("-"); return (+q[0])+"월 "+(+q[1])+"일 · 매년";
+  }
+  function icon(d){ var t=d.title||""; if(d.kind==="monthly") return "🔔"; if(/생일|생신/.test(t)) return "🎂"; if(/여행|출장|휴가/.test(t)) return "✈️"; if(/기념|결혼|만난/.test(t)) return "💝"; if(/기일|제사|추모/.test(t)) return "🕯️"; return "📅"; }
+  function giftable(d){ return d.kind!=="monthly"&&!/(기일|제사|추모|월세|관리비|정산|납부|병원|여행|출장|휴가|회의|시험|마감)/.test(d.title||""); }
+
+  /* ── 포도야 성격 ── */
+  var TONE={kind:{n:"다정한 포도야",d:"따뜻하고 다정하게 챙겨줘요",hi:"오늘도 옆에서 조용히 챙길게요."},fun:{n:"재밌는 포도야",d:"유머와 리액션이 가득해요",hi:"오늘도 재밌게, 포도알처럼 통통하게!"},cool:{n:"쿨한 포도야",d:"핵심만 짧고 시원하게 정리해요",hi:"핵심만 정리했어. 바로 볼래?"}};
+
+  /* ── 선물 추천 (관계별 기본 목록 · AI 아님) ── */
+  var GIFT={
+    parent:[["🧣","따뜻한 목도리"],["💌","손편지 세트"],["💐","꽃다발"],["👟","편한 운동화"],["🍱","가족 외식 상품권"],["🧤","가죽 장갑"]],
+    friend:[["🌸","향수"],["🎂","케이크 쿠폰"],["☕","커피 기프티콘"],["🕯️","디퓨저"],["📚","요즘 인기 책"],["🧦","귀여운 양말 세트"]],
+    lover:[["🌹","꽃다발"],["💍","커플 액세서리"],["🍷","분위기 좋은 저녁"],["📸","사진 앨범"],["🌸","향수"],["🎟️","공연 티켓"]],
+    work:[["☕","커피 기프티콘"],["🍫","디저트 세트"],["🖊️","고급 볼펜"],["🌿","작은 화분"],["🍪","쿠키 박스"],["📒","다이어리"]],
+    kid:[["🧸","인형"],["🧩","블록 장난감"],["📚","그림책"],["🎨","색칠 세트"],["🎂","케이크"],["🛴","킥보드"]]
+  };
+  function relKey(d){
+    var r=d.rel||"", t=d.title||"";
+    if(r==="연인"||/(여친|남친|여자\s*친구|남자\s*친구|아내|남편|와이프|신랑|자기)/.test(t)) return "lover";
+    if(r==="동료"||/(팀장|부장|과장|대리|선배|후배|동료|사장님)/.test(t)) return "work";
+    if(r==="아이"||/(아들|딸|조카|아기|아이)/.test(t)) return "kid";
+    if(r==="가족"||/(엄마|아빠|어머니|아버지|부모|할머니|할아버지|장모|장인|시어머니|시아버지|이모|고모|삼촌)/.test(t)) return "parent";
+    return "friend";
+  }
+
+  /* ── 상태 ── */
+  var D=null, TAB="home", FORM=null, PICK=null, BR=null, PICKRES=null;
+  function load(){
+    return api("/api/pdy",{op:"get"}).then(function(j){
+      if(j.status===401){ gate(); return; }
+      if(!j.ok){ $("main").innerHTML='<div class="gate">'+grape("gr")+'<p>'+esc(j.error||"불러오지 못했어요")+'</p><button type="button" class="bw" style="margin:0 auto;padding:0 18px" data-a="reload">다시 불러오기</button></div>'; return; }
+      D=j; draw();
+    });
+  }
+  function gate(){
+    $("main").innerHTML='<div class="gate">'+grape("gr")+'<h2 class="ttl">포도야 알림 친구</h2><p>기념일을 먼저 기억하고, 아침 브리핑으로 하루를 열고,<br>작은 결정은 친구와 같이 정해요.<br><b>로그인하면 바로 쓸 수 있어요 (무료)</b></p><button type="button" class="bp" style="margin:0 auto;padding:0 24px" data-a="login">로그인하기</button></div>';
+  }
+  function setTab(t){
+    TAB=t;
+    [].forEach.call(document.querySelectorAll("#tabs button"),function(b){ b.setAttribute("aria-selected",String(b.getAttribute("data-tab")===t)); });
+    if(D) draw();
+    window.scrollTo(0,0);
+  }
+  function draw(){
+    var h=TAB==="brief"?briefHtml():TAB==="days"?daysHtml():TAB==="pick"?pickHtml():TAB==="set"?setHtml():homeHtml();
+    $("main").innerHTML=h+'<div class="msg" id="msg" role="status"></div>';
+    if(TAB==="brief"&&!BR) briefLoad();
+    if(TAB==="set") pushInit();
+  }
+  function upcoming(max){
+    return (D.days||[]).filter(function(d){ return d.is_on; }).map(function(d){ return {d:d,n:left(d)}; }).filter(function(x){ return x.n!=null&&x.n<=max; }).sort(function(a,b){ return a.n-b.n; });
+  }
+
+  /* ── ① 홈 ── */
+  function wxIcon(w){ if(!w) return "🌤️"; var c=w.code; if(c===0||c===1) return "☀️"; if(c===2) return "⛅"; if(c===3||c===45||c===48) return "☁️"; if(c>=71&&c<=86&&c!==80&&c!==81&&c!==82) return "❄️"; if(c>=95) return "⛈️"; return "🌧️"; }
+  function rainy(w){ return !!w&&((w.pop!=null&&w.pop>=60)||(w.code>=51&&w.code<=67)||(w.code>=80&&w.code<=82)); }
+  function recPick(w){
+    if(rainy(w)) return {q:"비 오는 날, 저녁 뭐 먹을까?",t:"비 오는 날엔 파전·칼국수 어때요?",s:"빗소리엔 따끈한 게 최고예요.",c:[["🥞","파전"],["🍜","칼국수"],["🍲","수제비"]]};
+    if(w&&w.t!=null&&w.t<=5) return {q:"오늘 저녁 뭐 먹을까?",t:"저녁은 따뜻한 국물이 어때요?",s:"쌀쌀한 날엔 부드럽고 따뜻하게.",c:[["🍲","순두부찌개"],["🥘","국밥"],["🍢","어묵탕"]]};
+    if(w&&w.tmax!=null&&w.tmax>=27) return {q:"오늘 저녁 뭐 먹을까?",t:"더운 날엔 시원한 냉면 어때요?",s:"오늘은 시원하게 가요.",c:[["🍜","냉면"],["🥣","콩국수"],["🍣","초밥"]]};
+    return {q:"오늘 저녁 뭐 먹을까?",t:"오늘 저녁은 가볍게 어때요?",s:"친구 의견도 같이 물어볼까요?",c:[["🍝","파스타"],["🥗","샐러드"],["🍣","초밥"]]};
+  }
+  function homeHtml(){
+    var k=new Date(Date.now()+9*3600e3), tn=TONE[D.set.tone]||TONE.kind;
+    var up30=upcoming(30), rm=D.today.reminds||[], w=D.weather;
+    var h='<section class="hero"><small>'+(k.getUTCMonth()+1)+'월 '+k.getUTCDate()+'일 · '+WD[k.getUTCDay()]+'요일</small><h2>안녕! 오늘도<br>내가 챙길게 <span class="gr">'+grape()+'</span></h2><p>'+esc(tn.hi)+'</p><div class="chips"><span>오늘 알림 '+rm.length+'개</span><span>기념일 '+up30.length+'개</span></div><div class="big" aria-hidden="true">'+grape()+'</div></section>';
+    h+='<div class="row2"><div class="mini w"><div class="ic" aria-hidden="true">'+wxIcon(w)+'</div>'+(w?'<small>오늘 날씨 · '+esc(w.city)+'</small><b>'+esc(w.text)+' '+w.t+'°</b><div class="s">'+(rainy(w)?'비 올 확률 '+(w.pop!=null?w.pop:"")+'% · 우산 챙기세요':'우산 필요 없어요')+(w.tmax!=null?'<br>최고 '+w.tmax+'° · 최저 '+w.tmin+'°':'')+'</div>':'<small>오늘 날씨</small><div class="s">날씨를 불러오지 못했어요</div>')+'</div>';
+    h+='<div class="mini y"><div class="ic" aria-hidden="true">📅</div><small style="color:#8A5200">오늘 알림 '+rm.length+'개</small>'+(rm.length?rm.slice(0,3).map(function(r){ var t=new Date(Date.parse(r.at)+9*3600e3); return '<div class="li">'+t.getUTCHours()+'시'+(t.getUTCMinutes()?" "+t.getUTCMinutes()+"분":"")+' '+esc(r.text)+'</div>'; }).join(""):'<div class="s">오늘 잡힌 알림이 없어요.<br>소리에게 "내일 9시 알려 줘" 해 보세요</div>')+'</div></div>';
+    if(up30.length){
+      var x=up30[0], d=x.d, gf=giftable(d);
+      h+='<div class="card near"><span class="em" aria-hidden="true">'+icon(d)+'</span><span class="t"><b>'+esc(d.title)+' '+dLabel(x.n)+'</b><small>'+(d.gift?'🎁 '+esc(d.gift):gf?esc(d.rel?d.rel+' · ':'')+'선물 아직이에요':esc(d.memo||dateLine(d)))+'</small></span><button type="button" class="btn-dk" data-a="'+(gf?"gift":"days")+'" data-id="'+d.id+'">챙기기</button></div>';
+    } else {
+      h+='<div class="card near"><span class="em" aria-hidden="true">🎂</span><span class="t"><b>챙길 날을 알려 주세요</b><small>생일·기념일을 적어 두면 D-7·D-3·당일에 먼저 알려 드려요</small></span><button type="button" class="btn-dk" data-a="newday">＋ 추가</button></div>';
+    }
+    var rc=recPick(w);
+    h+='<div class="rec"><div class="h">🍽️ 오늘의 추천</div><b>'+esc(rc.t)+'</b><p>'+esc(rc.s)+'</p><button type="button" class="pill" data-a="recgo">같이 정해보기 →</button></div>';
+    if((D.today.shares||[]).length) h+='<div class="card"><div class="lbl">👥 친구 투표 진행 중</div>'+D.today.shares.map(function(s){ return '<div class="bk"><span class="t">'+esc(s.title)+'</span><a class="pill" style="background:var(--soft);color:var(--pri2)" href="/s/'+esc(s.id)+'" target="_blank" rel="noopener">결과 보기</a></div>'; }).join("")+'</div>';
+    h+='<div class="card"><div class="lbl">포도야와 정하기</div><form class="say" data-f="say"><input id="sayq" maxlength="60" placeholder="예) 오늘 저녁 뭐 먹을까?" aria-label="정할 것"><button type="submit" aria-label="정하기 시작">➤</button></form><div class="note" style="margin-top:8px">적으면 후보를 골라 친구에게 투표 링크로 물어볼 수 있어요</div></div>';
+    return h;
+  }
+
+  /* ── ② 아침 브리핑 (기존 /brief 설정을 그대로) ── */
+  function briefLoad(){
+    api("/api/hub",{op:"brief_get"}).then(function(j){
+      BR=j.ok?j:{err:j.error||"불러오지 못했어요"};
+      if(TAB==="brief") draw();
+    });
+  }
+  function freq(days){ var s=(days||[]).slice().sort().join(","); return s==="0,1,2,3,4,5,6"?"daily":s==="1,2,3,4,5"?"weekday":s==="0,6"?"weekend":"custom"; }
+  function briefHtml(){
+    var st=BR&&BR.settings, on=!!(st&&st.on), hh=st?st.hh:7, mm=st?st.mm:0, fq=st?freq(st.days):"daily";
+    var hm=(hh<12?"오전 ":"오후 ")+((hh%12)||12)+":"+("0"+mm).slice(-2);
+    var fqT={daily:"매일",weekday:"평일만",weekend:"주말만",custom:"고른 요일"}[fq];
+    var h='<div class="card notif"><span class="bell" aria-hidden="true">🔔</span><span class="t"><b>'+(on?hm+' · 포도야':'아침 브리핑이 꺼져 있어요')+'</b><small>'+(on?'아침 브리핑이 '+fqT+' 도착해요':'아래에서 시각을 고르면 켜져요')+'</small></span><span class="badge">'+(on?fqT:"꺼짐")+'</span></div>';
+    var w=D.weather, lines=[];
+    if(w) lines.push(wxIcon(w)+' 오늘 '+esc(w.city)+' '+esc(w.text)+' '+w.t+'°, '+(rainy(w)?'우산 챙기세요':'우산 필요 없어요'));
+    (D.today.reminds||[]).slice(0,3).forEach(function(r){ var t=new Date(Date.parse(r.at)+9*3600e3); lines.push('🕙 '+(t.getUTCHours()<12?"오전 ":"오후 ")+((t.getUTCHours()%12)||12)+'시 '+esc(r.text)); });
+    upcoming(7).slice(0,3).forEach(function(x){ lines.push(icon(x.d)+' '+esc(x.d.title)+(x.n?'이 '+x.n+'일 남았어요':' 오늘이에요')+(giftable(x.d)&&!x.d.gift?', 선물 정해줄까요?':'')); });
+    (D.today.shares||[]).slice(0,2).forEach(function(s){ lines.push('👥 "'+esc(s.title)+'" 친구 투표가 진행 중이에요'); });
+    if(!lines.length) lines.push('🍇 오늘은 챙길 일이 없어요. 가벼운 하루 보내세요!');
+    h+='<div class="card brief"><div class="eyebrow">TODAY BRIEFING</div><h3>오늘 하루, 미리 챙겼어요</h3><ul>'+lines.map(function(l){ return '<li>'+l+'</li>'; }).join("")+'</ul><div class="two"><a class="bp" href="/brief?play=1">🎵 브리핑 듣기</a><a class="bw" href="/brief">자세히 보기</a></div>'
+      +'<div class="note">🎵 듣기는 coverfo 아침 브리핑(음성 · 날씨·일정·관심 뉴스) 화면에서 열려요.'+(BR&&BR.cost!=null?' 음성 브리핑은 만들 때 '+BR.cost+'크레딧이에요.':'')+'</div></div>';
+    if(!BR){ h+='<div class="card"><div class="empty">브리핑 설정을 불러오는 중…</div></div>'; return h; }
+    if(BR.err){ h+='<div class="card"><div class="empty">'+esc(BR.err)+'</div></div>'; return h; }
+    h+='<div class="card"><div class="lbl" style="font-size:16px;color:var(--ink)">매일 몇 시에 깨워줄까요?</div><div class="chs">'+[7,8,9].map(function(x){ return '<button type="button" data-bh="'+x+'" aria-pressed="'+(on&&hh===x&&mm===0)+'">'+x+'시 브리핑</button>'; }).join("")+'<button type="button" data-bh="off" aria-pressed="'+(!on)+'">끄기</button></div>'
+      +(on?'<div class="okline">✓ '+fqT+' '+hm+'에 브리핑이 도착해요</div>':'')+'</div>';
+    h+='<div class="card"><div class="lbl" style="font-size:16px;color:var(--ink)">브리핑 빈도</div><div class="chs">'+[["daily","매일"],["weekday","평일만"],["weekend","주말만"]].map(function(x){ return '<button type="button" data-bf="'+x[0]+'" aria-pressed="'+(fq===x[0])+'">'+x[1]+'</button>'; }).join("")+'</div><div class="note">도시·관심 뉴스·목소리는 <a href="/brief">아침 브리핑 화면</a>에서 바꿀 수 있어요. 알림은 이 브라우저(⚙️ 설정)나 카톡으로 받아요.</div></div>';
+    return h;
+  }
+  function briefSave(patch){
+    var st=BR&&BR.settings; if(!st) return;
+    var body={op:"brief_save",on:st.on,hh:st.hh,mm:st.mm,days:st.days,city:st.city,topics:st.topics,voice_a:st.voice_a,voice_b:st.voice_b};
+    Object.keys(patch).forEach(function(k){ body[k]=patch[k]; });
+    if(body.on&&(!body.days||!body.days.length)) body.days=[0,1,2,3,4,5,6];
+    api("/api/hub",body).then(function(j){
+      if(!j.ok){ toast(j.error||"저장하지 못했어요"); return; }
+      BR.settings=j.settings; draw(); toast(j.settings.on?"✓ 브리핑 시각을 저장했어요":"브리핑을 껐어요",true);
+    });
+  }
+
+  /* ── ③ 기념일 · 알림 ── */
+  function daysHtml(){
+    var all=(D.days||[]).map(function(d){ return {d:d,n:left(d)}; }).sort(function(a,b){ var x=a.n==null?9999:a.n, y=b.n==null?9999:b.n; return x-y; });
+    var onN=(D.days||[]).filter(function(d){ return d.is_on; }).length;
+    var h='<div class="hd"><div><div class="ttl">기념일 · 알림</div><small>포도야가 날짜를 먼저 기억해요</small></div><span class="badge">'+onN+'개 알림 켜짐</span></div>';
+    if(FORM) h+=formHtml();
+    else h+='<button type="button" class="add" data-a="newday">＋ 새 알림 만들기</button>';
+    if(!all.length&&!FORM) h+='<div class="card"><div class="empty">아직 적어 둔 날이 없어요.<br>엄마 생일, 결혼기념일, 여행 날, 월세 내는 날처럼<br>챙길 날을 적어 두면 D-7·D-3·당일에 알려 드려요.</div></div>';
+    all.forEach(function(x){
+      var d=x.d, n=x.n, cls=d.kind==="monthly"?"m":n==null?"d":n<=3?"a":n<=7?"b":n<=14?"c":"d";
+      var dd=d.kind==="monthly"?'<span aria-hidden="true">🔔</span>':n==null?"끝":dLabel(n);
+      h+='<div class="dc"><div class="r1"><span class="dd '+cls+'">'+dd+'</span><span class="t"><b>'+esc(d.title)+'</b>'+(d.kind==="monthly"?'<span class="tg">매월 '+d.dom+'일</span>':n!=null?'<span class="tg">'+dLabel(n)+'</span>':'')+'<small>'+esc(dateLine(d))+(d.rel?' · '+esc(d.rel):'')+(d.memo?' · '+esc(d.memo):'')+'</small></span><button type="button" class="sw" role="switch" aria-checked="'+d.is_on+'" aria-label="'+esc(d.title)+' 알림" data-on="'+d.id+'"></button></div>'
+        +(d.gift?'<div class="gift">🎁 정한 선물: '+esc(d.gift)+'</div>':'')
+        +'<div class="acts">'+(giftable(d)?'<button type="button" data-a="gift" data-id="'+d.id+'">🎁 선물 추천받기</button>':'<button type="button" data-a="memo" data-id="'+d.id+'">✏️ 메모</button>')+'<button type="button" class="rm" data-a="del" data-id="'+d.id+'" aria-label="'+esc(d.title)+' 지우기">✕</button></div></div>';
+    });
+    var mine=(D.days||[]).map(function(d){ return d.title; });
+    var bk=(D.book||[]).filter(function(b){ return mine.indexOf(b.title)<0; });
+    if(bk.length) h+='<div class="card"><div class="lbl">📒 내 연락처에서 올린 날</div>'+bk.map(function(b,i){ var n=left({kind:"yearly",md:b.md}); return '<div class="bk"><span class="t">'+esc(b.title)+'<small>'+(+b.md.slice(0,2))+'월 '+(+b.md.slice(3))+'일 · '+dLabel(n)+'</small></span><button type="button" data-a="bookadd" data-i="'+i+'">＋ 포도야 알림으로</button></div>'; }).join("")+'<div class="note">포도야 알림으로 옮기면 D-7·D-3·당일에 무료로 알려 드려요.</div></div>';
+    h+='<p class="note">🔔 알림은 ⚙️ 설정에서 고른 시각에 하루 1번, 이 브라우저 알림이나 카톡(나에게 보내기)으로 와요. 크레딧을 쓰지 않아요.</p>';
+    return h;
+  }
+  function formHtml(){
+    var f=FORM;
+    var h='<div class="card fm"><div class="lbl" style="font-size:16px;color:var(--ink)">어떤 날을 챙길까요?</div>'
+      +'<label for="fT">이름</label><input type="text" id="fT" maxlength="30" placeholder="예) 아빠 생일" value="'+esc(f.title)+'">'
+      +'<label>관계</label><div class="chs">'+["가족","친구","연인","동료","아이","나",""].map(function(r){ return '<button type="button" data-fr="'+r+'" aria-pressed="'+(f.rel===r)+'">'+(r||"없음")+'</button>'; }).join("")+'</div>'
+      +'<label>반복</label><div class="chs">'+[["yearly","매년"],["once","한 번"],["monthly","매월"]].map(function(k){ return '<button type="button" data-fk="'+k[0]+'" aria-pressed="'+(f.kind===k[0])+'">'+k[1]+'</button>'; }).join("")+'</div>';
+    if(f.kind==="monthly") h+='<label for="fM">매월 며칠</label><select id="fM">'+Array.apply(null,{length:31}).map(function(_,i){ return '<option value="'+(i+1)+'"'+(+f.dom===i+1?' selected':'')+'>'+(i+1)+'일</option>'; }).join("")+'</select>';
+    else h+='<label for="fD">날짜</label><input type="date" id="fD" value="'+esc(f.date)+'">'+(f.kind==="yearly"?'<div class="note" style="margin-top:4px">매년 같은 달·같은 날에 알려 드려요 (연도는 상관없어요)</div>':'');
+    h+='<label for="fN">메모 (선택)</label><input type="text" id="fN" maxlength="60" placeholder="예) 저녁 7시 가족 식사" value="'+esc(f.memo)+'">'
+      +'<div class="two"><button type="button" class="bw" data-a="fcancel">취소</button><button type="button" class="bp" data-a="fsave">알림 추가하기</button></div></div>';
+    return h;
+  }
+  function formGrab(){ if(!FORM) return; var t=$("fT"), dd=$("fD"), m=$("fM"), n=$("fN"); if(t) FORM.title=t.value; if(dd) FORM.date=dd.value; if(m) FORM.dom=m.value; if(n) FORM.memo=n.value; }
+  function formSave(btn){
+    formGrab(); var f=FORM, body={op:"day_add",title:f.title,rel:f.rel,kind:f.kind,memo:f.memo};
+    if(!String(f.title||"").trim()){ toast("이름을 적어 주세요 (예: 아빠 생일)"); return; }
+    if(f.kind==="monthly") body.dom=+f.dom;
+    else { if(!/^\d{4}-\d{2}-\d{2}$/.test(f.date||"")){ toast("날짜를 골라 주세요"); return; } if(f.kind==="once") body.day=f.date; else body.md=f.date.slice(5); }
+    btn.disabled=true;
+    api("/api/pdy",body).then(function(j){
+      btn.disabled=false;
+      if(!j.ok){ toast(j.error||"추가하지 못했어요"); return; }
+      D.days.push(j.day); FORM=null; draw(); toast("✓ 새 알림이 추가됐어요. 포도야가 챙길게요 🍇",true);
+    });
+  }
+  function dayById(id){ return (D.days||[]).filter(function(d){ return String(d.id)===String(id); })[0]; }
+
+  /* ── 🎁 선물 추천 시트 ── */
+  var GS=null;
+  function sheet(h){ $("sh").innerHTML=h; $("sh").classList.add("on"); $("shbg").classList.add("on"); $("sh").scrollTop=0; }
+  function sheetClose(){ $("sh").classList.remove("on"); $("shbg").classList.remove("on"); GS=null; }
+  function giftOpen(d){
+    var key=relKey(d), list=GIFT[key];
+    GS={d:d,list:list,sel:[]};
+    giftDraw();
+  }
+  function giftDraw(){
+    var d=GS.d, relT={parent:"가족·부모님",friend:"친구",lover:"연인",work:"동료",kid:"아이"}[relKey(d)];
+    var h='<h3 id="shT">🎁 '+esc(d.title)+' 선물 추천</h3><div class="note" style="margin:0 0 6px">'+relT+'에게 많이 하는 선물이에요 · 고르면 알림에 같이 적어 둘게요</div>';
+    h+=GS.list.map(function(g,i){ var on=GS.sel.indexOf(i)>=0; return '<div class="gi"><span class="e" aria-hidden="true">'+g[0]+'</span><span class="t">'+esc(g[1])+'</span><a href="#" data-g="shop" data-i="'+i+'">🛒 쿠팡</a><button type="button" data-g="pick" data-i="'+i+'" aria-pressed="'+on+'" class="'+(on?'on':'')+'">'+(on?'✓ 후보':'후보')+'</button><button type="button" data-g="save" data-i="'+i+'">이걸로</button></div>'; }).join("");
+    h+='<button type="button" class="ask" data-g="ask"'+(GS.sel.length<2?' disabled':'')+'>👥 친구에게 물어보기 → 결정 링크 만들기</button><div class="note">후보를 2개 이상 고르면 친구에게 투표 링크로 물어볼 수 있어요. 쿠팡 링크는 쿠팡 파트너스 활동의 일환으로 일정액의 수수료를 받을 수 있어요.</div><div id="gres"></div><div class="msg" id="gmsg" role="status"></div><button type="button" class="bw" style="width:100%;margin-top:10px" data-g="close">닫기</button>';
+    sheet(h);
+  }
+  function shop(name){
+    var u="https://www.coupang.com/np/search?q="+encodeURIComponent(name+" 선물");
+    var w=null; try{ w=window.open("about:blank","_blank"); }catch(e){}
+    fetch("/api/shop-link",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url:u})}).then(function(r){ return r.json(); }).catch(function(){ return {}; }).then(function(j){
+      var go=(j&&/^https:\/\/link\.coupang\.com\//.test(j.url||""))?j.url:u;
+      if(w){ try{ w.location.href=go; return; }catch(e){} }
+      openOut(go);
+    });
+  }
+
+  /* ── 👥 같이 정하기 링크 (/api/share kind pick) ── */
+  function makeLink(q,items,box,msgEl,btn){
+    if(btn) btn.disabled=true;
+    msgEl.className="msg ok"; msgEl.textContent="링크를 만드는 중…";
+    var dl=new Date(Date.now()+864e5).toISOString();
+    var nick=""; try{ nick=localStorage.getItem("cf_shr_nick")||""; }catch(e){}
+    api("/api/share",{op:"create",kind:"pick",title:q,sender:nick,data:{q:"",items:items,deadline:dl,anon:false,multi:false,tpl:"pdy"}}).then(function(j){
+      if(btn) btn.disabled=false;
+      if(!j.ok){ msgEl.className="msg"; msgEl.textContent=j.error||"링크를 만들지 못했어요"; return; }
+      msgEl.textContent="";
+      var text="🗳 "+q+"\n같이 정하자! 닉네임만 적고 10초면 투표 끝 👉 "+j.url;
+      PICKRES={url:j.url,text:text};
+      box.innerHTML='<div class="lk"><div style="font-size:13px;font-weight:800">🔗 결정 링크 · 내일 이 시간 마감</div><div class="u">'+esc(j.url.replace(/^https?:\/\//,""))+'</div><div class="bb"><button type="button" data-l="copy">📋 복사</button><button type="button" data-l="share">💬 보내기</button><a href="'+esc(j.url)+'" target="_blank" rel="noopener">👀 투표 화면</a></div></div>';
+      (D.today.shares=D.today.shares||[]).unshift({id:j.id,title:q});
+    });
+  }
+  function linkAct(a,msgEl){
+    if(!PICKRES) return;
+    var done=function(){ msgEl.className="msg ok"; msgEl.textContent="✔ 복사했어요. 카톡·문자에 붙여넣기 하세요."; };
+    if(a==="share"&&navigator.share&&!window.CoverfoApp){ try{ navigator.share({text:PICKRES.text}).catch(function(){}); return; }catch(e){} }
+    try{ navigator.clipboard.writeText(PICKRES.text).then(done,function(){ window.prompt("아래 내용을 복사하세요",PICKRES.text); }); }catch(e){ window.prompt("아래 내용을 복사하세요",PICKRES.text); }
+  }
+
+  /* ── ④ 같이 정하기 ── */
+  var QT=[["🍽️","저녁 메뉴","오늘 저녁 뭐 먹을까?",[["🥓","삼겹살"],["🍣","초밥"],["🌶️","마라탕"]]],["📍","약속 장소","어디서 만날까?",[["🚉","강남역"],["🎡","홍대입구"],["🌉","여의도"]]],["🎬","영화","영화 뭐 볼까?",[["💥","액션"],["😂","코미디"],["💕","로맨스"]]],["🎁","선물","선물 뭐로 할까?",[["🌸","향수"],["🎂","케이크 쿠폰"],["💌","손편지 세트"]]]];
+  function pickInit(q,c){ PICK={q:q||"",c:(c||[["⭐",""],["⭐",""]]).map(function(x){ return {e:x[0],n:x[1]}; })}; PICKRES=null; }
+  function pickHtml(){
+    if(!PICK) pickInit("",null);
+    var tn=TONE[D.set.tone]||TONE.kind;
+    var h='<div class="card"><div class="ph"><span class="av">'+grape()+'</span><span><b>포도야와 정하기</b><small>'+esc(tn.n)+' · 같이 정해요</small></span><span class="on">● 준비됨</span></div>'
+      +'<label class="lbl" for="pq">무엇을 정할까요?</label><input class="qin" id="pq" maxlength="60" placeholder="예) 오늘 저녁 뭐 먹을까?" value="'+esc(PICK.q)+'">'
+      +'<div class="chs" style="margin-top:10px">'+QT.map(function(t,i){ return '<button type="button" data-qt="'+i+'">'+t[0]+' '+t[1]+'</button>'; }).join("")+'</div></div>';
+    h+='<div class="card"><div class="lbl">후보 '+PICK.c.length+'개 · 최대 6개</div>'+PICK.c.map(function(x,i){ return '<div class="ci"><span aria-hidden="true">'+esc(x.e)+'</span><input data-pc="'+i+'" maxlength="30" placeholder="후보 '+(i+1)+'" value="'+esc(x.n)+'" aria-label="'+(i+1)+'번 후보">'+(PICK.c.length>2?'<button type="button" data-a="pcrm" data-i="'+i+'" aria-label="'+(i+1)+'번 후보 빼기">✕</button>':'')+'</div>'; }).join("")
+      +(PICK.c.length<6?'<button type="button" class="mini-add" data-a="pcadd">＋ 후보 추가</button>':'')
+      +'<button type="button" class="ask" data-a="pask">👥 친구에게 물어보기 → 결정 링크 만들기</button><div id="pres"></div><div class="msg" id="pmsg" role="status"></div>'
+      +'<div class="note">친구는 가입 없이 닉네임만 적고 투표해요 · 내일 이 시간에 마감 · 마감·익명 같은 자세한 설정은 홈의 💜 친구랑 같이 정하기에서 할 수 있어요.</div></div>';
+    if((D.today.shares||[]).length) h+='<div class="card"><div class="lbl">진행 중인 투표</div>'+D.today.shares.map(function(s){ return '<div class="bk"><span class="t">'+esc(s.title)+'</span><a class="pill" style="background:var(--soft);color:var(--pri2)" href="/s/'+esc(s.id)+'" target="_blank" rel="noopener">결과 보기</a></div>'; }).join("")+'</div>';
+    return h;
+  }
+  function pickGrab(){ if(!PICK) return; var q=$("pq"); if(q) PICK.q=q.value; [].forEach.call(document.querySelectorAll("[data-pc]"),function(el){ var i=+el.getAttribute("data-pc"); if(PICK.c[i]) PICK.c[i].n=el.value; }); }
+
+  /* ── ⑤ 설정 ── */
+  function setHtml(){
+    var s=D.set;
+    var h='<div class="ttl" style="margin:2px 2px 12px">설정</div><div class="card"><div class="lbl" style="font-size:16px;color:var(--ink)">알림</div>'
+      +sr("on_day","기념일 알림","D-7 · D-3 · 당일에 알려줘요",s.on_day,"")
+      +sr("d7","7일 전","선물 미리 고르기",s.d7&&s.on_day,"sub",!s.on_day)
+      +sr("d3","3일 전","준비 확인",s.d3&&s.on_day,"sub",!s.on_day)
+      +sr("d0","당일","오늘이에요!",s.d0&&s.on_day,"sub",!s.on_day)
+      +'<div class="sr"><span class="t"><b>알림 받을 시각</b><small>하루 1번 · 이 시각에 몰아서 알려 드려요</small></span></div><div class="chs">'+[8,9,10,12,18].map(function(x){ return '<button type="button" data-hh="'+x+'" aria-pressed="'+(s.hh===x)+'">'+(x<12?"오전 "+x:"오후 "+(x===12?12:x-12))+'시</button>'; }).join("")+'</div>'
+      +'<div class="note">조용한 시간: 밤 10시 ~ 아침 7시에는 보내지 않아요.</div></div>';
+    h+='<div class="card"><div class="lbl" style="font-size:16px;color:var(--ink)">알림 받는 곳</div><div id="pushBox"><div class="note">확인하는 중…</div></div>'
+      +'<div class="sr"><span class="t"><b>💛 카톡으로도 받기</b><small>카톡 \'나에게 보내기\'로 · 아침 브리핑 화면에서 연결해요</small></span><a class="pill" style="background:var(--soft);color:var(--pri2)" href="/brief#kakao">연결하기</a></div></div>';
+    h+='<div class="card"><div class="lbl" style="font-size:16px;color:var(--ink)">포도야 성격</div>'+Object.keys(TONE).map(function(k){ return '<button type="button" class="tone" role="radio" aria-checked="'+(s.tone===k)+'" data-tone="'+k+'"><b>'+TONE[k].n+'</b><small>'+TONE[k].d+'</small></button>'; }).join("")
+      +'<div class="note" style="background:var(--yel);color:#5c3b00;border-radius:14px;padding:10px 12px;font-weight:700">홈 인사와 알림 문구가 이 성격으로 바뀌어요</div></div>';
+    return h;
+  }
+  function sr(k,t,s,on,cls,dis){ return '<div class="sr '+cls+'"><span class="t"><b>'+t+'</b><small>'+s+'</small></span><button type="button" class="sw" role="switch" aria-checked="'+(!!on)+'" data-set="'+k+'"'+(dis?' disabled style="opacity:.45"':'')+' aria-label="'+t+'"></button></div>'; }
+  function setSave(patch){
+    var s=D.set, body={op:"set_save"}; Object.keys(patch).forEach(function(k){ body[k]=patch[k]; s[k]=patch[k]; });
+    draw();
+    api("/api/pdy",body).then(function(j){ if(!j.ok){ toast(j.error||"저장하지 못했어요"); return; } D.set=j.set; toast("✓ 저장했어요",true); });
+  }
+  /* 이 브라우저 웹 알림 — /brief 와 같은 서비스 워커(/brief-sw.js · 범위 /brief)를 같이 쓴다 */
+  function pushOk(){ return "serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window&&!window.CoverfoApp; }
+  function pushInit(){
+    var box=$("pushBox"); if(!box) return;
+    if(window.CoverfoApp){ box.innerHTML='<div class="sr"><span class="t"><b>🔔 coverfo 소리 앱</b><small>앱에서는 아래 카톡이나 앱 알림으로 받아요</small></span></div>'; return; }
+    if(!pushOk()){ box.innerHTML='<div class="sr"><span class="t"><b>🔔 이 브라우저 알림</b><small>이 브라우저는 웹 알림을 지원하지 않아요. 크롬·엣지에서 열어 주세요</small></span></div>'; return; }
+    navigator.serviceWorker.getRegistration("/brief").then(function(reg){
+      if(!reg||!reg.pushManager) return false;
+      return reg.pushManager.getSubscription().then(function(sub){ return !!sub&&Notification.permission==="granted"; });
+    }).catch(function(){ return false; }).then(function(on){
+      var b=$("pushBox"); if(!b) return;
+      b.innerHTML='<div class="sr"><span class="t"><b>🔔 이 브라우저로 받기</b><small>'+(on?'켜져 있어요 · 이 브라우저로 알림이 와요':'꺼져 있어요 · 눌러서 알림 허용')+'</small></span>'+(on?'<button type="button" class="pill" style="background:var(--soft);color:var(--pri2)" data-a="ptest">시험 알림</button>':'<button type="button" class="pill" style="background:var(--pri);color:#fff" data-a="pon">켜기</button>')+'</div>';
+    });
+  }
+  function b64ToBytes(s){ s=s.replace(/-/g,"+").replace(/_/g,"/"); while(s.length%4) s+="="; var r=atob(s), a=new Uint8Array(r.length); for(var i=0;i<r.length;i++) a[i]=r.charCodeAt(i); return a; }
+  function waitActive(reg){ return new Promise(function(res){ if(reg.active){ res(reg); return; } var w=reg.installing||reg.waiting; if(!w){ res(reg); return; } w.addEventListener("statechange",function(){ if(w.state==="activated") res(reg); }); setTimeout(function(){ res(reg); },8000); }); }
+  function pushOn(){
+    Notification.requestPermission().then(function(p){
+      if(p!=="granted") throw new Error("알림이 차단돼 있어요. 주소창 왼쪽 자물쇠(또는 ⓘ) → 알림 → 허용으로 바꾼 뒤 다시 눌러 주세요.");
+      return navigator.serviceWorker.register("/brief-sw.js",{scope:"/brief"});
+    }).then(waitActive).then(function(reg){
+      return api("/api/hub",{op:"push_key"}).then(function(k){
+        if(!k.key) throw new Error("웹 알림 설정이 아직 없어요");
+        return reg.pushManager.getSubscription().then(function(old){ return old||reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToBytes(k.key)}); });
+      });
+    }).then(function(sub){ return api("/api/hub",{op:"push_sub",sub:sub.toJSON()}); })
+      .then(function(){ pushInit(); toast("✓ 이 브라우저로 알림을 받아요",true); })
+      .catch(function(e){ toast((e&&e.message)||"알림을 켜지 못했어요"); });
+  }
+
+  /* ── 누르기 ── */
+  document.addEventListener("click",function(e){
+    var t=e.target&&e.target.closest?e.target:null; if(!t) return;
+    var b=t.closest("#tabs [data-tab]"); if(b){ setTab(b.getAttribute("data-tab")); return; }
+    if(t.closest("#shbg")){ sheetClose(); return; }
+    b=t.closest("[data-g]");
+    if(b&&GS){
+      e.preventDefault();
+      var g=b.getAttribute("data-g"), i=+b.getAttribute("data-i"), it=GS.list[i];
+      if(g==="close"){ sheetClose(); return; }
+      if(g==="shop"&&it){ shop(it[1]); return; }
+      if(g==="pick"){ var at=GS.sel.indexOf(i); if(at>=0) GS.sel.splice(at,1); else GS.sel.push(i); giftDraw(); return; }
+      if(g==="save"&&it){ var d0=GS.d; api("/api/pdy",{op:"day_edit",id:d0.id,gift:it[0]+" "+it[1]}).then(function(j){ if(!j.ok){ $("gmsg").textContent=j.error||"저장하지 못했어요"; return; } var x=dayById(d0.id); if(x) x.gift=j.day.gift; sheetClose(); draw(); toast("✓ 선물을 정했어요. 알림에 같이 적어 둘게요 🎁",true); }); return; }
+      if(g==="ask"){ var items=GS.sel.map(function(k){ return {emoji:GS.list[k][0],name:GS.list[k][1],desc:""}; }); makeLink(GS.d.title+" 선물 뭐로 할까?",items,$("gres"),$("gmsg"),b); return; }
+      return;
+    }
+    b=t.closest("[data-l]"); if(b){ e.preventDefault(); linkAct(b.getAttribute("data-l"),$("pmsg")||$("gmsg")||$("msg")); return; }
+    b=t.closest("[data-on]"); if(b){ var id=b.getAttribute("data-on"), d=dayById(id); if(!d) return; var nv=!d.is_on; d.is_on=nv; b.setAttribute("aria-checked",String(nv)); api("/api/pdy",{op:"day_edit",id:id,is_on:nv}).then(function(j){ if(!j.ok){ d.is_on=!nv; draw(); toast(j.error||"바꾸지 못했어요"); } else if(TAB==="days") draw(); }); return; }
+    b=t.closest("[data-fr]"); if(b&&FORM){ formGrab(); FORM.rel=b.getAttribute("data-fr"); draw(); return; }
+    b=t.closest("[data-fk]"); if(b&&FORM){ formGrab(); FORM.kind=b.getAttribute("data-fk"); draw(); return; }
+    b=t.closest("[data-bh]"); if(b){ var v=b.getAttribute("data-bh"); if(v==="off") briefSave({on:false}); else briefSave({on:true,hh:+v,mm:0}); return; }
+    b=t.closest("[data-bf]"); if(b){ var f=b.getAttribute("data-bf"); briefSave({days:f==="weekday"?[1,2,3,4,5]:f==="weekend"?[0,6]:[0,1,2,3,4,5,6]}); return; }
+    b=t.closest("[data-qt]"); if(b){ var q=QT[+b.getAttribute("data-qt")]; pickInit(q[2],q[3]); draw(); return; }
+    b=t.closest("[data-set]"); if(b&&!b.disabled){ var k=b.getAttribute("data-set"), p={}; p[k]=!D.set[k]; setSave(p); return; }
+    b=t.closest("[data-hh]"); if(b){ setSave({hh:+b.getAttribute("data-hh")}); return; }
+    b=t.closest("[data-tone]"); if(b){ setSave({tone:b.getAttribute("data-tone")}); return; }
+    b=t.closest("[data-a]"); if(!b) return;
+    var a=b.getAttribute("data-a");
+    if(a==="login"){ closePage(); setTimeout(function(){ try{ var P=window.parent!==window?window.parent:window; var els=P.document.querySelectorAll("button,a"); for(var i2=0;i2<els.length;i2++){ var tx=(els[i2].textContent||"").trim(); if(tx==="로그인하기"||tx==="로그인"||tx==="로그인 / 가입"){ els[i2].click(); break; } } }catch(er){} },250); return; }
+    if(a==="reload"){ load(); return; }
+    if(a==="newday"){ FORM={title:"",rel:"가족",kind:"yearly",date:"",dom:25,memo:""}; setTab("days"); setTimeout(function(){ var x=$("fT"); if(x) x.focus(); },50); return; }
+    if(a==="fcancel"){ FORM=null; draw(); return; }
+    if(a==="fsave"){ formSave(b); return; }
+    if(a==="days"){ setTab("days"); return; }
+    if(a==="gift"){ var gd=dayById(b.getAttribute("data-id")); if(gd) giftOpen(gd); return; }
+    if(a==="memo"){ var md=dayById(b.getAttribute("data-id")); if(!md) return; var nm=window.prompt("메모 (60자까지)",md.memo||""); if(nm==null) return; api("/api/pdy",{op:"day_edit",id:md.id,memo:nm}).then(function(j){ if(!j.ok){ toast(j.error||"저장하지 못했어요"); return; } md.memo=j.day.memo; draw(); }); return; }
+    if(a==="del"){ var dd=dayById(b.getAttribute("data-id")); if(!dd||!window.confirm('"'+dd.title+'" 알림을 지울까요?')) return; api("/api/pdy",{op:"day_del",id:dd.id}).then(function(j){ if(!j.ok){ toast(j.error||"지우지 못했어요"); return; } D.days=D.days.filter(function(x){ return x.id!==dd.id; }); draw(); }); return; }
+    if(a==="bookadd"){ var mine=(D.days||[]).map(function(d){ return d.title; }); var bk=(D.book||[]).filter(function(x){ return mine.indexOf(x.title)<0; })[+b.getAttribute("data-i")]; if(!bk) return; b.disabled=true; api("/api/pdy",{op:"day_add",title:bk.title,rel:"",kind:"yearly",md:bk.md,memo:""}).then(function(j){ if(!j.ok){ b.disabled=false; toast(j.error||"옮기지 못했어요"); return; } D.days.push(j.day); draw(); toast("✓ 포도야 알림으로 옮겼어요",true); }); return; }
+    if(a==="recgo"){ var rc=recPick(D.weather); pickInit(rc.q,rc.c); setTab("pick"); return; }
+    if(a==="pcadd"){ pickGrab(); if(PICK.c.length<6) PICK.c.push({e:"⭐",n:""}); draw(); var ins=document.querySelectorAll("[data-pc]"); if(ins.length) ins[ins.length-1].focus(); return; }
+    if(a==="pcrm"){ pickGrab(); PICK.c.splice(+b.getAttribute("data-i"),1); draw(); return; }
+    if(a==="pask"){
+      pickGrab(); var mg=$("pmsg"); mg.className="msg";
+      var items=PICK.c.map(function(x){ return {emoji:x.e||"⭐",name:String(x.n||"").trim(),desc:""}; }).filter(function(x){ return x.name; });
+      if(!String(PICK.q||"").trim()){ mg.textContent="무엇을 정할지 적어 주세요"; return; }
+      if(items.length<2){ mg.textContent="후보를 2개 이상 적어 주세요"; return; }
+      makeLink(PICK.q.trim(),items,$("pres"),mg,b); return;
+    }
+    if(a==="pon"){ pushOn(); return; }
+    if(a==="ptest"){ api("/api/hub",{op:"push_test"}).then(function(j){ toast(j.sent?"✓ 시험 알림을 보냈어요":"보낼 곳이 없어요. 알림을 다시 켜 주세요",!!j.sent); }); return; }
+  });
+  document.addEventListener("submit",function(e){
+    var f=e.target; if(!f||f.getAttribute("data-f")!=="say") return;
+    e.preventDefault(); var q=($("sayq").value||"").trim(); pickInit(q||"",null); setTab("pick");
+  });
+  document.addEventListener("keydown",function(e){ if(e.key==="Escape"&&$("sh").classList.contains("on")) sheetClose(); });
+  var m0=/[?&]tab=(home|brief|days|pick|set)\b/.exec(location.search); if(m0) TAB=m0[1];
+  [].forEach.call(document.querySelectorAll("#tabs button"),function(b){ b.setAttribute("aria-selected",String(b.getAttribute("data-tab")===TAB)); });
+  load();
+})();
+</script>
+</body>
+</html>
