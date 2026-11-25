@@ -337,7 +337,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
     h+='<div class="card"><div class="sec">♪ 음악 선택</div>'+Object.keys(MUS).map(function(k){ var m=MUS[k]; return '<div class="mu" role="radio" aria-checked="'+(S.music===k)+'" data-mu="'+k+'" tabindex="0"><span class="t"><b>'+m.n+'</b><small>'+m.d+'</small></span>'+(k==="none"?'':'<button type="button" class="pl" data-play="'+k+'" aria-label="'+m.n+' 들어보기">'+(PV.k===k?"❚❚":"▶")+'</button>')+'</div>'; }).join("")+'<p class="note">음악은 이 화면이 직접 만드는 곡이라 저작권 걱정 없이 올릴 수 있어요.</p></div>';
     h+='<div class="card"><div class="sec">T 자막</div><input class="tin" id="ttl" maxlength="30" value="'+esc(S.title)+'" aria-label="쇼츠 제목"><div class="chs" style="margin-top:10px">'+Object.keys(CAPS).map(function(k){ return '<button type="button" data-cap="'+k+'" aria-pressed="'+(S.cap===k)+'">'+CAPS[k]+'</button>'; }).join("")+'</div><p class="note">장소 이름은 사진마다 자막으로 붙어요.</p></div>';
     h+='<div class="card"><div class="sec">⏱ 길이</div><div class="len">'+[15,30,60].map(function(x){ return '<button type="button" data-len="'+x+'" aria-pressed="'+(S.len===x)+'">'+x+'초</button>'; }).join("")+'</div></div>';
-    h+='<div class="card swr"><span class="t"><b>made with coverfo 표시</b><small>영상 구석과 마지막 장면에 coverfo.com/shorts 를 넣어요</small></span><button type="button" class="sw" role="switch" aria-checked="'+S.wm+'" data-wm="1" aria-label="made with coverfo 표시"></button></div>';
+    h+='<div class="card swr"><span class="t"><b>made with coverfo 표시</b><small>영상 아래에 "나도 만들기 coverfo.com/shorts" 를 계속 보여 주고, 마지막 장면에도 넣어요</small></span><button type="button" class="sw" role="switch" aria-checked="'+S.wm+'" data-wm="1" aria-label="made with coverfo 표시"></button></div>';
     var on=S.photos.filter(function(p){ return p.on; }).length;
     h+='<div class="card"><div class="sec">🖼 들어갈 사진 '+on+'장</div><div class="ph">'+S.photos.map(function(p,i){ return '<button type="button" aria-pressed="'+p.on+'" data-ph="'+i+'" style="background-image:url(\''+esc(thumb(p))+'\')" aria-label="'+(i+1)+'번 사진 '+(p.on?'빼기':'넣기')+'">'+(p.best?'<span class="bd">베스트 컷</span>':'')+(p.cap?'<span class="cp">'+esc(p.cap)+'</span>':'')+'</button>'; }).join("")+'</div><p class="note">눌러서 넣고 뺄 수 있어요 · '+S.len+'초에는 '+want()+'장 안팎이 좋아요</p></div>';
     $("main").innerHTML=h+'<div class="msg" id="msg" role="status"></div>';
@@ -467,7 +467,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
           ctx.fillStyle="#fff"; ctx.textAlign="left"; ctx.fillText(p2.cap,58,ty+4,W-130); ctx.globalAlpha=1;
         }
       }
-      if(P.wm){ ctx.font="800 22px -apple-system, sans-serif"; ctx.textAlign="right"; var wy=st==="cine"?H-110:H-60; ctx.fillStyle="rgba(0,0,0,.35)"; var ww=ctx.measureText("made with coverfo").width; rr(ctx,W-48-ww-20,wy-28,ww+40,40,20); ctx.fill(); ctx.fillStyle="#fff"; ctx.fillText("made with coverfo",W-48,wy); }
+      /* v471: 영상 하단 내내 "나도 만들기 coverfo.com/shorts" — 카톡 등은 영상과 함께 보낸 글을 빼먹을 때가 있어 영상 안에 넣는다 */
+      if(P.wm){ var wy=st==="cine"?H-95:H-70, l1="made with coverfo", l2="🎬 나도 만들기 👉 coverfo.com/shorts";
+        ctx.textAlign="center"; ctx.font="800 26px -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif"; var ww=Math.max(ctx.measureText(l2).width,200);
+        ctx.fillStyle="rgba(0,0,0,.45)"; rr(ctx,W/2-ww/2-24,wy-62,ww+48,84,22); ctx.fill();
+        ctx.fillStyle="rgba(255,255,255,.8)"; ctx.font="700 19px -apple-system, sans-serif"; ctx.fillText(l1,W/2,wy-32);
+        ctx.fillStyle="#fff"; ctx.font="800 26px -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif"; ctx.fillText(l2,W/2,wy+4); }
     } else {
       /* 마지막 장면: made with coverfo */
       var e=(t-P.body)/P.end, gr2=ctx.createLinearGradient(0,0,W,H); gr2.addColorStop(0,"#2A1C6B"); gr2.addColorStop(1,"#7C4DFF"); ctx.fillStyle=gr2; ctx.fillRect(0,0,W,H);
