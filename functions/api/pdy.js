@@ -28,7 +28,7 @@ export async function onRequestPost(context) {
   try { b = await context.request.json(); } catch { return json({ error: '잘못된 요청입니다' }, 400); }
   const op = String(b.op || '');
   try {
-    if (op === 'get') return json(await getAll(c, uid));
+    if (op === 'get') return json(await getAll(c, uid, context.request.cf));
     if (op === 'day_add') return json(await dayAdd(c, uid, b));
     if (op === 'day_edit') return json(await dayEdit(c, uid, b));
     if (op === 'day_del') return json(await dayDel(c, uid, b));
@@ -46,7 +46,7 @@ function setDefaults() { return { on_day: true, d7: true, d3: true, d0: true, hh
 function setOut(r) { const d = setDefaults(); if (!r) return d; return { on_day: r.on_day !== false, d7: r.d7 !== false, d3: r.d3 !== false, d0: r.d0 !== false, hh: Number(r.hh) || 9, tone: TONES.includes(r.tone) ? r.tone : 'kind' }; }
 function dayOut(r) { return { id: r.id, title: r.title, rel: r.rel || '', kind: r.kind, md: r.md || '', day: r.day || '', dom: r.dom || 0, memo: r.memo || '', gift: r.gift || '', is_on: r.is_on !== false }; }
 
-async function getAll(c, uid) {
+async function getAll(c, uid, cf) {
   const u = encodeURIComponent(uid);
   const soft = (p) => p.catch(() => null);
   const now = Date.now();
@@ -63,7 +63,8 @@ async function getAll(c, uid) {
     .map((m) => ({ title: clean(m.name, 20) + ' ' + clean(m.kind || '기념일', 12), md: String(m.day) }));
   const b0 = Array.isArray(br) && br[0] ? br[0] : null;
   const brief = b0 ? { on: !!b0.on1, hh: b0.hh, mm: b0.mm, days: String(b0.days || ''), city: b0.city || '서울' } : { on: false, hh: 7, mm: 0, days: '0,1,2,3,4,5,6', city: '서울' };
-  const weather = await soft(wx(b0 && b0.lat != null ? { lat: b0.lat, lng: b0.lng } : null, brief.city));
+  const wxr = { err: '' };
+  const weather = await wx(b0 && b0.lat != null ? { lat: b0.lat, lng: b0.lng } : null, b0 ? brief.city : '', cf, wxr).catch((e) => { wxr.err = String((e && e.message) || e).slice(0, 80); return null; });
   return {
     ok: true,
     set: setOut(Array.isArray(set) && set[0]),
@@ -75,6 +76,7 @@ async function getAll(c, uid) {
     },
     brief,
     weather: weather || null,
+    wx_err: weather ? undefined : (wxr.err || 'none'),   /* v474: 날씨를 못 불러온 까닭 (화면에는 안 보임 · 확인용) */
     max: MAX_DAYS,
   };
 }
@@ -82,19 +84,31 @@ async function getAll(c, uid) {
 /* 날씨 (Open-Meteo · hub.js 아침 브리핑과 같은 출처) */
 const WMO = { 0: '맑음', 1: '대체로 맑음', 2: '구름 조금', 3: '흐림', 45: '안개', 48: '안개', 51: '이슬비', 53: '이슬비', 55: '이슬비', 61: '비', 63: '비', 65: '강한 비',
   66: '어는 비', 67: '어는 비', 71: '눈', 73: '눈', 75: '많은 눈', 77: '싸락눈', 80: '소나기', 81: '소나기', 82: '강한 소나기', 85: '눈 소나기', 86: '눈 소나기', 95: '뇌우', 96: '뇌우', 99: '뇌우' };
-async function wx(ll, city) {
-  let lat = ll && ll.lat, lng = ll && ll.lng;
-  if (lat == null || lng == null) {
-    const g = await (await fetch('https://geocoding-api.open-meteo.com/v1/search?count=1&language=ko&name=' + encodeURIComponent(city || '서울'), { signal: AbortSignal.timeout(6000) })).json();
-    const r = g && g.results && g.results[0];
-    if (!r) return null;
-    lat = r.latitude; lng = r.longitude;
+/* v474: 자주 쓰는 도시는 좌표를 바로 쓴다 (지명 검색을 거치지 않음) */
+const CITY = { 서울: [37.5665, 126.978], 부산: [35.1796, 129.0756], 대구: [35.8714, 128.6014], 인천: [37.4563, 126.7052], 광주: [35.1595, 126.8526], 대전: [36.3504, 127.3845],
+  울산: [35.5384, 129.3114], 세종: [36.48, 127.289], 수원: [37.2636, 127.0286], 제주: [33.4996, 126.5312], 강릉: [37.7519, 128.8761], 춘천: [37.8813, 127.7298],
+  청주: [36.6424, 127.489], 전주: [35.8242, 127.148], 창원: [35.2281, 128.6811], 포항: [36.019, 129.3435], 성남: [37.42, 127.1265], 고양: [37.6584, 126.832], 용인: [37.2411, 127.1776], 안산: [37.3219, 126.8309] };
+async function wx(ll, city, cf, out) {
+  let lat = ll && ll.lat, lng = ll && ll.lng, name = city || '';
+  const key = String(city || '').replace(/(특별시|광역시|특별자치시|특별자치도|시)$/, '');
+  if ((lat == null || lng == null) && CITY[key]) { lat = CITY[key][0]; lng = CITY[key][1]; }
+  if ((lat == null || lng == null) && city) {
+    try {
+      const g = await (await fetch('https://geocoding-api.open-meteo.com/v1/search?count=1&language=ko&name=' + encodeURIComponent(city), { signal: AbortSignal.timeout(6000) })).json();
+      const r = g && g.results && g.results[0];
+      if (r) { lat = r.latitude; lng = r.longitude; }
+    } catch { /* 아래로 */ }
   }
-  const d = await (await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + Number(lat) + '&longitude=' + Number(lng) +
-    '&current=temperature_2m,weathercode&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FSeoul&forecast_days=1', { signal: AbortSignal.timeout(6000) })).json();
+  /* 브리핑 도시가 없으면 접속한 곳(Cloudflare 가 알려 주는 대략 위치) → 그래도 없으면 서울 */
+  if ((lat == null || lng == null) && cf && cf.latitude && cf.longitude && cf.country === 'KR') { lat = Number(cf.latitude); lng = Number(cf.longitude); name = name || '내 주변'; }
+  if (lat == null || lng == null) { lat = CITY['서울'][0]; lng = CITY['서울'][1]; name = name || '서울'; }
+  const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + Number(lat) + '&longitude=' + Number(lng) +
+    '&current=temperature_2m,weathercode&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FSeoul&forecast_days=1', { signal: AbortSignal.timeout(6000) });
+  if (!res.ok) { if (out) out.err = 'forecast ' + res.status; return null; }
+  const d = await res.json();
   const cu = (d && d.current) || {}, dy = (d && d.daily) || {};
-  if (cu.temperature_2m == null) return null;
-  return { city: city || '서울', code: cu.weathercode, text: WMO[cu.weathercode] || '', t: Math.round(cu.temperature_2m),
+  if (cu.temperature_2m == null) { if (out) out.err = 'no current'; return null; }
+  return { city: name || '서울', lat: Math.round(lat * 1e4) / 1e4, lng: Math.round(lng * 1e4) / 1e4, code: cu.weathercode, text: WMO[cu.weathercode] || '', t: Math.round(cu.temperature_2m),
     tmax: dy.temperature_2m_max ? Math.round(dy.temperature_2m_max[0]) : null, tmin: dy.temperature_2m_min ? Math.round(dy.temperature_2m_min[0]) : null,
     pop: dy.precipitation_probability_max ? dy.precipitation_probability_max[0] : null };
 }

@@ -235,7 +235,25 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
       if(j.status===401){ gate(); return; }
       if(!j.ok){ $("main").innerHTML='<div class="gate">'+grape("gr")+'<p>'+esc(j.error||"불러오지 못했어요")+'</p><button type="button" class="bw" style="margin:0 auto;padding:0 18px" data-a="reload">다시 불러오기</button></div>'; return; }
       D=j; draw();
+      if(!D.weather) wxTry(null);
     });
+  }
+  /* v474 ☀️ 서버에서 날씨를 못 받으면 이 브라우저가 Open-Meteo(무료·키 없음)에서 직접 받는다. 📍 를 누르면 내 위치로. */
+  var WXC={"서울":[37.5665,126.978],"부산":[35.1796,129.0756],"대구":[35.8714,128.6014],"인천":[37.4563,126.7052],"광주":[35.1595,126.8526],"대전":[36.3504,127.3845],"울산":[35.5384,129.3114],"제주":[33.4996,126.5312],"수원":[37.2636,127.0286],"강릉":[37.7519,128.8761]};
+  function wxTry(pos){
+    var city=(D.brief&&D.brief.city)||"서울", c=pos?[pos.lat,pos.lng]:(WXC[city]||WXC["서울"]), name=pos?"내 위치":(WXC[city]?city:"서울");
+    var u="https://api.open-meteo.com/v1/forecast?latitude="+c[0]+"&longitude="+c[1]+"&current=temperature_2m,weathercode&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FSeoul&forecast_days=1";
+    return fetch(u).then(function(r){ return r.json(); }).then(function(d){
+      var cu=d&&d.current, dy=(d&&d.daily)||{}; if(!cu||cu.temperature_2m==null) throw new Error("no data");
+      D.weather={city:name,code:cu.weathercode,text:WXT[cu.weathercode]||"",t:Math.round(cu.temperature_2m),tmax:dy.temperature_2m_max?Math.round(dy.temperature_2m_max[0]):null,tmin:dy.temperature_2m_min?Math.round(dy.temperature_2m_min[0]):null,pop:dy.precipitation_probability_max?dy.precipitation_probability_max[0]:null};
+      if(TAB==="home"||TAB==="brief") draw();
+    }).catch(function(){ D.wxFail=true; if(TAB==="home") draw(); });
+  }
+  var WXT={0:"맑음",1:"대체로 맑음",2:"구름 조금",3:"흐림",45:"안개",48:"안개",51:"이슬비",53:"이슬비",55:"이슬비",61:"비",63:"비",65:"강한 비",66:"어는 비",67:"어는 비",71:"눈",73:"눈",75:"많은 눈",77:"싸락눈",80:"소나기",81:"소나기",82:"강한 소나기",85:"눈 소나기",86:"눈 소나기",95:"뇌우",96:"뇌우",99:"뇌우"};
+  function wxHere(btn){
+    if(!navigator.geolocation){ toast("이 기기에서는 위치를 쓸 수 없어요"); return; }
+    if(btn) btn.disabled=true;
+    navigator.geolocation.getCurrentPosition(function(p){ wxTry({lat:Math.round(p.coords.latitude*1e3)/1e3,lng:Math.round(p.coords.longitude*1e3)/1e3}); },function(){ if(btn) btn.disabled=false; toast("위치 권한을 허용하면 내 위치 날씨를 볼 수 있어요"); },{enableHighAccuracy:false,timeout:10000,maximumAge:1800000});
   }
   function gate(){
     $("main").innerHTML='<div class="gate">'+grape("gr")+'<h2 class="ttl">포도야 알림 친구</h2><p>기념일을 먼저 기억하고, 아침 브리핑으로 하루를 열고,<br>작은 결정은 친구와 같이 정해요.<br><b>로그인하면 바로 쓸 수 있어요 (무료)</b></p><button type="button" class="bp" style="margin:0 auto;padding:0 24px" data-a="login">로그인하기</button></div>';
@@ -269,7 +287,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
     var k=new Date(Date.now()+9*3600e3), tn=TONE[D.set.tone]||TONE.kind;
     var up30=upcoming(30), rm=D.today.reminds||[], w=D.weather;
     var h='<section class="hero"><small>'+(k.getUTCMonth()+1)+'월 '+k.getUTCDate()+'일 · '+WD[k.getUTCDay()]+'요일</small><h2>안녕! 오늘도<br>내가 챙길게 <span class="gr">'+grape()+'</span></h2><p>'+esc(tn.hi)+'</p><div class="chips"><span>오늘 알림 '+rm.length+'개</span><span>기념일 '+up30.length+'개</span></div><div class="big" aria-hidden="true">'+grape()+'</div></section>';
-    h+='<div class="row2"><div class="mini w"><div class="ic" aria-hidden="true">'+wxIcon(w)+'</div>'+(w?'<small>오늘 날씨 · '+esc(w.city)+'</small><b>'+esc(w.text)+' '+w.t+'°</b><div class="s">'+(rainy(w)?'비 올 확률 '+(w.pop!=null?w.pop:"")+'% · 우산 챙기세요':'우산 필요 없어요')+(w.tmax!=null?'<br>최고 '+w.tmax+'° · 최저 '+w.tmin+'°':'')+'</div>':'<small>오늘 날씨</small><div class="s">날씨를 불러오지 못했어요</div>')+'</div>';
+    h+='<div class="row2"><div class="mini w"><div class="ic" aria-hidden="true">'+wxIcon(w)+'</div>'+(w?'<small>오늘 날씨 · '+esc(w.city)+'</small><b>'+esc(w.text)+' '+w.t+'°</b><div class="s">'+(rainy(w)?'비 올 확률 '+(w.pop!=null?w.pop:"")+'% · 우산 챙기세요':'우산 필요 없어요')+(w.tmax!=null?'<br>최고 '+w.tmax+'° · 최저 '+w.tmin+'°':'')+'</div>':'<small>오늘 날씨</small><div class="s">'+(D.wxFail?'날씨를 불러오지 못했어요':'날씨 불러오는 중…')+'</div>')+'<button type="button" data-a="wxhere" style="margin-top:8px;height:30px;padding:0 10px;border-radius:15px;border:1.5px solid var(--line);background:#fff;font:inherit;font-size:12px;font-weight:800;color:var(--pri2)">📍 내 위치 날씨</button></div>';
     h+='<div class="mini y"><div class="ic" aria-hidden="true">📅</div><small style="color:#8A5200">오늘 알림 '+rm.length+'개</small>'+(rm.length?rm.slice(0,3).map(function(r){ var t=new Date(Date.parse(r.at)+9*3600e3); return '<div class="li">'+t.getUTCHours()+'시'+(t.getUTCMinutes()?" "+t.getUTCMinutes()+"분":"")+' '+esc(r.text)+'</div>'; }).join(""):'<div class="s">오늘 잡힌 알림이 없어요.<br>소리에게 "내일 9시 알려 줘" 해 보세요</div>')+'</div></div>';
     if(up30.length){
       var x=up30[0], d=x.d, gf=giftable(d);
@@ -449,7 +467,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
       +'<div class="sr"><span class="t"><b>알림 받을 시각</b><small>하루 1번 · 이 시각에 몰아서 알려 드려요</small></span></div><div class="chs">'+[8,9,10,12,18].map(function(x){ return '<button type="button" data-hh="'+x+'" aria-pressed="'+(s.hh===x)+'">'+(x<12?"오전 "+x:"오후 "+(x===12?12:x-12))+'시</button>'; }).join("")+'</div>'
       +'<div class="note">조용한 시간: 밤 10시 ~ 아침 7시에는 보내지 않아요.</div></div>';
     h+='<div class="card"><div class="lbl" style="font-size:16px;color:var(--ink)">알림 받는 곳</div><div id="pushBox"><div class="note">확인하는 중…</div></div>'
-      +'<div class="sr"><span class="t"><b>💛 카톡으로도 받기</b><small>카톡 \'나에게 보내기\'로 · 아침 브리핑 화면에서 연결해요</small></span><a class="pill" style="background:var(--soft);color:var(--pri2)" href="/brief#kakao">연결하기</a></div></div>';
+      +'<div class="sr"><span class="t"><b>💛 카톡으로도 받기</b><small>카톡 \'나에게 보내기\'로 · 아침 브리핑 화면에서 연결해요</small></span><a class="pill" style="background:var(--soft);color:var(--pri2)" href="/brief#kakao" target="_top">연결하기</a></div></div>';
     h+='<div class="card"><div class="lbl" style="font-size:16px;color:var(--ink)">포도야 성격</div>'+Object.keys(TONE).map(function(k){ return '<button type="button" class="tone" role="radio" aria-checked="'+(s.tone===k)+'" data-tone="'+k+'"><b>'+TONE[k].n+'</b><small>'+TONE[k].d+'</small></button>'; }).join("")
       +'<div class="note" style="background:var(--yel);color:#5c3b00;border-radius:14px;padding:10px 12px;font-weight:700">홈 인사와 알림 문구가 이 성격으로 바뀌어요</div></div>';
     return h;
@@ -528,6 +546,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
     if(a==="memo"){ var md=dayById(b.getAttribute("data-id")); if(!md) return; var nm=window.prompt("메모 (60자까지)",md.memo||""); if(nm==null) return; api("/api/pdy",{op:"day_edit",id:md.id,memo:nm}).then(function(j){ if(!j.ok){ toast(j.error||"저장하지 못했어요"); return; } md.memo=j.day.memo; draw(); }); return; }
     if(a==="del"){ var dd=dayById(b.getAttribute("data-id")); if(!dd||!window.confirm('"'+dd.title+'" 알림을 지울까요?')) return; api("/api/pdy",{op:"day_del",id:dd.id}).then(function(j){ if(!j.ok){ toast(j.error||"지우지 못했어요"); return; } D.days=D.days.filter(function(x){ return x.id!==dd.id; }); draw(); }); return; }
     if(a==="bookadd"){ var mine=(D.days||[]).map(function(d){ return d.title; }); var bk=(D.book||[]).filter(function(x){ return mine.indexOf(x.title)<0; })[+b.getAttribute("data-i")]; if(!bk) return; b.disabled=true; api("/api/pdy",{op:"day_add",title:bk.title,rel:"",kind:"yearly",md:bk.md,memo:""}).then(function(j){ if(!j.ok){ b.disabled=false; toast(j.error||"옮기지 못했어요"); return; } D.days.push(j.day); draw(); toast("✓ 포도야 알림으로 옮겼어요",true); }); return; }
+    if(a==="wxhere"){ wxHere(b); return; }
     if(a==="recgo"){ var rc=recPick(D.weather); pickInit(rc.q,rc.c); setTab("pick"); return; }
     if(a==="pcadd"){ pickGrab(); if(PICK.c.length<6) PICK.c.push({e:"⭐",n:""}); draw(); var ins=document.querySelectorAll("[data-pc]"); if(ins.length) ins[ins.length-1].focus(); return; }
     if(a==="pcrm"){ pickGrab(); PICK.c.splice(+b.getAttribute("data-i"),1); draw(); return; }
