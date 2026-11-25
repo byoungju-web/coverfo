@@ -337,7 +337,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
     h+='<div class="card"><div class="sec">♪ 음악 선택</div>'+Object.keys(MUS).map(function(k){ var m=MUS[k]; return '<div class="mu" role="radio" aria-checked="'+(S.music===k)+'" data-mu="'+k+'" tabindex="0"><span class="t"><b>'+m.n+'</b><small>'+m.d+'</small></span>'+(k==="none"?'':'<button type="button" class="pl" data-play="'+k+'" aria-label="'+m.n+' 들어보기">'+(PV.k===k?"❚❚":"▶")+'</button>')+'</div>'; }).join("")+'<p class="note">음악은 이 화면이 직접 만드는 곡이라 저작권 걱정 없이 올릴 수 있어요.</p></div>';
     h+='<div class="card"><div class="sec">T 자막</div><input class="tin" id="ttl" maxlength="30" value="'+esc(S.title)+'" aria-label="쇼츠 제목"><div class="chs" style="margin-top:10px">'+Object.keys(CAPS).map(function(k){ return '<button type="button" data-cap="'+k+'" aria-pressed="'+(S.cap===k)+'">'+CAPS[k]+'</button>'; }).join("")+'</div><p class="note">장소 이름은 사진마다 자막으로 붙어요.</p></div>';
     h+='<div class="card"><div class="sec">⏱ 길이</div><div class="len">'+[15,30,60].map(function(x){ return '<button type="button" data-len="'+x+'" aria-pressed="'+(S.len===x)+'">'+x+'초</button>'; }).join("")+'</div></div>';
-    h+='<div class="card swr"><span class="t"><b>made with coverfo 표시</b><small>영상 아래에 "나도 만들기 coverfo.com/shorts" 를 계속 보여 주고, 마지막 장면에도 넣어요</small></span><button type="button" class="sw" role="switch" aria-checked="'+S.wm+'" data-wm="1" aria-label="made with coverfo 표시"></button></div>';
+    h+='<div class="card swr"><span class="t"><b>made with coverfo 표시</b><small>영상 오른쪽 아래와 마지막 장면에 작게 넣어요 (주소는 넣지 않아요)</small></span><button type="button" class="sw" role="switch" aria-checked="'+S.wm+'" data-wm="1" aria-label="made with coverfo 표시"></button></div>';
     var on=S.photos.filter(function(p){ return p.on; }).length;
     h+='<div class="card"><div class="sec">🖼 들어갈 사진 '+on+'장</div><div class="ph">'+S.photos.map(function(p,i){ return '<button type="button" aria-pressed="'+p.on+'" data-ph="'+i+'" style="background-image:url(\''+esc(thumb(p))+'\')" aria-label="'+(i+1)+'번 사진 '+(p.on?'빼기':'넣기')+'">'+(p.best?'<span class="bd">베스트 컷</span>':'')+(p.cap?'<span class="cp">'+esc(p.cap)+'</span>':'')+'</button>'; }).join("")+'</div><p class="note">눌러서 넣고 뺄 수 있어요 · '+S.len+'초에는 '+want()+'장 안팎이 좋아요</p></div>';
     $("main").innerHTML=h+'<div class="msg" id="msg" role="status"></div>';
@@ -467,12 +467,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
           ctx.fillStyle="#fff"; ctx.textAlign="left"; ctx.fillText(p2.cap,58,ty+4,W-130); ctx.globalAlpha=1;
         }
       }
-      /* v471: 영상 하단 내내 "나도 만들기 coverfo.com/shorts" — 카톡 등은 영상과 함께 보낸 글을 빼먹을 때가 있어 영상 안에 넣는다 */
-      if(P.wm){ var wy=st==="cine"?H-95:H-70, l1="made with coverfo", l2="🎬 나도 만들기 👉 coverfo.com/shorts";
-        ctx.textAlign="center"; ctx.font="800 26px -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif"; var ww=Math.max(ctx.measureText(l2).width,200);
-        ctx.fillStyle="rgba(0,0,0,.45)"; rr(ctx,W/2-ww/2-24,wy-62,ww+48,84,22); ctx.fill();
-        ctx.fillStyle="rgba(255,255,255,.8)"; ctx.font="700 19px -apple-system, sans-serif"; ctx.fillText(l1,W/2,wy-32);
-        ctx.fillStyle="#fff"; ctx.font="800 26px -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif"; ctx.fillText(l2,W/2,wy+4); }
+      /* v472: 영상 안에는 주소를 넣지 않고 오른쪽 아래 작은 "made with coverfo" 만 (사용자 요청) — 주소는 함께 보내는 글에 넣는다 */
+      if(P.wm){ ctx.font="800 22px -apple-system, sans-serif"; ctx.textAlign="right"; var wy=st==="cine"?H-110:H-60; ctx.fillStyle="rgba(0,0,0,.35)"; var ww=ctx.measureText("made with coverfo").width; rr(ctx,W-48-ww-20,wy-28,ww+40,40,20); ctx.fill(); ctx.fillStyle="#fff"; ctx.fillText("made with coverfo",W-48,wy); }
     } else {
       /* 마지막 장면: made with coverfo */
       var e=(t-P.body)/P.end, gr2=ctx.createLinearGradient(0,0,W,H); gr2.addColorStop(0,"#2A1C6B"); gr2.addColorStop(1,"#7C4DFF"); ctx.fillStyle=gr2; ctx.fillRect(0,0,W,H);
@@ -480,7 +476,6 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
       if(GIMG.complete) ctx.drawImage(GIMG,W/2-110,H/2-330,220,220);
       ctx.textAlign="center"; ctx.fillStyle="#fff"; ctx.font=fontFor(P.cap,50); wrap(ctx,P.title,W-120).forEach(function(l,k3){ ctx.fillText(l,W/2,H/2-40+k3*62); });
       ctx.font="800 34px -apple-system, sans-serif"; ctx.fillStyle="rgba(255,255,255,.92)"; ctx.fillText("made with coverfo",W/2,H/2+150);
-      ctx.font="700 30px -apple-system, sans-serif"; ctx.fillStyle="#FFD3EA"; ctx.fillText("coverfo.com/shorts",W/2,H/2+200);
       ctx.globalAlpha=1;
     }
     ctx.restore();
@@ -611,16 +606,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
 
   /* ── ⑤ 공유하기 ── */
   var CH=[["reels","인스타 릴스","◎","#FFE4EF","#E1306C"],["tiktok","틱톡","♪","#F1F1F4","#111"],["yt","유튜브 쇼츠","▶","#FFE6E6","#FF0000"],["kakao","카톡","💬","#FFF6C7","#3C1E1E"],["feed","coverfo 피드","","#F0EBFF","#7C4DFF"]];
-  function caption(){
-    /* v470: 카톡은 #글자 를 카카오 검색 링크로 바꿔서 엉뚱한 검색 결과(예: '나의여행' 여행사)가 나온다 → 카톡을 고르면 해시태그를 뺀다 */
-    var t=cur(), tags=[];
-    if(!S.ch.kakao){ tags.push("#누리트립"); if(t&&t.reg) tags.push("#"+String(t.reg).replace(/\s+/g,"")+"여행"); }
-    return S.title+" 요약! 포도야가 자동으로 만들어줬어 🍇"+(tags.length?"\n"+tags.join(" "):"")+(S.link?"\n🎬 나도 만들기 👉 https://coverfo.com/shorts/":"");
-  }
+  /* v472: 함께 보내는 글은 "나도 만들기 + 주소" 한 줄만 (사용자 요청 · 해시태그 없음 → 카톡 # 검색 링크 문제도 없음) */
+  function caption(){ return S.link?"🎬 나도 만들기 👉 https://coverfo.com/shorts/":""; }
   function step5(){
     if(!S.url){ go(3); return; }
     var h='<div class="eb">STEP 5 · 공유하기</div><div class="h2">친구에게<br>자랑해볼까요?</div><div class="ch">'+CH.map(function(c){ return '<button type="button" data-ch="'+c[0]+'" aria-pressed="'+!!S.ch[c[0]]+'"><span class="i" style="background:'+c[3]+';color:'+c[4]+'">'+(c[0]==="feed"?'<span style="width:28px;height:28px;display:block">'+GRAPE+'</span>':c[2])+'</span>'+c[1]+'<small>✓ 선택됨</small></button>'; }).join("")+'</div>';
-    h+='<div class="card"><div class="capbar"><b>자동 생성 문구</b><button type="button" data-a="copy">⧉ 복사</button></div><div class="cap" id="capt">'+esc(caption())+'</div><p class="note">복사한 문구를 선택한 채널에 붙여넣을 수 있어요.'+(S.ch.kakao?' 카톡을 고르면 해시태그(#)는 빼요 — 카톡이 #글자를 카카오 검색으로 바꿔서 엉뚱한 결과가 나오기 때문이에요.':'')+'</p></div>';
+    h+='<div class="card"><div class="capbar"><b>함께 보내는 글</b><button type="button" data-a="copy">⧉ 복사</button></div><div class="cap" id="capt">'+esc(caption()||"(글 없이 영상만 보내요)")+'</div><p class="note">영상을 보낼 때 이 글도 함께 보내요. 공유 버튼을 누르면 이 글이 복사돼요 — 카톡에 글이 안 붙어 가면 대화창을 길게 눌러 붙여넣기 하세요.</p></div>';
     h+='<div class="card swr"><span class="t"><b>링크 포함</b><small>친구가 링크를 누르면 여행 자동 쇼츠가 바로 열려요</small></span><button type="button" class="sw" role="switch" aria-checked="'+S.link+'" data-link="1" aria-label="링크 포함"></button></div>';
     if(S.ch.feed) h+='<div class="card"><div class="sec">🍇 coverfo 피드 (누리트립 쇼츠)</div><input class="tin" id="fplace" maxlength="40" placeholder="어디 여행이었나요? (예: 제주 협재해변)" value="'+esc((cur()&&cur().place&&cur().place.name)||(cur()&&cur().title)||"")+'" aria-label="장소"><p class="note">누리트립 쇼츠로 올리면 1크레딧이에요 (기존 쇼츠 올리기와 같아요). 누리트립 닉네임이 있어야 올릴 수 있어요.</p></div>';
     h+='<div class="msg" id="msg" role="status"></div><p class="note" style="text-align:center">휴대폰 공유창이 열리면 고른 앱(릴스·틱톡·유튜브·카톡)을 누르세요. 실제 전송은 그 앱에서 이어져요.</p>';
@@ -645,7 +636,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
       if(!v.ok){ throw new Error(v.profile?"누리트립 닉네임을 먼저 만들어 주세요 (누리트립 → 내 글)":v.need?"크레딧이 부족해요 (1크레딧 필요)":v.error||"올리지 못했어요"); }
       return thumbBlob.then(function(tb){ return tb?put("thumb",tb,"image/jpeg").catch(function(){ return {}; }):{}; }).then(function(th){
         var pl=(cur()&&cur().place)||{};
-        return tripApi("POST","",{op:"create",kind:"shorts",media:[{u:v.u,thumb:th&&th.u||"",dur:S.dur}],body:caption(),place:{name:place,addr:pl.addr||"",lat:pl.lat,lng:pl.lng}});
+        return tripApi("POST","",{op:"create",kind:"shorts",media:[{u:v.u,thumb:th&&th.u||"",dur:S.dur}],body:S.title,place:{name:place,addr:pl.addr||"",lat:pl.lat,lng:pl.lng}});
       });
     }).then(function(j){
       if(!j.ok) throw new Error(j.need?"크레딧이 부족해요 (1크레딧 필요)":j.error||"올리지 못했어요");
@@ -655,15 +646,16 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
   function share(btn){
     btn.disabled=true;
     var ext=S.ch.reels||S.ch.tiktok||S.ch.yt||S.ch.kakao, text=caption();
+    if(ext&&text){ try{ navigator.clipboard.writeText(text).catch(function(){}); }catch(e){} }
     var p=S.ch.feed?upFeed():Promise.resolve(true);
     p.then(function(okFeed){
       btn.disabled=false;
       if(!ext) return;
       var f=fileOf();
       if(navigator.canShare&&navigator.canShare({files:[f]})){
-        navigator.share({files:[f],text:text}).then(function(){ msg("✓ 공유했어요",true); },function(e){ if(e&&e.name!=="AbortError") msg("공유하지 못했어요. 📥 휴대폰에 저장한 뒤 앱에서 올려 주세요."); });
+        navigator.share(text?{files:[f],text:text}:{files:[f]}).then(function(){ msg("✓ 공유했어요",true); },function(e){ if(e&&e.name!=="AbortError") msg("공유하지 못했어요. 📥 휴대폰에 저장한 뒤 앱에서 올려 주세요."); });
       } else {
-        save(); copy(text);
+        save(); if(text) copy(text);
         msg((okFeed&&S.fed?"✓ coverfo 피드에 올렸어요 · ":"")+"이 브라우저는 영상 바로 공유를 지원하지 않아요. 휴대폰에 저장하고 문구를 복사했어요 — 고른 앱에서 영상을 올리고 붙여넣기 하세요.");
       }
     });
@@ -682,7 +674,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
     b=t.closest("[data-cap]"); if(b){ S.cap=b.getAttribute("data-cap"); keepTitle(); step3(); return; }
     b=t.closest("[data-len]"); if(b){ S.len=+b.getAttribute("data-len"); keepTitle(); var k2=want(), on=S.photos.filter(function(x){ return x.on; }).length; if(on<k2){ S.photos.filter(function(x){ return !x.on; }).sort(function(a,c){ return c.score-a.score; }).slice(0,k2-on).forEach(function(x){ x.on=true; }); } step3(); return; }
     b=t.closest("[data-wm]"); if(b){ S.wm=!S.wm; b.setAttribute("aria-checked",String(S.wm)); return; }
-    b=t.closest("[data-link]"); if(b){ S.link=!S.link; b.setAttribute("aria-checked",String(S.link)); var c=$("capt"); if(c) c.textContent=caption(); return; }
+    b=t.closest("[data-link]"); if(b){ S.link=!S.link; b.setAttribute("aria-checked",String(S.link)); var c=$("capt"); if(c) c.textContent=caption()||"(글 없이 영상만 보내요)"; return; }
     b=t.closest("[data-ch]"); if(b){ var ck=b.getAttribute("data-ch"); S.ch[ck]=!S.ch[ck]; step5(); return; }
     b=t.closest("[data-a]"); if(!b) return;
     var a=b.getAttribute("data-a");
@@ -693,7 +685,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
     if(a==="cancel"){ if(REC) REC.stop(true); return; }
     if(a==="tomusic"||a==="totitle"){ go(3); setTimeout(function(){ var el=a==="totitle"?$("ttl"):document.querySelector("[data-mu]"); if(el){ el.scrollIntoView({block:"center"}); if(a==="totitle") el.focus(); } },60); return; }
     if(a==="to5"){ var v=$("vd"); if(v) v.pause(); go(5); return; }
-    if(a==="copy"){ copy(caption()); return; }
+    if(a==="copy"){ if(caption()) copy(caption()); else msg("보낼 글이 없어요 (링크 포함이 꺼져 있어요)"); return; }
     if(a==="save"){ save(); return; }
     if(a==="share"){ share(b); return; }
   });
