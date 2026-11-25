@@ -6,6 +6,14 @@
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#F5F3FF">
 <title>여행 자동 쇼츠 — coverfo</title>
+<meta name="description" content="사진만 고르면 포도야가 여행 쇼츠로 자동 편집해 줘요. 음악·자막까지 무료.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://coverfo.com/shorts/">
+<meta property="og:title" content="🎬 여행 자동 쇼츠 — coverfo">
+<meta property="og:description" content="사진만 고르면 포도야가 여행 쇼츠로 자동 편집해 줘요. 음악·자막까지 무료.">
+<meta property="og:image" content="https://coverfo.com/social_preview_index.jpg">
+<script src="/shorts/store.js?v=470"></script>
+<script src="/shorts/mux.js?v=470"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&display=swap" rel="stylesheet">
@@ -126,6 +134,16 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
 .note{font-size:12.5px;color:var(--sub);line-height:1.6;margin:10px 2px 0}
 .msg{min-height:18px;font-size:13.5px;color:var(--err);margin:8px 2px 0;text-align:center}
 .msg.ok{color:var(--ok)}
+.my{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.mi{flex:0 0 108px;min-width:0}
+.mi .mt{display:block;width:108px;aspect-ratio:9/16;border:0;border-radius:14px;background:#2A1C6B center/cover no-repeat;position:relative;padding:0}
+.mi .mt span{position:absolute;left:6px;bottom:6px;font-size:11px;font-weight:800;color:#fff;background:rgba(0,0,0,.5);border-radius:999px;padding:2px 7px}
+.mi b{display:block;font-size:12.5px;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mi small{display:block;font-size:11px;color:var(--sub)}
+.mi .md{margin-top:6px;width:100%;height:32px;border-radius:10px;border:1.5px solid #F3D0D0;background:#fff;color:var(--err);font-size:12.5px;font-weight:800}
+.strip{display:flex;gap:6px;margin:0 0 12px;overflow:hidden}
+.strip i{flex:0 0 44px;height:44px;border-radius:10px;background:#E9E4FB center/cover no-repeat;font-style:normal;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--pri2)}
+.addp{margin-top:10px;height:44px;border-radius:14px;border:1.5px dashed #CBB9FF;background:#FBFAFF;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--pri2)}
 .empty{text-align:center;color:var(--sub);font-size:14px;padding:20px 0;line-height:1.6}
 .gate{text-align:center;padding:30px 10px}
 @media (prefers-reduced-motion:reduce){.sw::after{transition:none}}
@@ -156,11 +174,11 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
       .catch(function(){ return {status:0,error:"연결하지 못했어요"}; });
   }
   function inFrame(){ try{ return window.parent!==window&&!!window.parent.cfPageClose; }catch(e){ return false; } }
-  function closePage(){ stopPreview(); if(inFrame()){ try{ window.parent.cfPageClose(); return; }catch(e){} } location.href="/"; }
+  function closePage(){ stopPreview(); if(/\/trip\//.test(document.referrer||"")&&history.length>1){ history.back(); return; } if(inFrame()){ try{ window.parent.cfPageClose(); return; }catch(e){} } location.href="/"; }
   $("close").onclick=closePage;
 
   /* ── 상태 ── */
-  var S={step:1,trips:[],sel:-1,local:null,photos:[],style:"vlog",music:"t1",cap:"base",len:30,title:"",wm:true,link:true,ch:{reels:true,tiktok:false,yt:false,kakao:false,feed:false},blob:null,url:"",mime:"",ext:"",dur:0,busy:false,me:null};
+  var S={step:1,trips:[],sel:-1,local:null,photos:[],style:"vlog",music:"t1",cap:"base",len:30,title:"",wm:true,link:true,ch:{reels:true,tiktok:false,yt:false,kakao:false,feed:false},blob:null,url:"",mime:"",ext:"",dur:0,busy:false,me:null,extra:[],saved:"",fromList:false};
   var STEPS=["여행 선택","자동 편집","스타일 선택","쇼츠 미리보기","공유하기"];
   function drawSteps(){ $("steps").innerHTML=STEPS.map(function(n,i){ var k=i+1; return '<span class="'+(k===S.step?"on":k<S.step?"done":"")+'"'+(k===S.step?' aria-current="step"':'')+'><i>'+(k<S.step?"✓":k)+'</i>'+n+'</span>'; }).join(""); }
   function cta(h){ var c=$("cta"); if(!h){ c.hidden=true; return; } c.hidden=false; $("ctaIn").innerHTML=h; }
@@ -191,7 +209,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
       var photos=[], places=[];
       g.posts.forEach(function(p){ var nm=p.place&&p.place.name||""; if(nm&&places.indexOf(nm)<0) places.push(nm); p.media.forEach(function(m){ if(m&&m.u) photos.push({src:m.u,cap:nm,t:Date.parse(dayOf(p))||0}); }); });
       var m=+g.from.slice(5,7);
-      return {title:g.reg+" "+(nights?nights+"박"+(nights+1)+"일":"당일치기"),sub:(nights?nights+"박 "+(nights+1)+"일":"당일치기")+" · "+(m?m+"월":"")+" 여행",photos:photos.slice(0,60),places:places,days:nights+1,place:g.posts[0].place||null};
+      return {reg:g.reg,posts:g.posts.length,title:g.reg+" "+(nights?nights+"박"+(nights+1)+"일":"당일치기"),sub:(nights?nights+"박 "+(nights+1)+"일":"당일치기")+" · "+(m?m+"월":"")+" 여행",photos:photos.slice(0,60),places:places,days:nights+1,place:g.posts[0].place||null};
     });
   }
   function loadTrips(){
@@ -206,22 +224,38 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
     return page("",0).then(function(){ S.trips=group(all); });
   }
   var GR=["linear-gradient(135deg,#5EA8FF,#7C4DFF)","linear-gradient(135deg,#FF9A5A,#F0509A)","linear-gradient(135deg,#2BC6B4,#3D8BFF)","linear-gradient(135deg,#B07CFF,#F0509A)"];
+  var MINE=[];
+  function loadMine(){ return window.cfShorts?cfShorts.list().then(function(l){ MINE=l; }):Promise.resolve(); }
+  function ago(ms){ var d=Math.floor((Date.now()-ms)/864e5); if(d<1) return "오늘"; if(d<2) return "어제"; return d+"일 전"; }
+  function mineHtml(){
+    if(!MINE.length) return "";
+    return '<div class="card"><div class="lhd" style="margin:0 0 10px"><b>🎞 내가 만든 쇼츠</b><small>이 휴대폰에 '+MINE.length+'개 보관</small></div><div class="my">'+MINE.map(function(m){ return '<div class="mi"><button type="button" class="mt" data-open="'+esc(m.id)+'" style="background-image:url(\''+esc(m.thumb||"")+'\')" aria-label="'+esc(m.title)+' 보기"><span>▶ '+(m.len||"")+'초</span></button><b>'+esc(m.title)+'</b><small>'+ago(m.at)+' · '+((m.size||0)/1048576).toFixed(1)+'MB</small><button type="button" class="md" data-del="'+esc(m.id)+'">🗑 삭제</button></div>'; }).join("")+'</div><p class="note">눌러서 다시 보고 공유할 수 있어요. 이 휴대폰(브라우저) 안에만 보관돼요 — 최근 '+((window.cfShorts&&cfShorts.MAX)||12)+'개까지.</p></div>';
+  }
   function step1(){
-    var h='<div class="eb">STEP 1 · 여행 선택</div><div class="h2">어떤 여행으로<br>쇼츠 만들까요?</div>';
+    var h='<div class="eb">STEP 1 · 여행 선택</div><div class="h2">어떤 여행으로<br>쇼츠 만들까요?</div>'+mineHtml();
     S.trips.slice(0,8).forEach(function(t,i){
       h+='<button type="button" class="trip" role="radio" aria-checked="'+(S.sel===i)+'" data-trip="'+i+'"><span class="th" style="background-image:url(\''+esc(t.photos[0]&&t.photos[0].src)+'\'),'+GR[i%4]+'"></span><span class="t"><b>'+esc(t.title)+'</b><small>'+esc(t.sub)+'</small><em>사진 '+t.photos.length+'장 · 장소 '+t.places.length+'곳</em></span><span class="ck" aria-hidden="true">✓</span></button>';
     });
-    h+='<div class="trip pickf" role="radio" aria-checked="'+(S.sel===-2)+'"><span class="th" style="background:'+GR[3]+'">📱</span><span class="t"><b>내 폰 사진으로 만들기</b><small>사진을 3장 이상 골라 주세요 (최대 40장)</small><em>'+(S.local?'사진 '+S.local.length+'장 골랐어요':'눌러서 사진 고르기')+'</em></span><span class="ck" aria-hidden="true">✓</span><input type="file" id="files" accept="image/*" multiple aria-label="내 폰 사진 고르기"></div>';
+    h+='<div class="trip pickf" role="radio" aria-checked="'+(S.sel===-2)+'"><span class="th" style="background:'+GR[3]+'">📱</span><span class="t"><b>내 폰 사진으로 만들기</b><small>사진을 2장 이상 골라 주세요 (최대 40장)</small><em>'+(S.local?'사진 '+S.local.length+'장 골랐어요':'눌러서 사진 고르기')+'</em></span><span class="ck" aria-hidden="true">✓</span><input type="file" id="files" accept="image/*" multiple aria-label="내 폰 사진 고르기"></div>';
     if(!S.trips.length) h+='<p class="note">'+(auth()?'누리트립에 올린 사진 글이 아직 없어요. 내 폰 사진으로 바로 만들 수 있어요.':'로그인하면 누리트립에 올린 내 여행 사진도 불러와요. 지금은 내 폰 사진으로 만들 수 있어요.')+'</p>';
     var t=cur();
     if(t){
-      h+='<div class="card sum"><span class="tg">'+(S.sel===-2?"내 폰 사진":"누리트립")+'</span><b>'+esc(t.title)+'</b><div class="route">'+(t.places.length?esc(t.places.slice(0,6).join(" → ")):"사진 순서대로 이어 붙여요")+'</div><div class="g3"><div><b>'+t.days+'일</b>일정 정리</div><div><b>'+t.places.length+'곳</b>장소 자막</div><div><b>'+t.photos.length+'장</b>사진 분석</div></div></div>';
+      var from=S.sel===-2?'내 폰에서 고른 사진 '+S.local.length+'장으로 만들어요':'누리트립에 올린 내 사진 글 '+t.posts+'개('+esc(t.places.join(", "))+')의 사진'+(S.extra.length?' + 폰 사진 '+S.extra.length+'장':'')+'으로 만들어요';
+      h+='<div class="card sum"><div class="lhd" style="margin:0 0 6px"><b>선택한 여행 · '+esc(t.title)+'</b></div><div class="route">'+from+'</div><div class="strip">'+t.photos.slice(0,8).map(function(p){ return '<i style="background-image:url(\''+esc(p.src||p.th||"")+'\')"></i>'; }).join("")+(t.photos.length>8?'<i class="more">+'+(t.photos.length-8)+'</i>':'')+'</div>'
+        +'<div class="g3"><div><b>'+t.photos.length+'장</b>들어갈 사진</div><div><b>'+t.places.length+'곳</b>장소 자막</div><div><b>'+t.days+'일</b>여행 기간</div></div>'
+        +(S.sel!==-2?'<div class="pickf addp"><span>＋ 폰 사진 더 넣기</span><input type="file" id="morep" accept="image/*" multiple aria-label="폰 사진 더 넣기"></div>':'')
+        +(t.photos.length<4?'<p class="note">사진이 '+t.photos.length+'장뿐이라 한 장이 오래 보여요. 사진을 더 넣으면 더 자연스러워요.</p>':'')+'</div>';
     }
     h+='<div class="msg" id="msg" role="status"></div><p class="note">🔒 사진은 이 휴대폰 안에서만 편집해요. 쇼츠를 만들 때 서버로 사진을 보내지 않아요 (무료).</p>';
     $("main").innerHTML=h;
-    cta('<button type="button" class="go" data-a="auto"'+(t&&t.photos.length>=3?'':' disabled')+'>🪄 쇼츠 자동 만들기</button>');
+    cta('<button type="button" class="go" data-a="auto"'+(t&&t.photos.length>=2?'':' disabled')+'>🪄 쇼츠 자동 만들기</button>');
   }
-  function cur(){ return S.sel===-2?(S.local&&S.local.length?{title:S.title||"나의 여행",sub:"내 폰 사진",photos:S.local,places:[],days:1,place:null}:null):S.trips[S.sel]||null; }
+  function cur(){
+    if(S.sel===-2) return S.local&&S.local.length?{title:S.title||"나의 여행",sub:"내 폰 사진",photos:S.local,places:[],days:1,place:null,posts:0,reg:""}:null;
+    var t=S.trips[S.sel]; if(!t) return null;
+    if(!S.extra.length) return t;
+    var c={}; for(var k in t) c[k]=t[k]; c.photos=t.photos.concat(S.extra); return c;
+  }
 
   /* ── ② 자동 편집: 베스트 컷 고르기 (이 휴대폰 안에서) ── */
   function loadImg(p){
@@ -248,7 +282,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
   var RUN=0;
   function analyze(skip){
     var t=cur(); if(!t) return;
-    var my=++RUN; S.photos=[]; S.busy=true;
+    var my=++RUN; S.photos=[]; S.busy=true; S.saved=""; S.keptMsg="";
     var list=t.photos.slice(0,40), done=0;
     drawStep2(0,"사진 불러오는 중…");
     var next=function(i){
@@ -303,7 +337,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
     h+='<div class="card"><div class="sec">♪ 음악 선택</div>'+Object.keys(MUS).map(function(k){ var m=MUS[k]; return '<div class="mu" role="radio" aria-checked="'+(S.music===k)+'" data-mu="'+k+'" tabindex="0"><span class="t"><b>'+m.n+'</b><small>'+m.d+'</small></span>'+(k==="none"?'':'<button type="button" class="pl" data-play="'+k+'" aria-label="'+m.n+' 들어보기">'+(PV.k===k?"❚❚":"▶")+'</button>')+'</div>'; }).join("")+'<p class="note">음악은 이 화면이 직접 만드는 곡이라 저작권 걱정 없이 올릴 수 있어요.</p></div>';
     h+='<div class="card"><div class="sec">T 자막</div><input class="tin" id="ttl" maxlength="30" value="'+esc(S.title)+'" aria-label="쇼츠 제목"><div class="chs" style="margin-top:10px">'+Object.keys(CAPS).map(function(k){ return '<button type="button" data-cap="'+k+'" aria-pressed="'+(S.cap===k)+'">'+CAPS[k]+'</button>'; }).join("")+'</div><p class="note">장소 이름은 사진마다 자막으로 붙어요.</p></div>';
     h+='<div class="card"><div class="sec">⏱ 길이</div><div class="len">'+[15,30,60].map(function(x){ return '<button type="button" data-len="'+x+'" aria-pressed="'+(S.len===x)+'">'+x+'초</button>'; }).join("")+'</div></div>';
-    h+='<div class="card swr"><span class="t"><b>made with coverfo 표시</b><small>영상 구석과 마지막 장면에 coverfo.com/trip 을 넣어요</small></span><button type="button" class="sw" role="switch" aria-checked="'+S.wm+'" data-wm="1" aria-label="made with coverfo 표시"></button></div>';
+    h+='<div class="card swr"><span class="t"><b>made with coverfo 표시</b><small>영상 구석과 마지막 장면에 coverfo.com/shorts 를 넣어요</small></span><button type="button" class="sw" role="switch" aria-checked="'+S.wm+'" data-wm="1" aria-label="made with coverfo 표시"></button></div>';
     var on=S.photos.filter(function(p){ return p.on; }).length;
     h+='<div class="card"><div class="sec">🖼 들어갈 사진 '+on+'장</div><div class="ph">'+S.photos.map(function(p,i){ return '<button type="button" aria-pressed="'+p.on+'" data-ph="'+i+'" style="background-image:url(\''+esc(thumb(p))+'\')" aria-label="'+(i+1)+'번 사진 '+(p.on?'빼기':'넣기')+'">'+(p.best?'<span class="bd">베스트 컷</span>':'')+(p.cap?'<span class="cp">'+esc(p.cap)+'</span>':'')+'</button>'; }).join("")+'</div><p class="note">눌러서 넣고 뺄 수 있어요 · '+S.len+'초에는 '+want()+'장 안팎이 좋아요</p></div>';
     $("main").innerHTML=h+'<div class="msg" id="msg" role="status"></div>';
@@ -441,58 +475,131 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
       if(GIMG.complete) ctx.drawImage(GIMG,W/2-110,H/2-330,220,220);
       ctx.textAlign="center"; ctx.fillStyle="#fff"; ctx.font=fontFor(P.cap,50); wrap(ctx,P.title,W-120).forEach(function(l,k3){ ctx.fillText(l,W/2,H/2-40+k3*62); });
       ctx.font="800 34px -apple-system, sans-serif"; ctx.fillStyle="rgba(255,255,255,.92)"; ctx.fillText("made with coverfo",W/2,H/2+150);
-      ctx.font="700 30px -apple-system, sans-serif"; ctx.fillStyle="#FFD3EA"; ctx.fillText("coverfo.com/trip",W/2,H/2+200);
+      ctx.font="700 30px -apple-system, sans-serif"; ctx.fillStyle="#FFD3EA"; ctx.fillText("coverfo.com/shorts",W/2,H/2+200);
       ctx.globalAlpha=1;
     }
     ctx.restore();
   }
   function rr(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
   var REC=null;
+  function tick(){ return new Promise(function(r){ var c=new MessageChannel(); c.port1.onmessage=function(){ r(); }; c.port2.postMessage(0); }); }
+  function toU8(x){ if(!x) return null; return x instanceof ArrayBuffer?new Uint8Array(x.slice(0)):new Uint8Array(x.buffer.slice(x.byteOffset,x.byteOffset+x.byteLength)); }
+  /* v470: 1순위 — WebCodecs 로 H.264 화면 + AAC 소리를 만들고 cfMp4(mux.js)로 "보통 mp4"(길이 정보가 맨 앞)로 묶는다.
+     실시간 녹화가 아니라 한 장면씩 계산하므로 보통 영상 길이보다 빨리 끝난다.
+     이 휴대폰이 H.264·AAC 만들기를 지원하지 않으면 예전 녹화 방식(MediaRecorder)으로 만든다. */
+  function wcSupport(){
+    if(!window.VideoEncoder||!window.VideoFrame||!window.cfMp4||!window.MessageChannel) return Promise.resolve(null);
+    var acodec=/[?&]t=opus\b/.test(location.search)?"opus":"mp4a.40.2";
+    var vcs=["avc1.640028","avc1.4d0028","avc1.42002a"];
+    var tryV=function(i){ if(i>=vcs.length) return Promise.resolve(null); var c={codec:vcs[i],width:W,height:H,bitrate:6000000,framerate:30,avc:{format:"avc"}};
+      return VideoEncoder.isConfigSupported(c).then(function(r){ return r&&r.supported?c:tryV(i+1); },function(){ return tryV(i+1); }); };
+    return tryV(0).then(function(vc){
+      if(!vc) return null;
+      if(S.music==="none") return {v:vc,a:null};
+      if(!window.AudioEncoder||!window.AudioData||!window.OfflineAudioContext) return null;
+      var ac={codec:acodec,sampleRate:48000,numberOfChannels:2,bitrate:128000};
+      return AudioEncoder.isConfigSupported(ac).then(function(r){ return r&&r.supported?{v:vc,a:ac}:null; },function(){ return null; });
+    });
+  }
+  async function wcRender(P,ctx,cv,conf,prog){
+    var st={cancel:false}; REC={wc:true,stop:function(){ st.cancel=true; }};
+    var achunks=[], adesc=null, err=null;
+    if(conf.a){
+      var n=Math.ceil(48000*S.len), oac=new OfflineAudioContext(2,n,48000), t0=.02;
+      music(oac,master(oac,oac.destination,t0,S.len-t0),S.music,t0,S.len-t0);
+      var buf=await oac.startRendering();
+      if(st.cancel) return null;
+      var ae=new AudioEncoder({output:function(c,m){ var d=new Uint8Array(c.byteLength); c.copyTo(d); achunks.push({ts:c.timestamp,dur:c.duration||0,key:true,data:d}); if(m&&m.decoderConfig&&m.decoderConfig.description&&!adesc) adesc=toU8(m.decoderConfig.description); },error:function(e){ err=e; }});
+      ae.configure(conf.a);
+      var L=buf.getChannelData(0), R=buf.getChannelData(1), STEP=4800;
+      for(var i=0;i<n;i+=STEP){ var k=Math.min(STEP,n-i), dd=new Float32Array(k*2); dd.set(L.subarray(i,i+k),0); dd.set(R.subarray(i,i+k),k);
+        var ad=new AudioData({format:"f32-planar",sampleRate:48000,numberOfFrames:k,numberOfChannels:2,timestamp:Math.round(i*1e6/48000),data:dd}); ae.encode(ad); ad.close(); }
+      await ae.flush(); ae.close();
+      if(err) throw err;
+      if(conf.a.codec!=="opus"&&!adesc) throw new Error("no asc");
+    }
+    var vchunks=[], vdesc=null;
+    var ve=new VideoEncoder({output:function(c,m){ var d=new Uint8Array(c.byteLength); c.copyTo(d); vchunks.push({ts:c.timestamp,dur:c.duration||0,key:c.type==="key",data:d}); if(m&&m.decoderConfig&&m.decoderConfig.description&&!vdesc) vdesc=toU8(m.decoderConfig.description); },error:function(e){ err=e; }});
+    ve.configure(conf.v);
+    var N=Math.round(S.len*30), fd=Math.round(1e6/30), hasEv="ondequeue" in ve;
+    for(var f=0;f<N;f++){
+      if(st.cancel){ try{ ve.close(); }catch(e){} return null; }
+      if(err) throw err;
+      frame(ctx,P,Math.min(f/30,S.len-.001));
+      var vf=new VideoFrame(cv,{timestamp:f*fd,duration:fd}); ve.encode(vf,{keyFrame:f%60===0}); vf.close();
+      while(ve.encodeQueueSize>3){ if(hasEv) await new Promise(function(r){ ve.addEventListener("dequeue",r,{once:true}); setTimeout(r,200); }); else await new Promise(function(r){ setTimeout(r,4); }); }
+      if(f%6===0){ prog(f/N); await tick(); }
+    }
+    await ve.flush(); ve.close();
+    if(err) throw err;
+    if(!vdesc||!vchunks.length) throw new Error("no video");
+    prog(1);
+    return cfMp4.build({video:{width:W,height:H,desc:vdesc,samples:vchunks},audio:conf.a?{codec:conf.a.codec==="opus"?"opus":"aac",sr:48000,ch:2,br:128000,desc:adesc,samples:achunks}:null});
+  }
+  function finish(blob,P){
+    REC=null;
+    var type=blob.type||"video/webm";
+    if(S.url) URL.revokeObjectURL(S.url);
+    S.blob=blob; S.url=URL.createObjectURL(blob); S.mime=type; S.ext=/mp4/.test(type)?"mp4":"webm"; S.dur=S.len; S.fromList=false;
+    try{ var tc=document.createElement("canvas"); tc.width=360; tc.height=640; var tx=tc.getContext("2d"); tx.scale(.5,.5); frame(tx,P,Math.min(1.4,P.body/2)); S.thumb=tc.toDataURL("image/jpeg",.82); }catch(e){ S.thumb=""; }
+    var keep=window.cfShorts?(S.saved?cfShorts.del(S.saved).catch(function(){}):Promise.resolve()).then(function(){
+      return cfShorts.add({title:S.title,len:S.len,style:S.style,music:S.music,mime:S.mime,ext:S.ext,size:blob.size,thumb:S.thumb,blob:blob});
+    }).then(function(id){ S.saved=id; S.keptMsg="✓ 내가 만든 쇼츠에 보관했어요 (이 휴대폰 · 누리트립 🎬 쇼츠 탭에서도 보여요)"; },function(){ S.keptMsg=""; }):Promise.resolve();
+    keep.then(function(){ go(4); });
+  }
   function render(){
-    var mime=pickMime();
-    if(!mime||!HTMLCanvasElement.prototype.captureStream){ msg("이 브라우저는 영상 만들기를 지원하지 않아요. 크롬·사파리 최신 버전에서 열어 주세요."); return; }
     var t1=$("ttl"); if(t1) S.title=t1.value.trim()||S.title;
     stopPreview();
     var P=plan(); if(P.shots.length<2){ msg("사진을 2장 이상 넣어 주세요"); return; }
     S.step=4; drawSteps(); window.scrollTo(0,0);
-    $("main").innerHTML='<div class="eb">STEP 4 · 쇼츠 미리보기</div><div class="h2">쇼츠를<br>만들고 있어요</div><div class="vid"><canvas id="cv" width="'+W+'" height="'+H+'"></canvas><span class="rec" id="recl">● 만드는 중 0 / '+S.len+'초</span></div><div class="bar2"><i id="rb"></i></div><p class="hint">'+S.len+'초 영상은 '+S.len+'초쯤 걸려요. 화면을 켜 둔 채 기다려 주세요 (다른 앱으로 가면 멈출 수 있어요).</p><div class="msg" id="msg" role="status"></div>';
+    $("main").innerHTML='<div class="eb">STEP 4 · 쇼츠 미리보기</div><div class="h2">쇼츠를<br>만들고 있어요</div><div class="vid"><canvas id="cv" width="'+W+'" height="'+H+'"></canvas><span class="rec" id="recl">● 준비 중…</span></div><div class="bar2"><i id="rb"></i></div><p class="hint" id="rhint">잠시만 기다려 주세요.</p><div class="msg" id="msg" role="status"></div>';
     cta('<button type="button" class="sub2" data-a="cancel">만들기 멈추기</button>');
     var cv=$("cv"), ctx=cv.getContext("2d");
+    var prog=function(x){ var l=$("recl"), b=$("rb"); if(l) l.textContent="● 만드는 중 "+Math.round(x*100)+"%"; if(b) b.style.width=Math.min(100,x*100)+"%"; };
     var ready=S.cap==="hand"&&document.fonts&&document.fonts.load?document.fonts.load("700 56px Gaegu").catch(function(){}):Promise.resolve();
-    ready.then(function(){
-      var vs=cv.captureStream(30), AC2=window.AudioContext||window.webkitAudioContext, ac=null, tracks=vs.getVideoTracks();
-      if(AC2&&S.music!=="none"){ try{ ac=new AC2(); var dst=ac.createMediaStreamDestination(); var t0=ac.currentTime+.12; music(ac,master(ac,dst,t0,S.len),S.music,t0,S.len); tracks=tracks.concat(dst.stream.getAudioTracks()); }catch(e){ ac=null; } }
-      var ms=new MediaStream(tracks), chunks=[], rec;
-      try{ rec=new MediaRecorder(ms,{mimeType:mime,videoBitsPerSecond:5000000,audioBitsPerSecond:128000}); }catch(e){ try{ rec=new MediaRecorder(ms); mime=rec.mimeType||mime; }catch(e2){ msg("영상을 만들지 못했어요"); if(ac) ac.close(); return; } }
-      var stopped=false, raf=0, start=0;
-      REC={stop:function(cancel){ if(stopped) return; stopped=true; cancelAnimationFrame(raf); REC.cancel=!!cancel; try{ rec.stop(); }catch(e){} if(ac){ try{ ac.close(); }catch(e){} } }};
-      rec.ondataavailable=function(e){ if(e.data&&e.data.size) chunks.push(e.data); };
-      rec.onstop=function(){
-        var cancel=REC&&REC.cancel; REC=null;
-        if(cancel){ go(3); return; }
-        var type=(mime.split(";")[0])||"video/webm";
-        if(S.url) URL.revokeObjectURL(S.url);
-        S.blob=new Blob(chunks,{type:type}); S.url=URL.createObjectURL(S.blob); S.mime=type; S.ext=/mp4/.test(type)?"mp4":"webm"; S.dur=S.len;
-        try{ var tc=document.createElement("canvas"); tc.width=360; tc.height=640; var tx=tc.getContext("2d"); tx.scale(.5,.5); frame(tx,P,Math.min(1.4,P.body/2)); S.thumb=tc.toDataURL("image/jpeg",.82); }catch(e){ S.thumb=""; }
-        go(4);
-      };
-      var loop=function(){
-        var t=(performance.now()-start)/1000;
-        frame(ctx,P,Math.min(t,S.len-.001));
-        var l=$("recl"), b=$("rb"); if(l) l.textContent="● 만드는 중 "+Math.min(S.len,Math.floor(t))+" / "+S.len+"초"; if(b) b.style.width=Math.min(100,t/S.len*100)+"%";
-        if(t>=S.len+.15){ REC&&REC.stop(false); return; }
-        raf=requestAnimationFrame(loop);
-      };
-      frame(ctx,P,0);
-      rec.start(500); start=performance.now(); raf=requestAnimationFrame(loop);
-    });
+    ready.then(wcSupport).then(function(conf){
+      if(!conf) return mrRender(P,ctx,cv);
+      var h=$("rhint"); if(h) h.textContent="이 휴대폰 안에서 한 장면씩 만들고 있어요. 보통 "+S.len+"초보다 빨리 끝나요.";
+      return wcRender(P,ctx,cv,conf,prog).then(function(blob){
+        if(!blob){ REC=null; go(3); return; }
+        finish(blob,P);
+      },function(e){ REC=null; if(window.console) console.warn("webcodecs",e); mrRender(P,ctx,cv); });
+    },function(){ mrRender(P,ctx,cv); });
+  }
+  /* 2순위 — 예전 방식: 화면을 실시간으로 녹화 (영상 길이만큼 걸림) */
+  function mrRender(P,ctx,cv){
+    var mime=pickMime();
+    if(!mime||!HTMLCanvasElement.prototype.captureStream){ msg("이 브라우저는 영상 만들기를 지원하지 않아요. 크롬·사파리 최신 버전에서 열어 주세요."); return; }
+    var h=$("rhint"); if(h) h.textContent=S.len+"초 영상은 "+S.len+"초쯤 걸려요. 화면을 켜 둔 채 기다려 주세요 (다른 앱으로 가면 멈출 수 있어요).";
+    var vs=cv.captureStream(30), AC2=window.AudioContext||window.webkitAudioContext, ac=null, tracks=vs.getVideoTracks();
+    if(AC2&&S.music!=="none"){ try{ ac=new AC2(); var dst=ac.createMediaStreamDestination(); var t0=ac.currentTime+.12; music(ac,master(ac,dst,t0,S.len),S.music,t0,S.len); tracks=tracks.concat(dst.stream.getAudioTracks()); }catch(e){ ac=null; } }
+    var ms=new MediaStream(tracks), chunks=[], rec;
+    try{ rec=new MediaRecorder(ms,{mimeType:mime,videoBitsPerSecond:5000000,audioBitsPerSecond:128000}); }catch(e){ try{ rec=new MediaRecorder(ms); mime=rec.mimeType||mime; }catch(e2){ msg("영상을 만들지 못했어요"); if(ac) ac.close(); return; } }
+    var stopped=false, raf=0, start=0;
+    REC={stop:function(cancel){ if(stopped) return; stopped=true; cancelAnimationFrame(raf); REC.cancel=!!cancel; try{ rec.stop(); }catch(e){} if(ac){ try{ ac.close(); }catch(e){} } }};
+    rec.ondataavailable=function(e){ if(e.data&&e.data.size) chunks.push(e.data); };
+    rec.onstop=function(){
+      var cancel=REC&&REC.cancel; REC=null;
+      if(cancel){ go(3); return; }
+      finish(new Blob(chunks,{type:(mime.split(";")[0])||"video/webm"}),P);
+    };
+    var loop=function(){
+      var t=(performance.now()-start)/1000;
+      frame(ctx,P,Math.min(t,S.len-.001));
+      var l=$("recl"), b=$("rb"); if(l) l.textContent="● 만드는 중 "+Math.min(S.len,Math.floor(t))+" / "+S.len+"초"; if(b) b.style.width=Math.min(100,t/S.len*100)+"%";
+      if(t>=S.len+.15){ REC&&REC.stop(false); return; }
+      raf=requestAnimationFrame(loop);
+    };
+    frame(ctx,P,0);
+    rec.start(500); start=performance.now(); raf=requestAnimationFrame(loop);
   }
   function step4(){
-    if(!S.url){ go(3); return; }
-    var st=STY[S.style], mu=MUS[S.music];
-    var h='<div class="eb">STEP 4 · 쇼츠 미리보기</div><div class="h2">이대로<br>공유할까요?</div><div class="vid"><video id="vd" src="'+S.url+'" controls playsinline loop preload="metadata"'+(S.thumb?' poster="'+S.thumb+'"':'')+'></video><span class="rec">'+S.len+'초 · '+esc(st.n)+'</span></div>'
-      +'<div class="acts3"><button type="button" data-a="render">↻ 다시 만들기</button><button type="button" data-a="tomusic">♪ 음악 바꾸기</button><button type="button" data-a="totitle">T 자막 편집</button></div>'
-      +'<p class="note" style="text-align:center">♪ '+esc(mu.n)+' · '+(S.ext==="mp4"?"mp4 영상":"webm 영상")+' · '+(S.blob.size/1048576).toFixed(1)+'MB'+(S.ext==="webm"?'<br>이 브라우저는 webm 으로만 만들어요. 인스타·카톡에 안 올라가면 크롬 최신 버전이나 아이폰 사파리에서 만들어 주세요.':'')+'</p><div class="msg" id="msg" role="status"></div>';
+    if(!S.url){ go(S.photos.length?3:1); return; }
+    var st=STY[S.style]||STY.vlog, mu=MUS[S.music]||MUS.none;
+    var h='<div class="eb">STEP 4 · 쇼츠 미리보기</div><div class="h2">'+(S.fromList?esc(S.title):'이대로<br>공유할까요?')+'</div><div class="vid"><video id="vd" src="'+S.url+'" controls playsinline loop preload="metadata"'+(S.thumb?' poster="'+S.thumb+'"':'')+'></video><span class="rec">'+S.len+'초 · '+esc(st.n)+'</span></div>'
+      +(S.fromList||!S.photos.length?'<div class="acts3" style="grid-template-columns:1fr 1fr"><button type="button" data-a="new">＋ 새 쇼츠 만들기</button><button type="button" data-del="'+esc(S.saved)+'">🗑 이 쇼츠 삭제</button></div>':'<div class="acts3"><button type="button" data-a="render">↻ 다시 만들기</button><button type="button" data-a="tomusic">♪ 음악 바꾸기</button><button type="button" data-a="totitle">T 자막 편집</button></div>')
+      +(S.keptMsg&&!S.fromList?'<p class="msg ok" style="margin:4px 0 0">'+S.keptMsg+'</p>':'')
+      +'<p class="note" style="text-align:center">♪ '+esc(mu.n)+' · '+S.len+'초 · '+(S.ext==="mp4"?"mp4 영상":"webm 영상")+' · '+(S.blob.size/1048576).toFixed(1)+'MB'+(S.ext==="webm"?'<br>이 브라우저는 webm 으로만 만들어요. 인스타·카톡에 안 올라가면 크롬 최신 버전이나 아이폰 사파리에서 만들어 주세요.':'')+'</p><div class="msg" id="msg" role="status"></div>';
     $("main").innerHTML=h;
     cta('<button type="button" class="go" data-a="to5">이 쇼츠로 공유하기</button>');
   }
@@ -500,14 +607,16 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
   /* ── ⑤ 공유하기 ── */
   var CH=[["reels","인스타 릴스","◎","#FFE4EF","#E1306C"],["tiktok","틱톡","♪","#F1F1F4","#111"],["yt","유튜브 쇼츠","▶","#FFE6E6","#FF0000"],["kakao","카톡","💬","#FFF6C7","#3C1E1E"],["feed","coverfo 피드","","#F0EBFF","#7C4DFF"]];
   function caption(){
-    var t=cur(), tags=["#누리트립"]; if(t&&t.title) tags.push("#"+String(t.title).split(" ")[0]+"여행");
-    return S.title+" 요약! 포도야가 자동으로 만들어줬어 🍇\n"+tags.join(" ")+(S.link?"\n✈️ 나도 만들기 👉 https://coverfo.com/trip":"");
+    /* v470: 카톡은 #글자 를 카카오 검색 링크로 바꿔서 엉뚱한 검색 결과(예: '나의여행' 여행사)가 나온다 → 카톡을 고르면 해시태그를 뺀다 */
+    var t=cur(), tags=[];
+    if(!S.ch.kakao){ tags.push("#누리트립"); if(t&&t.reg) tags.push("#"+String(t.reg).replace(/\s+/g,"")+"여행"); }
+    return S.title+" 요약! 포도야가 자동으로 만들어줬어 🍇"+(tags.length?"\n"+tags.join(" "):"")+(S.link?"\n🎬 나도 만들기 👉 https://coverfo.com/shorts/":"");
   }
   function step5(){
     if(!S.url){ go(3); return; }
     var h='<div class="eb">STEP 5 · 공유하기</div><div class="h2">친구에게<br>자랑해볼까요?</div><div class="ch">'+CH.map(function(c){ return '<button type="button" data-ch="'+c[0]+'" aria-pressed="'+!!S.ch[c[0]]+'"><span class="i" style="background:'+c[3]+';color:'+c[4]+'">'+(c[0]==="feed"?'<span style="width:28px;height:28px;display:block">'+GRAPE+'</span>':c[2])+'</span>'+c[1]+'<small>✓ 선택됨</small></button>'; }).join("")+'</div>';
-    h+='<div class="card"><div class="capbar"><b>자동 생성 문구</b><button type="button" data-a="copy">⧉ 복사</button></div><div class="cap" id="capt">'+esc(caption())+'</div><p class="note">복사한 문구를 선택한 채널에 붙여넣을 수 있어요.</p></div>';
-    h+='<div class="card swr"><span class="t"><b>링크 포함</b><small>친구가 링크로 coverfo 를 만나요</small></span><button type="button" class="sw" role="switch" aria-checked="'+S.link+'" data-link="1" aria-label="링크 포함"></button></div>';
+    h+='<div class="card"><div class="capbar"><b>자동 생성 문구</b><button type="button" data-a="copy">⧉ 복사</button></div><div class="cap" id="capt">'+esc(caption())+'</div><p class="note">복사한 문구를 선택한 채널에 붙여넣을 수 있어요.'+(S.ch.kakao?' 카톡을 고르면 해시태그(#)는 빼요 — 카톡이 #글자를 카카오 검색으로 바꿔서 엉뚱한 결과가 나오기 때문이에요.':'')+'</p></div>';
+    h+='<div class="card swr"><span class="t"><b>링크 포함</b><small>친구가 링크를 누르면 여행 자동 쇼츠가 바로 열려요</small></span><button type="button" class="sw" role="switch" aria-checked="'+S.link+'" data-link="1" aria-label="링크 포함"></button></div>';
     if(S.ch.feed) h+='<div class="card"><div class="sec">🍇 coverfo 피드 (누리트립 쇼츠)</div><input class="tin" id="fplace" maxlength="40" placeholder="어디 여행이었나요? (예: 제주 협재해변)" value="'+esc((cur()&&cur().place&&cur().place.name)||(cur()&&cur().title)||"")+'" aria-label="장소"><p class="note">누리트립 쇼츠로 올리면 1크레딧이에요 (기존 쇼츠 올리기와 같아요). 누리트립 닉네임이 있어야 올릴 수 있어요.</p></div>';
     h+='<div class="msg" id="msg" role="status"></div><p class="note" style="text-align:center">휴대폰 공유창이 열리면 고른 앱(릴스·틱톡·유튜브·카톡)을 누르세요. 실제 전송은 그 앱에서 이어져요.</p>';
     $("main").innerHTML=h;
@@ -558,7 +667,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
   /* ── 누르기 ── */
   document.addEventListener("click",function(e){
     var t=e.target&&e.target.closest?e.target:null; if(!t) return;
-    var b=t.closest("[data-trip]"); if(b){ S.sel=+b.getAttribute("data-trip"); S.title=""; S.photos=[]; step1(); return; }
+    var b=t.closest("[data-trip]"); if(b){ var ns=+b.getAttribute("data-trip"); if(ns!==S.sel) S.extra=[]; S.sel=ns; S.title=""; S.photos=[]; step1(); return; }
+    b=t.closest("[data-open]"); if(b){ openMine(b.getAttribute("data-open")); return; }
+    b=t.closest("[data-del]"); if(b){ delMine(b.getAttribute("data-del")); return; }
     b=t.closest("[data-play]"); if(b){ e.stopPropagation(); preview(b.getAttribute("data-play")); return; }
     b=t.closest("[data-ph]"); if(b&&!S.busy){ var p=S.photos[+b.getAttribute("data-ph")]; if(p){ p.on=!p.on; if(S.step===3){ var y=window.scrollY; step3(); window.scrollTo(0,y); } else drawStep2(100,"편집 준비 끝!"); } return; }
     b=t.closest("[data-sty]"); if(b){ var k=b.getAttribute("data-sty"); S.style=k; S.music=STY[k].m; keepTitle(); step3(); return; }
@@ -571,6 +682,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
     b=t.closest("[data-a]"); if(!b) return;
     var a=b.getAttribute("data-a");
     if(a==="auto"){ go(2); return; }
+    if(a==="new"){ S.fromList=false; S.saved=""; loadMine().then(function(){ go(1); }); return; }
     if(a==="skip"){ RUN++; analyze(true); return; }
     if(a==="render"){ render(); return; }
     if(a==="cancel"){ if(REC) REC.stop(true); return; }
@@ -586,13 +698,42 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
     if(e.target&&e.target.id==="files"){
       var fs=[].slice.call(e.target.files||[]).filter(function(f){ return /^image\//.test(f.type)||/\.(heic|heif|jpe?g|png|webp)$/i.test(f.name); }).slice(0,40);
       fs.sort(function(a,b){ return a.lastModified-b.lastModified; });
-      S.local=fs.map(function(f,i){ return {file:f,cap:"",t:f.lastModified||i}; }); S.sel=-2; S.title=""; S.photos=[];
-      step1(); if(fs.length&&fs.length<3) msg("사진을 3장 이상 골라 주세요");
+      S.local=fs.map(function(f,i){ return {file:f,cap:"",t:f.lastModified||i,th:URL.createObjectURL(f)}; }); S.sel=-2; S.title=""; S.photos=[];
+      step1(); if(fs.length===1) msg("사진을 2장 이상 골라 주세요");
+    }
+    if(e.target&&e.target.id==="morep"){
+      var more=[].slice.call(e.target.files||[]).filter(function(f){ return /^image\//.test(f.type)||/\.(heic|heif|jpe?g|png|webp)$/i.test(f.name); }).slice(0,40);
+      var t0=S.trips[S.sel], cap=t0&&t0.places[0]||"";
+      S.extra=S.extra.concat(more.map(function(f,i){ return {file:f,cap:cap,t:(f.lastModified||0)+i,th:URL.createObjectURL(f)}; })).slice(0,40); S.photos=[];
+      step1();
     }
   });
-  document.addEventListener("visibilitychange",function(){ if(document.hidden&&REC){ REC.stop(true); setTimeout(function(){ msg("다른 화면으로 가서 만들기를 멈췄어요. 다시 눌러 주세요."); },300); } });
+  document.addEventListener("visibilitychange",function(){ if(document.hidden&&REC&&!REC.wc){ REC.stop(true); setTimeout(function(){ msg("다른 화면으로 가서 만들기를 멈췄어요. 다시 눌러 주세요."); },300); } });
+  function openMine(id){
+    if(!window.cfShorts) return;
+    cfShorts.get(id).then(function(r){
+      if(!r||!r.blob){ step1(); msg("이 쇼츠를 찾지 못했어요 (다른 휴대폰·브라우저에서 만든 쇼츠는 여기 없어요)"); return; }
+      if(S.url) URL.revokeObjectURL(S.url);
+      S.blob=r.blob; S.url=URL.createObjectURL(r.blob); S.mime=r.mime||r.blob.type||"video/mp4"; S.ext=r.ext||(/mp4/.test(S.mime)?"mp4":"webm");
+      S.len=r.len||S.len; S.dur=S.len; S.title=r.title||""; S.thumb=r.thumb||""; S.style=r.style||S.style; S.music=r.music||S.music; S.saved=r.id; S.fromList=true; S.keptMsg="";
+      go(4);
+    });
+  }
+  function delMine(id){
+    if(!window.cfShorts||!id) return;
+    if(!window.confirm("이 쇼츠를 이 휴대폰에서 지울까요? 지우면 되돌릴 수 없어요.")) return;
+    cfShorts.del(id).then(function(){
+      if(S.saved===id){ S.saved=""; if(S.fromList){ S.fromList=false; if(S.url) URL.revokeObjectURL(S.url); S.url=""; S.blob=null; } }
+      return loadMine();
+    }).then(function(){ if(S.step===1||!S.url) go(1); else msg("✓ 지웠어요",true); });
+  }
   drawSteps();
-  loadTrips().catch(function(){}).then(function(){ if(S.trips.length&&S.sel===-1) S.sel=0; step1(); });
+  var qv=/[?&]v=([\w-]{4,40})/.exec(location.search);
+  Promise.all([loadTrips().catch(function(){}),loadMine()]).then(function(){
+    if(S.trips.length&&S.sel===-1) S.sel=0;
+    if(qv){ try{ history.replaceState(null,"",location.pathname); }catch(e){} openMine(qv[1]); return; }
+    step1();
+  });
 })();
 </script>
 </body>

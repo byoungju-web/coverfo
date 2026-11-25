@@ -236,6 +236,20 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 .pkr .bt{display:flex;gap:6px}.pkr .bt button{height:32px;padding:0 12px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font-size:12.5px;font-weight:700}
 .st{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;background:#fff4e5;color:#9a3412}
 </style>
+<style>
+/* v470 🎞 내가 만든 쇼츠 (이 휴대폰) — 여행 자동 쇼츠(/shorts/)에서 만든 영상 */
+.msh{background:#fff;border-radius:18px;padding:12px;margin:0 0 12px;box-shadow:0 8px 24px -20px rgba(60,40,140,.5)}
+.msh .hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px}
+.msh .hd b{font-size:15px}.msh .hd small{display:block;font-size:11.5px;color:#6b7280;font-weight:600}
+.msh .mk{flex:none;height:36px;padding:0 12px;border:0;border-radius:12px;background:linear-gradient(135deg,#8B5CF6,#F0509A);color:#fff;font-size:13px;font-weight:800}
+.msh .row{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
+.msh .mi{flex:0 0 96px;min-width:0}
+.msh .mt{display:block;width:96px;aspect-ratio:9/16;border:0;border-radius:12px;background:#2A1C6B center/cover no-repeat;position:relative;padding:0}
+.msh .mt span{position:absolute;left:5px;bottom:5px;font-size:10.5px;font-weight:800;color:#fff;background:rgba(0,0,0,.5);border-radius:999px;padding:2px 6px}
+.msh .mi b{display:block;font-size:12px;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msh .md{margin-top:5px;width:100%;height:30px;border-radius:10px;border:1.5px solid #F3D0D0;background:#fff;color:#B42318;font-size:12px;font-weight:800}
+</style>
+<script src="/shorts/store.js?v=470"></script>
 </head>
 <body>
 <header class="top">
@@ -331,7 +345,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   $("more").onclick=function(){ load(false); };
 
   function load(reset){
-    if(reset){ NEXT=""; ITEMS=[]; $("grid").innerHTML=""; say(""); $("ahead").innerHTML=""; }
+    if(reset){ NEXT=""; ITEMS=[]; $("grid").innerHTML=""; say(""); $("ahead").innerHTML=""; if(TAB==="shorts") drawMyShorts(); }
     $("fab").textContent=TAB==="ask"?"＋ 질문하기":"＋ 올리기";
     if(TAB==="admin"){ return loadAdmin(); }
     if(TAB==="map"){ return loadMap(); }
@@ -721,7 +735,18 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
       '<p class="note" style="margin:0 2px 10px">같은 곳에 가는 사람·다녀온 사람에게 물어보세요. 답변은 누구나 달 수 있어요. 연락처·만날 약속은 올리지 마세요.</p>';
     var on=$("rg").querySelector(".on"); if(on&&on.scrollIntoView) try{ on.scrollIntoView({inline:"center",block:"nearest"}); }catch(e){}
   }
+  /* v470 🎞 내가 만든 쇼츠 — 여행 자동 쇼츠에서 만든 영상(이 휴대폰 보관함 · /shorts/store.js) */
+  function drawMyShorts(){
+    var box='<div class="msh" id="msh"><div class="hd"><span><b>🎞 내가 만든 쇼츠</b><small>여행 자동 쇼츠로 만든 영상 · 이 휴대폰에만 보관</small></span><button type="button" class="mk" data-mkshort="1">🎬 자동 쇼츠 만들기</button></div><div class="row" id="mshRow"><span style="font-size:13px;color:#6b7280">불러오는 중…</span></div></div>';
+    $("ahead").insertAdjacentHTML("afterbegin",box);
+    var fill=function(l){ var r=$("mshRow"); if(!r) return;
+      r.innerHTML=l.length?l.map(function(m){ return '<div class="mi"><button type="button" class="mt" data-msv="'+esc(m.id)+'" style="background-image:url(&quot;'+esc(m.thumb||"")+'&quot;)" aria-label="'+esc(m.title)+' 보기"><span>▶ '+(m.len||"")+'초</span></button><b>'+esc(m.title)+'</b><button type="button" class="md" data-msd="'+esc(m.id)+'">🗑 삭제</button></div>'; }).join(""):'<span style="font-size:13px;color:#6b7280;line-height:1.5">아직 만든 쇼츠가 없어요. 사진만 고르면 포도야가 쇼츠로 만들어 줘요.</span>'; };
+    if(window.cfShorts) cfShorts.list().then(fill); else fill([]);
+  }
   $("ahead").addEventListener("click",function(e){
+    if(e.target.closest("[data-mkshort]")){ location.href="/shorts/"; return; }
+    var mv=e.target.closest("[data-msv]"); if(mv){ location.href="/shorts/?v="+encodeURIComponent(mv.getAttribute("data-msv")); return; }
+    var md=e.target.closest("[data-msd]"); if(md){ if(!window.cfShorts||!confirm("이 쇼츠를 이 휴대폰에서 지울까요? 지우면 되돌릴 수 없어요.")) return; cfShorts.del(md.getAttribute("data-msd")).then(function(){ var x=$("msh"); if(x) x.remove(); drawMyShorts(); }); return; }
     var sc=e.target.closest("button[data-sc]"); if(sc){ SCOPE=sc.getAttribute("data-sc"); REGION=""; load(true); return; }
     var r=e.target.closest("button[data-r]"); if(r){ REGION=r.getAttribute("data-r"); load(true); return; }
     if(e.target.closest("button[data-ai]")) openAi();
