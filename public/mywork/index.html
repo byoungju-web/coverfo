@@ -140,6 +140,8 @@ button:focus-visible,a:focus-visible{outline:3px solid rgba(108,77,255,.45);outl
     var hm=(d.getHours()<10?"0":"")+d.getHours()+":"+(d.getMinutes()<10?"0":"")+d.getMinutes();
     return (day<=0?"오늘":day===1?"어제":day<7?["일","월","화","수","목","금","토"][d.getDay()]+"요일":(d.getMonth()+1)+"/"+d.getDate())+" · "+hm;
   }
+  /* v487 마감 시각이 지났으면 '투표 마감' (결정 확정 전이라도) */
+  function ended(x){ var d=x&&x.deadline; if(!d) return false; var t=typeof d==="number"?d:Date.parse(d); return !isNaN(t)&&t<Date.now(); }
   function msg(m){ var e=$("msg"); if(e) e.textContent=m||""; }
   $("close").onclick=function(){ if(/\/myinfo\//.test(document.referrer||"")&&history.length>1){ history.back(); return; } closeTo(""); };
 
@@ -158,7 +160,7 @@ button:focus-visible,a:focus-visible{outline:3px solid rgba(108,77,255,.45);outl
     var put=function(k,arr){ B[k]=arr; fresh[k]=1; merge(); };
     if(S.tok) share({op:"mine"}).then(function(r){
       S.shares=((r&&r.items)||[]).filter(function(x){ return x.kind==="pick"; });
-      put("dec",S.shares.map(function(x){ return {k:"dec",id:x.id,at:Date.parse(x.created_at)||0,title:x.final?x.title+" — "+x.final.replace(/\(으\)로 결정했어요$/,"(으)로 결정"):x.title,badge:x.final?"결정 완료":"투표 중",meta:"투표 "+(x.people||0)+"명 참여 · "+when(x.created_at),final:x.final||"",q:x.title}; }));
+      put("dec",S.shares.map(function(x){ return {k:"dec",id:x.id,at:Date.parse(x.created_at)||0,title:x.final?x.title+" — "+x.final.replace(/\(으\)로 결정했어요$/,"(으)로 결정"):x.title,badge:x.final?"결정 완료":ended(x)?"투표 마감":"투표 중",meta:"투표 "+(x.people||0)+"명 참여 · "+when(x.created_at),final:x.final||"",q:x.title}; }));
     }); else { S.shares=[]; B.dec=[]; }
     (window.cfShorts?cfShorts.list():Promise.resolve([])).then(function(l){
       put("sho",(l||[]).map(function(m){ return {k:"sho",id:m.id,at:m.at||0,title:m.title||"여행쇼츠",badge:"이 폰에 보관",meta:(m.len||"")+"초 · "+((m.size||0)/1048576).toFixed(1)+"MB · "+when(m.at),thumb:m.thumb||""}; }));
@@ -205,7 +207,7 @@ button:focus-visible,a:focus-visible{outline:3px solid rgba(108,77,255,.45);outl
     h+='<div class="two"><button type="button" class="n" data-a="new">＋ 새로 만들기</button><button type="button" class="g" data-a="pdy">'+GRAPE+'포도야에게 맡기기</button></div>';
     var ds=S.shares.slice(0,5);
     h+='<div class="hd"><b>내 결정 기록</b><small style="font-size:12px;font-weight:800;color:var(--pri)">'+(S.shares.length?'최근 '+S.shares.length+'건':'')+'</small></div>';
-    h+=ds.length?'<div class="tl">'+ds.map(function(x){ return '<div class="e"><small>'+esc(when(x.created_at))+'</small><b>'+esc(x.final?x.final:x.title)+'</b><em>'+(x.people||0)+'명 투표 · '+(x.final?'확정':'진행 중')+'</em><button type="button" data-see="'+esc(x.id)+'">보기 ›</button></div>'; }).join("")+'</div>'
+    h+=ds.length?'<div class="tl">'+ds.map(function(x){ return '<div class="e"><small>'+esc(when(x.created_at))+'</small><b>'+esc(x.final?x.final:x.title)+'</b><em>'+(x.people||0)+'명 투표 · '+(x.final?'확정':ended(x)?'마감':'진행 중')+'</em><button type="button" data-see="'+esc(x.id)+'">보기 ›</button></div>'; }).join("")+'</div>'
       :'<div class="empty" style="padding:18px">아직 같이 정한 기록이 없어요.<br>친구에게 링크 하나로 투표를 받아 보세요.</div>';
     h+='<button type="button" class="tip" data-new="shorts">여행 사진으로 30초 쇼츠를 만들어 볼까요?<i>›</i></button>';
     h+='<p class="note">결정 링크는 30일 동안 보관돼요. 여행쇼츠는 이 휴대폰에만 보관돼요.</p>';

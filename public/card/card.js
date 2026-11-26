@@ -63,7 +63,7 @@
       + '<button type="button" data-a="kakao"><span style="background:#FFF6C7">💬</span>카카오톡</button>'
       + '<button type="button" data-a="insta"><span style="background:#FFE4EF">📷</span>인스타 스토리</button>'
       + '<button type="button" data-a="sms"><span style="background:#EAF4FF">✉️</span>문자</button>'
-      + '<button type="button" data-a="save"><span style="background:#F0EBFF">📥</span>이미지 저장</button></div>'
+      + '<button type="button" data-a="other"><span style="background:#F0EBFF">📤</span>다른 앱</button></div>'
       + '<button type="button" class="cfc-lk" data-a="copy"><b>🔗 링크 복사</b><span class="cfc-u"></span></button>'
       + '<button type="button" class="cfc-go" data-a="share">💬 ① 링크 보내기</button>'
       + '<div class="cfc-ms" role="status"></div>'
@@ -180,6 +180,8 @@
     var a = t.getAttribute('data-a');
     if (a === 'copy') { copy(O.url); return; }
     if (a === 'save') { save(); return; }
+    /* v487 📤 다른 앱: 휴대폰 공유창에 카드 + 링크를 함께 (밴드·텔레그램·메일 등에서 고르기) */
+    if (a === 'other') { msg('공유창에서 보낼 앱을 고르세요'); shareImg(true); return; }
     /* v486: 링크를 먼저 보내고(글만 공유 → 카톡도 잘 감), 그다음 ② 카드 이미지 */
     if (a === 'share' || a === 'kakao') { sendLink(a === 'kakao' ? '공유창에서 카카오톡을 고르세요' : ''); return; }
     if (a === 'card2') { shareImg(false, function () { msg('✓ 링크와 카드를 모두 보냈어요'); }); return; }
