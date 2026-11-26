@@ -616,7 +616,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
     h+='<div class="card"><div class="capbar"><b>함께 보내는 글</b><button type="button" data-a="copy">⧉ 복사</button></div><div class="cap" id="capt">'+esc(caption()||"(글 없이 영상만 보내요)")+'</div><p class="note">카톡은 영상과 글을 한 번에 보내면 글을 빼먹어요. 그래서 ① 영상을 먼저 보내고, ② "링크 글 이어서 보내기"로 같은 대화방에 글을 보내요.</p></div>';
     h+='<div class="card swr"><span class="t"><b>링크 포함</b><small>친구가 링크를 누르면 여행 자동 쇼츠가 바로 열려요</small></span><button type="button" class="sw" role="switch" aria-checked="'+S.link+'" data-link="1" aria-label="링크 포함"></button></div>';
     if(S.ch.feed) h+='<div class="card"><div class="sec">🍇 coverfo 피드 (누리트립 쇼츠)</div><input class="tin" id="fplace" maxlength="40" placeholder="어디 여행이었나요? (예: 제주 협재해변)" value="'+esc((cur()&&cur().place&&cur().place.name)||(cur()&&cur().title)||"")+'" aria-label="장소"><p class="note">누리트립 쇼츠로 올리면 1크레딧이에요 (기존 쇼츠 올리기와 같아요). 누리트립 닉네임이 있어야 올릴 수 있어요.</p></div>';
-    h+='<div class="msg" id="msg" role="status"></div><p class="note" style="text-align:center">휴대폰 공유창이 열리면 고른 앱(릴스·틱톡·유튜브·카톡)을 누르세요. 실제 전송은 그 앱에서 이어져요.</p>';
+    h+='<div class="msg" id="msg" role="status"></div><p class="note" style="text-align:center">휴대폰 공유창이 열리면 고른 앱(릴스·틱톡·유튜브·카톡)을 누르세요. 실제 전송은 그 앱에서 이어져요.</p>'
+      +'<a href="/pdy/" style="display:block;margin:14px 0 0;padding:14px;border-radius:16px;background:#E9FBF0;color:#0F7A4A;font-size:14px;font-weight:800;text-decoration:none;text-align:center">🍇 다음 여행 날짜·기념일은 포도야알림이 챙겨요 ›</a>';  /* v478 연결 지도: 여행쇼츠 → 포도야알림 */
     $("main").innerHTML=h;
     cta('<button type="button" class="go" data-a="share">⤴ ① 영상 보내기</button><button type="button" class="sub2" data-a="save">📥 휴대폰에 저장</button>');
   }
