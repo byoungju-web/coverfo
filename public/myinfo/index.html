@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#F5F2FF">
 <title>내 정보 — coverfo</title>
 <script src="/shorts/store.js?v=470"></script>
-<!-- coverfo 👤 내 정보 (v482) — 홈 하단 '내 정보' 탭에서 열린다 (홈 위 덮개 창 · cf-page.js)
+<!-- coverfo 👤 내 정보 (v482 · v483 내 사람들·알림 루틴·발자취를 설정에서 옮겨 옴) — 홈 하단 '내 정보' 탭에서 열린다 (홈 위 덮개 창 · cf-page.js)
      "포도야가 기억하는 나": 프로필 · 내 결정/내 쇼츠/기억 수 · 🧠 내 비서 기억(종류별 보기·더하기·지우기)
      · 데이터: /api/memory (op get · add · forget · set) — 기존 기억 센터와 같은 곳. 기억은 무료.
      · 건강·병원·약, 긴 숫자, 비밀번호는 서버가 저장하지 않는다 (memory.js blockedWhy).
@@ -137,6 +137,16 @@ h1 span{display:block;color:var(--pri)}
       h+='</div>';
     });
     h+='<p class="note">건강·병원·약 이야기, 전화·카드·계좌 같은 긴 숫자, 비밀번호는 기억하지 않아요.</p>';
+    /* v483 설정에서 옮겨 온 것: 👥 내 사람들(내 연락처) · ⏰ 내 알림·루틴 · 👣 내 발자취 — 기존 화면을 그대로 연다 */
+    var book=items.filter(function(x){ return x.src==="book"; }), rms=(d.now&&d.now.reminds)||[], tr=!!(d.trail&&d.trail.on);
+    h+='<div class="sec" style="margin-top:18px"><b>👥 내 사람들</b><button type="button" data-a="book">전체 보기 ›</button></div>'
+      +'<div class="mc"><div class="v" style="margin:0">'+(book.length?esc(book.slice(0,3).map(function(x){ return x.text; }).join(" · "))+(book.length>3?' 외 '+(book.length-3)+'개':''):'연락처의 이름·생일을 올려 두면 포도야가 챙겨요')+'</div>'
+      +'<div style="display:flex;gap:8px;margin-top:10px"><button type="button" class="ed" data-a="book">📒 내 연락처 열기</button><a class="ed" href="/pdy/" style="display:inline-flex;align-items:center;text-decoration:none">🍇 생일 알림 맡기기</a></div></div>';
+    h+='<div class="sec" style="margin-top:18px"><b>⏰ 내 알림 · 루틴</b><button type="button" data-a="my">전체 보기 ›</button></div>'
+      +'<div class="mc">'+(rms.length?rms.slice(0,3).map(function(r){ var dt=new Date(r.next_at), when=isNaN(dt)?'':(dt.getMonth()+1)+'/'+dt.getDate()+' '+(dt.getHours()<10?'0':'')+dt.getHours()+':'+(dt.getMinutes()<10?'0':'')+dt.getMinutes(); return '<div class="v" style="margin:0 0 6px;color:var(--ink)"><b style="color:var(--pri);margin-right:6px">'+esc(when)+'</b>'+esc(r.text)+'</div>'; }).join(""):'<div class="v e" style="margin:0">다가오는 알림이 없어요 · 소리에게 "내일 9시 알려 줘" 해 보세요</div>')
+      +'<div style="margin-top:8px"><button type="button" class="ed" data-a="my">⏰ 알림 · 한 마디 루틴 열기</button></div></div>';
+    h+='<div class="sec" style="margin-top:18px"><b>👣 내 발자취</b><button type="button" data-a="trail">'+(tr?'끄기 · 자세히':'켜기')+' ›</button></div>'
+      +'<div class="mc"><div class="v" style="margin:0">'+(tr?'<b style="color:var(--ok)">켜짐</b> · 빠른 실행·사진 물어보기·만들기 요청을 계정에 짧게 남겨요 (90일 뒤 지워짐)':'<b>꺼짐</b> · 켜면 홈 \'이어서 하기\'·아침 브리핑에 써요')+'</div></div>';
     $("main").innerHTML=h+links();
     if(S.open){ var i=$("in-"+S.open); if(i) i.focus(); }
   }
@@ -163,6 +173,9 @@ h1 span{display:block;color:var(--pri)}
     var a=b.getAttribute("data-a");
     if(a==="on"){ mem({op:"set",on:true}).then(function(){ load(); }); return; }
     if(a==="top"){ window.scrollTo({top:document.querySelector(".mc")?document.querySelector(".mc").offsetTop-20:0,behavior:"smooth"}); return; }
+    if(a==="book"){ closeTo("var a=document.createElement('button'); a.setAttribute('data-cf-book','1'); a.style.display='none'; document.body.appendChild(a); a.click(); setTimeout(function(){ a.remove(); },0);"); return; }
+    if(a==="my"){ closeTo("if(window.cfMyOpen) cfMyOpen('my');"); return; }
+    if(a==="trail"){ closeTo("if(window.cfMyOpen) cfMyOpen('trail');"); return; }
     if(a==="center"){ closeTo("if(window.cfMem&&cfMem.open) cfMem.open({});"); return; }
     if(a==="login"){ closeTo("var q=document.querySelector('#cf-auth .cf-primary'); if(q) q.click();"); return; }
     if(a==="settings"){ closeTo("var b=document.querySelector('#v4-tabbar [data-v4t=\"set\"]'); if(b) b.click();"); return; }
