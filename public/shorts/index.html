@@ -187,7 +187,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
       .catch(function(){ return {status:0,error:"연결하지 못했어요"}; });
   }
   function inFrame(){ try{ return window.parent!==window&&!!window.parent.cfPageClose; }catch(e){ return false; } }
-  function closePage(){ stopPreview(); if(/\/(trip|mywork)\//.test(document.referrer||"")&&history.length>1){ history.back(); return; } if(inFrame()){ try{ window.parent.cfPageClose(); return; }catch(e){} } location.href="/"; }
+  function closePage(){ stopPreview(); if(/\/(trip|mywork|myinfo)\//.test(document.referrer||"")&&history.length>1){ history.back(); return; } if(inFrame()){ try{ window.parent.cfPageClose(); return; }catch(e){} } location.href="/"; }
   $("close").onclick=closePage;
 
   /* ── 상태 ── */

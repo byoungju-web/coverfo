@@ -193,7 +193,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
       .catch(function(){ return {status:0,error:"연결하지 못했어요. 잠시 뒤 다시 해 주세요."}; });
   }
   function inFrame(){ try{ return window.parent!==window&&!!window.parent.cfPageClose; }catch(e){ return false; } }
-  function closePage(){ if(/\/mywork\//.test(document.referrer||"")&&history.length>1){ history.back(); return; } if(inFrame()){ try{ window.parent.cfPageClose(); return; }catch(e){} } location.href="/"; }
+  function closePage(){ if(/\/(mywork|myinfo)\//.test(document.referrer||"")&&history.length>1){ history.back(); return; } if(inFrame()){ try{ window.parent.cfPageClose(); return; }catch(e){} } location.href="/"; }
   $("close").onclick=closePage;
   function go(u){ location.href=u; }
   function openOut(u){ var w=null; try{ w=window.open(u,"_blank","noopener"); }catch(e){} if(!w) location.href=u; }

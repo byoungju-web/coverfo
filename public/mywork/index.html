@@ -141,7 +141,7 @@ button:focus-visible,a:focus-visible{outline:3px solid rgba(108,77,255,.45);outl
     return (day<=0?"오늘":day===1?"어제":day<7?["일","월","화","수","목","금","토"][d.getDay()]+"요일":(d.getMonth()+1)+"/"+d.getDate())+" · "+hm;
   }
   function msg(m){ var e=$("msg"); if(e) e.textContent=m||""; }
-  $("close").onclick=function(){ closeTo(""); };
+  $("close").onclick=function(){ if(/\/myinfo\//.test(document.referrer||"")&&history.length>1){ history.back(); return; } closeTo(""); };
 
   /* ── 모으기 ── */
   /* v481: 빨리 보이게 — ① 지난번 목록(이 브라우저에 저장)을 먼저 보여 주고 ② 결정·쇼츠·이미지·앱을 오는 대로 하나씩 채운다 (가장 느린 것을 기다리지 않음) */
