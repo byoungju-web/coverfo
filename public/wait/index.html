@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<!-- coverfo ⏳ AI 대기 + 환불 대행 — public/wait/index.html (v492)
+     © 2026 coverfo All Rights Reserved
+     · 홈 'AI 여행 파트너'의 💬 AI 흥정·문의 비서 아래 · 'AI에게 시키기' 더보기에서 열림 (홈 위 덮개 cf-page.js)
+     · 5단계: ① 줄 서기 비서 ② 대기 중 ③ 환불 요청 ④ 민원 문구 ⑤ 결과 + 자랑
+     · 대기: 웨이팅 앱·번호표에 나온 숫자를 내가 넣으면, 포도야가 남은 시간을 계산하고 알림 (가게 웨이팅 정보를 몰래 가져오지 않음)
+       화면이 꺼져도 울리게 '캘린더 알림' 파일도 만들어 줌 · 이 화면이 열려 있으면 진동·소리·알림으로 알려 줌
+     · 환불·민원 문구: /api/claim (한 번 0.1크레딧 · 실패하면 돌려줌) · 보내기는 내 메일·문자·고객센터 창에서 직접
+     · 기록·아낀 시간·돈은 이 기기(localStorage)에만 · 결제·충전 코드는 건드리지 않음 -->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI 대기 + 환불 대행 · coverfo</title>
+<meta name="theme-color" content="#EFEAFF">
+<style>
+:root{--bg:#EFEAFF;--sf:#fff;--sf2:#F6F3FF;--ink:#1B1730;--mu:#6B6588;--ln:#E7E0FF;--pr:#6C4DFF;--pr2:#3B82F6;--ac:#FF8A5C;--mint:#2EBD8A;--bad:#E11D48}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.wrap{max-width:560px;margin:0 auto;padding:0 14px 40px}
+.top{position:sticky;top:0;z-index:20;background:rgba(239,234,255,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:calc(10px + env(safe-area-inset-top)) 0 8px}
+.bar{display:flex;align-items:center;gap:10px}
+.x{width:38px;height:38px;border-radius:12px;border:0;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);font-size:18px;display:grid;place-items:center}
+.ttl{flex:1;min-width:0}
+.ttl b{display:block;font-size:17px;font-weight:900;letter-spacing:-.02em}
+.ttl small{display:block;font-size:11.5px;color:var(--mu)}
+.steps{display:flex;gap:4px;margin-top:10px;overflow-x:auto;scrollbar-width:none;background:rgba(255,255,255,.8);border-radius:16px;padding:5px}
+.steps::-webkit-scrollbar{display:none}
+.steps button{flex:1 0 auto;border:0;background:transparent;border-radius:11px;padding:8px 10px;font-size:12px;font-weight:800;color:#64748b;white-space:nowrap}
+.steps button.on{background:var(--pr);color:#fff}
+.steps .bd{display:inline-block;min-width:18px;margin-left:3px;border-radius:999px;background:var(--ac);color:#fff;font-size:10px;padding:1px 5px}
+.pane{display:none;animation:pop .3s ease both}
+.pane.on{display:block}
+@keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.card{background:var(--sf);border-radius:22px;padding:14px;box-shadow:0 1px 3px rgba(23,19,39,.06);margin-top:10px}
+.h{font-size:13px;font-weight:900;margin:0 0 8px;display:flex;align-items:center;gap:6px}
+.mu{color:var(--mu)} .sm{font-size:11.5px}
+.row{display:flex;gap:8px;align-items:center}
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;border:0;border-radius:16px;padding:14px;font-size:14px;font-weight:900;text-decoration:none;margin-top:10px;color:inherit}
+.btn.pri{background:linear-gradient(90deg,var(--pr),var(--pr2));color:#fff;box-shadow:0 10px 22px -12px rgba(108,77,255,.9)}
+.btn.dark{background:#17132E;color:#fff}
+.btn.wh{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.btn.ok{background:var(--mint);color:#fff}
+.btn:disabled{opacity:.45;cursor:default}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px} .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.g2 .btn,.g3 .btn{margin-top:0;padding:12px 6px;font-size:12px}
+.note{border-radius:18px;padding:11px 13px;font-size:12px;line-height:1.6;margin-top:10px}
+.note b{display:block;font-weight:900}
+.note.v{background:#F1ECFF;border:1px solid #E7E0FF;color:#55448F}
+.note.a{background:#FFF7E8;border:1px solid #FFE9B8;color:#8A5A12}
+.note.g{background:#E9FFF4;border:1px solid #BDF2DA;color:#177A52}
+.note.r{background:#FFE9E9;border:1px solid #FFD7DC;color:#C73A4A}
+.ai{display:flex;align-items:flex-end;gap:8px;margin-top:10px}
+.av{flex:none;width:32px;height:32px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:17px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.ai p{margin:0;max-width:86%;background:#fff;border-radius:18px 18px 18px 6px;padding:10px 13px;font-size:13.5px;line-height:1.55;box-shadow:0 1px 2px rgba(0,0,0,.05);overflow-wrap:anywhere}
+.hero h1{margin:6px 0 0;font-size:26px;font-weight:900;line-height:1.15;letter-spacing:-.03em}
+.chipz{display:flex;gap:6px;flex-wrap:wrap}
+.chipz span{border-radius:999px;padding:5px 10px;font-size:11.5px;font-weight:800}
+.types{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.ty{border:0;text-align:left;border-radius:20px;padding:12px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.06);border:2px solid transparent}
+.ty.on{background:linear-gradient(135deg,#6C4DFF,#3B82F6);color:#fff}
+.ty b{display:block;font-size:14px;font-weight:900;margin-top:4px}
+.ty small{display:block;font-size:11px;opacity:.75}
+.ty span.q{display:block;margin-top:8px;border-radius:10px;padding:6px 8px;font-size:11px;font-weight:800;background:#F6F3FF;color:#1B1730}
+.ty.on span.q{background:rgba(255,255,255,.2);color:#fff}
+.ty.soon{opacity:.75}
+.f{display:grid;grid-template-columns:92px 1fr;gap:8px;align-items:center;margin-top:8px}
+.f label{font-size:12px;font-weight:800;color:var(--mu)}
+.f input,.f select,textarea{width:100%;border:1px solid var(--ln);border-radius:12px;padding:9px 10px;background:#fff;font-size:14px;min-width:0}
+textarea{resize:vertical;min-height:90px;line-height:1.55}
+.step{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+.step .ct{display:flex;align-items:center;gap:10px}
+.step .ct button{width:36px;height:36px;border-radius:50%;border:1px solid var(--ln);background:#fff;font-size:18px;font-weight:900}
+.step .ct b{min-width:52px;text-align:center;font-size:17px;font-weight:900}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chips button{border:1px solid var(--ln);background:#fff;border-radius:999px;padding:6px 11px;font-size:12px;font-weight:800}
+.chips button.on{background:var(--pr);border-color:var(--pr);color:#fff}
+.live{border-radius:24px;padding:18px;color:#fff;background:linear-gradient(135deg,#6C4DFF,#3B82F6);margin-top:10px}
+.live small{font-size:11px;font-weight:900;opacity:.85}
+.live h2{margin:6px 0 0;font-size:16px;font-weight:900}
+.live .big{font-size:46px;font-weight:900;line-height:1;margin-top:10px}
+.live .big i{font-style:normal;font-size:16px;font-weight:800;margin-left:4px}
+.pg{height:8px;border-radius:999px;background:rgba(255,255,255,.25);overflow:hidden;margin-top:12px}
+.pg i{display:block;height:100%;width:0;background:#fff;transition:width .5s}
+.tl{margin:0;padding:0;list-style:none}
+.tl li{position:relative;padding:0 0 10px 18px;font-size:12.5px;line-height:1.5}
+.tl li::before{content:"";position:absolute;left:4px;top:6px;width:7px;height:7px;border-radius:50%;background:var(--pr)}
+.tl li::after{content:"";position:absolute;left:7px;top:15px;bottom:0;width:1px;background:var(--ln)}
+.tl li:last-child::after{display:none}
+.tl time{color:var(--mu);font-size:11px;margin-right:6px}
+.push{display:flex;gap:10px;align-items:center;background:#17132E;color:#fff;border-radius:18px;padding:12px;margin-top:10px}
+.push .ic{flex:none;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--pr)}
+.tones{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}
+.tones button{border:0;border-radius:10px;padding:9px 4px;font-size:12px;font-weight:800;background:#F1F5F9;color:#475569}
+.tones button.on{background:#17132E;color:#fff}
+.msg{margin-top:8px;background:var(--sf2);border:1px solid var(--ln);border-radius:14px;padding:12px;font-size:13.5px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
+.paper{width:100%;min-height:280px;border:1px solid #F0E2C8;border-radius:16px;background:#FFFDF5 repeating-linear-gradient(transparent 0 27px,#F3E9D2 27px 28px);padding:12px 14px;font-size:14px;line-height:28px;color:#3b2f1a}
+.ck{display:flex;align-items:center;gap:8px;padding:8px 2px;font-size:13px;font-weight:700;border-bottom:1px dashed #eee}
+.ck:last-child{border:0}
+.ck i{flex:none;width:22px;height:22px;border-radius:7px;display:grid;place-items:center;font-style:normal;font-size:12px;font-weight:900;background:#F1F5F9;color:#94a3b8}
+.ck.ok i{background:var(--mint);color:#fff}
+.ck.no i{background:#FFE9E9;color:var(--bad)}
+.ck button{margin-left:auto;border:0;background:#F1ECFF;color:#55448F;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:800}
+.res{border-radius:24px;padding:18px;color:#fff;background:linear-gradient(135deg,#6C4DFF,#3B82F6 55%,#FF6FAE);margin-top:10px}
+.res small{font-size:11px;font-weight:900;opacity:.85}
+.res h2{margin:8px 0 0;font-size:22px;font-weight:900;line-height:1.3}
+.res p{margin:8px 0 0;font-size:12.5px;opacity:.9}
+.tot{background:#17132E;color:#fff;border-radius:22px;padding:16px;margin-top:10px}
+.tot b{display:block;font-size:20px;font-weight:900;line-height:1.4;margin-top:4px}
+.hi{display:flex;align-items:center;gap:10px;background:#fff;border-radius:16px;padding:11px;margin-top:8px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.hi .t{flex:1;min-width:0} .hi .t b{display:block;font-size:13px;overflow-wrap:anywhere} .hi .t span{font-size:11px;color:var(--mu)}
+.tag{border-radius:999px;padding:4px 8px;font-size:11px;font-weight:800}
+.rules{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.rules div{background:#fff;border-radius:16px;padding:11px;font-size:11.5px;line-height:1.5;color:var(--mu);box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.rules b{display:block;font-size:13px;color:var(--ink);font-weight:900;margin-bottom:2px}
+.sheet{position:fixed;inset:0;z-index:50;background:rgba(15,10,40,.45);display:none;align-items:flex-end;justify-content:center}
+.sheet.on{display:flex}
+.sheet .in{width:100%;max-width:560px;max-height:80vh;overflow:auto;background:#fff;border-radius:24px 24px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom))}
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:60;max-width:90vw;background:#17132E;color:#fff;border-radius:999px;padding:10px 16px;font-size:12.5px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .25s}
+.toast.on{opacity:1}
+.spin{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.5);border-top-color:#fff;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#151126;--sf:#221D3B;--sf2:#2C2550;--ink:#F6F3FF;--mu:#B8B1D9;--ln:#3A3265}
+  .top{background:rgba(21,17,38,.92)}
+  .x,.steps,.ai p,.btn.wh,.f input,.f select,textarea:not(.paper),.av,.hi,.ty,.chips button,.step .ct button,.sheet .in,.rules div{background:#221D3B;color:#F6F3FF}
+  .ty span.q{background:#2C2550;color:#F6F3FF}
+  .tones button{background:#2C2550;color:#E9E5FF}
+}
+</style>
+</head>
+<body>
+<div class="top"><div class="wrap" style="padding-bottom:0">
+  <div class="bar">
+    <button class="x" id="close" aria-label="닫기">✕</button>
+    <div class="ttl"><b>⏳ AI 대기 + 환불 대행</b><small>포도야가 대신 기다리고, 대신 정중하게 따져 줘요</small></div>
+  </div>
+  <nav class="steps" id="steps" aria-label="단계">
+    <button data-s="0" class="on">📞 줄 서기 비서</button>
+    <button data-s="1">⏳ 대기 중<span class="bd" id="bdN" hidden></span></button>
+    <button data-s="2">↺ 환불 요청</button>
+    <button data-s="3">✍️ 민원 문구</button>
+    <button data-s="4">🏆 결과 + 자랑</button>
+  </nav>
+</div></div>
+
+<main class="wrap">
+
+<!-- ① 줄 서기 비서 -->
+<section class="pane on" id="p0">
+  <div class="card hero">
+    <div class="chipz"><span style="background:#FFE7D9;color:#C85A1E">🍇 포도야가 기다려줄게</span><span style="background:#E9FFF4;color:#177A52" id="liveChip" hidden></span></div>
+    <h1>AI가 대신<br>기다릴게요</h1>
+    <p class="mu" style="font-size:13px;line-height:1.6;margin:8px 0 0">웨이팅 앱·번호표에 나온 숫자만 알려 주세요. 남은 시간을 계산해서 내 차례가 가까워지면 알려 줘요. 그동안 편하게 있어도 돼요.</p>
+  </div>
+  <div class="types" id="types">
+    <button class="ty on" data-t="food"><span>🍽</span><b>맛집 웨이팅</b><small>줄 서는 식당 · 카페</small><span class="q">5팀 남았을 때 알려줘</span></button>
+    <button class="ty" data-t="clinic"><span>🩺</span><b>병원 접수 대기</b><small>접수 · 진료 대기</small><span class="q">내 차례 가까워지면 알려줘</span></button>
+    <button class="ty" data-t="office"><span>🏛</span><b>관공서·은행 번호표</b><small>구청 · 주민센터 · 은행</small><span class="q">번호표 대신 포도야가 챙겨줘</span></button>
+    <button class="ty soon" data-t="phone"><span>📞</span><b>전화 대기</b><small>고객센터 · 콜센터</small><span class="q">연결음 대신 기다리기 (준비 중)</span></button>
+  </div>
+  <div class="note a" id="phoneNote" hidden><b>전화 대기는 준비 중이에요</b>고객센터 연결음을 포도야가 대신 듣다가 상담원이 받으면 바꿔 주는 기능은 아직 만들고 있어요. 지금은 가게·병원에 바로 거는 <a href="/call/" style="color:inherit;font-weight:900">📞 AI 전화 걸기</a>를 써 보세요.</div>
+  <div class="card" id="wForm">
+    <p class="h">어디 기다릴까요?</p>
+    <div class="f" style="grid-template-columns:1fr;margin-top:0"><input id="wPlace" maxlength="40" placeholder="예) 홍대 삼겹살집"></div>
+    <div class="chips" id="wEx"><button type="button">홍대 삼겹살집</button><button type="button">OO병원 접수</button><button type="button">마포구청</button></div>
+    <div id="cntQ">
+      <div class="step"><span class="h" style="margin:0" id="aheadL">지금 내 앞 몇 팀?</span><div class="ct"><button type="button" data-d="ahead:-1">−</button><b id="ahead">12팀</b><button type="button" data-d="ahead:1">+</button></div></div>
+    </div>
+    <div id="numQ" hidden>
+      <div class="f"><label for="myNo">내 번호표</label><input id="myNo" inputmode="numeric" maxlength="5" placeholder="예) 152"></div>
+      <div class="f"><label for="nowNo">지금 부르는 번호</label><input id="nowNo" inputmode="numeric" maxlength="5" placeholder="예) 140"></div>
+    </div>
+    <div class="step"><span class="h" style="margin:0">몇 팀 남으면 알려줄까?</span><div class="ct"><button type="button" data-d="warn:-1">−</button><b id="warn">5팀</b><button type="button" data-d="warn:1">+</button></div></div>
+    <div class="step"><span class="h" style="margin:0">한 팀에 몇 분쯤?</span><div class="ct"><button type="button" data-d="per:-1">−</button><b id="per">3분</b><button type="button" data-d="per:1">+</button></div></div>
+    <p class="mu sm" style="margin:6px 0 0">처음엔 어림값으로 계산하고, 숫자를 고쳐 줄 때마다 실제 속도로 다시 맞춰요.</p>
+    <button class="btn pri" id="wGo">🍇 포도야에게 기다리기 맡기기</button>
+  </div>
+</section>
+
+<!-- ② 대기 중 -->
+<section class="pane" id="p1">
+  <div id="p1empty" class="note a"><b>기다리는 곳이 없어요</b>① 줄 서기 비서에서 맡겨 주세요.<button class="btn wh" data-go="0">① 줄 서기 비서로</button></div>
+  <div id="p1body" hidden>
+    <div class="live">
+      <small id="lvKind"></small>
+      <h2 id="lvPlace"></h2>
+      <div class="big" id="lvN">0<i>팀 남음</i></div>
+      <p style="margin:6px 0 0;font-size:13px;opacity:.9" id="lvEta"></p>
+      <div class="pg"><i id="lvPg"></i></div>
+      <p style="margin:8px 0 0;font-size:11px;opacity:.8" id="lvSub"></p>
+    </div>
+    <div class="ai"><span class="av">🍇</span><p id="lvSay"></p></div>
+    <div class="card">
+      <p class="h">📝 웨이팅 앱·번호표 숫자가 바뀌면 알려 주세요</p>
+      <div class="g3">
+        <button class="btn wh" id="m1">한 팀 줄었어</button>
+        <button class="btn wh" id="mSet">숫자 고치기</button>
+        <button class="btn wh" id="mNear" target="_blank">☕ 근처 카페</button>
+      </div>
+    </div>
+    <div class="push" id="pushPv"><span class="ic">🔔</span><div><b style="font-size:12px">coverfo · 미리보기</b><div style="font-size:13px" id="pushTx"></div></div></div>
+    <div class="g2" style="margin-top:10px">
+      <button class="btn wh" id="ntBtn">🔔 이 기기 알림 켜기</button>
+      <button class="btn wh" id="icsBtn">📅 캘린더 알림 받기</button>
+    </div>
+    <p class="mu sm" style="margin:8px 2px 0;line-height:1.6">화면을 끄거나 다른 앱을 쓰면 이 화면의 알림이 늦을 수 있어요. 그럴 땐 [캘린더 알림]을 받아 두면 예상 시간에 휴대폰 캘린더가 울려요.</p>
+    <div class="card"><p class="h">⏱ 타임라인</p><ul class="tl" id="tl"></ul></div>
+    <div class="g2" style="margin-top:10px">
+      <button class="btn ok" id="wDone">✅ 내 차례 왔어요</button>
+      <button class="btn wh" id="wStop">그만 기다릴래요</button>
+    </div>
+  </div>
+</section>
+
+<!-- ③ 환불 요청 -->
+<section class="pane" id="p2">
+  <div class="ai"><span class="av">🍇</span><p>무슨 일이 있었어요? 화난 마음은 제가 정리할게요. 사실만 알려 주세요.<br><span class="mu sm">예) 이거 배송 늦었는데 환불해달라고 써줘</span></p></div>
+  <div class="card">
+    <p class="h">어떤 요청이에요?</p>
+    <div class="chips" id="cKinds" style="margin-top:0">
+      <button type="button" data-k="delivery" class="on">📦 배송 지연 환불</button>
+      <button type="button" data-k="flight">✈️ 항공권 수수료 항의</button>
+      <button type="button" data-k="shop">🏪 가게 컴플레인</button>
+      <button type="button" data-k="other">✏️ 기타</button>
+    </div>
+    <div class="f" style="grid-template-columns:1fr;margin-top:12px"><textarea id="cFacts" maxlength="500" placeholder="예) 11월 20일 주문, 23일 도착 예정이었는데 26일에 도착. 배송비 3,000원 환불 원함"></textarea></div>
+    <p class="h" style="margin:10px 0 0">원하는 것</p>
+    <div class="chips" id="cWant"><button type="button" class="on">환불</button><button type="button">교환</button><button type="button">수수료 조정</button><button type="button">사과·재발 방지</button></div>
+    <div class="f"><label for="cTarget">받는 곳</label><input id="cTarget" maxlength="40" placeholder="(선택) 예) OO쇼핑 고객센터"></div>
+    <div class="f"><label for="cAmt">금액</label><input id="cAmt" inputmode="numeric" maxlength="12" placeholder="(선택) 예) 3000"></div>
+    <div class="f"><label for="cMe">내 이름</label><input id="cMe" maxlength="12" placeholder="(선택)"></div>
+    <p class="mu sm" style="margin:8px 0 0">주문번호 정도만 넣고, 카드번호·계좌·주민번호는 넣지 마세요.</p>
+    <button class="btn pri" id="cMk">✨ 포도야, 써줘 <span style="font-weight:700;font-size:12px;opacity:.85">· 0.1크레딧</span></button>
+  </div>
+  <div class="card" id="cBox" hidden>
+    <p class="h">미리보기</p>
+    <div class="tones" id="cTones" style="margin-top:0">
+      <button type="button" data-t="polite" class="on">정중하게</button>
+      <button type="button" data-t="firm">단호하게</button>
+      <button type="button" data-t="fact">감정 빼고 사실만</button>
+    </div>
+    <div class="msg" id="cMsg"></div>
+    <button class="btn pri" id="cGo">✍️ 편지지로 옮겨서 고치기 →</button>
+  </div>
+</section>
+
+<!-- ④ 민원 문구 -->
+<section class="pane" id="p3">
+  <div id="p3empty" class="note a"><b>아직 쓴 문구가 없어요</b>③ 환불 요청에서 먼저 만들어 주세요.<button class="btn wh" data-go="2">③ 환불 요청으로</button></div>
+  <div id="p3body" hidden>
+    <div class="card">
+      <div class="f" style="grid-template-columns:52px 1fr;margin-top:0"><label for="lTitle">제목</label><input id="lTitle" maxlength="60"></div>
+      <textarea class="paper" id="letter" maxlength="1500" style="margin-top:10px"></textarea>
+    </div>
+    <div class="card">
+      <p class="h">✅ 보내기 전 체크</p>
+      <div class="ck" id="k1"><i>✓</i>욕설·협박 없음</div>
+      <div class="ck" id="k2"><i>✓</i>사실만 썼어요<button type="button" data-k="factual">바꾸기</button></div>
+      <div class="ck" id="k3"><i>✓</i>요청이 분명해요 (환불·교환·수수료 조정)<button type="button" data-k="clear">바꾸기</button></div>
+      <div class="ck" id="k4"><i>✓</i>증거 사진 첨부할게요 (영수증·배송 조회 등)<button type="button" data-k="photo">바꾸기</button></div>
+    </div>
+    <div class="g3" style="margin-top:10px">
+      <button class="btn pri" id="lSend">보내기</button>
+      <button class="btn wh" id="lRe">다시 쓰기 <span class="sm mu">0.1</span></button>
+      <button class="btn wh" id="lRev">사람에게 검토</button>
+    </div>
+    <div class="note v" id="sentBox" hidden><b>보냈어요 · 답변을 기다려요</b>답변이 오면 결과를 알려 주세요.
+      <div class="g3" style="margin-top:8px"><button class="btn ok" id="rOk">💰 받았어요</button><button class="btn wh" id="rNo">거절됐어요</button><button class="btn wh" id="rWait">아직이요</button></div>
+    </div>
+    <div class="note r" id="rejBox" hidden><b>상대가 거절했어요</b>이 건은 여기서 멈춰요. 같은 글을 여러 번 보내지 않아요. 필요하면 소비자원 같은 공식 창구를 알아보세요.</div>
+  </div>
+</section>
+
+<!-- ⑤ 결과 + 자랑 -->
+<section class="pane" id="p4">
+  <div class="res" id="resCard">
+    <small>COVERFO · 결과</small>
+    <h2 id="rTtl">아직 결과가 없어요</h2>
+    <p id="rSub">기다리기나 환불을 마치면 여기에 모여요.</p>
+  </div>
+  <div class="tot"><span style="font-size:12px;font-weight:800;opacity:.8">지금까지 포도야가</span><b id="tTx">시간 0분 + 돈 0원 아꼈어요</b></div>
+  <div class="g2" style="margin-top:10px">
+    <button class="btn pri" id="bragBtn">✨ 자랑 카드 만들기</button>
+    <button class="btn wh" id="bragCopy">📋 자랑 문구 복사</button>
+  </div>
+  <p class="h" style="margin:14px 2px 0">최근 기록</p>
+  <div id="hist"></div>
+</section>
+
+<!-- 안전 규칙 -->
+<section style="margin-top:22px">
+  <p class="h" style="font-size:16px">🛡 안전 규칙 · 포도야의 약속</p>
+  <div class="rules">
+    <div><b>✦ AI라고 밝히기</b>문구 처음에 AI 비서임을 밝혀요.</div>
+    <div><b>🛡 욕설·협박 금지</b>화나는 말 대신 사실과 요청만 써요.</div>
+    <div><b>👤 확정 전 유저 확인</b>결제·환불 확정 전, 보내기 전에 꼭 내가 확인해요.</div>
+    <div><b>⏸ 상대 거절 시 중단</b>거절하면 더 밀어붙이지 않아요.</div>
+    <div style="grid-column:1/-1"><b>📄 개인정보 최소</b>필요한 정보만 짧게 써요. 카드·계좌·주민번호는 넣을 수도, 보낼 수도 없어요.</div>
+  </div>
+  <p class="mu sm" style="margin:10px 2px 0;line-height:1.6">대기 숫자는 내가 알려 준 값으로 계산한 예상이에요. 문구는 내 메일·문자·고객센터 창에서 내가 직접 보내요. 기록은 이 기기에만 저장돼요.</p>
+</section>
+</main>
+
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"><div class="in" id="sheetIn"></div></div>
+<div class="toast" id="toast" aria-live="polite"></div>
+
+<script>
+(function(){
+"use strict";
+var LS="cf-wait-v1";
+var $=function(id){ return document.getElementById(id); };
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];}); }
+function load(){ try{ return JSON.parse(localStorage.getItem(LS)||"{}")||{}; }catch(e){ return {}; } }
+var st=load(); st.hist=Array.isArray(st.hist)?st.hist:[];
+function save(){ try{ localStorage.setItem(LS,JSON.stringify(st)); }catch(e){} }
+var tt; function toast(t){ var e=$("toast"); e.textContent=t; e.classList.add("on"); clearTimeout(tt); tt=setTimeout(function(){ e.classList.remove("on"); },3200); }
+function won(n){ return (Number(n)||0).toLocaleString("ko-KR")+"원"; }
+function mins(m){ m=Math.max(0,Math.round(m)); return m>=60?Math.floor(m/60)+"시간"+(m%60?" "+(m%60)+"분":""):m+"분"; }
+function pad(n){ return (n<10?"0":"")+n; }
+function hm(t){ var d=new Date(t); return pad(d.getHours())+":"+pad(d.getMinutes()); }
+function digits(v){ return String(v||"").replace(/[^\d]/g,""); }
+var BAD=/(씨발|시발|ㅅㅂ|병신|ㅂㅅ|개새|좆|존나|미친놈|미친년|꺼져|죽여|죽어|고소할|가만 안|박살)/;
+function sensitive(v){ var s=String(v||""); if(/\d{6}\s*-\s*[1-4]\d{6}/.test(s)) return true; var m=s.replace(/[\s-]/g," ").match(/(?:\d[ ]?){13,19}/g)||[]; return m.some(function(x){ return x.replace(/\D/g,"").length>=13; }); }
+
+/* ── 단계 ── */
+function go(n){
+  [].forEach.call(document.querySelectorAll(".pane"),function(p,i){ p.classList.toggle("on",i===n); });
+  [].forEach.call(document.querySelectorAll("#steps button"),function(b,i){ b.classList.toggle("on",i===n); });
+  try{ window.scrollTo({top:0,behavior:"smooth"}); }catch(e){ window.scrollTo(0,0); }
+  if(n===1) drawLive(); if(n===3) drawLetter(); if(n===4) drawRes();
+}
+$("steps").addEventListener("click",function(e){ var b=e.target.closest("button[data-s]"); if(b) go(+b.getAttribute("data-s")); });
+document.addEventListener("click",function(e){ var b=e.target.closest("[data-go]"); if(b){ e.preventDefault(); go(+b.getAttribute("data-go")); } });
+$("close").onclick=function(){
+  try{ if(window.parent!==window && window.parent.cfPageClose){ window.parent.cfPageClose(); return; } }catch(e){}
+  try{ if(window.opener){ window.close(); } }catch(e){}
+  setTimeout(function(){ if(history.length>1) history.back(); else location.href="/"; },150);
+};
+
+/* ════════ ① 줄 서기 비서 ════════ */
+var TY={ food:{n:"맛집 웨이팅",per:3,unit:"팀"}, clinic:{n:"병원 접수 대기",per:5,unit:"명"}, office:{n:"관공서·은행 번호표",per:4,unit:"명"}, phone:{n:"전화 대기",per:2,unit:"분"} };
+var F=st.form||{ t:"food", ahead:12, warn:5, per:3 };
+function drawForm(){
+  [].forEach.call(document.querySelectorAll("#types .ty"),function(b){ b.classList.toggle("on",b.getAttribute("data-t")===F.t); });
+  var ph=F.t==="phone"; $("phoneNote").hidden=!ph; $("wForm").hidden=ph;
+  var num=F.t==="office"; $("numQ").hidden=!num; $("cntQ").hidden=num;
+  var u=TY[F.t].unit;
+  $("aheadL").textContent="지금 내 앞 몇 "+u+"?";
+  $("ahead").textContent=F.ahead+u; $("warn").textContent=F.warn+u; $("per").textContent=F.per+"분";
+  $("wPlace").value=F.place||"";
+}
+$("types").onclick=function(e){ var b=e.target.closest(".ty"); if(!b) return; F.t=b.getAttribute("data-t"); if(TY[F.t]) F.per=TY[F.t].per; st.form=F; save(); drawForm(); };
+$("wEx").onclick=function(e){ var b=e.target.closest("button"); if(!b) return; $("wPlace").value=b.textContent; };
+$("wForm").addEventListener("click",function(e){
+  var b=e.target.closest("button[data-d]"); if(!b) return;
+  var p=b.getAttribute("data-d").split(":"), k=p[0], d=+p[1];
+  if(k==="ahead") F.ahead=Math.max(1,Math.min(300,F.ahead+d));
+  if(k==="warn") F.warn=Math.max(1,Math.min(50,F.warn+d));
+  if(k==="per") F.per=Math.max(1,Math.min(60,F.per+d));
+  st.form=F; save(); drawForm();
+});
+$("wGo").onclick=function(){
+  var place=$("wPlace").value.trim();
+  if(!place){ toast("어디서 기다리는지 적어 주세요"); $("wPlace").focus(); return; }
+  var ahead=F.ahead;
+  if(F.t==="office"){
+    var my=+digits($("myNo").value), now=+digits($("nowNo").value);
+    if(!my||!now||my<=now){ toast("내 번호표와 지금 부르는 번호를 넣어 주세요"); return; }
+    ahead=my-now; F.my=my;
+  }
+  F.place=place; st.form=F;
+  var t=Date.now();
+  st.wait={ t:F.t, place:place, start:t, startN:ahead, n:ahead, nAt:t, warn:F.warn, per:F.per, my:F.my||0, warned:false, log:[{at:t,tx:"포도야가 기다리기 시작 · "+ahead+TY[F.t].unit+" 남음"}] };
+  save(); startTick(); go(1);
+  toast("포도야가 대신 기다릴게요");
+};
+
+/* ════════ ② 대기 중 ════════ */
+/* 예상 남은 수 = 마지막으로 알려 준 수 − (그 뒤 지난 시간 ÷ 한 팀 시간) */
+function estN(w){ var gone=(Date.now()-w.nAt)/60000/w.per; return Math.max(0,Math.round(w.n-Math.floor(gone))); }
+function etaMin(w){ var n=estN(w); var into=((Date.now()-w.nAt)/60000)%w.per; return Math.max(0,n*w.per-(n>0?into:0)); }
+function drawLive(){
+  var w=st.wait; $("p1empty").hidden=!!w; $("p1body").hidden=!w;
+  $("bdN").hidden=!w; $("liveChip").hidden=!w;
+  if(!w) return;
+  var u=TY[w.t].unit, n=estN(w), eta=etaMin(w);
+  $("bdN").textContent=n; $("liveChip").textContent="대기 중 · "+n+u;
+  $("lvKind").textContent=TY[w.t].n+" 중… · "+hm(w.start)+" 시작";
+  $("lvPlace").textContent=w.place;
+  $("lvN").innerHTML=n+"<i>"+u+" 남음"+(n!==w.n?" (예상)":"")+"</i>";
+  $("lvEta").textContent=n>0?"예상 "+mins(eta)+" 남았어요 · "+hm(Date.now()+eta*60000)+"쯤":"이제 곧 내 차례예요!";
+  $("lvPg").style.width=Math.min(100,Math.round((1-n/Math.max(1,w.startN))*100))+"%";
+  $("lvSub").textContent=w.warn+u+" 남으면 알려 줄게요 · 한 "+(u==="팀"?"팀":"명")+"에 약 "+w.per+"분으로 계산 중";
+  $("lvSay").innerHTML=n<=w.warn?"<b>"+n+u+" 남았어요! 지금 가면 딱이에요.</b> 🏃":eta>=15?n+u+" 남았어. 근처 카페에서 기다려도 돼. "+w.warn+u+" 되면 바로 알려줄게 ☕":n+u+" 남았어. 멀리 가지 말고 근처에 있어 줘. "+w.warn+u+" 되면 알려줄게.";
+  $("pushTx").textContent=w.warn+u+" 남았어요! 지금 가면 딱이에요 · "+w.place;
+  $("mNear").onclick=function(){ window.open("https://map.kakao.com/link/search/"+encodeURIComponent((w.place.split(" ")[0]||"")+" 카페"),"_blank","noopener"); };
+  $("tl").innerHTML=w.log.slice().reverse().map(function(l){ return '<li><time>'+hm(l.at)+'</time>'+esc(l.tx)+'</li>'; }).join("");
+  $("ntBtn").textContent=("Notification" in window)&&Notification.permission==="granted"?"🔔 알림 켜짐 ✓":"🔔 이 기기 알림 켜기";
+}
+function addLog(tx){ st.wait.log.push({at:Date.now(),tx:tx}); st.wait.log=st.wait.log.slice(-30); save(); }
+/* 숫자를 고쳐 줄 때마다 실제 속도로 한 팀 시간을 다시 맞춘다 */
+function report(n){
+  var w=st.wait; if(!w) return; n=Math.max(0,Math.min(300,n));
+  var el=(Date.now()-w.start)/60000, done=w.startN-n;
+  if(done>0&&el>=1) w.per=Math.max(1,Math.min(60,Math.round(el/done*10)/10));
+  w.n=n; w.nAt=Date.now(); if(n>w.warn) w.warned=false;
+  addLog("지금 "+n+TY[w.t].unit+" 남음 (내가 알려 줌) · 한 "+(TY[w.t].unit==="팀"?"팀":"명")+" 약 "+w.per+"분");
+  drawLive(); check();
+}
+$("m1").onclick=function(){ var w=st.wait; if(w) report(estN(w)-1); };
+$("mSet").onclick=function(){
+  var w=st.wait; if(!w) return;
+  var u=TY[w.t].unit;
+  sheet("지금 몇 "+u+" 남았어요?",'<div class="f" style="grid-template-columns:1fr"><input id="shN" inputmode="numeric" maxlength="4" placeholder="'+(w.t==="office"?"지금 부르는 번호":"남은 "+u+" 수")+'"></div>',"고치기",function(){
+    var v=+digits($("shN").value); if(!v&&v!==0) return;
+    report(w.t==="office"&&w.my?w.my-v:v);
+  });
+  setTimeout(function(){ try{ $("shN").focus(); }catch(e){} },100);
+};
+$("ntBtn").onclick=function(){
+  if(!("Notification" in window)){ toast("이 기기는 알림을 지원하지 않아요 — 캘린더 알림을 받아 두세요"); return; }
+  Notification.requestPermission().then(function(p){ drawLive(); toast(p==="granted"?"알림을 켰어요":"알림이 꺼져 있어요 — 캘린더 알림을 받아 두세요"); });
+};
+$("icsBtn").onclick=function(){
+  var w=st.wait; if(!w) return;
+  var n=estN(w), toWarn=Math.max(0,(n-w.warn))*w.per, at=new Date(Date.now()+Math.max(1,toWarn)*60000);
+  function f(d){ return d.getUTCFullYear()+pad(d.getUTCMonth()+1)+pad(d.getUTCDate())+"T"+pad(d.getUTCHours())+pad(d.getUTCMinutes())+"00Z"; }
+  var u=TY[w.t].unit, nm=w.place.replace(/[\\;,]/g," ");
+  var ics=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//coverfo//wait//KO","BEGIN:VEVENT","UID:wait-"+w.start+"@coverfo.com","DTSTAMP:"+f(new Date()),"DTSTART:"+f(at),"DTEND:"+f(new Date(at.getTime()+15*60000)),
+    "SUMMARY:⏳ "+nm+" · "+w.warn+u+" 남을 시간","DESCRIPTION:coverfo 포도야 예상 알림 (실제 순서는 웨이팅 앱·번호표로 확인)",
+    "BEGIN:VALARM","TRIGGER:PT0M","ACTION:DISPLAY","DESCRIPTION:"+nm+" "+w.warn+u+" 남을 시간이에요","END:VALARM","END:VEVENT","END:VCALENDAR"].join("\r\n");
+  var a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([ics],{type:"text/calendar"})); a.download="coverfo-대기알림.ics";
+  document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },1000);
+  addLog("캘린더 알림 받음 · "+hm(at.getTime())+" 예정");
+  toast(hm(at.getTime())+" 알림 파일을 받았어요 — 열면 캘린더에 들어가요");
+};
+function beep(){ try{ var C=window.AudioContext||window.webkitAudioContext; if(!C) return; var c=new C(), o=c.createOscillator(), g=c.createGain(); o.frequency.value=880; o.connect(g); g.connect(c.destination); g.gain.value=.15; o.start(); setTimeout(function(){ o.stop(); c.close(); },500); }catch(e){} }
+function check(){
+  var w=st.wait; if(!w||w.warned) return;
+  var n=estN(w); if(n>w.warn) return;
+  w.warned=true; addLog(n+TY[w.t].unit+" 남음 — 알림 보냄"); save();
+  var msg=n+TY[w.t].unit+" 남았어요! 지금 가면 딱이에요 · "+w.place;
+  try{ if(navigator.vibrate) navigator.vibrate([300,150,300]); }catch(e){}
+  beep(); toast("🔔 "+msg);
+  try{ if(("Notification" in window)&&Notification.permission==="granted"){ var p=navigator.serviceWorker&&navigator.serviceWorker.ready; if(p) p.then(function(r){ r.showNotification("coverfo · 포도야",{body:msg,tag:"cf-wait"}); }).catch(function(){ new Notification("coverfo · 포도야",{body:msg}); }); else new Notification("coverfo · 포도야",{body:msg}); } }catch(e){}
+}
+var tick=null;
+function startTick(){ clearInterval(tick); tick=setInterval(function(){ if(!st.wait){ clearInterval(tick); return; } if($("p1").classList.contains("on")) drawLive(); else { var n=estN(st.wait); $("bdN").textContent=n; } check(); },15000); }
+function endWait(how){
+  var w=st.wait; if(!w) return;
+  var m=Math.round((Date.now()-w.start)/60000);
+  st.hist.unshift({ k:"wait", how:how, title:w.place, t:w.t, mins:how==="ok"?m:0, at:Date.now() });
+  st.hist=st.hist.slice(0,40); st.last={ k:"wait", how:how, title:w.place, mins:m };
+  st.wait=null; save(); clearInterval(tick); $("bdN").hidden=true; $("liveChip").hidden=true;
+  if(how==="ok") go(4); else { toast("기다리기를 멈췄어요"); go(0); }
+}
+$("wDone").onclick=function(){ endWait("ok"); };
+$("wStop").onclick=function(){ sheet("그만 기다릴까요?","포도야가 기다리기를 멈춰요. (웨이팅 앱의 줄은 직접 취소해 주세요)","그만 기다리기",function(){ endWait("stop"); }); };
+
+/* ════════ ③ 환불 요청 ════════ */
+var C=st.claim||{ kind:"delivery", want:"환불", tone:"polite" };
+function keepC(){ st.claim=C; save(); }
+var EX={delivery:"11월 20일 주문, 23일 도착 예정이었는데 26일에 도착했어요. 배송비 3,000원 환불 원해요",flight:"항공권을 출발 30일 전에 취소했는데 수수료가 너무 많이 나왔어요. 약관 확인과 수수료 조정을 원해요",shop:"",other:""};
+function fillC(){
+  [].forEach.call(document.querySelectorAll("#cKinds button"),function(b){ b.classList.toggle("on",b.getAttribute("data-k")===C.kind); });
+  [].forEach.call(document.querySelectorAll("#cWant button"),function(b){ b.classList.toggle("on",b.textContent===C.want); });
+  $("cFacts").value=C.facts||""; $("cTarget").value=C.target||""; $("cAmt").value=C.amount||""; $("cMe").value=C.me||"";
+  drawDraft();
+}
+$("cKinds").onclick=function(e){ var b=e.target.closest("button[data-k]"); if(!b) return; C.kind=b.getAttribute("data-k"); if(!$("cFacts").value.trim()&&EX[C.kind]) $("cFacts").value=EX[C.kind]; keepC(); fillC(); };
+$("cWant").onclick=function(e){ var b=e.target.closest("button"); if(!b) return; C.want=b.textContent; keepC(); fillC(); };
+function drawDraft(){
+  var d=C.drafts; $("cBox").hidden=!d; if(!d) return;
+  $("cMsg").textContent=d[C.tone]||d.polite;
+  [].forEach.call(document.querySelectorAll("#cTones button"),function(b){ b.classList.toggle("on",b.getAttribute("data-t")===C.tone); });
+}
+$("cTones").onclick=function(e){ var b=e.target.closest("button[data-t]"); if(!b) return; C.tone=b.getAttribute("data-t"); keepC(); drawDraft(); };
+function token(){
+  try{ var P=window.parent, c=P&&P!==window&&P.__cfSbClient; if(c&&c.auth&&c.auth.getSession) return c.auth.getSession().then(function(r){ var s=r&&r.data&&r.data.session; return s?s.access_token:null; }); }catch(e){}
+  try{ for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf("sb-")===0&&k.indexOf("-auth-token")>0){ var v=JSON.parse(localStorage.getItem(k)||"null"); var t=v&&(v.access_token||(v.currentSession&&v.currentSession.access_token)); if(t) return Promise.resolve(t); } } }catch(e){}
+  return Promise.resolve(null);
+}
+function api(body){
+  return token().then(function(t){
+    if(!t) throw new Error("로그인이 필요해요. coverfo 에 로그인한 뒤 다시 눌러 주세요");
+    return fetch("/api/claim",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+t},body:JSON.stringify(body)})
+      .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ if(!r.ok||!j.ok) throw new Error(j.error||("오류 "+r.status)); return j; }); });
+  });
+}
+function busy(btn,on,label){ if(on){ btn.dataset.l=btn.innerHTML; btn.disabled=true; btn.innerHTML='<span class="spin"></span> '+label; } else { btn.disabled=false; if(btn.dataset.l) btn.innerHTML=btn.dataset.l; } }
+$("cMk").onclick=function(){
+  var f=$("cFacts").value.trim();
+  if(!f){ toast("무슨 일이 있었는지 적어 주세요"); $("cFacts").focus(); return; }
+  if(sensitive(f)||sensitive($("cMe").value)){ toast("카드·계좌·주민번호는 넣을 수 없어요"); return; }
+  C.facts=f; C.target=$("cTarget").value.trim(); C.amount=digits($("cAmt").value); C.me=$("cMe").value.trim(); keepC();
+  var btn=this; busy(btn,true,"쓰는 중…");
+  api({op:"draft",kind:C.kind,facts:C.facts,want:C.want,target:C.target,amount:C.amount,me:C.me}).then(function(j){
+    busy(btn,false); C.drafts=j.drafts; C.title=j.title||""; C.check=j.check||{}; C.letter=""; C.sent=0; C.out=null; C.photo=false; keepC(); drawDraft();
+    $("cBox").scrollIntoView({block:"center",behavior:"smooth"});
+  }).catch(function(e){ busy(btn,false); toast(String(e.message||e).slice(0,80)); });
+};
+$("cGo").onclick=function(){ if(!C.drafts) return; C.letter=C.drafts[C.tone]||C.drafts.polite; keepC(); go(3); };
+
+/* ════════ ④ 민원 문구 ════════ */
+function drawLetter(){
+  var has=!!(C.letter||C.drafts); $("p3empty").hidden=has; $("p3body").hidden=!has; if(!has) return;
+  if(!C.letter) C.letter=C.drafts[C.tone]||C.drafts.polite;
+  if(document.activeElement!==$("letter")) $("letter").value=C.letter;
+  $("lTitle").value=C.title||((C.want||"환불")+" 요청드립니다");
+  drawCheck();
+  $("sentBox").hidden=!C.sent||!!C.out; $("rejBox").hidden=!(C.out&&C.out.how==="no");
+  $("lSend").disabled=!!(C.out&&C.out.how==="no");
+}
+function drawCheck(){
+  var k=C.check||{}, clean=!BAD.test($("letter").value)&&k.clean!==false;
+  setCk("k1",clean); setCk("k2",k.factual!==false); setCk("k3",k.clear!==false); setCk("k4",!!C.photo,true);
+}
+function setCk(id,ok,soft){ var e=$(id); e.classList.toggle("ok",ok); e.classList.toggle("no",!ok&&!soft); e.querySelector("i").textContent=ok?"✓":soft?"–":"!"; }
+$("letter").addEventListener("input",function(){ C.letter=this.value; keepC(); drawCheck(); });
+$("lTitle").addEventListener("input",function(){ C.title=this.value; keepC(); });
+$("p3").addEventListener("click",function(e){
+  var b=e.target.closest(".ck button[data-k]"); if(!b) return;
+  var k=b.getAttribute("data-k"); C.check=C.check||{};
+  if(k==="photo") C.photo=!C.photo; else C.check[k]=C.check[k]===false;
+  keepC(); drawCheck();
+});
+$("lRe").onclick=function(){
+  var txt=$("letter").value.trim(); if(!txt) return;
+  if(sensitive(txt)){ toast("카드·계좌·주민번호가 들어 있어요. 지워 주세요"); return; }
+  var btn=this; busy(btn,true,"다듬는 중");
+  api({op:"polish",kind:C.kind,text:txt}).then(function(j){ busy(btn,false); C.letter=j.text; C.check=j.check||C.check; keepC(); $("letter").value=C.letter; drawCheck(); toast("포도야가 다듬었어요"); })
+    .catch(function(e){ busy(btn,false); toast(String(e.message||e).slice(0,80)); });
+};
+function copy(t){ try{ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t); return true; } }catch(e){} try{ var a=document.createElement("textarea"); a.value=t; document.body.appendChild(a); a.select(); document.execCommand("copy"); a.remove(); return true; }catch(e){ return false; } }
+$("lRev").onclick=function(){
+  var t="[검토 부탁해요] 고객센터에 보낼 글이에요. 괜찮은지 봐 줄래?\n\n"+$("lTitle").value+"\n\n"+$("letter").value;
+  if(navigator.share){ navigator.share({title:"민원 글 검토 부탁",text:t}).catch(function(){}); return; }
+  copy(t); toast("복사했어요 — 친구·가족에게 붙여 넣어 검토받으세요");
+};
+$("lSend").onclick=function(){
+  var txt=$("letter").value.trim(), title=$("lTitle").value.trim();
+  if(!txt) return;
+  if(BAD.test(txt)){ toast("거친 말이 있어요. 지우거나 [다시 쓰기]를 눌러 주세요"); drawCheck(); return; }
+  if(sensitive(txt)){ toast("카드·계좌·주민번호가 들어 있어요. 지워 주세요"); return; }
+  var mail="mailto:?subject="+encodeURIComponent(title)+"&body="+encodeURIComponent(txt), sms="sms:?&body="+encodeURIComponent(txt);
+  sheet("이대로 보낼까요?","보내기 전에 마지막으로 확인해요. <b>환불·결제 확정은 상대 답변을 보고 내가 직접</b> 해요."+(C.photo?"":"<br>증거 사진이 있으면 메일에 직접 첨부해 주세요."),"",null,
+    '<div class="g3" style="margin-top:12px"><a class="btn pri" style="margin:0" target="_top" href="'+mail+'" id="sMail">✉️ 메일</a><a class="btn wh" style="margin:0" target="_top" href="'+sms+'" id="sSms">📱 문자</a><button class="btn wh" style="margin:0" id="sCopy">📋 복사</button></div><p class="mu sm" style="margin:8px 0 0">고객센터 1:1 문의 창이면 [복사]해서 붙여 넣어 주세요.</p>');
+  function sent(){ C.sent=Date.now(); keepC(); setTimeout(function(){ $("sheet").classList.remove("on"); drawLetter(); },400); }
+  $("sMail").addEventListener("click",sent); $("sSms").addEventListener("click",sent);
+  $("sCopy").onclick=function(){ copy(title+"\n\n"+txt); toast("복사했어요 — 고객센터 창에 붙여 넣어 주세요"); sent(); };
+};
+$("rOk").onclick=function(){
+  sheet("얼마 받았어요?",'<div class="f" style="grid-template-columns:1fr"><input id="shA" inputmode="numeric" maxlength="12" placeholder="예) 3000 (돈이 아니면 비워 두세요)" value="'+esc(C.amount||"")+'"></div>',"기록하기",function(){
+    var a=+digits($("shA").value)||0; endClaim("ok",a);
+  });
+};
+$("rNo").onclick=function(){ endClaim("no",0); };
+$("rWait").onclick=function(){ toast("답변이 오면 다시 눌러 주세요"); };
+function endClaim(how,amt){
+  C.out={ how:how, amt:amt, at:Date.now() }; keepC();
+  var title=(C.target?C.target+" · ":"")+({delivery:"배송 지연 환불",flight:"항공권 수수료",shop:"가게 컴플레인",other:"민원"}[C.kind]||"민원");
+  st.hist.unshift({ k:"claim", how:how, title:title, amt:amt, at:Date.now() }); st.hist=st.hist.slice(0,40);
+  st.last={ k:"claim", how:how, title:title, amt:amt, want:C.want }; save();
+  if(how==="ok") go(4); else drawLetter();
+}
+
+/* ════════ ⑤ 결과 + 자랑 ════════ */
+function totals(){ var m=0,a=0; st.hist.forEach(function(h){ if(h.how==="ok"){ m+=h.mins||0; a+=h.amt||0; } }); return {m:m,a:a}; }
+function drawRes(){
+  var L=st.last, T=totals();
+  if(L&&L.how==="ok"){
+    if(L.k==="claim"){ $("rTtl").innerHTML=L.amt?esc(won(L.amt))+" "+(L.want==="환불"?"환불":"")+" 받았어요! 🎉":"요청이 받아들여졌어요! 🎉"; $("rSub").textContent=L.title+" · 포도야가 정중하게 대신 요청했어요"; }
+    else { $("rTtl").innerHTML="대기 "+esc(mins(L.mins))+" 아꼈어요! ⏳"; $("rSub").textContent=L.title+" · 포도야가 대신 기다렸어요"; }
+  }
+  $("tTx").textContent="시간 "+mins(T.m)+" + 돈 "+won(T.a)+" 아꼈어요";
+  $("hist").innerHTML=st.hist.length?st.hist.slice(0,12).map(function(h){
+    var tag=h.how==="ok"?["성공","#E9FFF4","#177A52"]:h.how==="no"?["거절","#FFE9E9","#C73A4A"]:["멈춤","#F1F5F9","#475569"];
+    var sub=h.k==="wait"?(h.mins?"대기 "+mins(h.mins):"기다리기 멈춤"):(h.amt?won(h.amt)+" 받음":"환불·민원");
+    return '<div class="hi"><span style="font-size:22px">'+(h.k==="wait"?"⏳":"🧾")+'</span><div class="t"><b>'+esc(h.title)+'</b><span>'+esc(sub)+' · '+new Date(h.at).toLocaleDateString("ko-KR")+'</span></div><span class="tag" style="background:'+tag[1]+';color:'+tag[2]+'">'+tag[0]+'</span></div>';
+  }).join(""):'<p class="mu sm" style="margin:8px 2px">아직 기록이 없어요.</p>';
+}
+function bragText(){ var L=st.last||{}, T=totals(); return (L.k==="claim"&&L.how==="ok"?"포도야가 대신 싸워줘서 "+(L.amt?won(L.amt)+" ":"")+"환불 받았어! 🎉 ":L.k==="wait"&&L.how==="ok"?"포도야가 대신 기다려줘서 "+mins(L.mins)+" 편하게 있었어 ⏳ ":"")+"지금까지 시간 "+mins(T.m)+" + 돈 "+won(T.a)+" 아꼈어 · coverfo"; }
+$("bragCopy").onclick=function(){ var t=bragText(); if(navigator.share){ navigator.share({title:"coverfo 자랑",text:t}).catch(function(){}); return; } copy(t); toast("자랑 문구를 복사했어요"); };
+$("bragBtn").onclick=function(){
+  var L=st.last||{}, T=totals(), c=document.createElement("canvas"), W=1080, H=1080; c.width=W; c.height=H;
+  var x=c.getContext("2d"), g=x.createLinearGradient(0,0,W,H); g.addColorStop(0,"#6C4DFF"); g.addColorStop(.55,"#3B82F6"); g.addColorStop(1,"#FF6FAE");
+  x.fillStyle=g; x.fillRect(0,0,W,H); x.fillStyle="rgba(255,255,255,.85)"; x.font="800 40px sans-serif"; x.fillText("COVERFO · 포도야",90,170);
+  x.fillStyle="#fff"; x.font="900 84px sans-serif";
+  var l1=L.k==="claim"&&L.how==="ok"?"포도야가 대신 싸워줘서":L.k==="wait"&&L.how==="ok"?"포도야가 대신 기다려줘서":"포도야 덕분에";
+  var l2=L.k==="claim"&&L.how==="ok"?(L.amt?won(L.amt)+" 환불 받았어!":"요청 성공!"):L.k==="wait"&&L.how==="ok"?mins(L.mins)+" 편했어!":"시간·돈 아꼈어!";
+  x.font="800 64px sans-serif"; x.fillText(l1,90,380); x.font="900 96px sans-serif"; x.fillText(l2,90,500);
+  x.font="700 44px sans-serif"; x.fillText("지금까지 시간 "+mins(T.m),90,720); x.fillText("+ 돈 "+won(T.a)+" 아꼈어요",90,790);
+  x.font="600 38px sans-serif"; x.fillText("🍇 coverfo AI 대기 + 환불 대행",90,H-140);
+  c.toBlob(function(bl){ if(!bl) return; var a=document.createElement("a"); a.href=URL.createObjectURL(bl); a.download="coverfo-자랑.png"; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },1000); toast("자랑 카드를 저장했어요"); },"image/png");
+};
+
+/* ── 확인 창 ── */
+function sheet(title,html,okLabel,fn,extra){
+  $("sheetIn").innerHTML='<b style="font-size:16px">'+esc(title)+'</b><div class="mu" style="font-size:13px;line-height:1.7;margin:8px 0 0">'+html+'</div>'+(extra||"")+
+    (okLabel?'<div class="g2" style="margin-top:12px"><button class="btn wh" id="shNo" style="margin:0">취소</button><button class="btn pri" id="shOk" style="margin:0">'+esc(okLabel)+'</button></div>':'<button class="btn wh" id="shNo">닫기</button>');
+  $("sheet").classList.add("on");
+  $("shNo").onclick=function(){ $("sheet").classList.remove("on"); };
+  if(okLabel) $("shOk").onclick=function(){ $("sheet").classList.remove("on"); fn(); };
+}
+$("sheet").onclick=function(e){ if(e.target===this) this.classList.remove("on"); };
+
+drawForm(); fillC();
+if(st.wait){ startTick(); check(); drawLive(); }
+document.addEventListener("visibilitychange",function(){ if(!document.hidden&&st.wait){ drawLive(); check(); } });
+})();
+</script>
+</body>
+</html>
