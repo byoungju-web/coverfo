@@ -145,6 +145,16 @@ body.pk{--bg:#F7F4FF;--ink:#17132B;--sub:#6B658A;--line:#E5DEF9;--pri:#7B61FF;--
 .pk .cta p{color:#3d3565}
 .pk .b.pri{background:linear-gradient(135deg,#7B61FF,#5E8BFF);border:0}
 </style>
+<style>
+/* v485 🖼 결과 카드 버튼 — 투표 결과 아래 · 기존 '나도 만들기' 버튼 위 (기존 버튼은 그대로) */
+.cardb{display:flex;align-items:center;gap:12px;width:100%;margin:16px 0 4px;padding:16px;border:0;border-radius:20px;background:linear-gradient(135deg,#7C4DFF 0%,#B04FE0 55%,#F0509A 100%);color:#fff;text-align:left;font:inherit;cursor:pointer;box-shadow:0 14px 28px -18px rgba(124,77,255,.9)}
+.cardb .ci{flex:0 0 46px;height:46px;border-radius:14px;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:24px}
+.cardb .ct{flex:1;min-width:0}
+.cardb b{display:block;font-size:17px;font-weight:900;letter-spacing:-.02em}
+.cardb small{display:block;font-size:12.5px;opacity:.92;margin-top:2px}
+.cardb .ar{flex:none;font-size:20px;font-weight:900}
+</style>
+<script src="/card/card.js?v=485" defer></script>
 </head>
 <body>
 <div class="wrap">
@@ -198,6 +208,8 @@ body.pk{--bg:#F7F4FF;--ink:#17132B;--sub:#6B658A;--line:#E5DEF9;--pri:#7B61FF;--
       h+='<div class="nk"><label for="nick">닉네임만 입력하면 돼요</label></div><input class="nkin" id="nick" maxlength="12" placeholder="예) 홍대 맛집러" value="'+esc(store("cf_s_nick"))+'" autocomplete="off">'
         +'<button type="button" class="vote" id="pkgo">'+(T.mine.length?'투표 바꾸기':'투표하기')+'</button><div class="hint">'+(D.anon?'익명 투표라 누가 골랐는지는 보이지 않아요 · ':'')+'로그인 없이, 10초면 충분해요</div>';
     }
+    /* v485 🖼 결과 카드 (표가 하나라도 있거나 확정됐을 때) — 기존 버튼 위 */
+    if(tot>0||(F&&F.text)) h+='<button type="button" class="cardb" data-card="1"><span class="ci" aria-hidden="true">🖼</span><span class="ct"><b>이 결과 카드로 공유하기</b><small>이미지로 만들어서 카톡 / 인스타에 올려요</small></span><span class="ar" aria-hidden="true">›</span></button>';
     /* v475 딥링크: 나도 같이 정하기 만들기 → coverfo 홈 위에 결정 만들기 화면 */
     h+='<a href="/?go=decide" style="display:block;text-align:center;margin:18px 0 4px;font-size:14px;font-weight:800;color:#7C4DFF;text-decoration:none">🤝 나도 친구랑 같이 정하기 만들기 ›</a>';
     return h;
@@ -263,7 +275,17 @@ body.pk{--bg:#F7F4FF;--ink:#17132B;--sub:#6B658A;--line:#E5DEF9;--pri:#7B61FF;--
     if(ni){ if(nv) ni.value=nv; ni.addEventListener("change",function(){ store("cf_s_nick",nick()); }); if(keep){ ni.focus(); } }
   }
   function load(){ return api({op:"get",id:S.id,voter:voter}).then(function(j){ if(j&&j.ok){ T={tally:j.tally||{},people:j.people||0,mine:j.mine||[]}; if(j.share&&j.share.data){ D.final=j.share.data.final||null; } if(!busy) render(); } else if(j&&j.gone){ S=null; app.innerHTML='<div class="gone"><b style="font-size:18px">링크를 찾을 수 없어요</b><br>30일이 지나 지워졌거나 보낸 사람이 지웠어요.</div>'; } }).catch(function(){}); }
+  /* v485 🖼 결과 카드: 문장 1줄 + 같은 링크(coverfo.com/s/번호)를 크게 — /card/card.js */
+  function openCard(){
+    if(!window.cfCard){ msg("잠시 뒤 다시 눌러 주세요"); return; }
+    var items=D.items||[], tot=0, best=-1, bn=0, tie=false;
+    items.forEach(function(x,i){ var t=T.tally[String(i+1)], n=t?t.n:0; tot+=n; if(n>bn){ bn=n; best=i; tie=false; } else if(n===bn&&n>0) tie=true; });
+    var F=D.final, done=closed()||(F&&F.text), w=best>=0&&!tie?items[best]:null;
+    var line=w?(done?'우리 오늘 '+cfCard.ro(w.name)+' 결정했어!':'지금은 '+w.name+' 1위! 같이 골라 줘'):(F&&F.text?F.text:S.title+' 같이 정해요!');
+    cfCard.open({tag:'오늘의 결정',line:line,sub:'포도야가 정해줬어',foot:w?'🏆 '+w.name+' '+bn+'표 · '+(tot?Math.round(bn*100/tot):0)+'%':'',hint:done?'링크에서 결과를 볼 수 있어요':'링크를 누르면 바로 투표할 수 있어요',url:location.origin+'/s/'+S.id,photoPick:true,title:S.title,shareText:'🗳 '+S.title});
+  }
   app.addEventListener("click",function(e){
+    if(e.target.closest&&e.target.closest("[data-card]")){ e.preventDefault(); openCard(); return; }
     var pb=e.target.closest&&e.target.closest("[data-pk]");
     if(pb&&S.kind==="pick"){ e.preventDefault(); if(busy||closed()) return; var pk=pb.getAttribute("data-pk"), at=SEL.indexOf(pk); if(D.multi){ if(at>=0) SEL.splice(at,1); else SEL.push(pk); } else SEL=[pk]; render(); return; }
     if(e.target.closest&&e.target.closest("#pkgo")){ e.preventDefault(); if(!busy) pickSend(); return; }

@@ -163,6 +163,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 /* v484 글자 옆 작은 포도야 포도 (🍇 이모지 대신) */
 svg.pgi{display:inline-block;width:1.25em;height:1.25em;vertical-align:-.25em;margin-right:4px}
 </style>
+<script src="/card/card.js?v=485" defer></script>
 </head>
 <body>
 <div class="top">
@@ -480,7 +481,7 @@ svg.pgi{display:inline-block;width:1.25em;height:1.25em;vertical-align:-.25em;ma
       +'<div class="note">조용한 시간: 밤 10시 ~ 아침 7시에는 보내지 않아요.</div></div>';
     h+='<div class="card"><div class="lbl" style="font-size:16px;color:var(--ink)">알림 받는 곳</div><div id="pushBox"><div class="note">확인하는 중…</div></div>'
       +'<div class="sr"><span class="t"><b>💛 카톡으로도 받기</b><small>카톡 \'나에게 보내기\'로 · 아침 브리핑 화면에서 연결해요</small></span><a class="pill" style="background:var(--soft);color:var(--pri2)" href="/brief#kakao" target="_top">연결하기</a></div>'
-      +'<div class="sr"><span class="t"><b>'+grape("pgi")+'친구에게 포도야 알려주기</b><small>링크를 보내면 친구 폰에서 포도야가 바로 열려요</small></span><button type="button" class="pill" style="border:0;background:var(--soft);color:var(--pri2);font:inherit;font-weight:800" data-a="invite">보내기</button></div></div>';
+      +'<div class="sr"><span class="t"><b>'+grape("pgi")+'친구에게 포도야 알려주기</b><small>링크를 보내면 친구 폰에서 포도야가 바로 열려요</small></span><button type="button" class="pill" style="border:0;background:var(--soft);color:var(--pri2);font:inherit;font-weight:800" data-a="invite">카드로 보내기</button></div></div>';
     h+='<div class="card"><div class="lbl" style="font-size:16px;color:var(--ink)">포도야 성격</div>'+Object.keys(TONE).map(function(k){ return '<button type="button" class="tone" role="radio" aria-checked="'+(s.tone===k)+'" data-tone="'+k+'"><b>'+TONE[k].n+'</b><small>'+TONE[k].d+'</small></button>'; }).join("")
       +'<div class="note" style="background:var(--yel);color:#5c3b00;border-radius:14px;padding:10px 12px;font-weight:700">홈 인사와 알림 문구가 이 성격으로 바뀌어요</div></div>';
     return h;
@@ -560,6 +561,8 @@ svg.pgi{display:inline-block;width:1.25em;height:1.25em;vertical-align:-.25em;ma
     if(a==="del"){ var dd=dayById(b.getAttribute("data-id")); if(!dd||!window.confirm('"'+dd.title+'" 알림을 지울까요?')) return; api("/api/pdy",{op:"day_del",id:dd.id}).then(function(j){ if(!j.ok){ toast(j.error||"지우지 못했어요"); return; } D.days=D.days.filter(function(x){ return x.id!==dd.id; }); draw(); }); return; }
     if(a==="bookadd"){ var mine=(D.days||[]).map(function(d){ return d.title; }); var bk=(D.book||[]).filter(function(x){ return mine.indexOf(x.title)<0; })[+b.getAttribute("data-i")]; if(!bk) return; b.disabled=true; api("/api/pdy",{op:"day_add",title:bk.title,rel:"",kind:"yearly",md:bk.md,memo:""}).then(function(j){ if(!j.ok){ b.disabled=false; toast(j.error||"옮기지 못했어요"); return; } D.days.push(j.day); draw(); toast("✓ 포도야 알림으로 옮겼어요",true); }); return; }
     if(a==="wxhere"){ wxHere(b); return; }
+    /* v485 🖼 포도야알림 카드: 문장 1줄 + 링크(coverfo.com/pdy) 크게 */
+    if(a==="invite"&&window.cfCard){ cfCard.open({tag:"포도야알림",line:"기념일, 이제 포도야가 먼저 챙겨줘요",sub:"D-7 알림 · 아침 브리핑 · 선물 후보",hint:"링크를 누르면 포도야가 바로 열려요",url:"https://coverfo.com/pdy/",style:"color",photoPick:true,title:"포도야 알림 친구",shareText:"🍇 포도야 알림 친구"}); return; }
     if(a==="invite"){ var it="🍇 기념일·아침 브리핑을 챙겨 주는 포도야 알림 친구 👉 https://coverfo.com/pdy/"; if(navigator.share&&!window.CoverfoApp){ navigator.share({title:"포도야 알림 친구",text:it}).catch(function(){}); } else { try{ navigator.clipboard.writeText(it).then(function(){ toast("✓ 링크를 복사했어요. 카톡에 붙여넣기 하세요.",true); }); }catch(e){ window.prompt("아래 링크를 복사하세요",it); } } return; }
     if(a==="recgo"){ var rc=recPick(D.weather); pickInit(rc.q,rc.c); setTab("pick"); return; }
     if(a==="pcadd"){ pickGrab(); if(PICK.c.length<6) PICK.c.push({e:"⭐",n:""}); draw(); var ins=document.querySelectorAll("[data-pc]"); if(ins.length) ins[ins.length-1].focus(); return; }

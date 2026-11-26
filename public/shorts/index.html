@@ -17,6 +17,7 @@
 <script>/* v476 카톡·문자 등 밖에서 이 주소(링크 미리보기용)를 열면 coverfo 홈 위에서 열리도록 /?go=shorts 로 보낸다. 홈 안(덮개 창)·coverfo 안에서 온 경우는 그대로 */
 (function(){ try{ if(window.top===window&&!/[?&]v=/.test(location.search)&&!/coverfo\.com|localhost|127\.0\.0\.1/.test(document.referrer||"")) location.replace("/?go=shorts"); }catch(e){} })();</script>
 <script src="/shorts/store.js?v=470"></script>
+<script src="/card/card.js?v=485" defer></script>
 <script src="/shorts/mux.js?v=470"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -157,6 +158,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
 @keyframes sh2p{50%{transform:scale(1.04)}}
 @media (prefers-reduced-motion:reduce){.sh2.sent .go.l2{animation:none}}
 .sh2n{margin:6px 2px 0;font-size:12px;color:var(--sub);text-align:center;line-height:1.45}
+.cardb{display:flex;align-items:center;gap:12px;width:100%;margin:0 0 12px;padding:16px;border:0;border-radius:20px;background:linear-gradient(135deg,#7C4DFF 0%,#B04FE0 55%,#F0509A 100%);color:#fff;text-align:left;box-shadow:0 14px 28px -18px rgba(124,77,255,.9)}
+.cardb .ci{flex:0 0 44px;height:44px;border-radius:14px;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:22px}
+.cardb .ct{flex:1;min-width:0}.cardb b{display:block;font-size:16px;font-weight:900}.cardb small{display:block;font-size:12px;opacity:.92;margin-top:2px}
 .empty{text-align:center;color:var(--sub);font-size:14px;padding:20px 0;line-height:1.6}
 .gate{text-align:center;padding:30px 10px}
 @media (prefers-reduced-motion:reduce){.sw::after{transition:none}}
@@ -622,6 +626,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
   function step5(){
     if(!S.url){ go(3); return; }
     var h='<div class="eb">STEP 5 · 공유하기</div><div class="h2">친구에게<br>자랑해볼까요?</div><div class="ch">'+CH.map(function(c){ return '<button type="button" data-ch="'+c[0]+'" aria-pressed="'+!!S.ch[c[0]]+'"><span class="i" style="background:'+c[3]+';color:'+c[4]+'">'+(c[0]==="feed"?'<span style="width:28px;height:28px;display:block">'+GRAPE+'</span>':c[2])+'</span>'+c[1]+'<small>✓ 선택됨</small></button>'; }).join("")+'</div>';
+    /* v485 🖼 쇼츠 카드: 문장 1줄 + 링크를 크게 (인스타 스토리 · 카톡) */
+    h+='<button type="button" class="cardb" data-a="card"><span class="ci" aria-hidden="true">🖼</span><span class="ct"><b>쇼츠 카드로 공유하기</b><small>대표 사진 + 링크를 크게 넣은 이미지로 올려요</small></span><span aria-hidden="true">›</span></button>';
     h+='<div class="card"><div class="capbar"><b>함께 보내는 글</b><button type="button" data-a="copy">⧉ 복사</button></div><div class="cap" id="capt">'+esc(caption()||"(글 없이 영상만 보내요)")+'</div><p class="note">① 영상 보내기에 이 글도 함께 실어 보내요 (문자·텔레그램 등은 한 번에 가요). 카톡은 영상과 글을 한 번에 받지 못해서 글이 빠져요 — ② 링크 보내기로 같은 대화방에 보내 주세요. ① 을 누르면 이 글이 복사돼서, 카톡 대화창에 붙여넣기 해도 돼요.</p></div>';
     h+='<div class="card swr"><span class="t"><b>링크 포함</b><small>친구가 링크를 누르면 여행 자동 쇼츠가 바로 열려요</small></span><button type="button" class="sw" role="switch" aria-checked="'+S.link+'" data-link="1" aria-label="링크 포함"></button></div>';
     if(S.ch.feed) h+='<div class="card"><div class="sec">🍇 coverfo 피드 (누리트립 쇼츠)</div><input class="tin" id="fplace" maxlength="40" placeholder="어디 여행이었나요? (예: 제주 협재해변)" value="'+esc((cur()&&cur().place&&cur().place.name)||(cur()&&cur().title)||"")+'" aria-label="장소"><p class="note">누리트립 쇼츠로 올리면 1크레딧이에요 (기존 쇼츠 올리기와 같아요). 누리트립 닉네임이 있어야 올릴 수 있어요.</p></div>';
@@ -714,6 +720,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
     if(a==="cancel"){ if(REC) REC.stop(true); return; }
     if(a==="tomusic"||a==="totitle"){ go(3); setTimeout(function(){ var el=a==="totitle"?$("ttl"):document.querySelector("[data-mu]"); if(el){ el.scrollIntoView({block:"center"}); if(a==="totitle") el.focus(); } },60); return; }
     if(a==="to5"){ var v=$("vd"); if(v) v.pause(); go(5); return; }
+    if(a==="card"){ if(!window.cfCard){ msg("잠시 뒤 다시 눌러 주세요"); return; } var tc=cur(); cfCard.open({tag:"여행쇼츠",line:S.title||"우리 여행, 쇼츠로 남겼어!",sub:"포도야가 "+S.len+"초 쇼츠로 만들어줬어",foot:tc&&tc.places&&tc.places.length?"📍 "+tc.places.slice(0,3).join(" · "):"",hint:"링크를 누르면 나도 만들 수 있어요",url:"https://coverfo.com/shorts/",photo:S.thumb||"",photoPick:true,title:S.title,shareText:"🎬 나도 만들기"}); return; }
     if(a==="copy"){ if(caption()) copy(caption()); else msg("보낼 글이 없어요 (링크 포함이 꺼져 있어요)"); return; }
     if(a==="save"){ save(); return; }
     if(a==="share"){ share(b); return; }
