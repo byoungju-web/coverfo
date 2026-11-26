@@ -1,5 +1,5 @@
 // coverfo Service Worker — 캐시 버전을 올려야 변경사항이 반영됩니다
-const CACHE_VERSION = 'coverfo-v490';
+const CACHE_VERSION = 'coverfo-v491';
 
 const PRECACHE_URLS = [
   '/',
