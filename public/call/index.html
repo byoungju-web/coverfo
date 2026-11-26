@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- coverfo 📞 AI 전화 걸기 — public/call/index.html (v488)
+<!-- coverfo 📞 AI 전화 걸기 — public/call/index.html (v488 · v489 실제 통화 · v490 🧪 운영자 시험: 내 번호로 걸기)
      © 2026 coverfo All Rights Reserved
      · 홈 'AI 여행 파트너' 아래 📞 AI 전화 걸기 칸에서 열림 (홈 위 덮개 cf-page.js)
      · 5단계: ① 예약 요청 ② 가게 확인 ③ AI 전화 중 ④ 예약 완료 ⑤ 실패 시 백업
@@ -204,6 +204,11 @@ dl.sum input{border:1px solid var(--ln);border-radius:10px;padding:6px 8px;width
     <button type="button">홍대 삼겹살집 오늘 7시 4명</button>
     <button type="button">내일 점심 12시 강남역 파스타 2명</button>
     <button type="button" id="nearbtn">📍 내 주변에서 찾기</button>
+  </div>
+  <div class="card" id="tst" hidden style="border:2px dashed #C4B5FD">
+    <p class="h">🧪 운영자 시험 — 내 휴대폰으로 걸기</p>
+    <p class="mu sm" style="margin:0 0 8px;line-height:1.6">가게 대신 이 번호로 포도야가 전화해요. 받아서 사장님처럼 대답해 보세요. 운영자 계정에만 보여요 · 실제 통화라 1분 6크레딧이 빠져요.</p>
+    <div class="share" style="margin-top:0"><input id="tstNo" type="tel" inputmode="tel" maxlength="13" placeholder="010-1234-5678"><button id="tstGo" type="button">시험 가게로</button></div>
   </div>
   <div id="shops"></div>
   <div class="card" id="cond" hidden>
@@ -808,6 +813,26 @@ $("mine").onclick=function(){ drawMine(); $("sheet").classList.add("on"); };
 $("sheetX").onclick=function(){ $("sheet").classList.remove("on"); };
 $("sheet").onclick=function(e){ if(e.target===this) this.classList.remove("on"); };
 $("mylist").onclick=function(e){ var b=e.target.closest("[data-rm]"); if(!b) return; store.list.splice(+b.getAttribute("data-rm"),1); save(store); drawMine(); };
+
+/* 🧪 운영자 시험 — /api/admin 이 열리는 계정(운영자)에게만 칸을 보여 준다 */
+token().then(function(t){
+  if(!t) return;
+  return fetch("/api/admin?summary=1",{headers:{Authorization:"Bearer "+t}}).then(function(r){
+    if(!r.ok) return;
+    $("tst").hidden=false; $("tstNo").value=store.testNo||"";
+  });
+}).catch(function(){});
+$("tstGo").onclick=function(){
+  var n=String($("tstNo").value||"").replace(/[^0-9]/g,"");
+  if(!/^01[016789]\d{7,8}$/.test(n)){ toast("휴대폰 번호(010…)를 넣어 주세요"); return; }
+  var ph=n.replace(/^(\d{3})(\d{3,4})(\d{4})$/,"$1-$2-$3");
+  store.testNo=ph; save(store);
+  S.q="시험"; S.tried=[];
+  S.shops=[{ id:"test", name:"🧪 시험 가게 (내 번호)", cat:"운영자 시험", phone:ph, addr:"운영자 시험 통화", dist:null, url:"", x:null, y:null }];
+  S.sel=0; if(!S.date) S.date=ymd(today());
+  drawShops(); drawCond(); $("go1").hidden=false; $("go1n").hidden=false;
+  toast("시험 가게를 만들었어요 — 조건 확인 후 [이 조건으로 예약해줘]");
+};
 
 S.date=ymd(today());
 })();
