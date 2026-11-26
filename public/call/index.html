@@ -4,9 +4,10 @@
      · 홈 'AI 여행 파트너' 아래 📞 AI 전화 걸기 칸에서 열림 (홈 위 덮개 cf-page.js)
      · 5단계: ① 예약 요청 ② 가게 확인 ③ AI 전화 중 ④ 예약 완료 ⑤ 실패 시 백업
      · 가게 찾기: /api/call-find (카카오 공식 장소 검색 · 공개된 가게 전화번호)
-     · AI 가 실제로 대신 거는 통화는 전화 회선(통화 서비스) 연결이 필요해 아직 꺼 둠 → AI_CALL_READY
-       꺼져 있는 동안 ③ 화면은 "통화 대본 미리보기"(실제 통화 아님)로 동작하고, 실제 통화는 [내가 직접 전화할게](tel:)로 이어짐
-     · 예약 내용·이름은 이 기기(localStorage)에만 저장 · 서버로 보내지 않음 · 크레딧·결제와 무관 -->
+     · v489 실제 통화: 포도랑 전화통역 서버(podolang-realtime v7.3 /api/ai/start · Twilio)가 가게에 걸고,
+       포도야(AI)가 가게와 직접 대화한다. 화면은 WebSocket 으로 자막·결과를 받음. 녹음 안 함.
+       요금은 전화통역과 같은 coverfo 지갑 차감(/api/trans call_ticket · 1분 6크레딧 · 최대 5분)
+     · 예약 기록은 이 기기(localStorage)에만 · 통화 때만 번호·조건·이름을 통화 서버로 보냄 · 결제·충전 코드는 건드리지 않음 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -234,9 +235,9 @@ dl.sum input{border:1px solid var(--ln);border-radius:10px;padding:6px 8px;width
       <p class="mu sm" style="margin:8px 0 0">이름은 이 기기에만 저장돼요. 다음부터 자동으로 채워져요.</p>
     </div>
     <div class="note v"><b>포도야가 AI 비서라고 먼저 밝히고 전화해요</b>가게에서 원하면 언제든 사람(나)에게 넘겨요.</div>
-    <div class="card row" style="justify-content:space-between">
-      <div><p class="h" style="margin:0">🎙 통화 녹음해서 들려주기</p><p class="mu sm" style="margin:2px 0 0">녹음은 통화 시작 때 가게에 먼저 알려요</p></div>
-      <button class="tg on" id="rec" aria-label="통화 녹음 켜기·끄기" aria-pressed="true"></button>
+    <div class="card">
+      <p class="h" style="margin:0">💬 통화는 실시간 자막으로 보여 드려요</p>
+      <p class="mu sm" style="margin:4px 0 0;line-height:1.6">녹음은 하지 않아요 · 한 통화 최대 5분 · 통화한 시간만큼 <b>1분 6크레딧</b> (받지 않으면 차감 없음)<br>가게 화면에는 해외 번호(+1)로 보일 수 있어요</p>
     </div>
     <button class="btn pri" id="aiGo">📞 포도야에게 전화 맡기기</button>
     <a class="btn wh" id="selfGo" target="_top" href="#">☎️ 내가 직접 전화할게</a>
@@ -255,9 +256,9 @@ dl.sum input{border:1px solid var(--ln);border-radius:10px;padding:6px 8px;width
     <div class="tm" id="cTm">00:00</div>
     <div class="pg"><i id="cPg"></i></div>
     <p class="s" id="cSt" style="margin-top:8px">아직 시작하지 않았어요</p>
-    <span class="pv" id="cPv">🧪 대본 미리보기 · 실제 통화 아님</span>
+    <span class="pv" id="cPv">🔴 실제 통화 · 자막</span>
   </div>
-  <div class="note a" id="cReady"><b>AI 대신 걸기는 전화 회선을 연결한 뒤 켜져요</b>지금은 포도야가 가게에 할 말(대본)을 미리 보여 드려요. 실제 예약은 아래 [내가 직접 걸기]로 바로 이어서 할 수 있어요. 사장님 대답은 예시예요.</div>
+  <div class="note v" id="cReady"><b>포도야가 가게와 직접 통화해요</b>가게 말과 포도야 말이 자막으로 떠요. 결과가 나오면 자동으로 다음 화면으로 넘어가요. 언제든 [통화 끊기]·[나에게 넘기기]를 누를 수 있어요.</div>
   <div id="lines"></div>
   <div class="wave" id="wave" hidden><span><i></i><i></i><i></i><i></i></span>포도야가 듣고 있어요…</div>
   <div class="g3" style="margin-top:10px">
@@ -265,14 +266,14 @@ dl.sum input{border:1px solid var(--ln);border-radius:10px;padding:6px 8px;width
     <button class="cb red" id="hang"><em>⏹</em>통화 끊기</button>
     <button class="cb" id="handoff"><em>🙋</em>나에게 넘기기</button>
   </div>
-  <button class="btn dark" id="restart">▶ 통화 미리보기 시작</button>
+  <button class="btn dark" id="restart">📞 포도야 전화 다시 걸기</button>
   <div class="note a" id="hoBox" hidden><b>나에게 넘기기</b>지금까지 정리한 조건으로 내가 직접 이어서 전화해요.
     <a class="btn pri" id="hoTel" target="_top" href="#">☎️ 지금 직접 걸기</a>
     <div class="g2" style="margin-top:8px"><button class="btn wh" id="hoOk">✅ 예약됐어요</button><button class="btn wh" id="hoNo">❌ 안 됐어요</button></div>
   </div>
   <div class="g2" id="pvEnd" hidden style="margin-top:10px">
-    <a class="btn pri" id="pvTel" target="_top" href="#" style="margin:0">☎️ 이 대본으로 직접 걸기</a>
-    <button class="btn wh" id="pvOk" style="margin:0">✅ 예약 완료로</button>
+    <button class="btn pri" id="pvOk" style="margin:0">✅ 예약됐어요</button>
+    <button class="btn wh" id="pvNo" style="margin:0">❌ 안 됐어요</button>
   </div>
 </section>
 
@@ -330,11 +331,11 @@ dl.sum input{border:1px solid var(--ln);border-radius:10px;padding:6px 8px;width
   <div class="rules">
     <div><b>AI라고 밝히기</b>통화 첫마디에 coverfo AI 비서 포도야임을 밝혀요.</div>
     <div><b>공개된 가게 번호만</b>카카오 장소에 공개된 가게 전화번호로만 걸어요.</div>
-    <div><b>녹음 동의</b>녹음은 통화 시작 때 먼저 알리고, 설정에서 켜고 끌 수 있어요.</div>
-    <div><b>실패 시 사람 백업</b>연결이 안 되면 내가 직접 거는 버튼으로 바로 이어져요.</div>
+    <div><b>녹음 안 함</b>통화는 녹음하지 않고, 내 화면에 자막(글)으로만 보여 드려요.</div>
+    <div><b>실패 시 사람 백업</b>가게가 사람을 원하거나 연결이 안 되면 내가 직접 거는 버튼으로 바로 이어져요.</div>
     <div><b>예약 확정 문자</b>확정되면 예약 내용을 문자 앱에 채워 드려요 (보내기는 내가).</div>
   </div>
-  <p class="mu sm" style="margin:10px 0 0;line-height:1.6">예약 내용·이름은 이 기기에만 저장되고 서버로 보내지 않아요. 가게 찾기는 카카오 장소 검색을 써요.</p>
+  <p class="mu sm" style="margin:10px 0 0;line-height:1.6">예약 기록은 이 기기에만 저장돼요. 통화할 때만 가게 번호·예약 조건·이름을 통화 서버로 보내요(저장 안 함). 가게 찾기는 카카오 장소 검색을 써요.</p>
 </section>
 </main>
 
@@ -348,7 +349,9 @@ dl.sum input{border:1px solid var(--ln);border-radius:10px;padding:6px 8px;width
 (function(){
 "use strict";
 /* AI 가 실제로 대신 거는 통화(전화 회선)가 연결되면 true 로 바꾼다. 그 전에는 ③ 화면이 대본 미리보기로만 동작 */
-var AI_CALL_READY = false;
+var AI_CALL_READY = true;
+/* 통화 서버 = 포도랑 전화통역 서버 (Twilio · v7.3 /api/ai/start) · 요금은 coverfo 지갑 (/api/trans call_ticket) */
+var RT = "https://podolang-realtime.hasin7jk.workers.dev";
 var LS = "cf-call-v1";
 var $ = function(id){ return document.getElementById(id); };
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];}); }
@@ -374,7 +377,7 @@ function go(n){
   if(n===2) drawP2();
   if(n===3) drawP3();
   if(n===4) drawP4();
-  if(n!==2) stopCall(true);
+
 }
 $("steps").addEventListener("click",function(e){ var b=e.target.closest("button[data-s]"); if(b) go(+b.getAttribute("data-s")); });
 document.addEventListener("click",function(e){ var b=e.target.closest("[data-go]"); if(b){ e.preventDefault(); go(+b.getAttribute("data-go")); } });
@@ -549,13 +552,11 @@ function drawP1(){
   $("sPpl").textContent=S.ppl+"명"+optTxt();
   $("sTel").textContent=o.phone;
   $("sWho").value=store.who||"";
-  $("rec").classList.toggle("on",store.rec!==false); $("rec").setAttribute("aria-pressed",store.rec!==false?"true":"false");
   $("selfGo").href=telHref(o);
   $("selfAsk").hidden=true;
-  $("aiGo").textContent=AI_CALL_READY?"📞 포도야에게 전화 맡기기":"📞 포도야에게 전화 맡기기 (대본 미리보기)";
+  $("aiGo").textContent="📞 포도야에게 전화 맡기기";
 }
 $("sWho").onchange=function(){ store.who=this.value.trim().slice(0,12); save(store); };
-$("rec").onclick=function(){ store.rec=!(store.rec!==false); save(store); this.classList.toggle("on",store.rec); this.setAttribute("aria-pressed",store.rec?"true":"false"); toast(store.rec?"통화 녹음을 켰어요":"통화 녹음을 껐어요"); };
 function who(){ return (($("sWho").value||store.who||"").trim()); }
 $("aiGo").onclick=function(){
   if(!who()){ toast("예약자 이름을 적어 주세요"); $("sWho").focus(); return; }
@@ -570,79 +571,111 @@ $("selfGo").addEventListener("click",function(){
 $("selfOk").onclick=function(){ confirmBooking(); };
 $("selfNo").onclick=function(){ failed("직접 건 전화로 예약이 안 됐어요."); };
 
-/* ── ③ 통화 (AI_CALL_READY 가 false 면 대본 미리보기) ── */
-var timer=null, lineT=null, sec=0, li=0, running=false, speak=false;
-function script(){
-  var o=cur()||{name:"가게"}, nm=who()||"예약자", t=timeLabel(S.time), d=dateLabel(S.date).split(" · ")[0];
-  var opt=S.opts.length?" 가능하면 "+S.opts.join(", ")+"(으)로 부탁드려요.":"";
-  return [
-    {w:"AI",t:"안녕하세요, 저는 coverfo AI 비서 포도야입니다. "+nm+" 님 대신 예약 문의드려요."+(store.rec!==false?" 확인을 위해 통화가 녹음돼요.":"")},
-    {w:"사장님",t:"네, 말씀하세요."},
-    {w:"AI",t:d+" "+t+"에 "+S.ppl+"명 예약 가능할까요?"+opt},
-    {w:"사장님",t:"네, 그 시간 가능해요. 성함이 어떻게 되세요?"},
-    {w:"AI",t:nm+"(으)로 부탁드려요. "+S.ppl+"명, "+t+"입니다."},
-    {w:"사장님",t:"네, "+nm+" 님 "+S.ppl+"명으로 잡아 둘게요."},
-    {w:"AI",t:"감사합니다! 혹시 대기가 있으면 도착했을 때 안내 부탁드려요."}
-  ];
-}
+/* ── ③ 포도야 실제 통화 (포도랑 서버 podolang-realtime /api/ai/start → Twilio) ── */
+var timer=null, sec=0, running=false, speak=false, ws=null, room="", aiRes=null, nLines=0;
 function fmt(s){ return pad(Math.floor(s/60))+":"+pad(s%60); }
+function spoken(){ /* 가게에 말할 날짜: 오늘 · 내일 · 11월 28일 금요일 */
+  var p=S.date.split("-"), d=new Date(+p[0],+p[1]-1,+p[2]), diff=Math.round((d-today())/864e5);
+  return diff===0?"오늘":diff===1?"내일":diff===2?"모레":(d.getMonth()+1)+"월 "+d.getDate()+"일 "+DOW[d.getDay()]+"요일";
+}
 function drawP2(){
   var o=cur();
   $("cSub").textContent=o?o.name+" · "+timeLabel(S.time)+" · "+S.ppl+"명":"가게를 먼저 골라 주세요";
-  $("cPv").hidden=AI_CALL_READY; $("cReady").hidden=AI_CALL_READY;
-  if(!running && !li){ $("lines").innerHTML=""; $("cTtl").textContent="통화 미리보기"; $("cSt").textContent="아직 시작하지 않았어요"; $("cPg").style.width="0"; $("cTm").textContent="00:00"; }
+  if(!running && !nLines){ $("lines").innerHTML=""; $("cTtl").textContent="포도야 전화"; $("cSt").textContent="아직 걸지 않았어요"; $("cPg").style.width="0"; $("cTm").textContent="00:00"; }
   $("restart").hidden=running; $("restart").disabled=!o;
-  var th=telHref(o); $("hoTel").href=th; $("pvTel").href=th;
+  $("hoTel").href=telHref(o);
 }
-function addLine(l){
-  $("lines").insertAdjacentHTML("beforeend",'<div class="ln '+(l.w==="AI"?"ai":"ow")+'"><small>'+(l.w==="AI"?"🍇 포도야 (AI)":"🏪 사장님 · 예시")+'</small>'+esc(l.t)+'</div>');
-  if(speak) talk(l);
+function addLine(who,t){
+  nLines++;
+  $("lines").insertAdjacentHTML("beforeend",'<div class="ln '+(who==="ai"?"ai":"ow")+'"><small>'+(who==="ai"?"🍇 포도야 (AI)":"🏪 가게")+'</small>'+esc(t)+'</div>');
+  $("cPg").style.width=Math.min(100,12+nLines*12)+"%";
+  if(speak) talk(who,t);
+  try{ $("lines").lastChild.scrollIntoView({block:"nearest",behavior:"smooth"}); }catch(e){}
+}
+/* coverfo 로그인 키 → 통화용 표(12시간) */
+function token(){
+  try{ var P=window.parent, c=P&&P!==window&&P.__cfSbClient; if(c&&c.auth&&c.auth.getSession) return c.auth.getSession().then(function(r){ var s=r&&r.data&&r.data.session; return s?s.access_token:null; }); }catch(e){}
+  try{ for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf("sb-")===0&&k.indexOf("-auth-token")>0){ var v=JSON.parse(localStorage.getItem(k)||"null"); var t=v&&(v.access_token||(v.currentSession&&v.currentSession.access_token)); if(t) return Promise.resolve(t); } } }catch(e){}
+  return Promise.resolve(null);
+}
+function ticket(){
+  return token().then(function(t){
+    if(!t){ var e=new Error("로그인이 필요해요. coverfo 에 로그인한 뒤 다시 눌러 주세요"); throw e; }
+    return fetch("/api/trans",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+t},body:JSON.stringify({op:"call_ticket"})})
+      .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ if(!r.ok||!j.ticket) throw new Error(j.error||("오류 "+r.status)); return j.ticket; }); });
+  });
+}
+function setRun(on){
+  running=on;
+  $("ring").classList.toggle("off",!on); $("wave").hidden=!on; $("restart").hidden=on;
 }
 function startCall(){
-  if(!cur()){ toast("가게를 먼저 골라 주세요"); go(0); return; }
+  var o=cur(); if(!o){ toast("가게를 먼저 골라 주세요"); go(0); return; }
   stopCall(true);
-  var L=script(); li=0; sec=0; running=true;
-  $("lines").innerHTML=""; $("pvEnd").hidden=true; $("hoBox").hidden=true;
-  $("ring").classList.remove("off"); $("wave").hidden=false; $("restart").hidden=true;
-  $("cTtl").textContent=AI_CALL_READY?"포도야가 전화 거는 중...":"포도야 통화 미리보기 중...";
-  timer=setInterval(function(){ sec++; $("cTm").textContent=fmt(sec); },1000);
-  function next(){
-    if(!running) return;
-    if(li>=L.length){ endCall(); return; }
-    addLine(L[li]); li++;
-    var pc=Math.round(li/L.length*100);
-    $("cPg").style.width=Math.max(12,pc)+"%"; $("cSt").textContent=(AI_CALL_READY?"통화 중… ":"미리보기 ")+pc+"%";
-    lineT=setTimeout(next,speak?Math.max(2600,L[li-1].t.length*170):2300);
-  }
-  lineT=setTimeout(next,900);
-  $("cSt").textContent="연결하는 중…";
+  aiRes=null; nLines=0; sec=0; room="";
+  $("lines").innerHTML=""; $("pvEnd").hidden=true; $("hoBox").hidden=true; $("cTm").textContent="00:00"; $("cPg").style.width="6%";
+  $("cTtl").textContent="포도야가 전화 거는 중..."; $("cSt").textContent="연결 준비 중…";
+  setRun(true);
+  ticket().then(function(tk){
+    return fetch(RT+"/api/ai/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      uid:tk, to:o.phone,
+      booking:{ shop:o.name, date:spoken(), time:timeLabel(S.time), ppl:S.ppl, who:who(), opts:S.opts.join(", ") }
+    })}).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ if(!r.ok||!j.ok) throw new Error(j.error||("오류 "+r.status)); return j; }); });
+  }).then(function(j){
+    if(!running) { fetch(RT+"/api/rt/end",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({room:j.room})}).catch(function(){}); return; }
+    room=j.room; $("cSt").textContent="전화 거는 중… (최대 "+j["최대통화분"]+"분)";
+    ws=new WebSocket(j.wsUrl);
+    ws.onmessage=function(ev){ var d; try{ d=JSON.parse(ev.data); }catch(e){ return; } onMsg(d); };
+    ws.onclose=function(){ if(running) finish(); };
+  }).catch(function(e){
+    setRun(false);
+    $("cTtl").textContent="전화를 걸지 못했어요"; $("cSt").textContent=String(e.message||e).slice(0,120);
+    toast(String(e.message||e).slice(0,80));
+  });
 }
-function endCall(){
-  running=false; clearInterval(timer); clearTimeout(lineT);
-  $("ring").classList.add("off"); $("wave").hidden=true;
-  $("cTtl").textContent="미리보기 끝";
-  $("cSt").textContent=AI_CALL_READY?"통화가 끝났어요":"이 대본 그대로 직접 걸어 보세요";
-  $("pvEnd").hidden=false; $("restart").hidden=false; $("restart").textContent="▶ 미리보기 다시 보기";
+function onMsg(d){
+  if(d.type==="callstatus"){
+    $("cSt").textContent=d.text||"";
+    if(d.raw==="in-progress" && !timer){ timer=setInterval(function(){ sec++; $("cTm").textContent=fmt(sec); },1000); $("cTtl").textContent="포도야가 통화 중..."; }
+    if(d.ended) finish(d.raw);
+    return;
+  }
+  if(d.type==="ai"){ addLine(d.who==="ai"?"ai":"shop",d.text||""); return; }
+  if(d.type==="result"){ aiRes={result:d.result,note:d.note||""}; $("cSt").textContent=d.result==="confirmed"?"예약을 받았어요! 인사하고 끊는 중…":"마무리 인사하고 끊는 중…"; return; }
+  if(d.type==="error"){ $("cSt").textContent=d.text||"통화 오류"; return; }
+  if(d.type==="status"&&d.state==="ended") finish();
+}
+function finish(raw){
+  if(!running) return;
+  setRun(false); clearInterval(timer); timer=null;
+  try{ if(ws){ ws.onclose=null; ws.close(); } }catch(e){} ws=null;
+  $("cPg").style.width="100%";
+  if(aiRes && aiRes.result==="confirmed"){ $("cTtl").textContent="예약 완료!"; setTimeout(function(){ confirmBooking(aiRes.note); },900); return; }
+  if(aiRes){ $("cTtl").textContent="예약하지 못했어요"; setTimeout(function(){ failed(aiRes.result==="handoff"?"가게에서 사람과 통화하기를 원했어요."+(aiRes.note?" ("+aiRes.note+")":""):(aiRes.note||"예약이 안 됐어요.")); },900); return; }
+  if(raw==="no-answer"||raw==="busy"||raw==="failed"||!nLines){ $("cTtl").textContent="연결되지 않았어요"; setTimeout(function(){ failed(raw==="busy"?"가게가 통화 중이었어요.":raw==="no-answer"?"가게가 전화를 받지 않았어요.":"전화가 연결되지 않았어요."); },900); return; }
+  $("cTtl").textContent="통화가 끝났어요"; $("cSt").textContent="자막을 보고 결과를 알려 주세요";
+  $("pvEnd").hidden=false;
 }
 function stopCall(silent){
   var was=running;
-  running=false; clearInterval(timer); clearTimeout(lineT);
+  if(room) fetch(RT+"/api/rt/end",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({room:room})}).catch(function(){});
+  try{ if(ws){ ws.onclose=null; ws.send(JSON.stringify({type:"bye"})); ws.close(); } }catch(e){} ws=null; room="";
+  setRun(false); clearInterval(timer); timer=null;
   try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}
-  $("ring").classList.add("off"); $("wave").hidden=true;
   if(was && !silent){ $("cTtl").textContent="통화를 끊었어요"; $("cSt").textContent="중간에 끊었어요"; }
-  $("restart").hidden=false;
 }
-$("restart").onclick=function(){ $("restart").textContent="▶ 통화 미리보기 시작"; startCall(); };
+$("restart").onclick=function(){ startCall(); };
 $("hang").onclick=function(){ if(!running){ toast("진행 중인 통화가 없어요"); return; } stopCall(false); go(4); toast("통화를 끊고 백업 화면으로 왔어요"); };
 $("handoff").onclick=function(){ stopCall(true); $("hoBox").hidden=false; $("hoBox").scrollIntoView({block:"center",behavior:"smooth"}); };
 $("hoOk").onclick=function(){ confirmBooking(); };
 $("hoNo").onclick=function(){ failed("직접 건 전화로 예약이 안 됐어요."); };
 $("pvOk").onclick=function(){ confirmBooking(); };
-/* 소리로 듣기 — 기기 내장 음성(speechSynthesis)으로 포도야 말을 읽어 줌 */
-function talk(l){
+$("pvNo").onclick=function(){ failed("포도야 통화로 예약이 안 됐어요."); };
+/* 소리로 듣기 — 자막을 기기 내장 음성(speechSynthesis)으로 읽어 줌 (통화 소리를 듣는 것은 아님) */
+function talk(who,t){
   try{
     if(!window.speechSynthesis) return;
-    var u=new SpeechSynthesisUtterance(l.t); u.lang="ko-KR"; u.rate=1.05; u.pitch=l.w==="AI"?1.15:0.8;
+    var u=new SpeechSynthesisUtterance(t); u.lang="ko-KR"; u.rate=1.05; u.pitch=who==="ai"?1.15:0.8;
     speechSynthesis.speak(u);
   }catch(e){}
 }
@@ -650,15 +683,15 @@ $("listen").onclick=function(){
   if(!window.speechSynthesis){ toast("이 기기는 소리로 듣기를 지원하지 않아요"); return; }
   speak=!speak; this.classList.toggle("on",speak);
   if(!speak){ try{ speechSynthesis.cancel(); }catch(e){} }
-  toast(speak?"포도야 목소리로 들려 드려요":"소리 듣기를 껐어요");
+  toast(speak?"자막을 소리로 읽어 드려요":"소리 듣기를 껐어요");
 };
 
 /* ── ④ 예약 완료 ── */
 function code(){ var c="ABCDEFGHJKLMNPQRSTUVWXYZ23456789",s="CF-"; for(var i=0;i<4;i++) s+=c[Math.floor(Math.random()*c.length)]; return s; }
-function confirmBooking(){
+function confirmBooking(note){
   var o=cur(); if(!o){ toast("가게를 먼저 골라 주세요"); go(0); return; }
   stopCall(true);
-  S.booking={ id:code(), name:o.name, phone:o.phone, addr:o.addr, x:o.x, y:o.y, date:S.date, time:S.time, ppl:S.ppl, opts:S.opts.slice(), who:who(), note:"", at:Date.now() };
+  S.booking={ id:code(), name:o.name, phone:o.phone, addr:o.addr, x:o.x, y:o.y, date:S.date, time:S.time, ppl:S.ppl, opts:S.opts.slice(), who:who(), note:String(note||"").slice(0,40), at:Date.now() };
   store.list.unshift(S.booking); store.list=store.list.slice(0,20); save(store);
   go(3); toast("예약 내용을 정리했어요");
 }
