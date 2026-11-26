@@ -160,6 +160,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .gate .gr{width:80px;height:80px}
 .gate p{color:var(--sub);line-height:1.6}
 @media (prefers-reduced-motion:reduce){.sw::after{transition:none}}
+/* v484 글자 옆 작은 포도야 포도 (🍇 이모지 대신) */
+svg.pgi{display:inline-block;width:1.25em;height:1.25em;vertical-align:-.25em;margin-right:4px}
 </style>
 </head>
 <body>
@@ -330,7 +332,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
     (D.today.reminds||[]).slice(0,3).forEach(function(r){ var t=new Date(Date.parse(r.at)+9*3600e3); lines.push('🕙 '+(t.getUTCHours()<12?"오전 ":"오후 ")+((t.getUTCHours()%12)||12)+'시 '+esc(r.text)); });
     upcoming(7).slice(0,3).forEach(function(x){ lines.push(icon(x.d)+' '+esc(x.d.title)+(x.n?'이 '+x.n+'일 남았어요':' 오늘이에요')+(giftable(x.d)&&!x.d.gift?', 선물 정해줄까요?':'')); });
     (D.today.shares||[]).slice(0,2).forEach(function(s){ lines.push('👥 "'+esc(s.title)+'" 친구 투표가 진행 중이에요'); });
-    if(!lines.length) lines.push('🍇 오늘은 챙길 일이 없어요. 가벼운 하루 보내세요!');
+    if(!lines.length) lines.push(grape("pgi")+'오늘은 챙길 일이 없어요. 가벼운 하루 보내세요!');
     h+='<div class="card brief"><div class="eyebrow">TODAY BRIEFING</div><h3>오늘 하루, 미리 챙겼어요</h3><ul>'+lines.map(function(l){ return '<li>'+l+'</li>'; }).join("")+'</ul><div class="two"><a class="bp" href="/brief?play=1">🎵 브리핑 듣기</a><a class="bw" href="/brief">자세히 보기</a></div>'
       +'<div class="note">🎵 듣기는 coverfo 아침 브리핑(음성 · 날씨·일정·관심 뉴스) 화면에서 열려요.'+(BR&&BR.cost!=null?' 음성 브리핑은 만들 때 '+BR.cost+'크레딧이에요.':'')+'</div></div>';
     if(!BR){ h+='<div class="card"><div class="empty">브리핑 설정을 불러오는 중…</div></div>'; return h; }
@@ -394,7 +396,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
     api("/api/pdy",body).then(function(j){
       btn.disabled=false;
       if(!j.ok){ toast(j.error||"추가하지 못했어요"); return; }
-      D.days.push(j.day); FORM=null; draw(); toast("✓ 새 알림이 추가됐어요. 포도야가 챙길게요 🍇",true);
+      D.days.push(j.day); FORM=null; draw(); toast("✓ 새 알림이 추가됐어요. 포도야가 챙길게요",true);
     });
   }
   function dayById(id){ return (D.days||[]).filter(function(d){ return String(d.id)===String(id); })[0]; }
@@ -478,7 +480,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
       +'<div class="note">조용한 시간: 밤 10시 ~ 아침 7시에는 보내지 않아요.</div></div>';
     h+='<div class="card"><div class="lbl" style="font-size:16px;color:var(--ink)">알림 받는 곳</div><div id="pushBox"><div class="note">확인하는 중…</div></div>'
       +'<div class="sr"><span class="t"><b>💛 카톡으로도 받기</b><small>카톡 \'나에게 보내기\'로 · 아침 브리핑 화면에서 연결해요</small></span><a class="pill" style="background:var(--soft);color:var(--pri2)" href="/brief#kakao" target="_top">연결하기</a></div>'
-      +'<div class="sr"><span class="t"><b>🍇 친구에게 포도야 알려주기</b><small>링크를 보내면 친구 폰에서 포도야가 바로 열려요</small></span><button type="button" class="pill" style="border:0;background:var(--soft);color:var(--pri2);font:inherit;font-weight:800" data-a="invite">보내기</button></div></div>';
+      +'<div class="sr"><span class="t"><b>'+grape("pgi")+'친구에게 포도야 알려주기</b><small>링크를 보내면 친구 폰에서 포도야가 바로 열려요</small></span><button type="button" class="pill" style="border:0;background:var(--soft);color:var(--pri2);font:inherit;font-weight:800" data-a="invite">보내기</button></div></div>';
     h+='<div class="card"><div class="lbl" style="font-size:16px;color:var(--ink)">포도야 성격</div>'+Object.keys(TONE).map(function(k){ return '<button type="button" class="tone" role="radio" aria-checked="'+(s.tone===k)+'" data-tone="'+k+'"><b>'+TONE[k].n+'</b><small>'+TONE[k].d+'</small></button>'; }).join("")
       +'<div class="note" style="background:var(--yel);color:#5c3b00;border-radius:14px;padding:10px 12px;font-weight:700">홈 인사와 알림 문구가 이 성격으로 바뀌어요</div></div>';
     return h;

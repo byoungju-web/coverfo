@@ -78,6 +78,8 @@ h1 span{display:block;color:var(--pri)}
   var $=function(id){ return document.getElementById(id); };
   function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(m){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]; }); }
   var GRAPE='<svg viewBox="0 0 120 120" aria-hidden="true"><path d="M60 14 C 62 10, 68 8, 72 12 C 76 16, 74 24, 60 26 C 46 24, 44 16, 48 12 C 52 8, 58 10, 60 14 Z" fill="#2ECC71"/><circle cx="46" cy="70" r="26" fill="#8B5CF6" stroke="#fff" stroke-width="3"/><circle cx="76" cy="70" r="26" fill="#A78BFA" stroke="#fff" stroke-width="3"/></svg>';
+  /* v484 포도야 포도 (글자 옆 작은 크기 · 🍇 이모지 대신) */
+  var GI='<svg viewBox="0 0 120 120" aria-hidden="true" style="width:1.25em;height:1.25em;vertical-align:-.25em;margin-right:4px;flex:none"><path d="M60 14 C 62 10, 68 8, 72 12 C 76 16, 74 24, 60 26 C 46 24, 44 16, 48 12 C 52 8, 58 10, 60 14 Z" fill="#2ECC71"/><circle cx="46" cy="70" r="26" fill="#8B5CF6" stroke="#6D28D9" stroke-width="3"/><circle cx="76" cy="70" r="26" fill="#A78BFA" stroke="#6D28D9" stroke-width="3"/></svg>';
   var SP='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/></svg>';
   /* 기억 종류 (memory.js CATS 와 같은 이름) */
   var CAT=[
@@ -141,7 +143,7 @@ h1 span{display:block;color:var(--pri)}
     var book=items.filter(function(x){ return x.src==="book"; }), rms=(d.now&&d.now.reminds)||[], tr=!!(d.trail&&d.trail.on);
     h+='<div class="sec" style="margin-top:18px"><b>👥 내 사람들</b><button type="button" data-a="book">전체 보기 ›</button></div>'
       +'<div class="mc"><div class="v" style="margin:0">'+(book.length?esc(book.slice(0,3).map(function(x){ return x.text; }).join(" · "))+(book.length>3?' 외 '+(book.length-3)+'개':''):'연락처의 이름·생일을 올려 두면 포도야가 챙겨요')+'</div>'
-      +'<div style="display:flex;gap:8px;margin-top:10px"><button type="button" class="ed" data-a="book">📒 내 연락처 열기</button><a class="ed" href="/pdy/" style="display:inline-flex;align-items:center;text-decoration:none">🍇 생일 알림 맡기기</a></div></div>';
+      +'<div style="display:flex;gap:8px;margin-top:10px"><button type="button" class="ed" data-a="book">📒 내 연락처 열기</button><a class="ed" href="/pdy/" style="display:inline-flex;align-items:center;text-decoration:none">'+GI+'생일 알림 맡기기</a></div></div>';
     h+='<div class="sec" style="margin-top:18px"><b>⏰ 내 알림 · 루틴</b><button type="button" data-a="my">전체 보기 ›</button></div>'
       +'<div class="mc">'+(rms.length?rms.slice(0,3).map(function(r){ var dt=new Date(r.next_at), when=isNaN(dt)?'':(dt.getMonth()+1)+'/'+dt.getDate()+' '+(dt.getHours()<10?'0':'')+dt.getHours()+':'+(dt.getMinutes()<10?'0':'')+dt.getMinutes(); return '<div class="v" style="margin:0 0 6px;color:var(--ink)"><b style="color:var(--pri);margin-right:6px">'+esc(when)+'</b>'+esc(r.text)+'</div>'; }).join(""):'<div class="v e" style="margin:0">다가오는 알림이 없어요 · 소리에게 "내일 9시 알려 줘" 해 보세요</div>')
       +'<div style="margin-top:8px"><button type="button" class="ed" data-a="my">⏰ 알림 · 한 마디 루틴 열기</button></div></div>';
@@ -152,7 +154,7 @@ h1 span{display:block;color:var(--pri)}
   }
   function links(){
     return '<div class="sec" style="margin-top:18px"><b>포도야 설정</b></div>'
-      +'<a class="lk" href="/pdy/"><span>🍇 포도야알림 · 기념일</span><i>›</i></a>'
+      +'<a class="lk" href="/pdy/"><span>'+GI+'포도야알림 · 기념일</span><i>›</i></a>'
       +'<a class="lk" href="/brief" target="_top"><span>☀️ 아침 브리핑</span><i>›</i></a>'
       +'<button type="button" class="lk" data-a="settings"><span>⚙️ 설정 · 구독 · 계정 · 로그아웃</span><i>›</i></button>';
   }
