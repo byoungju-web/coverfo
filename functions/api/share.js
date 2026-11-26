@@ -233,8 +233,9 @@ async function setFinal(c, uid, b) {
 /* ── 내가 만든 링크 ── */
 async function mine(c, uid) {
   const now = encodeURIComponent(new Date().toISOString());
-  const r = await req(c, 'GET', 'cf_share?select=id,kind,title,created_at,expires_at&user_id=eq.' + uid + '&expires_at=gt.' + now + '&order=created_at.desc&limit=20');
-  const items = Array.isArray(r) ? r : [];
+  const r = await req(c, 'GET', 'cf_share?select=id,kind,title,data,created_at,expires_at&user_id=eq.' + uid + '&expires_at=gt.' + now + '&order=created_at.desc&limit=20');
+  /* v479 스튜디오: 결정 확정 문구(final)만 꺼내고 data 는 돌려주지 않는다 */
+  const items = (Array.isArray(r) ? r : []).map((x) => { const f = x.data && x.data.final && x.data.final.text; const o = { ...x, final: f ? String(f).slice(0, 80) : '' }; delete o.data; return o; });
   if (items.length) {
     const ids = items.map((x) => x.id).join(',');
     const v = await req(c, 'GET', 'cf_share_vote?select=share_id,voter&share_id=in.(' + ids + ')&limit=2000');
