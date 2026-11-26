@@ -148,6 +148,15 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
 .strip{display:flex;gap:6px;margin:0 0 12px;overflow:hidden}
 .strip i{flex:0 0 44px;height:44px;border-radius:10px;background:#E9E4FB center/cover no-repeat;font-style:normal;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--pri2)}
 .addp{margin-top:10px;height:44px;border-radius:14px;border:1.5px dashed #CBB9FF;background:#FBFAFF;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--pri2)}
+.sh2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sh2.one{grid-template-columns:1fr}
+.sh2 .go{font-size:15.5px;min-height:56px;padding:0 6px;letter-spacing:-.02em}
+.sh2 .go.l2{background:linear-gradient(135deg,#FEE500,#FFC93C);color:#3C1E1E;box-shadow:0 14px 30px -16px rgba(200,150,0,.8)}
+.sh2.sent .go:not(.l2){background:#fff;color:var(--pri2);box-shadow:none;border:1.5px solid #E2DCFA}
+.sh2.sent .go.l2{animation:sh2p 1.1s ease-in-out 3}
+@keyframes sh2p{50%{transform:scale(1.04)}}
+@media (prefers-reduced-motion:reduce){.sh2.sent .go.l2{animation:none}}
+.sh2n{margin:6px 2px 0;font-size:12px;color:var(--sub);text-align:center;line-height:1.45}
 .empty{text-align:center;color:var(--sub);font-size:14px;padding:20px 0;line-height:1.6}
 .gate{text-align:center;padding:30px 10px}
 @media (prefers-reduced-motion:reduce){.sw::after{transition:none}}
@@ -613,13 +622,13 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
   function step5(){
     if(!S.url){ go(3); return; }
     var h='<div class="eb">STEP 5 · 공유하기</div><div class="h2">친구에게<br>자랑해볼까요?</div><div class="ch">'+CH.map(function(c){ return '<button type="button" data-ch="'+c[0]+'" aria-pressed="'+!!S.ch[c[0]]+'"><span class="i" style="background:'+c[3]+';color:'+c[4]+'">'+(c[0]==="feed"?'<span style="width:28px;height:28px;display:block">'+GRAPE+'</span>':c[2])+'</span>'+c[1]+'<small>✓ 선택됨</small></button>'; }).join("")+'</div>';
-    h+='<div class="card"><div class="capbar"><b>함께 보내는 글</b><button type="button" data-a="copy">⧉ 복사</button></div><div class="cap" id="capt">'+esc(caption()||"(글 없이 영상만 보내요)")+'</div><p class="note">카톡은 영상과 글을 한 번에 보내면 글을 빼먹어요. 그래서 ① 영상을 먼저 보내고, ② "링크 글 이어서 보내기"로 같은 대화방에 글을 보내요.</p></div>';
+    h+='<div class="card"><div class="capbar"><b>함께 보내는 글</b><button type="button" data-a="copy">⧉ 복사</button></div><div class="cap" id="capt">'+esc(caption()||"(글 없이 영상만 보내요)")+'</div><p class="note">① 영상 보내기에 이 글도 함께 실어 보내요 (문자·텔레그램 등은 한 번에 가요). 카톡은 영상과 글을 한 번에 받지 못해서 글이 빠져요 — ② 링크 보내기로 같은 대화방에 보내 주세요. ① 을 누르면 이 글이 복사돼서, 카톡 대화창에 붙여넣기 해도 돼요.</p></div>';
     h+='<div class="card swr"><span class="t"><b>링크 포함</b><small>친구가 링크를 누르면 여행 자동 쇼츠가 바로 열려요</small></span><button type="button" class="sw" role="switch" aria-checked="'+S.link+'" data-link="1" aria-label="링크 포함"></button></div>';
     if(S.ch.feed) h+='<div class="card"><div class="sec">🍇 coverfo 피드 (누리트립 쇼츠)</div><input class="tin" id="fplace" maxlength="40" placeholder="어디 여행이었나요? (예: 제주 협재해변)" value="'+esc((cur()&&cur().place&&cur().place.name)||(cur()&&cur().title)||"")+'" aria-label="장소"><p class="note">누리트립 쇼츠로 올리면 1크레딧이에요 (기존 쇼츠 올리기와 같아요). 누리트립 닉네임이 있어야 올릴 수 있어요.</p></div>';
     h+='<div class="msg" id="msg" role="status"></div><p class="note" style="text-align:center">휴대폰 공유창이 열리면 고른 앱(릴스·틱톡·유튜브·카톡)을 누르세요. 실제 전송은 그 앱에서 이어져요.</p>'
       +'<a href="/pdy/" style="display:block;margin:14px 0 0;padding:14px;border-radius:16px;background:#E9FBF0;color:#0F7A4A;font-size:14px;font-weight:800;text-decoration:none;text-align:center">🍇 다음 여행 날짜·기념일은 포도야알림이 챙겨요 ›</a>';  /* v478 연결 지도: 여행쇼츠 → 포도야알림 */
     $("main").innerHTML=h;
-    cta('<button type="button" class="go" data-a="share">⤴ ① 영상 보내기</button><button type="button" class="sub2" data-a="save">📥 휴대폰에 저장</button>');
+    shareCta(false);
   }
   function fileOf(){ return new File([S.blob],"coverfo-shorts."+S.ext,{type:S.mime}); }
   function save(){
@@ -653,10 +662,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
     if(navigator.share&&!window.CoverfoApp){ try{ navigator.share({title:title,text:text}).then(function(){ msg("✓ 링크 글도 보냈어요",true); },function(){}); return; }catch(e){} }
     copy(text);
   }
-  function step2cta(){
-    if(!caption()) return;
-    cta('<button type="button" class="go" data-a="sharetext">💬 ② 링크 글 이어서 보내기</button><button type="button" class="sub2" data-a="share">⤴ 영상 다시 보내기</button>');
+  /* v480: ① 영상 보내기 · ② 링크 보내기 를 처음부터 나란히 — ② 가 있다는 걸 바로 알 수 있게. ① 을 보내면 ② 가 반짝인다 */
+  function shareCta(sent){
+    var two=!!caption();
+    cta('<div class="sh2'+(two?'':' one')+(sent?' sent':'')+'"><button type="button" class="go" data-a="share">⤴ ① 영상 보내기</button>'+(two?'<button type="button" class="go l2" data-a="sharetext">💬 ② 링크 보내기</button>':'')+'</div>'
+      +(two?'<p class="sh2n">카톡은 영상과 글을 한 번에 받지 못해요 · ① 다음 ② 를 같은 대화방에 보내 주세요</p>':'')
+      +'<button type="button" class="sub2" data-a="save">📥 휴대폰에 저장</button>');
   }
+  function step2cta(){ shareCta(true); }
   function share(btn){
     btn.disabled=true;
     var ext=S.ch.reels||S.ch.tiktok||S.ch.yt||S.ch.kakao, text=caption();
@@ -666,7 +679,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
       if(!ext) return;
       var f=fileOf();
       if(navigator.canShare&&navigator.canShare({files:[f]})){
-        navigator.share({files:[f]}).then(function(){ msg(text?"✓ 영상을 보냈어요 — 아래 ② 버튼으로 같은 대화방에 링크 글도 보내 주세요":"✓ 공유했어요",true); step2cta(); },function(e){ if(e&&e.name!=="AbortError") msg("공유하지 못했어요. 📥 휴대폰에 저장한 뒤 앱에서 올려 주세요."); });
+        /* v480: 글(링크)도 함께 실어 보낸다 — 문자·텔레그램처럼 글을 받는 앱은 한 번에 간다. 카톡은 글을 빼고 영상만 받으므로 ② 버튼과 복사로 보완 */
+        if(text){ try{ navigator.clipboard.writeText(text).catch(function(){}); }catch(e){} }
+        var sd={files:[f]}; if(text){ sd.text=text; if(!(navigator.canShare&&navigator.canShare(sd))) sd={files:[f]}; }
+        navigator.share(sd).then(function(){ msg(text?"✓ 영상을 보냈어요 — 아래 ② 버튼으로 같은 대화방에 링크 글도 보내 주세요":"✓ 공유했어요",true); step2cta(); },function(e){ if(e&&e.name!=="AbortError") msg("공유하지 못했어요. 📥 휴대폰에 저장한 뒤 앱에서 올려 주세요."); });
       } else {
         save(); if(text) copy(text);
         msg((okFeed&&S.fed?"✓ coverfo 피드에 올렸어요 · ":"")+"이 브라우저는 영상 바로 공유를 지원하지 않아요. 휴대폰에 저장하고 문구를 복사했어요 — 고른 앱에서 영상을 올리고 붙여넣기 하세요.");
@@ -687,7 +703,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,label:focus-within{outl
     b=t.closest("[data-cap]"); if(b){ S.cap=b.getAttribute("data-cap"); keepTitle(); step3(); return; }
     b=t.closest("[data-len]"); if(b){ S.len=+b.getAttribute("data-len"); keepTitle(); var k2=want(), on=S.photos.filter(function(x){ return x.on; }).length; if(on<k2){ S.photos.filter(function(x){ return !x.on; }).sort(function(a,c){ return c.score-a.score; }).slice(0,k2-on).forEach(function(x){ x.on=true; }); } step3(); return; }
     b=t.closest("[data-wm]"); if(b){ S.wm=!S.wm; b.setAttribute("aria-checked",String(S.wm)); return; }
-    b=t.closest("[data-link]"); if(b){ S.link=!S.link; b.setAttribute("aria-checked",String(S.link)); var c=$("capt"); if(c) c.textContent=caption()||"(글 없이 영상만 보내요)"; return; }
+    b=t.closest("[data-link]"); if(b){ S.link=!S.link; b.setAttribute("aria-checked",String(S.link)); var c=$("capt"); if(c) c.textContent=caption()||"(글 없이 영상만 보내요)"; if(S.step===5) shareCta(false); return; }
     b=t.closest("[data-ch]"); if(b){ var ck=b.getAttribute("data-ch"); S.ch[ck]=!S.ch[ck]; step5(); return; }
     b=t.closest("[data-a]"); if(!b) return;
     var a=b.getAttribute("data-a");
