@@ -136,6 +136,7 @@ export async function onRequestPost(context) {
     if (op === 'brief_get') return json(await briefGet(env, uid));
     if (op === 'brief_save') return json(await briefSave(env, uid, b));
     if (op === 'brief_make') return json(await briefMake(env, uid, false));
+    if (op === 'brief_text') return json(await briefText(env, uid));   /* v477 📄 글로 보기 — 무료 (AI·음성 없이) */
     if (op === 'push_key') return json({ ok: true, key: env.VAPID_PUBLIC || '' });
     if (op === 'push_sub') return json(await pushSub(env, uid, b.sub));
     if (op === 'push_unsub') return json(await pushUnsub(env, uid, b.endpoint));
@@ -1457,6 +1458,36 @@ async function briefGet(env, uid) {
   const items = await briefItems(env, uid, 7);
   const today = kstDay();
   return { ok: true, settings: briefOut(s), items, today: items.find((x) => x.day === today) || null, cost: briefCost(env), push: !!env.VAPID_PUBLIC };
+}
+/* v477 📄 아침 브리핑 '글로 보기' — 크레딧 0.
+   AI 원고·음성(OpenAI)·Brave 검색·일정 읽기(AI)를 쓰지 않는다. 쓰는 것: 날씨(Open-Meteo, 무료) · 뉴스 제목(네이버 검색 API 뉴스, 하루 25,000회 무료 · NAVER_CLIENT_ID/SECRET — 쇼핑 검색과 같은 키) · 오늘 알림(cf_remind, 우리 DB).
+   cf_spend 를 부르지 않으므로 결제·충전 쪽과 무관하다. */
+async function briefText(env, uid) {
+  const s = { ...briefDefaults(), ...((await briefSettings(env, uid)) || {}), user_id: uid };
+  const topics = String(s.topics || '').split(',').map((t) => t.trim()).filter(Boolean).slice(0, 3);
+  const kEnd = (() => { const k = new Date(Date.now() + 9 * 3600e3); return Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate() + 1) - 9 * 3600e3; })();
+  const [weather, news, reminds] = await Promise.all([
+    briefWeather(env, s),
+    briefNaverNews(env, topics.length ? topics : ['오늘 주요 뉴스']),
+    sbReq(env, 'GET', 'cf_remind?select=text,next_at&user_id=eq.' + encodeURIComponent(uid) + '&is_on=eq.true&next_at=lt.' + encodeURIComponent(new Date(kEnd).toISOString()) + '&order=next_at.asc&limit=10').catch(() => []),
+  ]);
+  return { ok: true, day: kstDay(), city: s.city || '서울', weather: weather || '', news, reminds: Array.isArray(reminds) ? reminds.map((r) => ({ text: String(r.text || '').slice(0, 120), at: r.next_at })) : [], cost: 0 };
+}
+async function briefNaverNews(env, topics) {
+  if (!env.NAVER_CLIENT_ID || !env.NAVER_CLIENT_SECRET) return [];
+  const clean = (t) => String(t || '').replace(/<[^>]+>/g, '').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+  const out = [];
+  await Promise.all(topics.map(async (t, ti) => {
+    try {
+      const r = await fetch('https://openapi.naver.com/v1/search/news.json?display=3&sort=date&query=' + encodeURIComponent(t), {
+        headers: { 'X-Naver-Client-Id': env.NAVER_CLIENT_ID, 'X-Naver-Client-Secret': env.NAVER_CLIENT_SECRET }, signal: AbortSignal.timeout(8000),
+      });
+      if (!r.ok) return;
+      const d = await r.json();
+      ((d && d.items) || []).slice(0, 3).forEach((x, i) => out.push({ o: ti * 10 + i, topic: t, title: clean(x.title).slice(0, 160), desc: clean(x.description).slice(0, 200), url: x.originallink || x.link || '', at: x.pubDate || '' }));
+    } catch { /* 건너뜀 */ }
+  }));
+  return out.sort((a, b) => a.o - b.o).map(({ o, ...x }) => x);
 }
 async function briefSave(env, uid, b) {
   const old = (await briefSettings(env, uid)) || briefDefaults();
