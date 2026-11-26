@@ -1,4 +1,4 @@
-/* coverfo 🖼 결과 카드 — public/card/card.js (v485)
+/* coverfo 🖼 결과 카드 — public/card/card.js (v485 · v486 링크 먼저 → ② 카드)
    · 같이 정하기 결과 · 여행쇼츠 · 포도야알림을 "문장 1줄 + 링크"가 크게 보이는 이미지(1080×1350)로 만들어 공유한다.
      (투표 화면을 캡처하면 글자가 작아 인스타에서 안 보이므로 새로 그린다.)
    · 링크는 원래 링크 그대로 (예: coverfo.com/s/q7MMReHs) — 카드를 보고 온 친구도 같은 화면으로 들어온다.
@@ -26,13 +26,16 @@
       '#cfcard .cfc-hd small{display:block;font-size:12px;font-weight:800;color:#6C4DFF}',
       '#cfcard .cfc-hd b{display:block;font-size:19px;font-weight:900;letter-spacing:-.02em;margin-top:2px}',
       '#cfcard .cfc-x{flex:none;width:38px;height:38px;border-radius:50%;border:0;background:#F2F0F8;font-size:17px;color:#17132B;cursor:pointer}',
-      '#cfcard .cfc-pv{display:block;width:100%;aspect-ratio:4/5;border-radius:20px;background:#eee;box-shadow:0 16px 30px -18px rgba(60,30,160,.6);object-fit:cover}',
-      '#cfcard .cfc-lb{font-size:14px;font-weight:900;margin:14px 2px 8px}',
-      '#cfcard .cfc-sty{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}',
-      '#cfcard .cfc-sty button{border:1.5px solid #E4DFFF;border-radius:14px;background:#fff;padding:8px;text-align:left;font:inherit;font-size:13px;font-weight:800;color:#17132B;cursor:pointer}',
-      '#cfcard .cfc-sty button i{display:block;height:34px;border-radius:9px;margin-bottom:6px}',
+      /* v486: 공유 단추가 먼저 · 카드 미리보기는 아래에 작게 (한 화면에 다 보이게) */
+      '#cfcard .cfc-row{display:flex;gap:12px;align-items:flex-start;margin-top:14px;padding-top:12px;border-top:1px solid #F0EDF8}',
+      '#cfcard .cfc-pv{display:block;flex:0 0 38%;width:38%;aspect-ratio:4/5;border-radius:14px;background:#eee;box-shadow:0 10px 22px -14px rgba(60,30,160,.6);object-fit:cover}',
+      '#cfcard .cfc-side{flex:1;min-width:0}',
+      '#cfcard .cfc-lb{font-size:13.5px;font-weight:900;margin:0 2px 8px}',
+      '#cfcard .cfc-sty{display:grid;grid-template-columns:1fr;gap:6px}',
+      '#cfcard .cfc-sty button{display:flex;align-items:center;gap:8px;border:1.5px solid #E4DFFF;border-radius:12px;background:#fff;padding:6px 8px;text-align:left;font:inherit;font-size:13px;font-weight:800;color:#17132B;cursor:pointer}',
+      '#cfcard .cfc-sty button i{flex:none;width:26px;height:26px;border-radius:8px}',
       '#cfcard .cfc-sty button[aria-pressed="true"]{border:2px solid #6C4DFF;box-shadow:0 8px 18px -14px rgba(108,77,255,.9)}',
-      '#cfcard .cfc-ap{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}',
+      '#cfcard .cfc-ap{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px}',
       '#cfcard .cfc-ap button{border:1.5px solid #EEEAFB;border-radius:16px;background:#FBFAFF;padding:10px 2px;font:inherit;font-size:12px;font-weight:800;color:#17132B;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer}',
       '#cfcard .cfc-ap button span{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px}',
       '#cfcard .cfc-lk{display:flex;align-items:center;gap:8px;width:100%;margin-top:10px;height:48px;border:1.5px solid #E4DFFF;border-radius:14px;background:#fff;font:inherit;font-size:13.5px;color:#6E6889;padding:0 14px;cursor:pointer;box-sizing:border-box}',
@@ -55,21 +58,21 @@
     css();
     el = document.createElement('div'); el.id = 'cfcard'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', '결과 카드');
     el.innerHTML = '<div class="cfc-bg" data-c="x"></div><div class="cfc-pn">'
-      + '<div class="cfc-hd"><div><small>결과 카드 미리보기</small><b>이 순간, 바로 공유해요</b></div><button type="button" class="cfc-x" data-c="x" aria-label="닫기">✕</button></div>'
-      + '<img class="cfc-pv" alt="공유할 카드">'
-      + '<div class="cfc-lb">카드 모양</div><div class="cfc-sty">'
-      + '<button type="button" data-s="simple"><i style="background:#F3F0FF;border:1px solid #E4DFFF"></i>심플</button>'
-      + '<button type="button" data-s="color"><i style="background:linear-gradient(135deg,#8B5CF6,#F0509A)"></i>컬러</button>'
-      + '<button type="button" data-s="photo"><i style="background:linear-gradient(135deg,#FF9A5A,#FFC93C)"></i>사진</button></div>'
-      + '<div class="cfc-pk"><label>📷 배경 사진 고르기<input type="file" accept="image/*" aria-label="배경 사진 고르기"></label></div>'
+      + '<div class="cfc-hd"><div><small>링크 + 결과 카드</small><b>이 순간, 바로 공유해요</b></div><button type="button" class="cfc-x" data-c="x" aria-label="닫기">✕</button></div>'
       + '<div class="cfc-ap">'
       + '<button type="button" data-a="kakao"><span style="background:#FFF6C7">💬</span>카카오톡</button>'
       + '<button type="button" data-a="insta"><span style="background:#FFE4EF">📷</span>인스타 스토리</button>'
       + '<button type="button" data-a="sms"><span style="background:#EAF4FF">✉️</span>문자</button>'
       + '<button type="button" data-a="save"><span style="background:#F0EBFF">📥</span>이미지 저장</button></div>'
       + '<button type="button" class="cfc-lk" data-a="copy"><b>🔗 링크 복사</b><span class="cfc-u"></span></button>'
-      + '<button type="button" class="cfc-go" data-a="share">⤴ 카드 공유하기</button>'
-      + '<div class="cfc-ms" role="status"></div><div class="cfc-nt">바깥을 누르면 닫혀요 · 카드는 이 휴대폰에서 만들어요</div></div>';
+      + '<button type="button" class="cfc-go" data-a="share">💬 ① 링크 보내기</button>'
+      + '<div class="cfc-ms" role="status"></div>'
+      + '<div class="cfc-row"><img class="cfc-pv" alt="공유할 카드"><div class="cfc-side"><div class="cfc-lb">카드 모양</div><div class="cfc-sty">'
+      + '<button type="button" data-s="simple"><i style="background:#F3F0FF;border:1px solid #E4DFFF"></i>심플</button>'
+      + '<button type="button" data-s="color"><i style="background:linear-gradient(135deg,#8B5CF6,#F0509A)"></i>컬러</button>'
+      + '<button type="button" data-s="photo"><i style="background:linear-gradient(135deg,#FF9A5A,#FFC93C)"></i>사진</button></div>'
+      + '<div class="cfc-pk"><label>📷 배경 사진<input type="file" accept="image/*" aria-label="배경 사진 고르기"></label></div></div></div>'
+      + '<div class="cfc-nt">바깥을 누르면 닫혀요 · 카드는 이 휴대폰에서 만들어요</div></div>';
     document.body.appendChild(el);
     el.addEventListener('click', onClick);
     el.querySelector('.cfc-pk input').addEventListener('change', function (e) {
@@ -177,27 +180,23 @@
     var a = t.getAttribute('data-a');
     if (a === 'copy') { copy(O.url); return; }
     if (a === 'save') { save(); return; }
-    if (a === 'share') { shareImg(true); return; }
+    /* v486: 링크를 먼저 보내고(글만 공유 → 카톡도 잘 감), 그다음 ② 카드 이미지 */
+    if (a === 'share' || a === 'kakao') { sendLink(a === 'kakao' ? '공유창에서 카카오톡을 고르세요' : ''); return; }
+    if (a === 'card2') { shareImg(false, function () { msg('✓ 링크와 카드를 모두 보냈어요'); }); return; }
     if (a === 'insta') { msg('공유창에서 Instagram → 스토리를 고르세요 · 링크는 카드에 크게 들어 있어요'); shareImg(false, function () { msg('✓ 보냈어요 · 스토리에 링크 스티커로 ' + shortUrl(O.url) + ' 를 붙이면 바로 눌러 들어와요'); }); return; }
     if (a === 'sms') { msg('공유창에서 메시지를 고르세요'); shareImg(true); return; }
-    if (a === 'kakao') {
-      msg('공유창에서 카카오톡을 고르세요');
-      shareImg(false, function () {
-        msg('✓ 카드를 보냈어요 · 아래 노란 버튼으로 같은 대화방에 링크도 보내 주세요');
-        var g = el.querySelector('.cfc-go'); g.className = 'cfc-go cfc-go2'; g.setAttribute('data-a', 'kakao2'); g.textContent = '💬 ② 링크 이어서 보내기';
-      });
-      return;
-    }
-    if (a === 'kakao2') {
-      if (navigator.share && !window.CoverfoApp) navigator.share({ title: O.title || 'coverfo', text: text() }).then(function () { msg('✓ 링크도 보냈어요'); }, function () {});
-      else copy(text());
-      return;
-    }
+  }
+  function step2() { var g = el.querySelector('.cfc-go'); g.className = 'cfc-go cfc-go2'; g.setAttribute('data-a', 'card2'); g.textContent = '🖼 ② 카드 이어서 보내기'; }
+  function sendLink(hint) {
+    if (hint) msg(hint);
+    if (navigator.share && !window.CoverfoApp) {
+      navigator.share({ title: O.title || 'coverfo', text: text() }).then(function () { msg('✓ 링크를 보냈어요 · 아래 노란 버튼으로 같은 대화방에 카드도 보내 주세요'); step2(); }, function () {});
+    } else { copy(text(), '✓ 링크를 복사했어요 · 대화방에 붙여넣은 뒤 아래 버튼으로 카드도 보내 주세요'); step2(); }
   }
   function open(o) {
     build(); O = o || {}; PH = null; BLOB = null; msg('');
     ST = O.style || (O.photo ? 'photo' : 'color');
-    var g = el.querySelector('.cfc-go'); g.className = 'cfc-go'; g.setAttribute('data-a', 'share'); g.textContent = '⤴ 카드 공유하기';
+    var g = el.querySelector('.cfc-go'); g.className = 'cfc-go'; g.setAttribute('data-a', 'share'); g.textContent = '💬 ① 링크 보내기';
     el.querySelector('.cfc-lk .cfc-u').textContent = shortUrl(O.url);
     el.querySelector('.cfc-pk input').value = '';
     el.classList.add('on'); el.querySelector('.cfc-pn').scrollTop = 0;
