@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<!-- coverfo 📞 AI 전화 걸기 — public/call/index.html (v488)
+     © 2026 coverfo All Rights Reserved
+     · 홈 'AI 여행 파트너' 아래 📞 AI 전화 걸기 칸에서 열림 (홈 위 덮개 cf-page.js)
+     · 5단계: ① 예약 요청 ② 가게 확인 ③ AI 전화 중 ④ 예약 완료 ⑤ 실패 시 백업
+     · 가게 찾기: /api/call-find (카카오 공식 장소 검색 · 공개된 가게 전화번호)
+     · AI 가 실제로 대신 거는 통화는 전화 회선(통화 서비스) 연결이 필요해 아직 꺼 둠 → AI_CALL_READY
+       꺼져 있는 동안 ③ 화면은 "통화 대본 미리보기"(실제 통화 아님)로 동작하고, 실제 통화는 [내가 직접 전화할게](tel:)로 이어짐
+     · 예약 내용·이름은 이 기기(localStorage)에만 저장 · 서버로 보내지 않음 · 크레딧·결제와 무관 -->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI 전화 걸기 · coverfo</title>
+<meta name="theme-color" content="#F7F4FF">
+<style>
+:root{--bg:#F3EFFF;--sf:#fff;--sf2:#F6F3FF;--ink:#171327;--mu:#6B658A;--ln:#E4DEFF;--pr:#6C3BFF;--pr2:#2F6BFF;--ac:#FF6FAE;--ok:#16A67A;--warn:#B45309;--bad:#E11D48}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;-webkit-text-size-adjust:100%}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:inherit}
+.wrap{max-width:560px;margin:0 auto;padding:0 14px 40px}
+/* 상단 */
+.top{position:sticky;top:0;z-index:20;background:rgba(243,239,255,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:calc(10px + env(safe-area-inset-top)) 0 8px}
+.bar{display:flex;align-items:center;gap:10px}
+.x{width:38px;height:38px;border-radius:12px;border:0;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);font-size:18px;display:grid;place-items:center}
+.ttl{flex:1;min-width:0}
+.ttl b{display:block;font-size:17px;font-weight:900;letter-spacing:-.02em}
+.ttl small{display:block;font-size:11.5px;color:var(--mu)}
+.mine{border:0;background:#fff;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:800;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.steps{display:flex;gap:4px;margin-top:10px;overflow-x:auto;scrollbar-width:none;background:rgba(255,255,255,.8);border-radius:16px;padding:5px}
+.steps::-webkit-scrollbar{display:none}
+.steps button{flex:1 0 auto;border:0;background:transparent;border-radius:11px;padding:8px 10px;font-size:12px;font-weight:800;color:#64748b;white-space:nowrap}
+.steps button i{font-style:normal;color:#8b5cf6;margin-right:3px}
+.steps button.on{background:var(--ink);color:#fff}
+/* 공통 */
+.pane{display:none;animation:pop .3s ease both}
+.pane.on{display:block}
+@keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.card{background:var(--sf);border-radius:22px;padding:14px;box-shadow:0 1px 3px rgba(23,19,39,.06);margin-top:10px}
+.h{font-size:13px;font-weight:900;margin:0 0 8px;display:flex;align-items:center;gap:6px}
+.mu{color:var(--mu)}
+.sm{font-size:11.5px}
+.row{display:flex;gap:8px;align-items:center}
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;border:0;border-radius:16px;padding:14px;font-size:14px;font-weight:900;text-decoration:none;margin-top:10px}
+.btn.pri{background:linear-gradient(90deg,var(--pr),var(--pr2));color:#fff;box-shadow:0 10px 22px -12px rgba(108,59,255,.9)}
+.btn.dark{background:var(--ink);color:#fff}
+.btn.wh{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.btn:disabled{opacity:.45;cursor:default}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.g2 .btn,.g3 .btn{margin-top:0;padding:12px 6px;font-size:12px}
+.chip{display:inline-flex;align-items:center;gap:4px;border:0;border-radius:999px;background:#EEF0FF;color:#4B3ACD;padding:7px 12px;font-size:12px;font-weight:800}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.note{border-radius:18px;padding:11px 13px;font-size:12px;line-height:1.6;margin-top:10px}
+.note b{display:block;font-weight:900}
+.note.v{background:#F5F3FF;border:1px solid #DDD6FE;color:#5B21B6}
+.note.a{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E}
+.note.g{background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46}
+.note.r{background:#FFF1F2;border:1px solid #FECDD3;color:#9F1239}
+/* 채팅 */
+.me{margin:12px 0 0 auto;max-width:86%;background:var(--pr);color:#fff;border-radius:18px 18px 6px 18px;padding:10px 13px;font-size:13.5px;line-height:1.55;word-break:keep-all;overflow-wrap:anywhere}
+.ai{display:flex;align-items:flex-end;gap:8px;margin-top:10px}
+.av{flex:none;width:32px;height:32px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:17px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.ai p{margin:0;max-width:86%;background:#fff;border-radius:18px 18px 18px 6px;padding:10px 13px;font-size:13.5px;line-height:1.55;box-shadow:0 1px 2px rgba(0,0,0,.05);word-break:keep-all;overflow-wrap:anywhere}
+.ask{display:flex;gap:8px;margin-top:12px;background:#fff;border-radius:18px;padding:6px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.ask input{flex:1;min-width:0;border:0;outline:0;background:transparent;padding:8px 10px;font-size:15px}
+.ask button{flex:none;border:0;border-radius:14px;background:var(--pr);color:#fff;font-weight:900;padding:0 14px;font-size:13px}
+.ex{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ex button{border:1px solid var(--ln);background:#fff;border-radius:999px;padding:6px 10px;font-size:11.5px;font-weight:700;color:#4B3ACD}
+/* 가게 카드 */
+.shop{display:block;width:100%;text-align:left;border:2px solid transparent;background:#fff;border-radius:20px;padding:12px;margin-top:8px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.shop.on{border-color:var(--pr);box-shadow:0 0 0 4px #EDE9FE}
+.shop .n{font-size:14.5px;font-weight:900}
+.shop .c{font-size:11.5px;color:var(--mu);margin-top:2px}
+.shop .m{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.shop .m span{border-radius:999px;background:#F1F5F9;padding:4px 8px;font-size:11px;font-weight:700}
+.shop .m span.ph{background:#ECFDF5;color:#047857}
+.shop .m span.np{background:#FFF1F2;color:#BE123C}
+.shop .sel{margin-top:6px;font-size:11.5px;font-weight:800;color:var(--pr)}
+.shop .lk{font-size:11px;color:#2563eb;text-decoration:underline;margin-left:4px}
+/* 조건 편집 */
+.f{display:grid;grid-template-columns:72px 1fr;gap:8px;align-items:center;margin-top:8px}
+.f label{font-size:12px;font-weight:800;color:var(--mu)}
+.f input,.f select{width:100%;border:1px solid var(--ln);border-radius:12px;padding:9px 10px;background:#fff;font-size:14px;min-width:0}
+.opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.opts button{border:1px solid var(--ln);background:#fff;border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700}
+.opts button.on{background:var(--pr);border-color:var(--pr);color:#fff}
+/* 요약 */
+.hero{border-radius:22px;overflow:hidden;background:#fff;margin-top:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.hero .tp{padding:16px;color:#fff;background:linear-gradient(135deg,var(--pr),var(--pr2) 60%,var(--ac))}
+.hero .tp span{display:inline-block;border-radius:999px;background:rgba(255,255,255,.25);padding:3px 8px;font-size:10.5px;font-weight:800}
+.hero .tp h2{margin:8px 0 2px;font-size:20px;font-weight:900;line-height:1.25}
+.hero .tp p{margin:0;font-size:12px;opacity:.92}
+.hero .bt{padding:10px 14px;font-size:12px;color:var(--mu)}
+dl.sum{margin:0;font-size:13.5px}
+dl.sum div{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed #EEE}
+dl.sum div:last-child{border:0}
+dl.sum dt{color:var(--mu)}
+dl.sum dd{margin:0;font-weight:800;text-align:right}
+dl.sum input{border:1px solid var(--ln);border-radius:10px;padding:6px 8px;width:140px;text-align:right;font-weight:800}
+.tg{position:relative;flex:none;width:48px;height:28px;border-radius:999px;border:0;background:#CBD5E1;padding:0;transition:.2s}
+.tg::after{content:"";position:absolute;top:4px;left:4px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s}
+.tg.on{background:var(--pr)}
+.tg.on::after{left:24px}
+/* 통화 화면 */
+.call{background:#171327;color:#fff;border-radius:24px;padding:18px 14px;text-align:center;margin-top:10px}
+.ring{position:relative;width:80px;height:80px;margin:0 auto;display:grid;place-items:center}
+.ring::before{content:"";position:absolute;inset:0;border-radius:50%;background:#a78bfa;animation:pr 1.6s ease-out infinite}
+.ring.off::before{animation:none;opacity:0}
+.ring span{position:relative;width:64px;height:64px;border-radius:50%;display:grid;place-items:center;font-size:30px;background:linear-gradient(135deg,var(--pr),var(--ac))}
+@keyframes pr{0%{transform:scale(.9);opacity:.7}100%{transform:scale(1.55);opacity:0}}
+.call h2{margin:12px 0 2px;font-size:17px;font-weight:900}
+.call .s{font-size:12px;opacity:.7}
+.call .tm{font-family:ui-monospace,Menlo,monospace;font-size:28px;font-weight:900;letter-spacing:.12em;margin-top:10px}
+.pg{height:8px;border-radius:999px;background:rgba(255,255,255,.2);overflow:hidden;margin:8px auto 0}
+.pg i{display:block;height:100%;width:0;background:linear-gradient(90deg,#a78bfa,#f472b6);transition:width .5s}
+.pv{display:inline-block;margin-top:10px;border-radius:999px;background:rgba(255,255,255,.14);padding:4px 10px;font-size:11px;font-weight:800}
+.ln{max-width:88%;border-radius:18px;padding:10px 12px;font-size:13.5px;line-height:1.55;margin-top:8px;box-shadow:0 1px 2px rgba(0,0,0,.05);animation:pop .3s ease both}
+.ln small{display:block;font-size:10px;font-weight:800;opacity:.75;margin-bottom:2px}
+.ln.ai{margin-left:auto;background:var(--pr);color:#fff;border-bottom-right-radius:6px;display:block}
+.ln.ow{background:#fff;border-bottom-left-radius:6px}
+.wave{display:flex;align-items:center;gap:8px;background:#fff;border-radius:16px;padding:10px 12px;font-size:11.5px;color:var(--mu);margin-top:8px}
+.wave span{display:flex;gap:3px;align-items:center;height:26px}
+.wave span i{width:4px;border-radius:2px;background:#8b5cf6;animation:wv 1s ease-in-out infinite}
+.wave span i:nth-child(2){animation-delay:.15s}.wave span i:nth-child(3){animation-delay:.3s}.wave span i:nth-child(4){animation-delay:.45s}
+@keyframes wv{0%,100%{height:8px}50%{height:24px}}
+.cb{display:flex;flex-direction:column;align-items:center;gap:4px;border:0;border-radius:16px;background:#fff;padding:11px 4px;font-size:12px;font-weight:800;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.cb.on{background:var(--ok);color:#fff}
+.cb.red{color:var(--bad)}
+.cb em{font-style:normal;font-size:18px}
+/* 완료 */
+.done{text-align:center}
+.done .ic{width:64px;height:64px;margin:4px auto 0;border-radius:50%;background:#D1FAE5;color:#059669;display:grid;place-items:center;font-size:32px}
+.done h2{margin:10px 0 2px;font-size:22px;font-weight:900}
+.bk{margin-top:12px;text-align:left;border-radius:16px;background:var(--sf2);padding:12px;font-size:13px;line-height:1.6}
+.bk b.no{color:var(--pr)}
+.brag{border-radius:22px;padding:16px;color:#fff;background:linear-gradient(135deg,var(--pr),var(--ac));margin-top:10px}
+.share{display:flex;gap:8px;margin-top:8px}
+.share input{flex:1;min-width:0;border:1px solid var(--ln);border-radius:12px;padding:9px 10px;font-size:12px}
+.share button{flex:none;border:0;border-radius:12px;background:#7C3AED;color:#fff;font-weight:800;padding:0 12px;font-size:12px}
+/* 실패 */
+.pick{display:block;width:100%;text-align:left;border:2px solid transparent;background:#fff;border-radius:18px;padding:12px;margin-top:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);text-decoration:none}
+.pick.on{border-color:var(--pr)}
+.pick b{display:flex;justify-content:space-between;font-size:13.5px;font-weight:900}
+.pick span{display:block;font-size:11.5px;color:var(--mu);margin-top:3px}
+/* 규칙 */
+.rules{border:1px solid #F1F5F9;border-radius:16px;overflow:hidden;margin-top:8px}
+.rules div{padding:10px 12px;font-size:12px;line-height:1.55}
+.rules div:nth-child(even){background:#FBFAFF}
+.rules b{display:block;font-size:13px;font-weight:900}
+.rules b::before{content:"♡ ";color:#ec4899}
+/* 내 예약 */
+.sheet{position:fixed;inset:0;z-index:50;background:rgba(15,10,40,.45);display:none;align-items:flex-end;justify-content:center}
+.sheet.on{display:flex}
+.sheet .in{width:100%;max-width:560px;max-height:80vh;overflow:auto;background:#fff;border-radius:24px 24px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom))}
+.mb{border-radius:14px;background:var(--sf2);padding:10px 12px;margin-top:8px;font-size:12.5px;line-height:1.55}
+.mb .rm{float:right;border:0;background:transparent;color:var(--bad);font-size:12px;font-weight:800}
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:60;max-width:90vw;background:#171327;color:#fff;border-radius:999px;padding:10px 16px;font-size:12.5px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .25s}
+.toast.on{opacity:1}
+.spin{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid #ddd;border-top-color:var(--pr);animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#151126;--sf:#211C39;--sf2:#2A2350;--ink:#FFFDFC;--mu:#C3BBE8;--ln:#403768}
+  .top{background:rgba(21,17,38,.92)}
+  .x,.mine,.steps,.ask,.ai p,.shop,.btn.wh,.ex button,.opts button,.f input,.f select,.hero,.ln.ow,.wave,.cb,.pick,.sheet .in,.av,dl.sum input,.share input{background:#211C39;color:#FFFDFC}
+  .steps button{color:#C3BBE8}.steps button.on{background:#9B7BFF;color:#151126}
+  .shop .m span{background:#2A2350}.chip{background:#2A2350;color:#C4B5FD}
+  .rules{border-color:#403768}.rules div:nth-child(even){background:#2A2350}
+  .call{background:#0d0a1c}
+}
+</style>
+</head>
+<body>
+<div class="top"><div class="wrap" style="padding-bottom:0">
+  <div class="bar">
+    <button class="x" id="close" aria-label="닫기">✕</button>
+    <div class="ttl"><b>📞 AI 전화 걸기</b><small>조건만 말하면 포도야가 가게에 전화해 예약해요</small></div>
+    <button class="mine" id="mine">내 예약</button>
+  </div>
+  <nav class="steps" id="steps" aria-label="예약 단계">
+    <button data-s="0" class="on"><i>1</i>예약 요청</button>
+    <button data-s="1"><i>2</i>가게 확인</button>
+    <button data-s="2"><i>3</i>AI 전화 중</button>
+    <button data-s="3"><i>4</i>예약 완료</button>
+    <button data-s="4"><i>5</i>실패 시 백업</button>
+  </nav>
+</div></div>
+
+<main class="wrap">
+
+<!-- ① 예약 요청 -->
+<section class="pane on" id="p0">
+  <div class="ai"><span class="av">🍇</span><p>어디에 언제, 몇 명 예약할까요?<br><span class="mu sm">예) 홍대 삼겹살집 오늘 7시 4명 예약해줘</span></p></div>
+  <div id="chat"></div>
+  <form class="ask" id="askf" autocomplete="off">
+    <input id="ask" placeholder="포도야, 홍대 삼겹살집 오늘 7시 4명…" maxlength="120" enterkeyhint="send">
+    <button type="submit">보내기</button>
+  </form>
+  <div class="ex" id="ex">
+    <button type="button">홍대 삼겹살집 오늘 7시 4명</button>
+    <button type="button">내일 점심 12시 강남역 파스타 2명</button>
+    <button type="button" id="nearbtn">📍 내 주변에서 찾기</button>
+  </div>
+  <div id="shops"></div>
+  <div class="card" id="cond" hidden>
+    <p class="h">예약 조건 <span class="mu sm" style="font-weight:600">· 눌러서 바꿀 수 있어요</span></p>
+    <div class="f"><label for="cDate">날짜</label><input type="date" id="cDate"></div>
+    <div class="f"><label for="cTime">시간</label><input type="time" id="cTime" step="600"></div>
+    <div class="f"><label for="cPpl">인원</label><select id="cPpl"></select></div>
+    <div class="opts" id="opts"></div>
+  </div>
+  <button class="btn pri" id="go1" hidden>이 조건으로 예약해줘 →</button>
+  <p class="mu sm" id="go1n" style="text-align:center;margin:8px 0 0" hidden>고른 가게와 조건이 다음 화면에 그대로 이어져요</p>
+</section>
+
+<!-- ② 가게 확인 -->
+<section class="pane" id="p1">
+  <div id="p1empty" class="note a"><b>아직 고른 가게가 없어요</b>1단계에서 가게를 골라 주세요.<button class="btn wh" data-go="0">① 예약 요청으로</button></div>
+  <div id="p1body" hidden>
+    <div class="hero"><div class="tp"><span id="hCat">가게</span><h2 id="hName"></h2><p id="hMeta"></p></div><div class="bt" id="hAddr"></div></div>
+    <div class="card">
+      <p class="h">🧾 예약 요약</p>
+      <dl class="sum">
+        <div><dt>가게</dt><dd id="sName"></dd></div>
+        <div><dt>날짜</dt><dd id="sDate"></dd></div>
+        <div><dt>시간</dt><dd id="sTime"></dd></div>
+        <div><dt>인원</dt><dd id="sPpl"></dd></div>
+        <div><dt>예약자 이름</dt><dd><input id="sWho" maxlength="12" placeholder="이름"></dd></div>
+        <div><dt>가게 전화</dt><dd id="sTel"></dd></div>
+      </dl>
+      <p class="mu sm" style="margin:8px 0 0">이름은 이 기기에만 저장돼요. 다음부터 자동으로 채워져요.</p>
+    </div>
+    <div class="note v"><b>포도야가 AI 비서라고 먼저 밝히고 전화해요</b>가게에서 원하면 언제든 사람(나)에게 넘겨요.</div>
+    <div class="card row" style="justify-content:space-between">
+      <div><p class="h" style="margin:0">🎙 통화 녹음해서 들려주기</p><p class="mu sm" style="margin:2px 0 0">녹음은 통화 시작 때 가게에 먼저 알려요</p></div>
+      <button class="tg on" id="rec" aria-label="통화 녹음 켜기·끄기" aria-pressed="true"></button>
+    </div>
+    <button class="btn pri" id="aiGo">📞 포도야에게 전화 맡기기</button>
+    <a class="btn wh" id="selfGo" target="_top" href="#">☎️ 내가 직접 전화할게</a>
+    <div class="note a" id="selfAsk" hidden><b>통화 끝났나요?</b>결과를 알려 주시면 예약 내용을 정리해 드려요.
+      <div class="g2" style="margin-top:8px"><button class="btn pri" id="selfOk">✅ 예약됐어요</button><button class="btn wh" id="selfNo">❌ 안 됐어요</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ③ AI 전화 중 -->
+<section class="pane" id="p2">
+  <div class="call">
+    <div class="ring off" id="ring"><span>🍇</span></div>
+    <h2 id="cTtl">통화 미리보기</h2>
+    <p class="s" id="cSub">가게를 먼저 골라 주세요</p>
+    <div class="tm" id="cTm">00:00</div>
+    <div class="pg"><i id="cPg"></i></div>
+    <p class="s" id="cSt" style="margin-top:8px">아직 시작하지 않았어요</p>
+    <span class="pv" id="cPv">🧪 대본 미리보기 · 실제 통화 아님</span>
+  </div>
+  <div class="note a" id="cReady"><b>AI 대신 걸기는 전화 회선을 연결한 뒤 켜져요</b>지금은 포도야가 가게에 할 말(대본)을 미리 보여 드려요. 실제 예약은 아래 [내가 직접 걸기]로 바로 이어서 할 수 있어요. 사장님 대답은 예시예요.</div>
+  <div id="lines"></div>
+  <div class="wave" id="wave" hidden><span><i></i><i></i><i></i><i></i></span>포도야가 듣고 있어요…</div>
+  <div class="g3" style="margin-top:10px">
+    <button class="cb" id="listen"><em>🔊</em>소리로 듣기</button>
+    <button class="cb red" id="hang"><em>⏹</em>통화 끊기</button>
+    <button class="cb" id="handoff"><em>🙋</em>나에게 넘기기</button>
+  </div>
+  <button class="btn dark" id="restart">▶ 통화 미리보기 시작</button>
+  <div class="note a" id="hoBox" hidden><b>나에게 넘기기</b>지금까지 정리한 조건으로 내가 직접 이어서 전화해요.
+    <a class="btn pri" id="hoTel" target="_top" href="#">☎️ 지금 직접 걸기</a>
+    <div class="g2" style="margin-top:8px"><button class="btn wh" id="hoOk">✅ 예약됐어요</button><button class="btn wh" id="hoNo">❌ 안 됐어요</button></div>
+  </div>
+  <div class="g2" id="pvEnd" hidden style="margin-top:10px">
+    <a class="btn pri" id="pvTel" target="_top" href="#" style="margin:0">☎️ 이 대본으로 직접 걸기</a>
+    <button class="btn wh" id="pvOk" style="margin:0">✅ 예약 완료로</button>
+  </div>
+</section>
+
+<!-- ④ 예약 완료 -->
+<section class="pane" id="p3">
+  <div id="p3empty" class="note a"><b>아직 확정된 예약이 없어요</b>전화를 건 뒤 [예약됐어요]를 누르면 여기에 정리돼요.<button class="btn wh" data-go="0">① 예약 요청으로</button></div>
+  <div id="p3body" hidden>
+    <div class="card done">
+      <div class="ic">✓</div>
+      <h2>예약 완료!</h2>
+      <p class="mu sm" style="margin:0">가게와 통화로 확인한 내용이에요</p>
+      <div class="bk" id="bk"></div>
+      <div class="f" style="grid-template-columns:72px 1fr;text-align:left"><label for="bWait">가게 안내</label><input id="bWait" maxlength="40" placeholder="예) 대기 20분 · 룸 배정"></div>
+    </div>
+    <button class="btn dark" id="shareBtn">🔗 친구에게 공유하기</button>
+    <div class="card" id="shareBox" hidden>
+      <p class="h">공유할 내용</p>
+      <div class="share"><input id="shareTx" readonly><button id="copyBtn">복사</button></div>
+      <p class="mu sm" style="margin:6px 0 0">카톡·문자에 붙여 넣으면 같은 예약 내용을 볼 수 있어요.</p>
+    </div>
+    <div class="g3" style="margin-top:10px">
+      <button class="btn wh" id="bragBtn">✨ 자랑 카드</button>
+      <button class="btn wh" id="icsBtn">🗓 캘린더</button>
+      <a class="btn wh" id="smsBtn" target="_top" href="#">📩 나에게 문자</a>
+    </div>
+    <div class="brag" id="brag" hidden>
+      <p class="sm" style="margin:0;opacity:.85;font-weight:800" id="bgTop"></p>
+      <h3 style="margin:8px 0 0;font-size:19px;font-weight:900;line-height:1.3" id="bgName"></h3>
+      <p class="sm" style="margin:8px 0 0">포도야가 전화로 확정했어요 🍇</p>
+      <button class="btn wh" id="bragSave" style="color:#171327">🖼 이미지로 저장</button>
+    </div>
+    <div class="ai"><span class="av">🍇</span><p>예약됐어요! 가는 길에 택시 불러 드릴까요?</p></div>
+    <div class="g2" style="margin-top:10px">
+      <button class="btn pri" id="taxi" style="margin:0">🚕 택시 불러줘</button>
+      <button class="btn wh" data-go="0" id="newBk" style="margin:0">＋ 새 예약 만들기</button>
+    </div>
+  </div>
+</section>
+
+<!-- ⑤ 실패 시 백업 -->
+<section class="pane" id="p4">
+  <div class="card">
+    <p class="h" style="color:var(--bad)">⚠️ 가게 전화 안 받음 / 예약 불가</p>
+    <p class="mu sm" style="margin:0" id="fMsg">연결이 안 되거나 자리가 없을 때 여기서 바로 다음 방법을 골라요. 기다리게 하지 않을게요.</p>
+  </div>
+  <div class="ai"><span class="av">🍇</span><p>전화가 안 되네요. 다른 곳으로 할까요? 아니면 직접 걸어 보시겠어요?</p></div>
+  <div id="picks"></div>
+  <div class="note g"><b>실패해도 돈은 안 나가요</b>예약금·크레딧이 빠지지 않았어요. 원하는 방식으로 다시 시도할 수 있어요.</div>
+  <button class="btn wh" data-go="0">↺ 처음부터 다시 하기</button>
+</section>
+
+<!-- 규칙 -->
+<section class="card" style="margin-top:22px">
+  <p class="h" style="font-size:15px">🛡 Trust &amp; Safety 규칙</p>
+  <div class="rules">
+    <div><b>AI라고 밝히기</b>통화 첫마디에 coverfo AI 비서 포도야임을 밝혀요.</div>
+    <div><b>공개된 가게 번호만</b>카카오 장소에 공개된 가게 전화번호로만 걸어요.</div>
+    <div><b>녹음 동의</b>녹음은 통화 시작 때 먼저 알리고, 설정에서 켜고 끌 수 있어요.</div>
+    <div><b>실패 시 사람 백업</b>연결이 안 되면 내가 직접 거는 버튼으로 바로 이어져요.</div>
+    <div><b>예약 확정 문자</b>확정되면 예약 내용을 문자 앱에 채워 드려요 (보내기는 내가).</div>
+  </div>
+  <p class="mu sm" style="margin:10px 0 0;line-height:1.6">예약 내용·이름은 이 기기에만 저장되고 서버로 보내지 않아요. 가게 찾기는 카카오 장소 검색을 써요.</p>
+</section>
+</main>
+
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="내 예약"><div class="in">
+  <div class="row" style="justify-content:space-between"><b style="font-size:16px">📒 내 예약</b><button class="x" id="sheetX" aria-label="닫기">✕</button></div>
+  <div id="mylist"></div>
+</div></div>
+<div class="toast" id="toast" aria-live="polite"></div>
+
+<script>
+(function(){
+"use strict";
+/* AI 가 실제로 대신 거는 통화(전화 회선)가 연결되면 true 로 바꾼다. 그 전에는 ③ 화면이 대본 미리보기로만 동작 */
+var AI_CALL_READY = false;
+var LS = "cf-call-v1";
+var $ = function(id){ return document.getElementById(id); };
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];}); }
+function load(){ try{ return JSON.parse(localStorage.getItem(LS)||"{}")||{}; }catch(e){ return {}; } }
+function save(d){ try{ localStorage.setItem(LS,JSON.stringify(d)); }catch(e){} }
+var store = load(); store.list = Array.isArray(store.list)?store.list:[];
+
+var tt;
+function toast(t){ var e=$("toast"); e.textContent=t; e.classList.add("on"); clearTimeout(tt); tt=setTimeout(function(){ e.classList.remove("on"); },3000); }
+
+/* ── 상태 ── */
+var S = { q:"", shops:[], sel:-1, tried:[], date:"", time:"19:00", ppl:2, opts:[], booking:null, near:null };
+var OPTS = ["금연석","룸","창가","아기의자","주차"];
+
+/* ── 단계 ── */
+var step = 0;
+function go(n){
+  step = n;
+  [].forEach.call(document.querySelectorAll(".pane"),function(p,i){ p.classList.toggle("on",i===n); });
+  [].forEach.call(document.querySelectorAll("#steps button"),function(b,i){ b.classList.toggle("on",i===n); });
+  try{ window.scrollTo({top:0,behavior:"smooth"}); }catch(e){ window.scrollTo(0,0); }
+  if(n===1) drawP1();
+  if(n===2) drawP2();
+  if(n===3) drawP3();
+  if(n===4) drawP4();
+  if(n!==2) stopCall(true);
+}
+$("steps").addEventListener("click",function(e){ var b=e.target.closest("button[data-s]"); if(b) go(+b.getAttribute("data-s")); });
+document.addEventListener("click",function(e){ var b=e.target.closest("[data-go]"); if(b){ e.preventDefault(); go(+b.getAttribute("data-go")); } });
+
+/* ── 닫기 (홈 위 덮개면 덮개만 걷기) ── */
+$("close").onclick=function(){
+  stopCall(true);
+  try{ if(window.parent!==window && window.parent.cfPageClose){ window.parent.cfPageClose(); return; } }catch(e){}
+  try{ if(window.opener){ window.close(); } }catch(e){}
+  setTimeout(function(){ if(history.length>1) history.back(); else location.href="/"; },150);
+};
+
+/* ── 날짜·말 풀기 ── */
+function pad(n){ return (n<10?"0":"")+n; }
+function ymd(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+function today(){ var d=new Date(); d.setHours(0,0,0,0); return d; }
+function addDays(n){ var d=today(); d.setDate(d.getDate()+n); return d; }
+var DOW=["일","월","화","수","목","금","토"];
+function dateLabel(s){
+  if(!s) return "";
+  var p=s.split("-"), d=new Date(+p[0],+p[1]-1,+p[2]), diff=Math.round((d-today())/864e5);
+  var base=(d.getMonth()+1)+"월 "+d.getDate()+"일 ("+DOW[d.getDay()]+")";
+  return diff===0?"오늘 · "+base:diff===1?"내일 · "+base:diff===2?"모레 · "+base:base;
+}
+function timeLabel(s){ if(!s) return ""; var p=s.split(":"), h=+p[0], m=+p[1]; return (h<12?"오전 ":"오후 ")+(h%12||12)+"시"+(m?" "+m+"분":""); }
+var KN={"한":1,"하나":1,"두":2,"둘":2,"세":3,"셋":3,"네":4,"넷":4,"다섯":5,"여섯":6,"일곱":7,"여덟":8,"아홉":9,"열":10};
+function parse(t){
+  var r={}, s=" "+t+" ";
+  /* 날짜 */
+  if(/모레/.test(s)) r.date=ymd(addDays(2));
+  else if(/내일/.test(s)) r.date=ymd(addDays(1));
+  else if(/오늘|지금|이따/.test(s)) r.date=ymd(today());
+  var md=s.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+  if(md){ var y=today().getFullYear(), d=new Date(y,+md[1]-1,+md[2]); if(d<today()) d=new Date(y+1,+md[1]-1,+md[2]); r.date=ymd(d); }
+  else { var dd=s.match(/(?:^|\s)(\d{1,2})\s*일(?![본])/); if(dd&&!r.date){ var t0=today(), d2=new Date(t0.getFullYear(),t0.getMonth(),+dd[1]); if(d2<t0) d2.setMonth(d2.getMonth()+1); r.date=ymd(d2); } }
+  var wd=s.match(/(다음\s*주\s*|이번\s*주\s*)?([일월화수목금토])요일/);
+  if(wd&&!md){ var tg=DOW.indexOf(wd[2]), t1=today(), k=(tg-t1.getDay()+7)%7; if(wd[1]&&/다음/.test(wd[1])) k+=7; r.date=ymd(addDays(k)); }
+  /* 시간 */
+  var hm=s.match(/(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분|\s*(반))?/), h=null, m=0;
+  var hh=s.match(/(\d{1,2}):(\d{2})/);
+  if(hh){ h=+hh[1]; m=+hh[2]; }
+  else if(hm){ h=+hm[1]; m=hm[3]?30:(hm[2]?+hm[2]:0); }
+  if(h!==null && h<=24){
+    var am=/오전|아침|새벽/.test(s), pm=/오후|저녁|밤/.test(s), lunch=/점심/.test(s);
+    if(pm && h<12) h+=12;
+    else if(!am && !pm){ if(lunch){ if(h<6) h+=12; } else if(h>=1 && h<=10) h+=12; }
+    if(h===24) h=0;
+    r.time=pad(h)+":"+pad(Math.min(59,m));
+  } else if(/점심/.test(s)) r.time="12:00"; else if(/저녁/.test(s)) r.time="19:00";
+  /* 인원 */
+  var pp=s.match(/(\d{1,2})\s*(명|인)(?![가-힣]*원)/);
+  if(pp) r.ppl=+pp[1];
+  else { var kn=s.match(/(하나|한|둘|두|셋|세|넷|네|다섯|여섯|일곱|여덟|아홉|열)\s*(명|사람|분)/); if(kn) r.ppl=KN[kn[1]]; }
+  /* 옵션 */
+  r.opts=OPTS.filter(function(o){ return s.indexOf(o)>=0 || (o==="룸"&&/룸|방\b|프라이빗/.test(s)); });
+  /* 가게 검색어: 날짜·시간·인원·말끝 지우기 */
+  var q=t.replace(/포도야[,\s]*/g," ")
+    .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}:\d{2}|\d{1,2}\s*시(\s*\d{1,2}\s*분|\s*반)?|\d{1,2}\s*일(?![본])/g," ")
+    .replace(/\d{1,2}\s*(명|인)|(하나|한|둘|두|셋|세|넷|네|다섯|여섯|일곱|여덟|아홉|열)\s*(명|사람|분)/g," ")
+    .replace(/(다음\s*주|이번\s*주)?\s*[일월화수목금토]요일/g," ")
+    .replace(/오늘|내일|모레|지금|이따|오전|오후|아침|점심|저녁|새벽|밤|금연석|창가|아기의자|주차|룸/g," ")
+    .replace(/가능한\s*(곳|데|집)/g," ")
+    .replace(/예약\s*(좀\s*)?(해\s*줘|해\s*주세요|하고\s*싶어|부탁해?|해|할래|가능)?|해\s*줘|해\s*주세요|부탁(해|드려요)?|좀|에서|가능한\s*곳/g," ")
+    .replace(/(^|\s)(으로|로)(?=\s|$)/g," ")
+    .replace(/[,.!?~]/g," ").replace(/\s+/g," ").trim();
+  q=q.replace(/(\S+)집$/,function(a,b){ return b.length>=2 && !/^(고기|고깃|돼지|국밥|칼국수|술|밥)$/.test(b)?b:a; });
+  r.q=q;
+  return r;
+}
+
+/* ── 조건 칸 ── */
+(function(){ var o="",i; for(i=1;i<=20;i++) o+='<option value="'+i+'">'+i+'명</option>'; o+='<option value="25">20명 넘게</option>'; $("cPpl").innerHTML=o; })();
+function drawCond(){
+  $("cond").hidden=false;
+  $("cDate").value=S.date; $("cDate").min=ymd(today());
+  $("cTime").value=S.time;
+  $("cPpl").value=String(S.ppl>20?25:S.ppl);
+  $("opts").innerHTML=OPTS.map(function(o){ return '<button type="button" data-o="'+o+'" class="'+(S.opts.indexOf(o)>=0?"on":"")+'">'+o+'</button>'; }).join("");
+}
+$("cDate").onchange=function(){ S.date=this.value||ymd(today()); };
+$("cTime").onchange=function(){ S.time=this.value||"19:00"; };
+$("cPpl").onchange=function(){ S.ppl=+this.value||2; };
+$("opts").onclick=function(e){ var b=e.target.closest("button[data-o]"); if(!b) return; var o=b.getAttribute("data-o"), i=S.opts.indexOf(o); if(i>=0) S.opts.splice(i,1); else S.opts.push(o); b.classList.toggle("on",i<0); };
+
+/* ── 채팅 ── */
+function say(who,html){
+  var c=$("chat");
+  if(who==="me") c.insertAdjacentHTML("beforeend",'<div class="me">'+html+'</div>');
+  else c.insertAdjacentHTML("beforeend",'<div class="ai"><span class="av">🍇</span><p>'+html+'</p></div>');
+}
+function ask(text){
+  text=String(text||"").trim(); if(!text) return;
+  say("me",esc(text));
+  var r=parse(text);
+  if(r.date) S.date=r.date; if(!S.date) S.date=ymd(today());
+  if(r.time) S.time=r.time;
+  if(r.ppl) S.ppl=Math.max(1,Math.min(25,r.ppl));
+  if(r.opts.length) S.opts=r.opts;
+  if(r.q) find(r.q,null);
+  else if(S.q) { say("ai","조건을 바꿨어요: <b>"+esc(dateLabel(S.date))+" · "+esc(timeLabel(S.time))+" · "+S.ppl+"명</b>"); drawCond(); }
+  else say("ai","어느 가게(또는 지역+음식)인지 알려 주세요. 예) <b>홍대 삼겹살</b> · 또는 📍 내 주변에서 찾기");
+}
+$("askf").onsubmit=function(e){ e.preventDefault(); var v=$("ask").value; $("ask").value=""; ask(v); };
+$("ex").onclick=function(e){ var b=e.target.closest("button"); if(!b||b.id==="nearbtn") return; ask(b.textContent); };
+$("nearbtn").onclick=function(){
+  if(!navigator.geolocation){ toast("이 기기에서는 위치를 쓸 수 없어요"); return; }
+  toast("내 위치를 확인하는 중…");
+  navigator.geolocation.getCurrentPosition(function(p){
+    S.near={x:p.coords.longitude,y:p.coords.latitude};
+    var q=S.q||"맛집";
+    say("me","📍 내 주변에서 "+esc(q)+" 찾아줘");
+    if(!S.date) S.date=ymd(today());
+    find(q,S.near);
+  },function(){ toast("위치 권한이 꺼져 있어요. 지역 이름으로 말해 주세요"); },{timeout:10000,maximumAge:120000});
+};
+
+function find(q,near){
+  S.q=q; S.sel=-1; S.tried=[];
+  var box=$("shops");
+  box.innerHTML='<div class="ai"><span class="av">🍇</span><p><span class="spin"></span> "'+esc(q)+'" 전화 가능한 곳을 찾는 중…</p></div>';
+  var u="/api/call-find?q="+encodeURIComponent(q)+(near?"&x="+near.x+"&y="+near.y:"");
+  fetch(u,{headers:{Accept:"application/json"}}).then(function(r){ return r.json().catch(function(){ return {}; }); }).then(function(d){
+    if(!d||!d.ok){ box.innerHTML=""; say("ai",esc((d&&d.error)||"가게를 찾지 못했어요. 다른 이름으로 말해 주세요")); return; }
+    S.shops=d.items||[];
+    if(!S.shops.length){ box.innerHTML=""; say("ai","\""+esc(q)+"\"(으)로는 가게가 안 나와요. 지역과 음식을 함께 말해 주세요. 예) 홍대 삼겹살"); return; }
+    S.sel=S.shops[0].phone?0:-1;
+    drawShops();
+    drawCond();
+    $("go1").hidden=false; $("go1n").hidden=false;
+  }).catch(function(){ box.innerHTML=""; say("ai","인터넷 연결을 확인해 주세요"); });
+}
+function shopHtml(o,i,sel){
+  var m=[];
+  if(o.cat) m.push('<span>'+esc(o.cat)+'</span>');
+  if(o.dist!=null) m.push('<span>'+(o.dist>=1000?(o.dist/1000).toFixed(1)+"km":o.dist+"m")+'</span>');
+  m.push(o.phone?'<span class="ph">☎ '+esc(o.phone)+'</span>':'<span class="np">전화번호 없음</span>');
+  return '<button type="button" class="shop'+(sel?" on":"")+'" data-i="'+i+'">'+
+    '<div class="n">'+esc(o.name)+'</div><div class="c">'+esc(o.addr)+(o.url?'<a class="lk" href="'+esc(o.url)+'" target="_blank" rel="noopener noreferrer" data-lk="1">지도·후기</a>':'')+'</div>'+
+    '<div class="m">'+m.join("")+'</div>'+(sel?'<div class="sel">✓ 선택됨 — 다음 화면 요약에 반영돼요</div>':'')+'</button>';
+}
+function drawShops(){
+  var b=$("shops");
+  b.innerHTML='<div class="ai"><span class="av">🍇</span><p>어디로 할까요? 전화 가능한 '+S.shops.filter(function(o){return o.phone;}).length+'곳을 먼저 보여 드려요</p></div>'+
+    S.shops.map(function(o,i){ return shopHtml(o,i,i===S.sel); }).join("");
+}
+$("shops").addEventListener("click",function(e){
+  if(e.target.closest("[data-lk]")) return;
+  var b=e.target.closest(".shop"); if(!b) return;
+  var i=+b.getAttribute("data-i"), o=S.shops[i];
+  if(!o.phone){ toast("전화번호가 공개되지 않은 가게라 전화로 예약할 수 없어요"); return; }
+  S.sel=i; drawShops(); toast(o.name+" 을(를) 골랐어요");
+});
+$("go1").onclick=function(){
+  if(S.sel<0){ toast("전화할 가게를 먼저 골라 주세요"); return; }
+  go(1);
+};
+
+/* ── ② 가게 확인 ── */
+function cur(){ return S.sel>=0?S.shops[S.sel]:null; }
+function optTxt(){ return S.opts.length?" · "+S.opts.join("·"):""; }
+function telHref(o){ return o&&o.phone?"tel:"+o.phone.replace(/[^0-9]/g,""):"#"; }
+function drawP1(){
+  var o=cur();
+  $("p1empty").hidden=!!o; $("p1body").hidden=!o; if(!o) return;
+  $("hCat").textContent=o.cat||"가게";
+  $("hName").textContent=o.name;
+  $("hMeta").textContent=dateLabel(S.date)+" · "+timeLabel(S.time)+" · "+S.ppl+"명";
+  $("hAddr").textContent=o.addr+(o.dist!=null?" · "+(o.dist>=1000?(o.dist/1000).toFixed(1)+"km":o.dist+"m"):"");
+  $("sName").textContent=o.name;
+  $("sDate").textContent=dateLabel(S.date);
+  $("sTime").textContent=timeLabel(S.time);
+  $("sPpl").textContent=S.ppl+"명"+optTxt();
+  $("sTel").textContent=o.phone;
+  $("sWho").value=store.who||"";
+  $("rec").classList.toggle("on",store.rec!==false); $("rec").setAttribute("aria-pressed",store.rec!==false?"true":"false");
+  $("selfGo").href=telHref(o);
+  $("selfAsk").hidden=true;
+  $("aiGo").textContent=AI_CALL_READY?"📞 포도야에게 전화 맡기기":"📞 포도야에게 전화 맡기기 (대본 미리보기)";
+}
+$("sWho").onchange=function(){ store.who=this.value.trim().slice(0,12); save(store); };
+$("rec").onclick=function(){ store.rec=!(store.rec!==false); save(store); this.classList.toggle("on",store.rec); this.setAttribute("aria-pressed",store.rec?"true":"false"); toast(store.rec?"통화 녹음을 켰어요":"통화 녹음을 껐어요"); };
+function who(){ return (($("sWho").value||store.who||"").trim()); }
+$("aiGo").onclick=function(){
+  if(!who()){ toast("예약자 이름을 적어 주세요"); $("sWho").focus(); return; }
+  store.who=who(); save(store);
+  go(2); startCall();
+};
+$("selfGo").addEventListener("click",function(){
+  if(!cur()) return;
+  store.who=who(); save(store);
+  setTimeout(function(){ $("selfAsk").hidden=false; },800);
+});
+$("selfOk").onclick=function(){ confirmBooking(); };
+$("selfNo").onclick=function(){ failed("직접 건 전화로 예약이 안 됐어요."); };
+
+/* ── ③ 통화 (AI_CALL_READY 가 false 면 대본 미리보기) ── */
+var timer=null, lineT=null, sec=0, li=0, running=false, speak=false;
+function script(){
+  var o=cur()||{name:"가게"}, nm=who()||"예약자", t=timeLabel(S.time), d=dateLabel(S.date).split(" · ")[0];
+  var opt=S.opts.length?" 가능하면 "+S.opts.join(", ")+"(으)로 부탁드려요.":"";
+  return [
+    {w:"AI",t:"안녕하세요, 저는 coverfo AI 비서 포도야입니다. "+nm+" 님 대신 예약 문의드려요."+(store.rec!==false?" 확인을 위해 통화가 녹음돼요.":"")},
+    {w:"사장님",t:"네, 말씀하세요."},
+    {w:"AI",t:d+" "+t+"에 "+S.ppl+"명 예약 가능할까요?"+opt},
+    {w:"사장님",t:"네, 그 시간 가능해요. 성함이 어떻게 되세요?"},
+    {w:"AI",t:nm+"(으)로 부탁드려요. "+S.ppl+"명, "+t+"입니다."},
+    {w:"사장님",t:"네, "+nm+" 님 "+S.ppl+"명으로 잡아 둘게요."},
+    {w:"AI",t:"감사합니다! 혹시 대기가 있으면 도착했을 때 안내 부탁드려요."}
+  ];
+}
+function fmt(s){ return pad(Math.floor(s/60))+":"+pad(s%60); }
+function drawP2(){
+  var o=cur();
+  $("cSub").textContent=o?o.name+" · "+timeLabel(S.time)+" · "+S.ppl+"명":"가게를 먼저 골라 주세요";
+  $("cPv").hidden=AI_CALL_READY; $("cReady").hidden=AI_CALL_READY;
+  if(!running && !li){ $("lines").innerHTML=""; $("cTtl").textContent="통화 미리보기"; $("cSt").textContent="아직 시작하지 않았어요"; $("cPg").style.width="0"; $("cTm").textContent="00:00"; }
+  $("restart").hidden=running; $("restart").disabled=!o;
+  var th=telHref(o); $("hoTel").href=th; $("pvTel").href=th;
+}
+function addLine(l){
+  $("lines").insertAdjacentHTML("beforeend",'<div class="ln '+(l.w==="AI"?"ai":"ow")+'"><small>'+(l.w==="AI"?"🍇 포도야 (AI)":"🏪 사장님 · 예시")+'</small>'+esc(l.t)+'</div>');
+  if(speak) talk(l);
+}
+function startCall(){
+  if(!cur()){ toast("가게를 먼저 골라 주세요"); go(0); return; }
+  stopCall(true);
+  var L=script(); li=0; sec=0; running=true;
+  $("lines").innerHTML=""; $("pvEnd").hidden=true; $("hoBox").hidden=true;
+  $("ring").classList.remove("off"); $("wave").hidden=false; $("restart").hidden=true;
+  $("cTtl").textContent=AI_CALL_READY?"포도야가 전화 거는 중...":"포도야 통화 미리보기 중...";
+  timer=setInterval(function(){ sec++; $("cTm").textContent=fmt(sec); },1000);
+  function next(){
+    if(!running) return;
+    if(li>=L.length){ endCall(); return; }
+    addLine(L[li]); li++;
+    var pc=Math.round(li/L.length*100);
+    $("cPg").style.width=Math.max(12,pc)+"%"; $("cSt").textContent=(AI_CALL_READY?"통화 중… ":"미리보기 ")+pc+"%";
+    lineT=setTimeout(next,speak?Math.max(2600,L[li-1].t.length*170):2300);
+  }
+  lineT=setTimeout(next,900);
+  $("cSt").textContent="연결하는 중…";
+}
+function endCall(){
+  running=false; clearInterval(timer); clearTimeout(lineT);
+  $("ring").classList.add("off"); $("wave").hidden=true;
+  $("cTtl").textContent="미리보기 끝";
+  $("cSt").textContent=AI_CALL_READY?"통화가 끝났어요":"이 대본 그대로 직접 걸어 보세요";
+  $("pvEnd").hidden=false; $("restart").hidden=false; $("restart").textContent="▶ 미리보기 다시 보기";
+}
+function stopCall(silent){
+  var was=running;
+  running=false; clearInterval(timer); clearTimeout(lineT);
+  try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}
+  $("ring").classList.add("off"); $("wave").hidden=true;
+  if(was && !silent){ $("cTtl").textContent="통화를 끊었어요"; $("cSt").textContent="중간에 끊었어요"; }
+  $("restart").hidden=false;
+}
+$("restart").onclick=function(){ $("restart").textContent="▶ 통화 미리보기 시작"; startCall(); };
+$("hang").onclick=function(){ if(!running){ toast("진행 중인 통화가 없어요"); return; } stopCall(false); go(4); toast("통화를 끊고 백업 화면으로 왔어요"); };
+$("handoff").onclick=function(){ stopCall(true); $("hoBox").hidden=false; $("hoBox").scrollIntoView({block:"center",behavior:"smooth"}); };
+$("hoOk").onclick=function(){ confirmBooking(); };
+$("hoNo").onclick=function(){ failed("직접 건 전화로 예약이 안 됐어요."); };
+$("pvOk").onclick=function(){ confirmBooking(); };
+/* 소리로 듣기 — 기기 내장 음성(speechSynthesis)으로 포도야 말을 읽어 줌 */
+function talk(l){
+  try{
+    if(!window.speechSynthesis) return;
+    var u=new SpeechSynthesisUtterance(l.t); u.lang="ko-KR"; u.rate=1.05; u.pitch=l.w==="AI"?1.15:0.8;
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+$("listen").onclick=function(){
+  if(!window.speechSynthesis){ toast("이 기기는 소리로 듣기를 지원하지 않아요"); return; }
+  speak=!speak; this.classList.toggle("on",speak);
+  if(!speak){ try{ speechSynthesis.cancel(); }catch(e){} }
+  toast(speak?"포도야 목소리로 들려 드려요":"소리 듣기를 껐어요");
+};
+
+/* ── ④ 예약 완료 ── */
+function code(){ var c="ABCDEFGHJKLMNPQRSTUVWXYZ23456789",s="CF-"; for(var i=0;i<4;i++) s+=c[Math.floor(Math.random()*c.length)]; return s; }
+function confirmBooking(){
+  var o=cur(); if(!o){ toast("가게를 먼저 골라 주세요"); go(0); return; }
+  stopCall(true);
+  S.booking={ id:code(), name:o.name, phone:o.phone, addr:o.addr, x:o.x, y:o.y, date:S.date, time:S.time, ppl:S.ppl, opts:S.opts.slice(), who:who(), note:"", at:Date.now() };
+  store.list.unshift(S.booking); store.list=store.list.slice(0,20); save(store);
+  go(3); toast("예약 내용을 정리했어요");
+}
+function bkText(b){
+  return "🍇 coverfo 예약 확정\n"+b.name+"\n"+dateLabel(b.date)+" "+timeLabel(b.time)+" · "+b.ppl+"명"+(b.opts.length?" · "+b.opts.join("·"):"")+
+    "\n예약자 "+(b.who||"-")+" · 메모번호 "+b.id+(b.note?"\n안내: "+b.note:"")+"\n📍 "+b.addr+"\n☎ "+b.phone;
+}
+function drawP3(){
+  var b=S.booking;
+  $("p3empty").hidden=!!b; $("p3body").hidden=!b; if(!b) return;
+  $("bk").innerHTML='<b style="font-size:15px">'+esc(b.name)+'</b><br>'+esc(dateLabel(b.date))+' · '+esc(timeLabel(b.time))+' · '+b.ppl+'명'+esc(b.opts.length?" · "+b.opts.join("·"):"")+
+    '<br>예약자 '+esc(b.who||"-")+' · 메모번호 <b class="no">'+esc(b.id)+'</b><br><span class="mu sm">📍 '+esc(b.addr)+' · ☎ '+esc(b.phone)+'</span>';
+  $("bWait").value=b.note||"";
+  $("shareBox").hidden=true; $("brag").hidden=true;
+  $("smsBtn").href="sms:?&body="+encodeURIComponent(bkText(b));
+}
+$("bWait").onchange=function(){
+  var b=S.booking; if(!b) return; b.note=this.value.trim().slice(0,40);
+  store.list.forEach(function(x){ if(x.id===b.id) x.note=b.note; }); save(store);
+  $("smsBtn").href="sms:?&body="+encodeURIComponent(bkText(b));
+};
+$("shareBtn").onclick=function(){
+  var b=S.booking; if(!b) return; var tx=bkText(b);
+  if(navigator.share){ navigator.share({title:"예약 확정 · "+b.name,text:tx}).catch(function(){}); return; }
+  $("shareBox").hidden=!$("shareBox").hidden; $("shareTx").value=tx.replace(/\n/g," / ");
+};
+$("copyBtn").onclick=function(){
+  var tx=bkText(S.booking);
+  function ok(){ $("copyBtn").textContent="복사됨"; toast("예약 내용을 복사했어요"); }
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(tx).then(ok,function(){ $("shareTx").select(); try{ document.execCommand("copy"); ok(); }catch(e){} });
+  else { $("shareTx").select(); try{ document.execCommand("copy"); ok(); }catch(e){} }
+};
+$("icsBtn").onclick=function(){
+  var b=S.booking; if(!b) return;
+  var p=b.date.split("-"), t=b.time.split(":");
+  var st=p[0]+p[1]+p[2]+"T"+t[0]+t[1]+"00", e=new Date(+p[0],+p[1]-1,+p[2],+t[0]+2,+t[1]);
+  var en=e.getFullYear()+pad(e.getMonth()+1)+pad(e.getDate())+"T"+pad(e.getHours())+pad(e.getMinutes())+"00";
+  function ic(s){ return String(s).replace(/[\\;,]/g,function(c){return "\\"+c;}).replace(/\n/g,"\\n"); }
+  var ics=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//coverfo//call//KO","BEGIN:VEVENT","UID:"+b.id+"-"+b.at+"@coverfo.com",
+    "DTSTAMP:"+new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d+/,""),"DTSTART;TZID=Asia/Seoul:"+st,"DTEND;TZID=Asia/Seoul:"+en,
+    "SUMMARY:"+ic(b.name+" · "+b.ppl+"명"),"LOCATION:"+ic(b.addr),"DESCRIPTION:"+ic(bkText(b)),
+    "BEGIN:VALARM","TRIGGER:-PT1H","ACTION:DISPLAY","DESCRIPTION:"+ic(b.name+" 예약 1시간 전"),"END:VALARM","END:VEVENT","END:VCALENDAR"].join("\r\n");
+  var a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([ics],{type:"text/calendar"})); a.download="coverfo-"+b.id+".ics";
+  document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },1000);
+  toast("캘린더 파일을 받았어요 — 열면 일정에 추가돼요");
+};
+$("bragBtn").onclick=function(){
+  var b=S.booking; if(!b) return;
+  $("bgTop").textContent="COVERFO · "+dateLabel(b.date).split(" · ")[0]+" "+timeLabel(b.time);
+  $("bgName").innerHTML=esc(b.name)+"<br>"+b.ppl+"명 예약 완료!";
+  $("brag").hidden=!$("brag").hidden;
+};
+$("bragSave").onclick=function(){
+  var b=S.booking; if(!b) return;
+  var c=document.createElement("canvas"), W=1080, H=1080; c.width=W; c.height=H;
+  var x=c.getContext("2d"), g=x.createLinearGradient(0,0,W,H); g.addColorStop(0,"#6C3BFF"); g.addColorStop(1,"#FF6FAE");
+  x.fillStyle=g; x.fillRect(0,0,W,H);
+  x.fillStyle="rgba(255,255,255,.85)"; x.font="700 40px sans-serif"; x.fillText("COVERFO · "+dateLabel(b.date).split(" · ")[0]+" "+timeLabel(b.time),90,170);
+  x.fillStyle="#fff"; x.font="900 92px sans-serif";
+  var nm=b.name, lines=[], s="";
+  for(var i=0;i<nm.length;i++){ s+=nm[i]; if(x.measureText(s).width>880){ lines.push(s.slice(0,-1)); s=nm[i]; } }
+  lines.push(s); lines=lines.slice(0,3);
+  lines.forEach(function(l,k){ x.fillText(l,90,360+k*110); });
+  x.fillText(b.ppl+"명 예약 완료!",90,360+lines.length*110);
+  x.font="600 46px sans-serif"; x.fillText("포도야가 전화로 확정했어요 🍇",90,H-150);
+  c.toBlob(function(bl){ if(!bl) return; var a=document.createElement("a"); a.href=URL.createObjectURL(bl); a.download="coverfo-예약-"+b.id+".png"; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },1000); toast("자랑 카드를 저장했어요"); },"image/png");
+};
+$("taxi").onclick=function(){
+  try{
+    var P=window.parent;
+    if(P!==window && P.cfV16 && P.cfV16.life){ if(P.cfPageClose) P.cfPageClose(); P.cfV16.life("택시"); return; }
+  }catch(e){}
+  toast("홈 화면의 🚕 택시 칸에서 불러 주세요");
+};
+
+/* ── ⑤ 실패 시 백업 ── */
+function failed(msg){ var o=cur(); if(o && S.tried.indexOf(o.id)<0) S.tried.push(o.id); $("fMsg").textContent=msg+" 여기서 바로 다음 방법을 골라요."; go(4); }
+function drawP4(){
+  var o=cur(), others=S.shops.filter(function(s){ return s.phone && (!o||s.id!==o.id) && S.tried.indexOf(s.id)<0; }).slice(0,3);
+  var h='';
+  if(others.length){
+    h+='<p class="h" style="margin:14px 0 0">비슷한 조건의 다른 가게</p>';
+    others.forEach(function(s){ h+='<button type="button" class="pick" data-sid="'+esc(s.id)+'"><b>'+esc(s.name)+'<span style="display:inline;margin:0">›</span></b><span>'+esc(s.cat||"")+(s.dist!=null?" · "+(s.dist>=1000?(s.dist/1000).toFixed(1)+"km":s.dist+"m"):"")+' · ☎ '+esc(s.phone)+'</span></button>'; });
+  } else h+='<button type="button" class="pick" data-go="0"><b>다른 가게 보기 <span style="display:inline;margin:0">›</span></b><span>다른 이름·지역으로 다시 찾아요</span></button>';
+  if(o) h+='<a class="pick" target="_top" href="'+telHref(o)+'"><b>내가 직접 걸어 보기 <span style="display:inline;margin:0">›</span></b><span>'+esc(o.name)+' · ☎ '+esc(o.phone)+'</span></a>';
+  if(o) h+='<button type="button" class="pick" id="later"><b>나중에 다시 걸기 <span style="display:inline;margin:0">›</span></b><span>30분 뒤 알림을 캘린더에 넣어 드려요</span></button>';
+  $("picks").innerHTML=h;
+}
+$("picks").addEventListener("click",function(e){
+  var b=e.target.closest("[data-sid]");
+  if(b){ var id=b.getAttribute("data-sid"); S.shops.forEach(function(s,i){ if(s.id===id) S.sel=i; }); drawShops(); go(1); toast(cur().name+" (으)로 바꿨어요"); return; }
+  if(e.target.closest("#later")){
+    var o=cur(); if(!o) return;
+    var d=new Date(Date.now()+30*60000), st=d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+"T"+pad(d.getHours())+pad(d.getMinutes())+"00";
+    var d2=new Date(d.getTime()+10*60000), en=d2.getFullYear()+pad(d2.getMonth()+1)+pad(d2.getDate())+"T"+pad(d2.getHours())+pad(d2.getMinutes())+"00";
+    var ics=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//coverfo//call//KO","BEGIN:VEVENT","UID:later-"+Date.now()+"@coverfo.com",
+      "DTSTAMP:"+new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d+/,""),"DTSTART:"+st,"DTEND:"+en,
+      "SUMMARY:☎ "+o.name.replace(/[\\;,]/g," ")+" 다시 전화하기","DESCRIPTION:"+(o.phone+" · "+timeLabel(S.time)+" "+S.ppl+"명").replace(/[\\;,]/g," "),
+      "BEGIN:VALARM","TRIGGER:PT0M","ACTION:DISPLAY","DESCRIPTION:다시 전화하기","END:VALARM","END:VEVENT","END:VCALENDAR"].join("\r\n");
+    var a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([ics],{type:"text/calendar"})); a.download="coverfo-다시걸기.ics";
+    document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },1000);
+    toast("30분 뒤 알림 파일을 받았어요 — 열면 캘린더에 들어가요");
+  }
+});
+
+/* ── 내 예약 ── */
+function drawMine(){
+  var L=store.list;
+  $("mylist").innerHTML=L.length?L.map(function(b,i){
+    return '<div class="mb"><button class="rm" data-rm="'+i+'">지우기</button><b>'+esc(b.name)+'</b><br>'+esc(dateLabel(b.date))+' · '+esc(timeLabel(b.time))+' · '+b.ppl+'명<br><span class="mu">메모번호 '+esc(b.id)+(b.note?" · "+esc(b.note):"")+' · ☎ <a target="_top" href="tel:'+esc(String(b.phone).replace(/[^0-9]/g,""))+'">'+esc(b.phone)+'</a></span></div>';
+  }).join(""):'<p class="mu" style="font-size:13px;margin:14px 0">아직 저장된 예약이 없어요.</p>';
+}
+$("mine").onclick=function(){ drawMine(); $("sheet").classList.add("on"); };
+$("sheetX").onclick=function(){ $("sheet").classList.remove("on"); };
+$("sheet").onclick=function(e){ if(e.target===this) this.classList.remove("on"); };
+$("mylist").onclick=function(e){ var b=e.target.closest("[data-rm]"); if(!b) return; store.list.splice(+b.getAttribute("data-rm"),1); save(store); drawMine(); };
+
+S.date=ymd(today());
+})();
+</script>
+</body>
+</html>
