@@ -115,7 +115,7 @@ button:focus-visible,a:focus-visible{outline:3px solid rgba(108,77,255,.45);outl
     d3:'<svg viewBox="0 0 24 24"><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M12 22V12M21 7l-9 5-9-5"/></svg>'
   };
   var KN={dec:"결정",sho:"쇼츠",img:"이미지",vid:"영상",app:"앱",d3:"3D"};
-  var F=[["all","전체"],["dec","결정"],["sho","쇼츠"],["img","이미지"],["vid","영상"],["app","앱"],["d3","3D"]];
+  var F=[["all","최신"],["dec","결정"],["sho","쇼츠"],["img","이미지"],["vid","영상"],["app","앱"],["d3","3D"]];
   var S={tok:"",filter:"all",items:[],shares:[]};
   function tok(){ try{ for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf("sb-")===0&&k.indexOf("-auth-token")>0){ var v=JSON.parse(localStorage.getItem(k)||"null"); var t=v&&(v.access_token||(v.currentSession&&v.currentSession.access_token)); if(t) return t; } } }catch(e){} return ""; }
   function getJSON(u){ return fetch(u,{headers:S.tok?{Authorization:"Bearer "+S.tok}:{},cache:"no-store"}).then(function(r){ return r.ok?r.json():null; }).catch(function(){ return null; }); }
@@ -144,28 +144,40 @@ button:focus-visible,a:focus-visible{outline:3px solid rgba(108,77,255,.45);outl
   $("close").onclick=function(){ closeTo(""); };
 
   /* ── 모으기 ── */
+  /* v481: 빨리 보이게 — ① 지난번 목록(이 브라우저에 저장)을 먼저 보여 주고 ② 결정·쇼츠·이미지·앱을 오는 대로 하나씩 채운다 (가장 느린 것을 기다리지 않음) */
+  var CK="cf-mywork-cache", B={dec:[],sho:[],gen:[],eng:[]}, fresh={};
+  function merge(){
+    var out=[].concat(B.dec,B.sho,B.gen,B.eng);
+    out.sort(function(a,b){ return (b.at||0)-(a.at||0); });
+    S.items=out; draw();
+    try{ localStorage.setItem(CK,JSON.stringify({shares:S.shares,items:out.slice(0,40).map(function(x){ var y={}; for(var k in x) if(k!=="html") y[k]=x[k]; return y; })})); }catch(e){}
+  }
   function load(){
     S.tok=tok();
-    var sharesP=S.tok?share({op:"mine"}):Promise.resolve(null);
-    var genP=S.tok?getJSON("/api/gen?list=1"):Promise.resolve(null);
-    var engP=S.tok?getJSON("/api/engine-history"):Promise.resolve(null);
-    var shoP=window.cfShorts?cfShorts.list():Promise.resolve([]);
-    return Promise.all([sharesP,genP,engP,shoP]).then(function(r){
-      var out=[];
-      S.shares=((r[0]&&r[0].items)||[]).filter(function(x){ return x.kind==="pick"; });
-      S.shares.forEach(function(x){ out.push({k:"dec",id:x.id,at:Date.parse(x.created_at)||0,title:x.final?x.title+" — "+x.final.replace(/\(으\)로 결정했어요$/,"(으)로 결정"):x.title,badge:x.final?"결정 완료":"투표 중",meta:"투표 "+(x.people||0)+"명 참여 · "+when(x.created_at),final:x.final||"",q:x.title}); });
-      (r[3]||[]).forEach(function(m){ out.push({k:"sho",id:m.id,at:m.at||0,title:m.title||"여행쇼츠",badge:"이 폰에 보관",meta:(m.len||"")+"초 · "+((m.size||0)/1048576).toFixed(1)+"MB · "+when(m.at),thumb:m.thumb||""}); });
-      ((r[1]&&r[1].jobs)||[]).forEach(function(j){
+    try{ var c=JSON.parse(localStorage.getItem(CK)||"null"); if(c&&c.items&&!S.items.length){ S.items=c.items; S.shares=c.shares||[]; draw(); } }catch(e){}
+    var put=function(k,arr){ B[k]=arr; fresh[k]=1; merge(); };
+    if(S.tok) share({op:"mine"}).then(function(r){
+      S.shares=((r&&r.items)||[]).filter(function(x){ return x.kind==="pick"; });
+      put("dec",S.shares.map(function(x){ return {k:"dec",id:x.id,at:Date.parse(x.created_at)||0,title:x.final?x.title+" — "+x.final.replace(/\(으\)로 결정했어요$/,"(으)로 결정"):x.title,badge:x.final?"결정 완료":"투표 중",meta:"투표 "+(x.people||0)+"명 참여 · "+when(x.created_at),final:x.final||"",q:x.title}; }));
+    }); else { S.shares=[]; B.dec=[]; }
+    (window.cfShorts?cfShorts.list():Promise.resolve([])).then(function(l){
+      put("sho",(l||[]).map(function(m){ return {k:"sho",id:m.id,at:m.at||0,title:m.title||"여행쇼츠",badge:"이 폰에 보관",meta:(m.len||"")+"초 · "+((m.size||0)/1048576).toFixed(1)+"MB · "+when(m.at),thumb:m.thumb||""}; }));
+    });
+    if(S.tok) getJSON("/api/gen?list=1").then(function(r){
+      var o=[];
+      ((r&&r.jobs)||[]).forEach(function(j){
         if(!j||(j.kind!=="image"&&j.kind!=="video")) return;
         var done=j.status==="done"&&j.result_url, run=j.status==="running"||j.status==="finalizing"; if(!done&&!run) return;
-        out.push({k:j.kind==="image"?"img":"vid",id:j.id,at:Date.parse(j.created_at)||0,title:String(j.prompt||"").replace(/^\[수정 #\d+\] /,"")||KN[j.kind==="image"?"img":"vid"],badge:run?"만드는 중":j.kind==="image"?"새 이미지":"새 영상",run:run,url:done?j.result_url:"",meta:when(j.created_at)});
+        o.push({k:j.kind==="image"?"img":"vid",id:j.id,at:Date.parse(j.created_at)||0,title:String(j.prompt||"").replace(/^\[수정 #\d+\] /,"")||KN[j.kind==="image"?"img":"vid"],badge:run?"만드는 중":j.kind==="image"?"새 이미지":"새 영상",run:run,url:done?j.result_url:"",meta:when(j.created_at)});
       });
-      var local=[]; try{ var v=JSON.parse(localStorage.getItem("cf-engine-history")||"[]"); if(Array.isArray(v)) local=v; }catch(e){}
-      var seen={};
-      local.concat((r[2]&&r[2].items)||[]).forEach(function(h){ if(!h||!h.at||seen[h.at]||!h.ok) return; seen[h.at]=1; var d3=h.mode==="3d";
-        out.push({k:d3?"d3":"app",id:String(h.at),at:h.at,title:h.title||h.prompt||"(제목 없음)",badge:d3?"3D":"앱",meta:when(h.at),chat:h.chat||"",html:h.html||""}); });
-      out.sort(function(a,b){ return (b.at||0)-(a.at||0); });
-      S.items=out; draw();
+      put("gen",o);
+    }); else B.gen=[];
+    var local=[]; try{ var v=JSON.parse(localStorage.getItem("cf-engine-history")||"[]"); if(Array.isArray(v)) local=v; }catch(e){}
+    (S.tok?getJSON("/api/engine-history"):Promise.resolve(null)).then(function(r){
+      var seen={}, o=[];
+      local.concat((r&&r.items)||[]).forEach(function(h){ if(!h||!h.at||seen[h.at]||!h.ok) return; seen[h.at]=1; var d3=h.mode==="3d";
+        o.push({k:d3?"d3":"app",id:String(h.at),at:h.at,title:h.title||h.prompt||"(제목 없음)",badge:d3?"3D":"앱",meta:when(h.at),chat:h.chat||"",html:h.html||""}); });
+      put("eng",o);
     });
   }
 
@@ -182,12 +194,13 @@ button:focus-visible,a:focus-visible{outline:3px solid rgba(108,77,255,.45);outl
   }
   function draw(){
     var cnt={all:S.items.length}; S.items.forEach(function(x){ cnt[x.k]=(cnt[x.k]||0)+1; });
-    $("chips").innerHTML=F.filter(function(f){ return f[0]==="all"||cnt[f[0]]; }).map(function(f){ return '<button type="button" data-f="'+f[0]+'" aria-pressed="'+(S.filter===f[0])+'">'+f[1]+'<em>'+(cnt[f[0]]||0)+'</em></button>'; }).join("");
-    var list=S.items.filter(function(x){ return S.filter==="all"||x.k===S.filter; });
+    $("chips").innerHTML=F.filter(function(f){ return f[0]==="all"||cnt[f[0]]; }).map(function(f){ return '<button type="button" data-f="'+f[0]+'" aria-pressed="'+(S.filter===f[0])+'">'+f[1]+(f[0]==="all"?'':'<em>'+(cnt[f[0]]||0)+'</em>')+'</button>'; }).join("");
+    /* v481: '최신' 은 가장 최근 5개만, 종류를 고르면 그 종류 30개까지 */
+    var list=S.items.filter(function(x){ return S.filter==="all"||x.k===S.filter; }).slice(0,S.filter==="all"?5:30);
     var h="";
     if(!S.tok) h+='<div class="login"><span style="flex:1">로그인하면 같이 정하기 결정 · 이미지 · 앱 작업도 여기에 모여요.</span><button type="button" data-a="login">로그인</button></div>';
-    h+='<div class="hd"><b>최근 작업<i>'+list.length+'</i></b><a href="/studio" target="_top">전체 보기 →</a></div>';
-    h+=list.length?list.slice(0,30).map(function(x){ return card(x,S.items.indexOf(x)); }).join(""):'<div class="empty">아직 만든 것이 없어요.<br>아래 <b>＋ 새로 만들기</b>로 시작해 보세요.</div>';
+    h+='<div class="hd"><b>'+(S.filter==="all"?'최신 작업':'최근 '+(F.filter(function(f){ return f[0]===S.filter; })[0]||["",""])[1])+'<i>'+list.length+'</i></b><a href="/studio" target="_top">전체 보기 →</a></div>';
+    h+=list.length?list.map(function(x){ return card(x,S.items.indexOf(x)); }).join(""):'<div class="empty">아직 만든 것이 없어요.<br>아래 <b>＋ 새로 만들기</b>로 시작해 보세요.</div>';
     h+='<div class="msg" id="msg" role="status"></div>';
     h+='<div class="two"><button type="button" class="n" data-a="new">＋ 새로 만들기</button><button type="button" class="g" data-a="pdy">'+GRAPE+'포도야에게 맡기기</button></div>';
     var ds=S.shares.slice(0,5);
