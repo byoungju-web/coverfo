@@ -357,6 +357,7 @@ function confirmRun(){
   var p=st.plan, pays=p.steps.filter(function(x){ return x.pay; });
   function start(){
     st.run={ at:Date.now(), title:p.title, learn:p.learn||[], steps:p.steps.map(function(x){ return Object.assign({ st:"wait", real:x.cost||0 },x); }), log:[] };
+    var dt=String(st.planText||""); st.run.day=/^\s*모레/.test(dt)?2:/^\s*내일/.test(dt)?1:0;   /* v494 "내일 …" 계획은 알림 시각도 내일로 */
     save(); go(2); toast("포도야가 맡았어요 · 시간 되면 알려 줄게");
   }
   if(!pays.length){ start(); return; }
@@ -364,7 +365,7 @@ function confirmRun(){
 }
 
 /* ════════ ③ 실행 중 ════════ */
-function stepAt(x){ if(!x.time) return 0; var p=x.time.split(":"), d=new Date(st.run.at); d.setHours(+p[0],+p[1],0,0); if(d.getTime()<st.run.at-6*3600e3) d.setDate(d.getDate()+1); return d.getTime(); }
+function stepAt(x){ if(!x.time) return 0; var p=x.time.split(":"), d=new Date(st.run.at); d.setHours(+p[0],+p[1],0,0); if(st.run.day) d.setDate(d.getDate()+st.run.day); else if(d.getTime()<st.run.at-6*3600e3) d.setDate(d.getDate()+1); return d.getTime(); }
 function copy(t){ try{ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t); return; } }catch(e){} try{ var a=document.createElement("textarea"); a.value=t; document.body.appendChild(a); a.select(); document.execCommand("copy"); a.remove(); }catch(e){} }
 var isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);
 function taxiUrl(){ return isIOS?"https://apps.apple.com/kr/app/id981110422":"intent://launch#Intent;scheme=kakaot;package=com.kakao.taxi;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kakao.taxi;end"; }
@@ -499,6 +500,12 @@ $("sheet").onclick=function(e){ if(e.target===this) this.classList.remove("on");
 
 if(st.plan) drawPlan(true);
 loadMem();
+/* v494 홈 하루 대행 카드에서 열 때: ?d=tomorrow → 내일 계획 쓰기 · ?tab=run → 실행 중 화면 */
+try{
+  var Q=new URLSearchParams(location.search);
+  if(Q.get("d")==="tomorrow"){ var ak=$("ask"); go(0); if(ak){ if(!/^\s*내일/.test(ak.value)) ak.value="내일 "; setTimeout(function(){ try{ ak.focus(); ak.setSelectionRange(ak.value.length,ak.value.length); }catch(e){} },300); } }
+  else if(Q.get("tab")==="run"&&st.run) go(2);
+}catch(e){}
 })();
 </script>
 </body>

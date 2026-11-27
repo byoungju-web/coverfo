@@ -271,8 +271,19 @@ body.pk{--bg:#F7F4FF;--ink:#17132B;--sub:#6B658A;--line:#E5DEF9;--pri:#7B61FF;--
     var keep=document.activeElement&&document.activeElement.id==="nick";
     var nv=nick();
     app.innerHTML=h;
+    inboxKeep();
     var ni=document.getElementById("nick");
     if(ni){ if(nv) ni.value=nv; ni.addEventListener("change",function(){ store("cf_s_nick",nick()); }); if(keep){ ni.focus(); } }
+  }
+  /* v494 👥 coverfo 홈 "친구가 보낸 결정이 있어요" 한 줄: 이 기기에서 연 결정 링크만 기억 (번호·제목·마감·투표했는지) */
+  function inboxKeep(){
+    try{
+      if(!S||!S.id) return;
+      var k="cf_s_inbox", a=JSON.parse(localStorage.getItem(k)||"[]"); if(!Array.isArray(a)) a=[];
+      a=a.filter(function(x){ return x&&x.id&&x.id!==S.id; });
+      a.unshift({id:S.id,t:String(S.title||"").slice(0,60),x:S.expires_at||"",d:D.deadline||"",v:T.mine.length?1:0,f:(D.final&&D.final.text)?1:0,at:Date.now()});
+      localStorage.setItem(k,JSON.stringify(a.slice(0,12)));
+    }catch(e){}
   }
   function load(){ return api({op:"get",id:S.id,voter:voter}).then(function(j){ if(j&&j.ok){ T={tally:j.tally||{},people:j.people||0,mine:j.mine||[]}; if(j.share&&j.share.data){ D.final=j.share.data.final||null; } if(!busy) render(); } else if(j&&j.gone){ S=null; app.innerHTML='<div class="gone"><b style="font-size:18px">링크를 찾을 수 없어요</b><br>30일이 지나 지워졌거나 보낸 사람이 지웠어요.</div>'; } }).catch(function(){}); }
   /* v485 🖼 결과 카드: 문장 1줄 + 같은 링크(coverfo.com/s/번호)를 크게 — /card/card.js */
