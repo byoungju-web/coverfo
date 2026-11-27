@@ -505,6 +505,7 @@ loadMem();
 try{
   var Q=new URLSearchParams(location.search);
   if(Q.get("d")==="tomorrow"){ var ak=$("ask"); go(0); if(ak){ if(!/^\s*내일/.test(ak.value)) ak.value="내일 "; setTimeout(function(){ try{ ak.focus(); ak.setSelectionRange(ak.value.length,ak.value.length); }catch(e){} },300); } }
+  else if(Q.get("q")){ var aq=$("ask"); go(0); if(aq){ aq.value=String(Q.get("q")).slice(0,200); setTimeout(function(){ try{ aq.focus(); aq.setSelectionRange(aq.value.length,aq.value.length); }catch(e){} },300); } }   /* v498 홈 칩(커피·기념일 선물)에서 열 때 요청 칸 채우기 — 맡기기는 내가 누름 */
   else if(Q.get("tab")==="run"&&st.run) go(2);
 }catch(e){}
 })();
