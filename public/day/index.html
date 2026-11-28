@@ -100,6 +100,8 @@ button{cursor:pointer}
 .run.done .st{color:var(--mint)} .run.skip .st{color:#94a3b8}
 .run .acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .run .acts a,.run .acts button{border:0;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:800;text-decoration:none;background:#F1ECFF;color:#55448F}
+.run .acts .bell{margin-left:auto;background:#fff;box-shadow:inset 0 0 0 1px #E5DFFF}
+.run .acts .bell.off{background:#F1F1F4;color:#94a3b8;box-shadow:none}
 .run .acts .go{background:linear-gradient(90deg,var(--pr),var(--pr2));color:#fff}
 .run .acts .ok{background:var(--mint);color:#fff}
 .res{border-radius:24px;padding:18px;color:#fff;background:linear-gradient(135deg,#6C4DFF,#3B82F6 55%,#FF6FAE);margin-top:10px}
@@ -186,7 +188,7 @@ button{cursor:pointer}
   <div id="p2empty" class="note a"><b>맡긴 계획이 없어요</b>① 하루 대행 요청에서 계획을 만들고 [이대로 맡기기]를 눌러 주세요.<button class="btn wh" data-go="0">① 하루 대행 요청으로</button></div>
   <div id="p2body" hidden>
     <div class="card"><p class="h" id="rTtl"></p><p class="mu sm" style="margin:0;line-height:1.6">시간이 되면 포도야가 알려 주고, 버튼 한 번에 그 앱이 열려요. <b>돈이 나가는 건 그 앱에서 내가 직접 확인하고 결제</b>해요.</p>
-      <button class="btn wh" id="icsAll">📅 단계별 알림을 캘린더에 넣기</button></div>
+      <button class="btn wh" id="icsAll">📅 알림 켜진 단계를 캘린더에 넣기</button></div>
     <div style="margin-top:14px" id="runList"></div>
     <div class="g2" style="margin-top:6px">
       <button class="btn ok" id="runDone">✅ 오늘 대행 끝</button>
@@ -379,7 +381,14 @@ function actHtml(x,i){
   else if(x.kind==="food") a+='<a class="go" data-act="map" data-i="'+i+'" href="'+mapUrl((x.place||"")+" "+(x.item||"맛집"))+'" target="_blank" rel="noopener">🍽 근처 가게 찾기</a>';
   else if(x.kind==="gift") a+='<button class="go" data-act="gift" data-i="'+i+'">🎁 주문할까?</button>';
   a+='<button class="ok" data-act="done" data-i="'+i+'">완료</button><button data-act="skip" data-i="'+i+'">이 단계 취소</button>';
+  if(x.time) a+='<button class="bell'+(x.mute?" off":"")+'" data-act="bell" data-i="'+i+'" aria-pressed="'+(x.mute?"false":"true")+'">'+(x.mute?"🔕 알림 꺼짐":"🔔 알림 켜짐")+'</button>';   /* v505 단계마다 알림 끄기·켜기 */
   return '<div class="acts">'+a+'</div>';
+}
+/* v505 남은 시간: 1시간이 넘으면 "7시간 26분 뒤" · 다른 날이면 "내일 · " */
+function leftTx(at,now){
+  var m=Math.max(1,Math.round((at-now)/60000)), t0=new Date(now); t0.setHours(0,0,0,0);
+  var dd=Math.floor((at-t0.getTime())/864e5), w=dd===1?"내일 · ":dd===2?"모레 · ":dd>2?dd+"일 뒤 · ":"";
+  return w+(m>=60?Math.floor(m/60)+"시간"+(m%60?" "+(m%60)+"분":"")+" 뒤":m+"분 뒤");
 }
 function drawRun(){
   var r=st.run; $("p2empty").hidden=!!r; $("p2body").hidden=!r; if(!r) return;
@@ -388,7 +397,7 @@ function drawRun(){
   r.steps.forEach(function(x,i){ if(first<0&&x.st==="wait") first=i; });
   $("runList").innerHTML=r.steps.map(function(x,i){
     var at=stepAt(x), cls=x.st==="done"?"done":x.st==="skip"?"skip":i===first?"now":"";
-    var stt=x.st==="done"?"완료 ✓":x.st==="skip"?"취소됨":at&&at>now?Math.max(1,Math.round((at-now)/60000))+"분 뒤":i===first?"지금 할 차례":"대기 중";
+    var stt=x.st==="done"?"완료 ✓":x.st==="skip"?"취소됨":at&&at>now?leftTx(at,now):i===first?"지금 할 차례":"대기 중";
     if(x.kind==="taxi"&&x.st==="wait"&&i===first) stt+=" · 카카오T에서 도착지 확인 후 호출해요";
     if(x.kind==="coffee"&&x.st==="wait"&&i===first) stt+=" · "+(x.item||"주문 메뉴")+" (메뉴 이름을 복사해 둘게요)";
     return '<div class="run '+cls+'"><span class="dot"></span><div class="bx"><b>'+esc((x.time?x.time+" · ":"")+(IC[x.kind]||"")+" "+x.title)+'</b><div class="mu sm">'+esc([x.place,x.item].filter(Boolean).join(" · "))+(x.pay&&x.cost?" · 약 "+won(x.cost):"")+'</div><div class="st">'+esc(stt)+'</div>'+actHtml(x,i)+'</div></div>';
@@ -400,6 +409,7 @@ $("runList").addEventListener("click",function(e){
   if(act==="taxi"){ copy(x.place||""); toast("도착지를 복사했어요 — 카카오T에서 확인하고 호출해 주세요"); return; }
   if(act==="map"){ if(x.item) copy(x.item); toast(x.item?"'"+x.item+"' 을(를) 복사했어요":"지도를 열었어요"); return; }
   if(act==="gift"){ e.preventDefault(); giftAsk(i); return; }
+  if(act==="bell"){ x.mute=x.mute?0:1; save(); drawRun(); toast(x.mute?"이 단계는 알림을 안 울려요":"이 단계 알림을 켰어요"); return; }
   if(act==="done"){ x.st="done"; save(); drawRun(); toast("완료했어요"); return; }
   if(act==="skip"){ sheet("이 단계를 취소할까요?",esc(x.title),"취소하기",function(){ x.st="skip"; save(); drawRun(); }); }
 });
@@ -431,7 +441,7 @@ $("icsAll").onclick=function(){
   function ic(s){ return String(s||"").replace(/[\\;,]/g," ").replace(/\n/g," "); }
   var L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//coverfo//day//KO"], n=0;
   r.steps.forEach(function(x,i){
-    var at=stepAt(x); if(!at||x.st!=="wait") return; n++;
+    var at=stepAt(x); if(!at||x.st!=="wait"||x.mute) return; n++;   /* v505 알림 끈 단계는 캘린더에도 안 넣음 */
     var pre=x.kind==="meeting"?10:x.kind==="taxi"?5:0, d=new Date(at);
     L.push("BEGIN:VEVENT","UID:day-"+r.at+"-"+i+"@coverfo.com","DTSTAMP:"+f(new Date()),"DTSTART:"+f(d),"DTEND:"+f(new Date(at+15*60000)),
       "SUMMARY:"+ic((IC[x.kind]||"")+" "+x.title),"LOCATION:"+ic(x.place),"DESCRIPTION:"+ic("coverfo 하루 대행 · "+[x.item,x.detail].filter(Boolean).join(" · ")),
@@ -455,7 +465,7 @@ function finish(){
 /* 이 화면이 열려 있으면 단계 시간에 진동·소리·알림 */
 setInterval(function(){
   var r=st.run; if(!r) return; var now=Date.now(), hit=null;
-  r.steps.forEach(function(x){ var at=stepAt(x); if(x.st==="wait"&&at&&!x.rang&&now>=at-(x.kind==="meeting"?10:x.kind==="taxi"?5:0)*60000){ x.rang=1; hit=x; } });
+  r.steps.forEach(function(x){ var at=stepAt(x); if(x.st==="wait"&&!x.mute&&at&&!x.rang&&now>=at-(x.kind==="meeting"?10:x.kind==="taxi"?5:0)*60000){ x.rang=1; hit=x; } });
   if(!hit) return; save();
   var msg=(IC[hit.kind]||"")+" "+hit.time+" "+hit.title+" — 지금 할 차례예요";
   try{ if(navigator.vibrate) navigator.vibrate([300,150,300]); }catch(e){}
