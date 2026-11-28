@@ -835,6 +835,23 @@ $("tstGo").onclick=function(){
 };
 
 S.date=ymd(today());
+/* v503 홈 🗓 예약 창의 [🤖 AI가 대신 전화로 예약]·소리 "AI로 해 줘"에서 열 때:
+   ?shop=가게&phone=번호&addr=주소&cat=분류&date=YYYY-MM-DD&time=HH:MM&ppl=인원 → 그 가게·조건으로 ② 가게 확인 화면부터 */
+(function(){
+  try{
+    var Q=new URLSearchParams(location.search), nm=String(Q.get("shop")||"").trim(), ph=String(Q.get("phone")||"").replace(/[^0-9\-]/g,"");
+    if(!nm||ph.replace(/[^0-9]/g,"").length<7) return;
+    S.q=nm; S.tried=[];
+    S.shops=[{ id:"rv", name:nm.slice(0,40), cat:String(Q.get("cat")||"").slice(0,20), phone:ph.slice(0,20), addr:String(Q.get("addr")||"").slice(0,80), dist:null, url:"", x:null, y:null }];
+    S.sel=0;
+    var d=String(Q.get("date")||""), tm=String(Q.get("time")||""), pp=+Q.get("ppl");
+    if(/^\d{4}-\d{2}-\d{2}$/.test(d)&&d>=ymd(today())) S.date=d;
+    if(/^\d{2}:\d{2}$/.test(tm)) S.time=tm;
+    if(pp>0) S.ppl=Math.max(1,Math.min(25,pp));
+    drawShops(); drawCond(); $("go1").hidden=false; $("go1n").hidden=false;
+    go(1);
+  }catch(e){}
+})();
 })();
 </script>
 </body>
